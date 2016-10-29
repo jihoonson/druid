@@ -20,6 +20,7 @@
 package io.druid.indexing.overlord;
 
 import com.google.common.base.Optional;
+import com.google.common.base.Stopwatch;
 import com.google.common.base.Throwables;
 import com.google.inject.Inject;
 import com.metamx.emitter.EmittingLogger;
@@ -42,7 +43,15 @@ import org.apache.curator.framework.recipes.leader.LeaderSelector;
 import org.apache.curator.framework.recipes.leader.LeaderSelectorListener;
 import org.apache.curator.framework.recipes.leader.Participant;
 import org.apache.curator.framework.state.ConnectionState;
+import org.apache.curator.utils.CloseableExecutorService;
+import org.apache.curator.utils.ThreadUtils;
 
+import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -66,6 +75,60 @@ public class TaskMaster
 
   private static final EmittingLogger log = new EmittingLogger(TaskMaster.class);
 
+  private static class DelayableCloseableExecutorService extends CloseableExecutorService {
+
+    private final int MAX_SLEEP_MS = Integer.MAX_VALUE;
+    private final int baseSleepMs = 100;
+    private final Random random = new Random();
+    private int backoffCount = 0;
+
+    DelayableCloseableExecutorService(ExecutorService executorService)
+    {
+      super(executorService);
+    }
+
+    public<V> Future<V> submit(Callable<V> task)
+    {
+      sleepForBackoffTime();
+      return super.submit(task);
+    }
+
+    public Future<?> submit(Runnable task)
+    {
+      sleepForBackoffTime();
+      return super.submit(task);
+    }
+
+    private void sleepForBackoffTime()
+    {
+      final long sleepMs = getSleepTime();
+      final Stopwatch stopwatch = Stopwatch.createStarted();
+
+      while (stopwatch.elapsed(TimeUnit.MILLISECONDS) < sleepMs)
+      {
+        try
+        {
+          Thread.sleep(sleepMs);
+        }
+        catch (InterruptedException e)
+        {
+          log.warn("Interrupted while waiting for backoff time", e);
+        }
+      }
+
+      stopwatch.stop();
+    }
+
+    private long getSleepTime() {
+      return Math.min(MAX_SLEEP_MS,
+                      baseSleepMs * Math.max(1, random.nextInt(1 << (backoffCount + 1))));
+    }
+
+    public void backoff() {
+      backoffCount++;
+    }
+  }
+
   @Inject
   public TaskMaster(
       final TaskQueueConfig taskQueueConfig,
@@ -83,9 +146,14 @@ public class TaskMaster
   {
     this.supervisorManager = supervisorManager;
     this.taskActionClientFactory = taskActionClientFactory;
+
+    final DelayableCloseableExecutorService executorService = new DelayableCloseableExecutorService(
+        Executors.newSingleThreadExecutor(ThreadUtils.newThreadFactory("LeaderSelector")));
+
     this.leaderSelector = new LeaderSelector(
         curator,
         zkPaths.getLeaderLatchPath(),
+        executorService,
         new LeaderSelectorListener()
         {
           @Override
@@ -168,6 +236,7 @@ public class TaskMaster
             if (newState == ConnectionState.LOST || newState == ConnectionState.SUSPENDED) {
               // disconnected from zk. assume leadership is gone
               stopLeading();
+              executorService.backoff();
             }
           }
         }
