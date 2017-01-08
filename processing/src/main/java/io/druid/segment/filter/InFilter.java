@@ -82,6 +82,15 @@ public class InFilter implements Filter
     }
   }
 
+  public double estimateSelectivity(final BitmapIndexSelector selector, final long totalNumRows)
+  {
+    long sum = 0;
+    for (String eachVal : values) {
+      sum += selector.getBitmapIndex(dimension, eachVal).size();
+    }
+    return (double)sum / (double)totalNumRows;
+  }
+
   @Override
   public ValueMatcher makeMatcher(ValueMatcherFactory factory)
   {

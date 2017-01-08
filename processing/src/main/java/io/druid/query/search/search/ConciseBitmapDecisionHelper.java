@@ -23,6 +23,7 @@ public class ConciseBitmapDecisionHelper extends SearchQueryDecisionHelper
 {
   private static final double LOW_FILTER_SELECTIVITY_THRESHOLD = 0.99;
   private static final int LOW_CARDINALITY_THRESHOLD = 5000;
+  private static final double INTERSECT_COST = 7.425;
   private static final ConciseBitmapDecisionHelper INSTANCE = new ConciseBitmapDecisionHelper();
 
   public static ConciseBitmapDecisionHelper instance()
@@ -32,6 +33,6 @@ public class ConciseBitmapDecisionHelper extends SearchQueryDecisionHelper
 
   private ConciseBitmapDecisionHelper()
   {
-    super(LOW_FILTER_SELECTIVITY_THRESHOLD, LOW_CARDINALITY_THRESHOLD);
+    super(INTERSECT_COST);
   }
 }

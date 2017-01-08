@@ -20,7 +20,6 @@
 package io.druid.benchmark.query;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -53,9 +52,12 @@ import io.druid.query.search.SearchQueryQueryToolChest;
 import io.druid.query.search.SearchQueryRunnerFactory;
 import io.druid.query.search.SearchResultValue;
 import io.druid.query.search.SearchStrategySelector;
+import io.druid.query.search.search.AutoStrategy;
+import io.druid.query.search.search.CursorOnlyStrategy;
 import io.druid.query.search.search.SearchHit;
 import io.druid.query.search.search.SearchQuery;
 import io.druid.query.search.search.SearchQueryConfig;
+import io.druid.query.search.search.UseIndexesStrategy;
 import io.druid.query.spec.MultipleIntervalSegmentSpec;
 import io.druid.query.spec.QuerySegmentSpec;
 import io.druid.segment.IncrementalIndexSegment;
@@ -65,6 +67,7 @@ import io.druid.segment.IndexSpec;
 import io.druid.segment.QueryableIndex;
 import io.druid.segment.QueryableIndexSegment;
 import io.druid.segment.column.ColumnConfig;
+import io.druid.segment.data.RoaringBitmapSerdeFactory;
 import io.druid.segment.incremental.IncrementalIndex;
 import io.druid.segment.incremental.IncrementalIndexSchema;
 import io.druid.segment.incremental.OnheapIncrementalIndex;
@@ -96,6 +99,8 @@ import java.util.concurrent.TimeUnit;
 @Fork(jvmArgsPrepend = "-server", value = 1)
 @Warmup(iterations = 10)
 @Measurement(iterations = 25)
+//@Warmup(iterations = 0)
+//@Measurement(iterations = 1)
 public class SearchBenchmark
 {
   @Param({"1"})
@@ -104,10 +109,10 @@ public class SearchBenchmark
   @Param({"750000"})
   private int rowsPerSegment;
 
-  @Param({"basic.A"})
+  @Param({"basic.B"})
   private String schemaAndQuery;
 
-  @Param({"1000"})
+  @Param({"750000"})
   private int limit;
 
   private static final Logger log = new Logger(SearchBenchmark.class);
@@ -165,15 +170,16 @@ public class SearchBenchmark
     { // basic.B
       QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(Arrays.asList(basicSchema.getDataInterval()));
 
+      final float selectivity = 0.1f;
       List<String> dimUniformFilterVals = Lists.newArrayList();
-      int resultNum = (int) (100000 * 0.1);
+      int resultNum = (int) (100000 * selectivity);
       int step = 100000 / resultNum;
       for (int i = 1; i < 100001 && dimUniformFilterVals.size() < resultNum; i += step) {
         dimUniformFilterVals.add(String.valueOf(i));
       }
 
       List<String> dimHyperUniqueFilterVals = Lists.newArrayList();
-      resultNum = (int) (100000 * 0.1);
+      resultNum = (int) (100000 * selectivity);
       step = 100000 / resultNum;
       for (int i = 0; i < 100001 && dimHyperUniqueFilterVals.size() < resultNum; i += step) {
         dimHyperUniqueFilterVals.add(String.valueOf(i));
@@ -250,7 +256,8 @@ public class SearchBenchmark
       File indexFile = INDEX_MERGER_V9.persist(
           incIndexes.get(i),
           tmpFile,
-          new IndexSpec()
+//          new IndexSpec()
+          new IndexSpec(new RoaringBitmapSerdeFactory(true), null, null, null)
       );
 
       QueryableIndex qIndex = INDEX_IO.loadIndex(indexFile);
@@ -258,6 +265,9 @@ public class SearchBenchmark
     }
 
     final SearchQueryConfig config = new SearchQueryConfig().withOverrides(query);
+//    config.setSearchStrategy(UseIndexesStrategy.NAME);
+//    config.setSearchStrategy(CursorOnlyStrategy.NAME);
+    config.setSearchStrategy(AutoStrategy.NAME);
     factory = new SearchQueryRunnerFactory(
         new SearchStrategySelector(Suppliers.ofInstance(config)),
         new SearchQueryQueryToolChest(
@@ -295,7 +305,7 @@ public class SearchBenchmark
     return Sequences.toList(queryResult, Lists.<T>newArrayList());
   }
 
-  @Benchmark
+//  @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void querySingleIncrementalIndex(Blackhole blackhole) throws Exception
@@ -332,7 +342,7 @@ public class SearchBenchmark
   }
 
 
-  @Benchmark
+//  @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void queryMultiQueryableIndex(Blackhole blackhole) throws Exception

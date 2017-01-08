@@ -91,7 +91,7 @@ public class CursorOnlyStrategy extends SearchStrategy
       final Object2IntRBTreeMap<SearchHit> retVal = new Object2IntRBTreeMap<>(query.getSort().getComparator());
       retVal.defaultReturnValue(0);
 
-      cursors.accumulate(
+      cursors.accumulate( // # of cursors for each granule
           retVal,
           new Accumulator<Object2IntRBTreeMap<SearchHit>, Cursor>()
           {
@@ -102,7 +102,7 @@ public class CursorOnlyStrategy extends SearchStrategy
                 return set;
               }
 
-              List<ColumnSelectorPlus<SearchColumnSelectorStrategy>> selectorPlusList = Arrays.asList(
+              final List<ColumnSelectorPlus<SearchColumnSelectorStrategy>> selectorPlusList = Arrays.asList(
                   DimensionHandlerUtils.createColumnSelectorPluses(
                       SearchQueryRunner.SEARCH_COLUMN_SELECTOR_STRATEGY_FACTORY,
                       dimsToSearch,
@@ -110,9 +110,9 @@ public class CursorOnlyStrategy extends SearchStrategy
                   )
               );
 
-              while (!cursor.isDone()) {
-                for (ColumnSelectorPlus<SearchColumnSelectorStrategy> selectorPlus : selectorPlusList) {
-                  selectorPlus.getColumnSelectorStrategy().updateSearchResultSet(
+              while (!cursor.isDone()) { // cursor iteration after filter out some rows
+                for (ColumnSelectorPlus<SearchColumnSelectorStrategy> selectorPlus : selectorPlusList) { // # of dims iteration
+                  selectorPlus.getColumnSelectorStrategy().updateSearchResultSet( // for each row, add dim vals if they satisfy search predicate
                       selectorPlus.getOutputName(),
                       selectorPlus.getSelector(),
                       searchQuerySpec,
@@ -125,7 +125,7 @@ public class CursorOnlyStrategy extends SearchStrategy
                   }
                 }
 
-                cursor.advance();
+                cursor.advance(); // move offset
               }
 
               return set;
