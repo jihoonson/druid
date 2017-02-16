@@ -115,7 +115,8 @@ public class RowBasedGrouperHelper
           querySpecificConfig.getBufferGrouperInitialBuckets(),
           temporaryStorage,
           spillMapper,
-          true
+          true,
+          false
       );
     } else {
       grouper = new ConcurrentGrouper<>(

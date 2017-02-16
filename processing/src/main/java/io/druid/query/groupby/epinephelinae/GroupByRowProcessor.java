@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Predicate;
 import com.google.common.base.Supplier;
 import com.google.common.collect.Lists;
+import com.metamx.emitter.EmittingLogger;
 import io.druid.collections.ResourceHolder;
 import io.druid.common.guava.SettableSupplier;
 import io.druid.data.input.Row;
@@ -58,6 +59,8 @@ import java.util.UUID;
 
 public class GroupByRowProcessor
 {
+  private static final EmittingLogger log = new EmittingLogger(GroupByRowProcessor.class);
+
   public static Sequence<Row> process(
       final Query queryParam,
       final Sequence<Row> rows,
@@ -161,6 +164,7 @@ public class GroupByRowProcessor
               final Accumulator<Grouper<RowBasedKey>, Row> accumulator = pair.rhs;
               closeOnExit.add(grouper);
 
+              log.info("accumulating filtered sequence with the grouper(" + grouper.getId() + ")");
               final Grouper<RowBasedKey> retVal = filteredSequence.accumulate(
                   grouper,
                   accumulator
@@ -168,6 +172,7 @@ public class GroupByRowProcessor
               if (retVal != grouper) {
                 throw new ResourceLimitExceededException("Grouping resources exhausted");
               }
+              log.info("Done accumulating filtered sequence with the grouper(" + grouper.getId() + ")");
 
               return RowBasedGrouperHelper.makeGrouperIterator(
                   grouper,

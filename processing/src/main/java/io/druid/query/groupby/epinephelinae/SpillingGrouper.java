@@ -73,7 +73,8 @@ public class SpillingGrouper<KeyType> implements Grouper<KeyType>
       final int bufferGrouperInitialBuckets,
       final LimitedTemporaryStorage temporaryStorage,
       final ObjectMapper spillMapper,
-      final boolean spillingAllowed
+      final boolean spillingAllowed,
+      final boolean fromConcurrent
   )
   {
     this.keySerde = keySerdeFactory.factorize();
@@ -85,12 +86,19 @@ public class SpillingGrouper<KeyType> implements Grouper<KeyType>
         aggregatorFactories,
         bufferGrouperMaxSize,
         bufferGrouperMaxLoadFactor,
-        bufferGrouperInitialBuckets
+        bufferGrouperInitialBuckets,
+        fromConcurrent
     );
     this.aggregatorFactories = aggregatorFactories;
     this.temporaryStorage = temporaryStorage;
     this.spillMapper = spillMapper;
     this.spillingAllowed = spillingAllowed;
+  }
+
+  @Override
+  public int getId()
+  {
+    return grouper.getId();
   }
 
   @Override

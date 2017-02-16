@@ -52,7 +52,8 @@ public class BufferGrouperTest
         },
         Integer.MAX_VALUE,
         0,
-        0
+        0,
+        false
     );
     grouper.init();
 
@@ -160,7 +161,8 @@ public class BufferGrouperTest
         },
         Integer.MAX_VALUE,
         0.75f,
-        initialBuckets
+        initialBuckets,
+        false
     );
     grouper.init();
     return grouper;

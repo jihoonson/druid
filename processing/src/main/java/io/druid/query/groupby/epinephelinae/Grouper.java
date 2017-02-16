@@ -40,6 +40,9 @@ import java.util.Iterator;
  */
 public interface Grouper<KeyType> extends Closeable
 {
+
+  int getId();
+
   /**
    * Initialize the grouper.
    * This method needs to be called before calling {@link #aggregate(Object)} and {@link #aggregate(Object, int)}.

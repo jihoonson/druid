@@ -26,6 +26,7 @@ import io.druid.java.util.common.guava.Yielder;
 import io.druid.java.util.common.guava.Yielders;
 import io.druid.java.util.common.guava.YieldingAccumulator;
 import io.druid.java.util.common.guava.nary.BinaryFn;
+import io.druid.java.util.common.logger.Logger;
 
 import java.io.IOException;
 
@@ -33,6 +34,7 @@ import java.io.IOException;
  */
 public class CombiningSequence<T> implements Sequence<T>
 {
+  private static final Logger log = new Logger(CombiningSequence.class);
   public static <T> CombiningSequence<T> create(
       Sequence<T> baseSequence,
       Ordering<T> ordering,
@@ -63,6 +65,7 @@ public class CombiningSequence<T> implements Sequence<T>
     final CombiningAccumulator<OutType> combiningAccumulator = new CombiningAccumulator<>(initValue, accumulator);
     T lastValue = baseSequence.accumulate(null, combiningAccumulator);
     if (combiningAccumulator.accumulatedSomething()) {
+      log.info("accumulated something");
       return accumulator.accumulate(combiningAccumulator.retVal, lastValue);
     } else {
       return initValue;

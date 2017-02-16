@@ -49,6 +49,7 @@ public class GroupByQueryBrokerResource implements Closeable
   {
     Preconditions.checkState(mergeBuffers.size() > 0);
     final ByteBuffer buffer = mergeBuffers.remove(mergeBuffers.size() - 1);
+//    log.info("take " + System.identityHashCode(buffer));
     return new ResourceHolder<ByteBuffer>()
     {
       @Override
@@ -61,6 +62,7 @@ public class GroupByQueryBrokerResource implements Closeable
       public void close()
       {
         mergeBuffers.add(buffer);
+//        log.info("close " + System.identityHashCode(buffer));
       }
     };
   }

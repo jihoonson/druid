@@ -54,6 +54,7 @@ import org.junit.runners.Parameterized.Parameters;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -242,6 +243,53 @@ public class GroupByQueryMergeBufferTest
   }
 
   @Test
+  public void testTest()
+  {
+    final GroupByQuery query = GroupByQuery
+        .builder()
+        .setDataSource(
+            new QueryDataSource(
+                GroupByQuery.builder()
+                            .setDataSource(
+                                GroupByQuery.builder()
+                                            .setDataSource(QueryRunnerTestHelper.dataSource)
+                                            .setInterval(QueryRunnerTestHelper.firstToThird)
+                                            .setGranularity(QueryGranularities.ALL)
+                                            .setDimensions(Lists.<DimensionSpec>newArrayList(
+                                                new DefaultDimensionSpec("quality", "alias"),
+                                                new DefaultDimensionSpec("market", null)
+                                            ))
+                                            .setAggregatorSpecs(Lists.<AggregatorFactory>newArrayList(QueryRunnerTestHelper.rowsCount))
+                                            .build()
+                            )
+                            .setInterval(QueryRunnerTestHelper.firstToThird)
+                            .setGranularity(QueryGranularities.ALL)
+                            .setDimensions(Lists.<DimensionSpec>newArrayList(new DefaultDimensionSpec("quality", "alias")))
+                            .setAggregatorSpecs(Lists.<AggregatorFactory>newArrayList(QueryRunnerTestHelper.rowsCount))
+                            .build()
+            )
+        )
+        .setGranularity(QueryGranularities.ALL)
+        .setInterval(QueryRunnerTestHelper.firstToThird)
+        .setAggregatorSpecs(Lists.<AggregatorFactory>newArrayList(new LongSumAggregatorFactory("rows", "rows")))
+        .setContext(ImmutableMap.<String, Object>of(QueryContextKeys.TIMEOUT, Integers.valueOf(500)))
+        .build();
+
+    Iterable<Row> result = GroupByQueryRunnerTestHelper.runQuery(factory, runner, query);
+    Iterator<Row> it = result.iterator();
+    int cnt = 0;
+    while (it.hasNext()) {
+      cnt++;
+      Row row = it.next();
+      StringBuilder sb = new StringBuilder();
+      sb.append(row.getTimestamp()).append(", ");
+      sb.append(row.getLongMetric("rows"));
+      System.out.println(sb.toString());
+    }
+    System.out.println("total row: " + cnt);
+  }
+
+  @Test
   public void testNestedGroupBy()
   {
     final GroupByQuery query = GroupByQuery
@@ -353,6 +401,60 @@ public class GroupByQueryMergeBufferTest
         .setAggregatorSpecs(Lists.<AggregatorFactory>newArrayList(new LongSumAggregatorFactory("rows", "rows")))
         .setContext(ImmutableMap.<String, Object>of(QueryContextKeys.TIMEOUT, Integers.valueOf(500)))
         .build();
+
+    GroupByQueryRunnerTestHelper.runQuery(factory, runner, query);
+
+    // This should be 0 because the broker needs 2 buffers and the queryable node needs one.
+    assertEquals(0, mergeBufferPool.getMinRemainBufferNum());
+    assertEquals(3, mergeBufferPool.getPoolSize());
+  }
+
+  @Test
+  public void testTest2()
+  {
+    final GroupByQuery query = GroupByQuery.builder()
+                                           .setDataSource(
+                                               GroupByQuery.builder()
+                                                           .setDataSource(
+                                                               GroupByQuery.builder()
+                                                                           .setDataSource(
+                                                                               GroupByQuery.builder()
+                                                                                           .setDataSource(QueryRunnerTestHelper.dataSource)
+                                                                                           .setInterval(QueryRunnerTestHelper.firstToThird)
+                                                                                           .setGranularity(QueryGranularities.ALL)
+                                                                                           .setDimensions(Lists.<DimensionSpec>newArrayList(
+                                                                                               new DefaultDimensionSpec("quality", "alias"),
+                                                                                               new DefaultDimensionSpec("market", null),
+                                                                                               new DefaultDimensionSpec("placement", null),
+                                                                                               new DefaultDimensionSpec("placementish", null)
+                                                                                           ))
+                                                                                           .setAggregatorSpecs(Lists.<AggregatorFactory>newArrayList(QueryRunnerTestHelper.rowsCount))
+                                                                                           .build()
+                                                                           )
+                                                                           .setInterval(QueryRunnerTestHelper.firstToThird)
+                                                                           .setGranularity(QueryGranularities.ALL)
+                                                                           .setDimensions(Lists.<DimensionSpec>newArrayList(
+                                                                               new DefaultDimensionSpec("quality", "alias"),
+                                                                               new DefaultDimensionSpec("market", null),
+                                                                               new DefaultDimensionSpec("placement", null)
+                                                                           ))
+                                                                           .setAggregatorSpecs(Lists.<AggregatorFactory>newArrayList(QueryRunnerTestHelper.rowsCount))
+                                                                           .build()
+                                                           )
+                                                           .setInterval(QueryRunnerTestHelper.firstToThird)
+                                                           .setGranularity(QueryGranularities.ALL)
+                                                           .setDimensions(Lists.<DimensionSpec>newArrayList(
+                                                               new DefaultDimensionSpec("quality", "alias"),
+                                                               new DefaultDimensionSpec("market", null)
+                                                           ))
+                                                           .setAggregatorSpecs(Lists.<AggregatorFactory>newArrayList(QueryRunnerTestHelper.rowsCount))
+                                                           .build()
+                                           )
+                                           .setInterval(QueryRunnerTestHelper.firstToThird)
+                                           .setGranularity(QueryGranularities.ALL)
+                                           .setDimensions(Lists.<DimensionSpec>newArrayList(new DefaultDimensionSpec("quality", "alias")))
+                                           .setAggregatorSpecs(Lists.<AggregatorFactory>newArrayList(QueryRunnerTestHelper.rowsCount))
+                                           .build();
 
     GroupByQueryRunnerTestHelper.runQuery(factory, runner, query);
 

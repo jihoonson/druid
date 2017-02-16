@@ -60,6 +60,8 @@ public class BufferGrouper<KeyType> implements Grouper<KeyType>
 {
   private static final Logger log = new Logger(BufferGrouper.class);
 
+  private static int nextId = 0;
+
   private static final int MIN_INITIAL_BUCKETS = 4;
   private static final int DEFAULT_INITIAL_BUCKETS = 1024;
   private static final float DEFAULT_MAX_LOAD_FACTOR = 0.7f;
@@ -95,6 +97,10 @@ public class BufferGrouper<KeyType> implements Grouper<KeyType>
 
   private boolean initialized = false;
 
+  private final int id = nextId++;
+
+  private final boolean fromConcurrent;
+
   public BufferGrouper(
       final Supplier<ByteBuffer> bufferSupplier,
       final KeySerde<KeyType> keySerde,
@@ -102,7 +108,8 @@ public class BufferGrouper<KeyType> implements Grouper<KeyType>
       final AggregatorFactory[] aggregatorFactories,
       final int bufferGrouperMaxSize,
       final float maxLoadFactor,
-      final int initialBuckets
+      final int initialBuckets,
+      final boolean fromConcurrent
   )
   {
     this.bufferSupplier = bufferSupplier;
@@ -126,6 +133,12 @@ public class BufferGrouper<KeyType> implements Grouper<KeyType>
     }
 
     this.bucketSize = offset;
+    this.fromConcurrent = fromConcurrent;
+  }
+
+  public int getId()
+  {
+    return id;
   }
 
   @Override
@@ -136,6 +149,9 @@ public class BufferGrouper<KeyType> implements Grouper<KeyType>
       this.tableArenaSize = (buffer.capacity() / (bucketSize + Ints.BYTES)) * bucketSize;
       reset();
       initialized = true;
+      if (!fromConcurrent) {
+        log.info("init the grouper(" + id + ")");
+      }
     }
   }
 
@@ -367,6 +383,9 @@ public class BufferGrouper<KeyType> implements Grouper<KeyType>
       catch (Exception e) {
         log.warn(e, "Could not close aggregator, skipping.", aggregator);
       }
+    }
+    if (!fromConcurrent) {
+      log.info("close the grouper(" + id + ")");
     }
   }
 

@@ -104,6 +104,13 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
   }
 
   @Override
+  public int getId()
+  {
+    System.err.println("concurrent grouper!");
+    return groupers.get(0).getId();
+  }
+
+  @Override
   public void init()
   {
     if (!initialized) {
@@ -126,7 +133,8 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
                 bufferGrouperInitialBuckets,
                 temporaryStorage,
                 spillMapper,
-                false
+                false,
+                true
             );
             grouper.init();
             groupers.add(grouper);
