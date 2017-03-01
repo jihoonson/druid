@@ -61,6 +61,7 @@ public interface Query<T>
   String SELECT = "select";
   String TOPN = "topN";
   String DATASOURCE_METADATA = "dataSourceMetadata";
+  String JOIN = "join";
 
   DataSource getDataSource();
 
