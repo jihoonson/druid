@@ -19,6 +19,7 @@
 
 package io.druid.query.join;
 
+import com.google.common.base.Supplier;
 import io.druid.collections.StupidPool;
 import io.druid.data.input.Row;
 import io.druid.java.util.common.guava.Sequence;
@@ -32,7 +33,7 @@ public interface JoinQueryEngine
   Sequence<Row> process(
       final JoinQuery query,
       final Segment segment,
-      final List<Segment> broadcastSegments,
+      final Supplier<Sequence<Row>> joinedBroadcastedSources,
       final StupidPool<ByteBuffer> pool
   );
 }

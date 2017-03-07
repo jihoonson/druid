@@ -19,23 +19,9 @@
 
 package io.druid.query.join;
 
-import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-public class JoinHashTable
+public class JoinSpecAnnotator
 {
-  private final Map<List<List<Object>>, List<List<Object>>> map = new HashMap<>();
-  private ByteBuffer buffer;
-  // TODO: keep how to extract key and values from the buffer
-
-  public List<List<Object>> match(List<List<Object>> key)
-  {
-    return map.get(key);
-  }
-
-  public ByteBuffer match(ByteBuffer key)
+  public static AnnotatedJoinSpec annotate(JoinSpec joinSpec)
   {
     return null;
   }

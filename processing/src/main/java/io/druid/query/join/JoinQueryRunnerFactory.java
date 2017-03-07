@@ -19,8 +19,10 @@
 
 package io.druid.query.join;
 
+import com.google.common.base.Supplier;
 import com.google.inject.Inject;
 import io.druid.collections.StupidPool;
+import io.druid.common.guava.SettableSupplier;
 import io.druid.data.input.Row;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.query.Query;
@@ -41,6 +43,7 @@ public class JoinQueryRunnerFactory implements QueryRunnerFactory<Row, JoinQuery
   private final JoinStrategyFactory factory;
   private final QueryWatcher queryWatcher;
   private final StupidPool<ByteBuffer> pool;
+  private final SettableSupplier<Sequence<Row>> supplier = new SettableSupplier<>();
 
   @Inject
   public JoinQueryRunnerFactory(
@@ -56,17 +59,10 @@ public class JoinQueryRunnerFactory implements QueryRunnerFactory<Row, JoinQuery
     this.pool = pool;
   }
 
-  public Object buildHashTable(JoinQuery query, List<Segment> segments /* of broadcasted tables */)
-  {
-
-    return null;
-  }
-
   @Override
   public QueryRunner<Row> createRunner(Segment segment)
   {
-    final List<Segment> broadcastSegments;
-    return new JoinQueryRunner(factory, segment, broadcastSegments, pool);
+    return new JoinQueryRunner(factory, segment, supplier, pool);
   }
 
   @Override
@@ -74,6 +70,11 @@ public class JoinQueryRunnerFactory implements QueryRunnerFactory<Row, JoinQuery
       ExecutorService queryExecutor, Iterable<QueryRunner<Row>> queryRunners
   )
   {
+    // TODO: join broadcasted tables
+    // TODO: cache join results in the future
+    // supplier.set();
+
+    // merge the results of query runners
     return null;
   }
 
@@ -86,27 +87,27 @@ public class JoinQueryRunnerFactory implements QueryRunnerFactory<Row, JoinQuery
   private static class JoinQueryRunner implements QueryRunner<Row>
   {
     private final Segment segment;
-    private final List<Segment> broadcastSegments;
+    private final Supplier<Sequence<Row>> joinedBroadcastedSources;
     private final JoinStrategyFactory factory;
     private final StupidPool<ByteBuffer> pool;
 
     private JoinQueryRunner(
         JoinStrategyFactory factory,
         Segment nonBroadcastSegment,
-        List<Segment> broadcastSegments,
+        Supplier<Sequence<Row>> joinedBroadcastedSources,
         StupidPool<ByteBuffer> pool
     )
     {
       this.factory = factory;
       this.segment = nonBroadcastSegment;
-      this.broadcastSegments = broadcastSegments;
+      this.joinedBroadcastedSources = joinedBroadcastedSources;
       this.pool = pool;
     }
 
     @Override
     public Sequence<Row> run(Query<Row> query, Map<String, Object> responseContext)
     {
-      return factory.strategize(query).createEngine().process((JoinQuery)query, segment, broadcastSegments, pool);
+      return factory.strategize(query).createEngine().process((JoinQuery)query, segment, joinedBroadcastedSources, pool);
     }
   }
 }

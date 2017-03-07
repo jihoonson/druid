@@ -264,6 +264,7 @@ public class ServerManager implements QuerySegmentWalker
     }
     String dataSourceName = getDataSourceName(dataSource);
 
+    // TODO: find broadcasted segments
     final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = dataSources.get(dataSourceName);
 
     if (timeline == null) {
@@ -354,6 +355,7 @@ public class ServerManager implements QuerySegmentWalker
 
     String dataSourceName = getDataSourceName(query.getDataSource());
 
+    // TODO: find broadcasted segments
     final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = dataSources.get(
         dataSourceName
     );

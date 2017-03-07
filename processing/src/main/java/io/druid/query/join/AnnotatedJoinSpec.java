@@ -19,66 +19,121 @@
 
 package io.druid.query.join;
 
-import io.druid.segment.column.ValueType;
+import io.druid.java.util.common.Pair;
+import io.druid.query.dimension.DimensionSpec;
+import it.unimi.dsi.fastutil.ints.IntList;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class AnnotatedJoinSpec extends JoinSpec
 {
-  private final List<String> leftInputColumnNames;
-  private final List<ValueType> leftInputColumnTypes;
-  private final List<String> rightInputColumnNames;
-  private final List<ValueType> rightInputColumnTypes;
-  private final List<String> outputColumnNames;
-  private final List<ValueType> outputColumnTypes;
+
+  private final IntList leftKeyDimensions;
+  private final IntList rightKeyDimensions;
+
+  private final List<DimensionSpec> leftDimensions;
+  private final List<DimensionSpec> rightDimensions;
+  private final List<Pair<Boolean, Integer>> outputDimensions;
 
   public AnnotatedJoinSpec(
       JoinSpec baseSpec,
-      List<String> leftInputColumnNames,
-      List<ValueType> leftInputColumnTypes,
-      List<String> rightInputColumnNames,
-      List<ValueType> rightInputColumnTypes,
-      List<String> outputColumnNames,
-      List<ValueType> outputColumnTypes
+      List<DimensionSpec> leftDimensions,
+      List<DimensionSpec> rightDimensions,
+      IntList leftKeyDimensions,
+      IntList rightKeyDimensions,
+      List<Pair<Boolean, Integer>> outputDimensions
   )
   {
     super(baseSpec.getJoinType(), baseSpec.getPredicate(), baseSpec.getLeft(), baseSpec.getRight());
 
-    this.leftInputColumnNames = leftInputColumnNames;
-    this.leftInputColumnTypes = leftInputColumnTypes;
-    this.rightInputColumnNames = rightInputColumnNames;
-    this.rightInputColumnTypes = rightInputColumnTypes;
-    this.outputColumnNames = outputColumnNames;
-    this.outputColumnTypes = outputColumnTypes;
+    this.leftDimensions = leftDimensions;
+    this.rightDimensions = rightDimensions;
+    this.leftKeyDimensions = leftKeyDimensions;
+    this.rightKeyDimensions = rightKeyDimensions;
+    this.outputDimensions = outputDimensions;
   }
 
-  public List<String> getLeftInputColumnNames()
+  public List<Pair<Boolean, Integer>> getOutputDimensions()
   {
-    return leftInputColumnNames;
+    return outputDimensions;
   }
 
-  public List<ValueType> getLeftInputColumnTypes()
+  public List<DimensionSpec> getLeftDimensions()
   {
-    return leftInputColumnTypes;
+    return leftDimensions;
   }
 
-  public List<String> getRightInputColumnNames()
+  public List<DimensionSpec> getRightDimensions()
   {
-    return rightInputColumnNames;
+    return rightDimensions;
   }
 
-  public List<ValueType> getRightInputColumnTypes()
+  public List<DimensionSpec> getLeftKeyDimensions()
   {
-    return rightInputColumnTypes;
+    final List<DimensionSpec> keyDimensions = new ArrayList<>(leftKeyDimensions.size());
+    for (int i = 0; i < leftKeyDimensions.size(); i++) {
+      keyDimensions.add(leftDimensions.get(leftKeyDimensions.get(i)));
+    }
+    return keyDimensions;
   }
 
-  public List<String> getOutputColumnNames()
+  public List<DimensionSpec> getRightKeyDimensions()
   {
-    return outputColumnNames;
+    final List<DimensionSpec> keyDimensions = new ArrayList<>(rightKeyDimensions.size());
+    for (int i = 0; i < rightKeyDimensions.size(); i++) {
+      keyDimensions.add(rightDimensions.get(rightKeyDimensions.get(i)));
+    }
+    return keyDimensions;
   }
 
-  public List<ValueType> getOutputColumnTypes()
-  {
-    return outputColumnTypes;
-  }
+//  public List<String> getLeftValueColumnNames()
+//  {
+//    return leftValueColumnNames;
+//  }
+//
+//  public List<ValueType> getLeftValueColumnTypes()
+//  {
+//    return leftValueColumnTypes;
+//  }
+//
+//  public List<String> getRightValueColumnNames()
+//  {
+//    return rightValueColumnNames;
+//  }
+//
+//  public List<ValueType> getRightValueColumnTypes()
+//  {
+//    return rightValueColumnTypes;
+//  }
+//
+//  public List<String> getOutputColumnNames()
+//  {
+//    return outputColumnNames;
+//  }
+//
+//  public List<ValueType> getOutputColumnTypes()
+//  {
+//    return outputColumnTypes;
+//  }
+//
+//  public List<String> getLeftKeyColumnNames()
+//  {
+//    return leftKeyColumnNames;
+//  }
+//
+//  public List<ValueType> getLeftKeyColumnTypes()
+//  {
+//    return leftKeyColumnTypes;
+//  }
+//
+//  public List<String> getRightKeyColumnNames()
+//  {
+//    return rightKeyColumnNames;
+//  }
+//
+//  public List<ValueType> getRightKeyColumnTypes()
+//  {
+//    return rightKeyColumnTypes;
+//  }
 }

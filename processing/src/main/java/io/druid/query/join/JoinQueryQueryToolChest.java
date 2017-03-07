@@ -32,6 +32,8 @@ public class JoinQueryQueryToolChest extends QueryToolChest<Row, JoinQuery>
   @Override
   public QueryRunner<Row> mergeResults(QueryRunner<Row> runner)
   {
+    // Simple merge
+    // annotate join spec
     return null;
   }
 
