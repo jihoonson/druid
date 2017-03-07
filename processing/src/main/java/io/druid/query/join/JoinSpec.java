@@ -22,19 +22,18 @@ package io.druid.query.join;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
-import io.druid.query.filter.DimFilter;
 
 public class JoinSpec
 {
   private final JoinType joinType;
-  private final DimFilter predicate;
+  private final JoinPredicate predicate;
   private final JoinInput left;
   private final JoinInput right;
 
   @JsonCreator
   public JoinSpec(
       @JsonProperty("type") JoinType joinType,
-      @JsonProperty("predicate") DimFilter predicate,
+      @JsonProperty("predicate") JoinPredicate predicate,
       @JsonProperty("left") JoinInput left,
       @JsonProperty("right") JoinInput right
   )
@@ -56,7 +55,7 @@ public class JoinSpec
   }
 
   @JsonProperty
-  public DimFilter getPredicate()
+  public JoinPredicate getPredicate()
   {
     return predicate;
   }
@@ -65,5 +64,13 @@ public class JoinSpec
   public JoinType getJoinType()
   {
     return joinType;
+  }
+
+  public JoinInput getLeft() {
+    return left;
+  }
+
+  public JoinInput getRight() {
+    return right;
   }
 }

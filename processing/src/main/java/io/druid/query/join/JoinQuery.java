@@ -45,13 +45,15 @@ public class JoinQuery extends BaseQuery<Row>
   private final VirtualColumns virtualColumns;
   private final DimFilter filter;
 
+  private AnnotatedJoinSpec annotatedJoinSpec;
+
   @JsonCreator
   public JoinQuery(
       @JsonProperty("dataSource") DataSource dataSource,
-      @JsonProperty("join") JoinSpec joinSpec,
+      @JsonProperty("join") JoinSpec joinSpec, // input spec
       @JsonProperty("granularity") Granularity granularity,
-      @JsonProperty("dimensions") List<DimensionSpec> dimensions,
-      @JsonProperty("metrics") List<String> metrics,
+      @JsonProperty("dimensions") List<DimensionSpec> dimensions, // output dimension
+      @JsonProperty("metrics") List<String> metrics, // output metrics
       @JsonProperty("intervals") QuerySegmentSpec querySegmentSpec,
       @JsonProperty("virtualColumns") VirtualColumns virtualColumns,
       @JsonProperty("filter") DimFilter filter,
@@ -89,6 +91,11 @@ public class JoinQuery extends BaseQuery<Row>
   public JoinSpec getJoinSpec()
   {
     return joinSpec;
+  }
+
+  public AnnotatedJoinSpec getAnnotatedJoinSpec()
+  {
+    return annotatedJoinSpec;
   }
 
   @JsonProperty

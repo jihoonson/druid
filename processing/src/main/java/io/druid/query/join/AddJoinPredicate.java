@@ -19,20 +19,26 @@
 
 package io.druid.query.join;
 
-import io.druid.collections.StupidPool;
-import io.druid.data.input.Row;
-import io.druid.java.util.common.guava.Sequence;
-import io.druid.segment.Segment;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.nio.ByteBuffer;
-import java.util.List;
-
-public interface JoinQueryEngine
+public class AddJoinPredicate extends BinaryPredicate
 {
-  Sequence<Row> process(
-      final JoinQuery query,
-      final Segment segment,
-      final List<Segment> broadcastSegments,
-      final StupidPool<ByteBuffer> pool
-  );
+  @JsonCreator
+  public AddJoinPredicate(JoinPredicate left, JoinPredicate right)
+  {
+    super(left, right);
+  }
+
+  @JsonProperty
+  public JoinPredicate getLeft()
+  {
+    return left;
+  }
+
+  @JsonProperty
+  public JoinPredicate getRight()
+  {
+    return right;
+  }
 }

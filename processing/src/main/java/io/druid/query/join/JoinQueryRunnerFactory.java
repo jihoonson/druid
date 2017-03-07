@@ -20,6 +20,7 @@
 package io.druid.query.join;
 
 import com.google.inject.Inject;
+import io.druid.collections.StupidPool;
 import io.druid.data.input.Row;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.query.Query;
@@ -29,6 +30,7 @@ import io.druid.query.QueryToolChest;
 import io.druid.query.QueryWatcher;
 import io.druid.segment.Segment;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -36,31 +38,35 @@ import java.util.concurrent.ExecutorService;
 public class JoinQueryRunnerFactory implements QueryRunnerFactory<Row, JoinQuery>
 {
   private final JoinQueryQueryToolChest toolChest;
-  private final JoinQueryEngine engine;
+  private final JoinStrategyFactory factory;
   private final QueryWatcher queryWatcher;
-  private Map<Object, List<Row>> hashTable;
+  private final StupidPool<ByteBuffer> pool;
 
   @Inject
   public JoinQueryRunnerFactory(
       JoinQueryQueryToolChest toolChest,
-      JoinQueryEngine engine,
-      QueryWatcher queryWatcher
+      JoinStrategyFactory factory,
+      QueryWatcher queryWatcher,
+      StupidPool<ByteBuffer> pool
   )
   {
     this.toolChest = toolChest;
-    this.engine = engine;
+    this.factory = factory;
     this.queryWatcher = queryWatcher;
+    this.pool = pool;
   }
 
-  public Object prepareSharedResources(Query<Row> query)
+  public Object buildHashTable(JoinQuery query, List<Segment> segments /* of broadcasted tables */)
   {
+
     return null;
   }
 
   @Override
   public QueryRunner<Row> createRunner(Segment segment)
   {
-    return new JoinQueryRunner(engine, hashTable, segment);
+    final List<Segment> broadcastSegments;
+    return new JoinQueryRunner(factory, segment, broadcastSegments, pool);
   }
 
   @Override
@@ -80,20 +86,27 @@ public class JoinQueryRunnerFactory implements QueryRunnerFactory<Row, JoinQuery
   private static class JoinQueryRunner implements QueryRunner<Row>
   {
     private final Segment segment;
-    private final Map<Object, List<Row>> hashTable;
-    private final JoinQueryEngine engine;
+    private final List<Segment> broadcastSegments;
+    private final JoinStrategyFactory factory;
+    private final StupidPool<ByteBuffer> pool;
 
-    private JoinQueryRunner(JoinQueryEngine engine, Map<Object, List<Row>> hashTable, Segment segment)
+    private JoinQueryRunner(
+        JoinStrategyFactory factory,
+        Segment nonBroadcastSegment,
+        List<Segment> broadcastSegments,
+        StupidPool<ByteBuffer> pool
+    )
     {
-      this.engine = engine;
-      this.hashTable = hashTable;
-      this.segment = segment;
+      this.factory = factory;
+      this.segment = nonBroadcastSegment;
+      this.broadcastSegments = broadcastSegments;
+      this.pool = pool;
     }
 
     @Override
     public Sequence<Row> run(Query<Row> query, Map<String, Object> responseContext)
     {
-      return engine.process((JoinQuery)query, hashTable, segment);
+      return factory.strategize(query).createEngine().process((JoinQuery)query, segment, broadcastSegments, pool);
     }
   }
 }

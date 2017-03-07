@@ -19,20 +19,11 @@
 
 package io.druid.query.join;
 
-import io.druid.collections.StupidPool;
-import io.druid.data.input.Row;
-import io.druid.java.util.common.guava.Sequence;
-import io.druid.segment.Segment;
-
-import java.nio.ByteBuffer;
-import java.util.List;
-
-public interface JoinQueryEngine
+public class HashJoinStrategy implements JoinStrategy
 {
-  Sequence<Row> process(
-      final JoinQuery query,
-      final Segment segment,
-      final List<Segment> broadcastSegments,
-      final StupidPool<ByteBuffer> pool
-  );
+  public HashJoinQueryEngine createEngine()
+  {
+    // TODO: singleton
+    return new HashJoinQueryEngine();
+  }
 }

@@ -19,20 +19,65 @@
 
 package io.druid.query.join;
 
-import io.druid.collections.StupidPool;
 import io.druid.data.input.Row;
-import io.druid.java.util.common.guava.Sequence;
-import io.druid.segment.Segment;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
-public interface JoinQueryEngine
+public class HashJoin
 {
-  Sequence<Row> process(
-      final JoinQuery query,
-      final Segment segment,
-      final List<Segment> broadcastSegments,
-      final StupidPool<ByteBuffer> pool
-  );
+//  private final ByteBuffer outBuffer;
+  private final List<Row> outBuffer;
+  private final JoinHashTable hashTable;
+  private int writtenSize;
+
+  public HashJoin(
+//      ByteBuffer outBuffer,
+      JoinHashTable hashTable
+  )
+  {
+    this.outBuffer = new ArrayList<>();
+    this.hashTable = hashTable;
+  }
+
+  /**
+   * Output size
+   *
+   * @return
+   */
+  public int size()
+  {
+    return writtenSize;
+  }
+
+  public void add(Row row)
+  {
+
+  }
+
+  public void add(Object key, ByteBuffer payload)
+  {
+
+  }
+
+  /**
+   *
+   * @param buffer buffer containing previous join result
+   */
+  public void add(ByteBuffer buffer, int position /*, how to extract key and payload? */)
+  {
+
+  }
+
+  /**
+   * Return a sequence which iterates join result
+   *
+   * @return
+   */
+  public Iterator<Row> getIterator()
+  {
+    return outBuffer.iterator();
+  }
 }

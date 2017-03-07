@@ -19,20 +19,25 @@
 
 package io.druid.query.join;
 
-import io.druid.collections.StupidPool;
-import io.druid.data.input.Row;
-import io.druid.java.util.common.guava.Sequence;
-import io.druid.segment.Segment;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import io.druid.query.dimension.DimensionSpec;
 
-import java.nio.ByteBuffer;
-import java.util.List;
-
-public interface JoinQueryEngine
+public class DimExtractPredicate implements JoinPredicate
 {
-  Sequence<Row> process(
-      final JoinQuery query,
-      final Segment segment,
-      final List<Segment> broadcastSegments,
-      final StupidPool<ByteBuffer> pool
-  );
+  private final DimensionSpec dimension;
+
+  @JsonCreator
+  public DimExtractPredicate(
+      @JsonProperty DimensionSpec dimension
+  )
+  {
+    this.dimension = dimension;
+  }
+
+  @JsonProperty
+  public DimensionSpec getDimension()
+  {
+    return dimension;
+  }
 }

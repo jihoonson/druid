@@ -19,20 +19,21 @@
 
 package io.druid.query.join;
 
-import io.druid.collections.StupidPool;
-import io.druid.data.input.Row;
-import io.druid.java.util.common.guava.Sequence;
-import io.druid.segment.Segment;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 
-import java.nio.ByteBuffer;
-import java.util.List;
-
-public interface JoinQueryEngine
+@JsonTypeInfo(use = Id.NAME, property = "type")
+@JsonSubTypes(value = {
+    @Type(name = "and", value = AndPredicate.class),
+    @Type(name = "or", value = OrPredicate.class),
+    @Type(name = "not", value = NotPredicate.class),
+    @Type(name = "equal", value = EqualPredicate.class),
+    @Type(name = "dimension", value = DimExtractPredicate.class),
+    @Type(name = "add", value = AddJoinPredicate.class)
+})
+public interface JoinPredicate
 {
-  Sequence<Row> process(
-      final JoinQuery query,
-      final Segment segment,
-      final List<Segment> broadcastSegments,
-      final StupidPool<ByteBuffer> pool
-  );
+  // TODO: JoinFilter?
 }

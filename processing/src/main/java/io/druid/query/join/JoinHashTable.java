@@ -19,20 +19,19 @@
 
 package io.druid.query.join;
 
-import io.druid.collections.StupidPool;
-import io.druid.data.input.Row;
-import io.druid.java.util.common.guava.Sequence;
-import io.druid.segment.Segment;
-
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public interface JoinQueryEngine
+public class JoinHashTable
 {
-  Sequence<Row> process(
-      final JoinQuery query,
-      final Segment segment,
-      final List<Segment> broadcastSegments,
-      final StupidPool<ByteBuffer> pool
-  );
+  private final Map<Object, List<Object>> map = new HashMap<>();
+  private ByteBuffer buffer;
+  // TODO: keep how to extract key and values from the buffer
+
+  public Object[] match(Object key) {
+    final List<Object> values = map.get(key);
+    return values.toArray(new Object[values.size()]);
+  }
 }
