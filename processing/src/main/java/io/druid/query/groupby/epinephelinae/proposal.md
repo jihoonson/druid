@@ -10,7 +10,7 @@ In this proposal, I'm focusing on the star join. In addition, inner equi join is
 
 Unlike Union, Join is regarded as a query type rather than a data source. Since a query can be used as a data source in Druid, join can be used as both a general query type and a data source.
 
-A join query contains a ```JoinSpec``` which represents a join relationship between two sources. It can have another ```JoinSpec``` as its child to represent joins of multiple data sources. Unlike other query types, the join query's data sources are specified in ```JoinSpec```. The ```predicate``` in a ```JoinSpec``` can include logical operators and arithmetic operators. ```dimensions``` and ```metrics``` specify output column names. Additionally, ```DimensionSpec``` needs to be changed to include its data source name. It's not mandatory when there is a single data source in a query. 
+A join query contains a ```JoinSpec``` which represents a join relationship between two sources. It can have another ```JoinSpec``` as its child to represent joins of multiple data sources. Unlike other query types, the join query's data sources are specified in ```JoinSpec```. The ```predicate``` in a ```JoinSpec``` can include logical operators and arithmetic operators. ```dimensions``` and ```metrics``` specify output column names.  
 
 Here is an example.
 
@@ -22,10 +22,12 @@ Here is an example.
     "predicate" : {
       "type" : "equal",
       "left" : {
-        "dimension" : { "type" : "default", "dataSource" : "foo", "dimension" : "dim1" }
+        "dataSource" : "foo",
+        "dimension" : { "type" : "default", "dimension" : "dim1" }
       },
       "right" : {
-        "dimension" : { "type" : "default", "dataSource" : "bar", "dimension" : "dim1" }
+        "dataSource" : "bar",
+        "dimension" : { "type" : "default", "dimension" : "dim1" }
       }
     },
     "left" : {
@@ -42,10 +44,12 @@ Here is an example.
             "predicate" : {
               "type" : "equal",
               "left" : {
-                "dimension" : { "type" : "default", "dataSource" : "foo", "dimension" : "dim2" }
+                "dataSource" : "foo",
+                "dimension" : { "type" : "default", "dimension" : "dim2" }
               },
               "right" : {
-                "dimension" : { "type" : "default", "dataSource" : "baz", "dimension" : "dim1" }
+                "dataSource" : "baz",
+                "dimension" : { "type" : "default", "dimension" : "dim1" }
               }
             }
           },
@@ -53,16 +57,19 @@ Here is an example.
             "predicate" : {
               "type" : "equal",
               "left" : {
-                "dimension" : { "type" : "default", "dataSource" : "baz", "dimension" : "dim2" }
+                "dataSource" : "baz",
+                "dimension" : { "type" : "default", "dimension" : "dim2" }
               },
               "right" : {
                 "predicate" : {
                   "type" : "add",
                   "left" : {
-                    "dimension" : { "type" : "default", "dataSource" : "foo", "dimension" : "dim3" }
+                    "dataSource" : "foo",
+                    "dimension" : { "type" : "default", "dimension" : "dim3" }
                   },
                   "right" : {
-                    "dimension" : { "type" : "default", "dataSource" : "foo", "dimension" : "dim4" }
+                    "dataSource" : "foo",
+                    "dimension" : { "type" : "default", "dimension" : "dim4" }
                   }
                 }
               }
@@ -135,7 +142,7 @@ A join query is processed as follows.
   - If all data sources are broadcasted except one, join can be performed in multiple nodes holding the segments of the non-broadcasted data source.
   - Otherwise, join cannot be performed.
 - Then, historicals and realtimes join broadcasted data sources and segments of the non-broadcasted data source.
-  - Each node first performs the join of broadcasted data sources. Thus, this is done only one time in a node.
+  - Each node first performs the join of broadcasted data sources if there exist inner join relationships among them. This is done only one time in a node.
   - The join result of broadcasted data sources is joined with non-broadcasted segments by multiple threads in parallel. 
 - The broker collects and merges bySegment join results
 
