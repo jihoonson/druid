@@ -19,14 +19,17 @@
 
 package io.druid.query.join;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.druid.query.DataSource;
 
 public class DataJoinInput implements JoinInput
 {
   private final DataSource dataSource;
 
+  @JsonCreator
   public DataJoinInput(
-      DataSource dataSource
+      @JsonProperty DataSource dataSource
   )
   {
     this.dataSource = dataSource;

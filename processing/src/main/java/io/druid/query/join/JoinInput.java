@@ -19,6 +19,15 @@
 
 package io.druid.query.join;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
+@JsonSubTypes(value = {
+    @Type(name = "dataSource", value = DataJoinInput.class),
+    @Type(name = "joinSource", value = JoinJoinInput.class)
+})
 public interface JoinInput
 {
 }

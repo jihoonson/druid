@@ -1,0 +1,73 @@
+{
+  "queryType": "join",
+  "joinSpec" : {
+    "type" : "INNER",
+    "predicate" : {
+      "type" : "equal",
+      "left" : {
+        "dimension" : { "type" : "default", "dataSource" : "foo", "dimension" : "dim1" }
+      },
+      "right" : {
+        "dimension" : { "type" : "default", "dataSource" : "bar", "dimension" : "dim1" }
+      }
+    },
+    "left" : {
+      "type" : "dataSource",
+      "dataSource" : "bar"
+    },
+    "right" : {
+      "type" : "joinSource",
+      "joinSpec" : {
+        "type" : "INNER",
+        "predicate" : {
+          "type" : "and",
+          "left" : {
+            "predicate" : {
+              "type" : "equal",
+              "left" : {
+                "dimension" : { "type" : "default", "dataSource" : "foo", "dimension" : "dim2" }
+              },
+              "right" : {
+                "dimension" : { "type" : "default", "dataSource" : "baz", "dimension" : "dim1" }
+              }
+            }
+          },
+          "right" : {
+            "predicate" : {
+              "type" : "equal",
+              "left" : {
+                "dimension" : { "type" : "default", "dataSource" : "baz", "dimension" : "dim2" }
+              },
+              "right" : {
+                "predicate" : {
+                  "type" : "add",
+                  "left" : {
+                    "dimension" : { "type" : "default", "dataSource" : "foo", "dimension" : "dim3" }
+                  },
+                  "right" : {
+                    "dimension" : { "type" : "default", "dataSource" : "foo", "dimension" : "dim4" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "left" : {
+          "type" : "dataSource",
+          "dataSource" : "foo"
+        },
+        "right" : {
+          "type" : "dataSource",
+          "dataSource" : "baz"
+        }
+      }
+    }
+  },
+  "dimensions" : [ "foo.dim1", "foo.dim2", "bar.dim5", "baz.dim5"],
+  "metrics" : [ "foo.met1", "bar.met2" ],
+  "filter": { "type": "selector", "dimension": "baz.dim1", "value": "some" },
+  "granularity" : "granularity",
+  "intervals" : "intervals",
+  "virtualColumns" : "virtualColumns",
+  "context" : "context"
+}

@@ -50,7 +50,7 @@ public class JoinQuery extends BaseQuery<Row>
   @JsonCreator
   public JoinQuery(
       @JsonProperty("dataSource") DataSource dataSource,
-      @JsonProperty("join") JoinSpec joinSpec, // input spec
+      @JsonProperty("joinSpec") JoinSpec joinSpec, // input spec
       @JsonProperty("granularity") Granularity granularity,
       @JsonProperty("dimensions") List<DimensionSpec> dimensions, // output dimension
       @JsonProperty("metrics") List<String> metrics, // output metrics

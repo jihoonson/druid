@@ -71,7 +71,7 @@ public class DefaultDimensionSpec implements DimensionSpec
 
   @JsonCreator
   public DefaultDimensionSpec(
-      @JsonProperty("dataSourceName") String dataSourceName,
+      @JsonProperty("dataSource") String dataSourceName,
       @JsonProperty("dimension") String dimension,
       @JsonProperty("outputName") String outputName,
       @JsonProperty("outputType") ValueType outputType

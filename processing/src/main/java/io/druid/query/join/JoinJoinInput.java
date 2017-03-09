@@ -19,12 +19,16 @@
 
 package io.druid.query.join;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class JoinJoinInput implements JoinInput
 {
   private final JoinSpec joinSpec;
 
+  @JsonCreator
   public JoinJoinInput(
-      JoinSpec joinSpec
+      @JsonProperty JoinSpec joinSpec
   )
   {
     this.joinSpec = joinSpec;
