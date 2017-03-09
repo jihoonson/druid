@@ -156,4 +156,4 @@ Once this kind of query is submitted, data nodes (historicals and realtimes) fir
 - Other join types (like outer or anti joins) support
 - Supporting non-equi joins
 - Supporting join after groupBy
-- Supporting join of non-broadcasted data sources based on partitioning
+- Supporting join of non-broadcasted, but partitioned data sources
