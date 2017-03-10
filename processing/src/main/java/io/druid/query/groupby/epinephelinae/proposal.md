@@ -156,7 +156,21 @@ Join ordering is significant for efficient join processing. When historicals and
 ## GroupBy after Join
 
 One of very popular query patterns is _groupBy after join_. This can be expressed by specifying a join as a query data source of a groupBy in Druid.
-Once this kind of query is submitted, data nodes (historicals and realtimes) first process join and then immediately perform the groupBy against the join result. Finally, brokers collect bySegment groupBy results. 
+Once this kind of query is submitted, data nodes (historicals and realtimes) first process join and then immediately perform the groupBy against the join result. Finally, brokers collect bySegment groupBy results.
+
+# Join vs QTL
+
+Overally, join is more flexible and well-integrated with existing Druid's components than QTL.
+
+Features | Join | QTL
+------------ | ------------ | -------------
+Available join types | Inner join, Outer join, Theta join | Left join, Equi join
+Available join algorithms | Hash join, sort-merge join, ... | Hash join
+Complex join predicate support | Support | Not support
+Need specialized mechanism | No | Yes
+Use normal Druid source | Yes | No
+
+Here, `t1.col1 + t2.col1 = t1.col2 + t2.col2` can be an example of _complex join predicate_.
 
 # Future plan
 
