@@ -96,6 +96,7 @@ public class BrokerServerView implements TimelineServerView
     this.selectors = Maps.newHashMap();
     this.timelines = Maps.newHashMap();
 
+    // If input's tier and data source matches to the config
     this.segmentFilter = new Predicate<Pair<DruidServerMetadata, DataSegment>>()
     {
       @Override
