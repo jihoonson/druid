@@ -19,38 +19,59 @@
 
 package io.druid.server.coordinator.rules;
 
-import io.druid.server.coordinator.CoordinatorStats;
-import io.druid.server.coordinator.DruidCoordinator;
-import io.druid.server.coordinator.DruidCoordinatorRuntimeParams;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.druid.timeline.DataSegment;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
-public class DistributePartitionRule implements DistributionRule
+import java.util.Objects;
+
+public class IntervalBroadcastDistributionRule extends BroadcastDistributionRule
 {
+  static final String TYPE = "broadcastByInterval";
+  private final Interval interval;
+  private final String colocateDataSource;
+
+  @JsonCreator
+  public IntervalBroadcastDistributionRule(
+      @JsonProperty("interval") Interval interval,
+      @JsonProperty String colocateDataSource
+  )
+  {
+    this.interval = interval;
+    this.colocateDataSource = Objects.requireNonNull(colocateDataSource);
+  }
+
   @Override
+  @JsonProperty
   public String getType()
   {
-    return null;
+    return TYPE;
   }
 
   @Override
   public boolean appliesTo(DataSegment segment, DateTime referenceTimestamp)
   {
-    return false;
+    return appliesTo(segment.getInterval(), referenceTimestamp);
   }
 
   @Override
   public boolean appliesTo(Interval interval, DateTime referenceTimestamp)
   {
-    return false;
+    return Rules.eligibleForLoad(this.interval, interval);
   }
 
   @Override
-  public CoordinatorStats run(
-      DruidCoordinator coordinator, DruidCoordinatorRuntimeParams params, DataSegment segment
-  )
+  @JsonProperty
+  public String getColocateDataSource()
   {
-    return null;
+    return colocateDataSource;
+  }
+
+  @JsonProperty
+  public Interval getInterval()
+  {
+    return interval;
   }
 }

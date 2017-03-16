@@ -19,6 +19,22 @@
 
 package io.druid.server.coordinator.rules;
 
-public interface UndistributionRule extends Rule
+import org.joda.time.DateTime;
+import org.joda.time.Interval;
+import org.joda.time.Period;
+
+public class Rules
 {
+  public static boolean eligibleForLoad(Interval src, Interval target)
+  {
+    return src.contains(target);
+  }
+
+  public static boolean eligibleForLoad(Period period, Interval interval, DateTime referenceTimestamp)
+  {
+    final Interval currInterval = new Interval(period, referenceTimestamp);
+    return currInterval.overlaps(interval) && interval.getStartMillis() >= currInterval.getStartMillis();
+  }
+
+  private Rules() {}
 }

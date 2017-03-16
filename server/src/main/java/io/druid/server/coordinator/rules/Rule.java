@@ -38,17 +38,13 @@ import org.joda.time.Interval;
     @JsonSubTypes.Type(name = "dropByPeriod", value = PeriodDropRule.class),
     @JsonSubTypes.Type(name = "dropByInterval", value = IntervalDropRule.class),
     @JsonSubTypes.Type(name = "dropForever", value = ForeverDropRule.class),
-    @JsonSubTypes.Type(name = "broadcastRule", value = BroadcastRule.class),
-    @JsonSubTypes.Type(name = DistributionRule2.TYPE, value = DistributionRule2.class)
+    @JsonSubTypes.Type(name = ForeverBroadcastDistributionRule.TYPE, value = ForeverBroadcastDistributionRule.class),
+    @JsonSubTypes.Type(name = IntervalBroadcastDistributionRule.TYPE, value = IntervalBroadcastDistributionRule.class),
+    @JsonSubTypes.Type(name = PeriodBroadcastDistributionRule.TYPE, value = PeriodBroadcastDistributionRule.class)
 })
 
 public interface Rule
 {
-  /**
-   * Get type of this rule.
-   *
-   * @return type name
-   */
   String getType();
 
   boolean appliesTo(DataSegment segment, DateTime referenceTimestamp);
