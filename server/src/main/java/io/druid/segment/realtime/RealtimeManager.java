@@ -152,7 +152,7 @@ public class RealtimeManager implements QuerySegmentWalker
   public <T> QueryRunner<T> getQueryRunnerForIntervals(final Query<T> query, Iterable<Interval> intervals)
   {
     final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);
-    final Map<Integer, FireChief> partitionChiefs = chiefs.get(Iterables.getOnlyElement(query.getDataSource()
+    final Map<Integer, FireChief> partitionChiefs = chiefs.get(Iterables.getOnlyElement(Iterables.getOnlyElement(query.getDataSources()).getDataSource()
                                                                                              .getNames()));
 
     return partitionChiefs == null ? new NoopQueryRunner<T>() : factory.getToolchest().mergeResults(
@@ -177,7 +177,7 @@ public class RealtimeManager implements QuerySegmentWalker
   public <T> QueryRunner<T> getQueryRunnerForSegments(final Query<T> query, final Iterable<SegmentDescriptor> specs)
   {
     final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);
-    final Map<Integer, FireChief> partitionChiefs = chiefs.get(Iterables.getOnlyElement(query.getDataSource()
+    final Map<Integer, FireChief> partitionChiefs = chiefs.get(Iterables.getOnlyElement(Iterables.getOnlyElement(query.getDataSources()).getDataSource()
                                                                                              .getNames()));
 
     return partitionChiefs == null

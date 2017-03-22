@@ -22,6 +22,7 @@ package io.druid.query.join;
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.base.Supplier;
+import com.google.common.collect.Iterables;
 import io.druid.collections.StupidPool;
 import io.druid.common.guava.SettableSupplier;
 import io.druid.data.input.Row;
@@ -32,6 +33,7 @@ import io.druid.java.util.common.guava.BaseSequence;
 import io.druid.java.util.common.guava.BaseSequence.IteratorMaker;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.java.util.common.guava.Sequences;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.dimension.ColumnSelectorStrategyFactory;
 import io.druid.query.dimension.DimensionSpec;
 import io.druid.query.filter.ValueMatcher;
@@ -72,34 +74,34 @@ public class HashJoinQueryEngine implements JoinQueryEngine
     }
   }
 
-  private static JoinHashTable buildHashTableFromSegment(final JoinQuery query, final Segment segment)
-  {
-    final JoinHashTable hashTable = new JoinHashTable();
-    final StorageAdapter adapter = segment.asStorageAdapter();
-    final Sequence<Cursor> cursors = adapter.makeCursors(
-        Filters.toFilter(query.getFilter()), // TODO: push only pushable filters for this table
-        query.getIntervals().get(0),
-        query.getVirtualColumns(),
-        query.getGranularity(),
-        false
-    );
-
-    cursors.accumulate(
-        hashTable,
-        new Accumulator<JoinHashTable, Cursor>()
-        {
-          @Override
-          public JoinHashTable accumulate(JoinHashTable accumulated, Cursor in)
-          {
-            // Retrieve column values from cursor
-            // add to join hash table
-            return accumulated;
-          }
-        }
-    );
-
-    return hashTable;
-  }
+//  private static JoinHashTable buildHashTableFromSegment(final JoinQuery query, final Segment segment)
+//  {
+//    final JoinHashTable hashTable = new JoinHashTable();
+//    final StorageAdapter adapter = segment.asStorageAdapter();
+//    final Sequence<Cursor> cursors = adapter.makeCursors(
+//        Filters.toFilter(query.getFilter()), // TODO: push only pushable filters for this table
+//        query.getIntervals().get(0),
+//        query.getVirtualColumns(),
+//        query.getGranularity(),
+//        false
+//    );
+//
+//    cursors.accumulate(
+//        hashTable,
+//        new Accumulator<JoinHashTable, Cursor>()
+//        {
+//          @Override
+//          public JoinHashTable accumulate(JoinHashTable accumulated, Cursor in)
+//          {
+//            // Retrieve column values from cursor
+//            // add to join hash table
+//            return accumulated;
+//          }
+//        }
+//    );
+//
+//    return hashTable;
+//  }
 
   private static JoinHashTable buildHashTableFromSequence(final JoinQuery query, final Sequence<Row> sequence)
   {
@@ -222,6 +224,7 @@ public class HashJoinQueryEngine implements JoinQueryEngine
       final JoinQuery query,
       final Segment segment,
       final Supplier<Sequence<Row>> supplier,
+      final String nonBroadcastedSourceName,
       final StupidPool<ByteBuffer> pool
   )
   {
@@ -301,9 +304,18 @@ public class HashJoinQueryEngine implements JoinQueryEngine
     }
 
     // TODO: check this
-    final List<Interval> intervals = query.getQuerySegmentSpec().getIntervals();
-    if (intervals.size() != 1) {
-      throw new IAE("Should only have one interval, got[%s]", intervals);
+    List<Interval> intervals = null;
+    for (DataSourceWithSegmentSpec eachSource : query.getDataSources()) {
+      if (Iterables.getOnlyElement(eachSource.getDataSource().getNames()).equals(nonBroadcastedSourceName)) {
+        intervals = eachSource.getQuerySegmentSpec().getIntervals();
+        if (intervals.size() != 1) {
+          throw new IAE("Should only have one interval, got[%s]", intervals);
+        }
+      }
+    }
+    if (intervals == null) {
+      // TODO
+      throw new IAE("TODO");
     }
 
     final Sequence<Cursor> cursors = storageAdapter.makeCursors(

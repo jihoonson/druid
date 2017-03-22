@@ -22,6 +22,7 @@ package io.druid.query.groupby;
 import com.google.common.base.Enums;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import io.druid.collections.StupidPool;
 import io.druid.data.input.MapBasedInputRow;
@@ -67,7 +68,7 @@ public class GroupByQueryHelper
   {
     final GroupByQueryConfig querySpecificConfig = config.withOverrides(query);
     final Granularity gran = query.getGranularity();
-    final long timeStart = query.getIntervals().get(0).getStartMillis();
+    final long timeStart = Iterables.getOnlyElement(query.getDataSources()).getQuerySegmentSpec().getIntervals().get(0).getStartMillis();
 
     long granTimeStart = timeStart;
     if (!(Granularities.ALL.equals(gran))) {

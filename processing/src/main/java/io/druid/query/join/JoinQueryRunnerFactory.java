@@ -61,7 +61,8 @@ public class JoinQueryRunnerFactory implements QueryRunnerFactory<Row, JoinQuery
   @Override
   public QueryRunner<Row> createRunner(Segment segment)
   {
-    return new JoinQueryRunner(factory, segment, supplier, pool);
+    // TODO: null
+    return new JoinQueryRunner(factory, segment, supplier, null, pool);
   }
 
   @Override
@@ -88,18 +89,21 @@ public class JoinQueryRunnerFactory implements QueryRunnerFactory<Row, JoinQuery
     private final Segment segment;
     private final Supplier<Sequence<Row>> joinedBroadcastedSources;
     private final JoinStrategyFactory factory;
+    private final String nonBroadcastedSourceName;
     private final StupidPool<ByteBuffer> pool;
 
     private JoinQueryRunner(
         JoinStrategyFactory factory,
         Segment nonBroadcastSegment,
         Supplier<Sequence<Row>> joinedBroadcastedSources,
+        String nonBroadcastedSourceName,
         StupidPool<ByteBuffer> pool
     )
     {
       this.factory = factory;
       this.segment = nonBroadcastSegment;
       this.joinedBroadcastedSources = joinedBroadcastedSources;
+      this.nonBroadcastedSourceName = nonBroadcastedSourceName;
       this.pool = pool;
     }
 
@@ -107,7 +111,7 @@ public class JoinQueryRunnerFactory implements QueryRunnerFactory<Row, JoinQuery
     public Sequence<Row> run(Query<Row> query, Map<String, Object> responseContext)
     {
       final JoinQuery joinQuery = (JoinQuery) query;
-      return factory.strategize(query).createEngine(joinQuery.getJoinSpec()).process(joinQuery, segment, joinedBroadcastedSources, pool);
+      return factory.strategize(query).createEngine(joinQuery.getJoinSpec()).process(joinQuery, segment, joinedBroadcastedSources, nonBroadcastedSourceName, pool);
     }
   }
 }

@@ -24,9 +24,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.druid.data.input.Row;
 import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.granularity.Granularity;
+import io.druid.java.util.common.guava.Sequence;
 import io.druid.query.BaseQuery;
 import io.druid.query.DataSource;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.Query;
+import io.druid.query.QuerySegmentWalker;
 import io.druid.query.dimension.DimensionSpec;
 import io.druid.query.filter.DimFilter;
 import io.druid.query.join.AnnotatedJoinSpec.InputDirection;
@@ -35,6 +38,7 @@ import io.druid.segment.VirtualColumns;
 import it.unimi.dsi.fastutil.ints.AbstractIntList;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
+import org.joda.time.Duration;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -205,6 +209,13 @@ public class JoinQuery extends BaseQuery<Row>
   }
 
   @Override
+  public Iterable<DataSourceWithSegmentSpec> getDataSources()
+  {
+    // TODO
+    return null;
+  }
+
+  @Override
   public boolean hasFilters()
   {
     return filter != null;
@@ -220,6 +231,22 @@ public class JoinQuery extends BaseQuery<Row>
   public String getType()
   {
     return Query.JOIN;
+  }
+
+  @Override
+  public Sequence<Row> run(
+      QuerySegmentWalker walker, Map<String, Object> context
+  )
+  {
+    // TODO
+    return null;
+  }
+
+  @Override
+  public Duration getDuration()
+  {
+    // TODO
+    return null;
   }
 
   @JsonProperty

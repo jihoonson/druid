@@ -22,6 +22,7 @@ package io.druid.query;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
 import io.druid.data.input.MapBasedRow;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.java.util.common.guava.Sequences;
@@ -85,7 +86,7 @@ public class TimewarpOperator<T> implements PostProcessingOperator<T>
       {
         final long offset = computeOffset(now);
 
-        final Interval interval = query.getIntervals().get(0);
+        final Interval interval = Iterables.getOnlyElement(query.getDataSources()).getQuerySegmentSpec().getIntervals().get(0);
         final Interval modifiedInterval = new Interval(
             Math.min(interval.getStartMillis() + offset, now + offset),
             Math.min(interval.getEndMillis() + offset, now + offset)

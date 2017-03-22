@@ -32,8 +32,9 @@ import java.util.Objects;
 
 public abstract class SingleSourceBaseQuery<T extends Comparable<T>> extends BaseQuery<T>
 {
-  private final DataSource dataSource;
-  private final QuerySegmentSpec querySegmentSpec;
+//  private final DataSource dataSource;
+//  private final QuerySegmentSpec querySegmentSpec;
+  private final DataSourceWithSegmentSpec dataSource;
   private volatile Duration duration;
 
   public SingleSourceBaseQuery(
@@ -44,18 +45,20 @@ public abstract class SingleSourceBaseQuery<T extends Comparable<T>> extends Bas
   )
   {
     super(descending, context);
-    this.dataSource = Objects.requireNonNull(dataSource, "dataSource can't be null");
-    this.querySegmentSpec = Objects.requireNonNull(querySegmentSpec, "querySegmentSpec can't be null");
+    Objects.requireNonNull(dataSource, "dataSource can't be null");
+    Objects.requireNonNull(querySegmentSpec, "querySegmentSpec can't be null");
+
+    this.dataSource = new DataSourceWithSegmentSpec(dataSource, querySegmentSpec);
   }
 
   @JsonProperty
   public DataSource getDataSource()
   {
-    return dataSource;
+    return dataSource.getDataSource();
   }
 
   @Override
-  public Iterable<DataSource> getDataSources()
+  public Iterable<DataSourceWithSegmentSpec> getDataSources()
   {
     return ImmutableList.of(dataSource);
   }
@@ -63,26 +66,26 @@ public abstract class SingleSourceBaseQuery<T extends Comparable<T>> extends Bas
   @JsonProperty("intervals")
   public QuerySegmentSpec getQuerySegmentSpec()
   {
-    return querySegmentSpec;
+    return dataSource.getQuerySegmentSpec();
   }
 
   @Override
   public Sequence<T> run(QuerySegmentWalker walker, Map<String, Object> context)
   {
-    return run(querySegmentSpec.lookup(this, walker), context);
+    return run(dataSource.getQuerySegmentSpec().lookup(this, walker), context);
   }
 
-  @Override
+//  @Override
   public List<Interval> getIntervals()
   {
-    return querySegmentSpec.getIntervals();
+    return dataSource.getQuerySegmentSpec().getIntervals();
   }
 
 //  @Override
   public Duration getDuration()
   {
     if (duration == null) {
-      duration = initDuration(querySegmentSpec);
+      duration = initDuration(dataSource.getQuerySegmentSpec());
     }
 
     return duration;
@@ -113,7 +116,9 @@ public abstract class SingleSourceBaseQuery<T extends Comparable<T>> extends Bas
       return false;
     }
 
-    return querySegmentSpec.equals(baseQuery.querySegmentSpec);
+    return true;
+
+//    return querySegmentSpec.equals(baseQuery.querySegmentSpec);
   }
 
   @Override
@@ -122,7 +127,7 @@ public abstract class SingleSourceBaseQuery<T extends Comparable<T>> extends Bas
     int result = dataSource.hashCode();
     result = 31 * result + (isDescending() ? 1 : 0);
     result = 31 * result + (getContext() != null ? getContext().hashCode() : 0);
-    result = 31 * result + querySegmentSpec.hashCode();
+//    result = 31 * result + querySegmentSpec.hashCode();
     result = 31 * result + (duration != null ? duration.hashCode() : 0);
     return result;
   }

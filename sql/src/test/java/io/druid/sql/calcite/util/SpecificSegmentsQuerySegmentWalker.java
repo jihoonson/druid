@@ -29,6 +29,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.guava.FunctionalIterable;
 import io.druid.java.util.common.guava.Sequence;
+import io.druid.query.DataSource;
 import io.druid.query.FinalizeResultsQueryRunner;
 import io.druid.query.NoopQueryRunner;
 import io.druid.query.Query;
@@ -199,11 +200,12 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
 
   private <T> VersionedIntervalTimeline<String, Segment> getTimelineForTableDataSource(Query<T> query)
   {
-    if (query.getDataSource() instanceof TableDataSource) {
-      return timelines.get(((TableDataSource) query.getDataSource()).getName());
+    DataSource dataSource = Iterables.getOnlyElement(query.getDataSources()).getDataSource();
+    if (dataSource instanceof TableDataSource) {
+      return timelines.get(((TableDataSource) dataSource).getName());
     } else {
       throw new UnsupportedOperationException(
-          String.format("DataSource type[%s] unsupported", query.getDataSource().getClass().getName())
+          String.format("DataSource type[%s] unsupported", dataSource.getClass().getName())
       );
     }
   }

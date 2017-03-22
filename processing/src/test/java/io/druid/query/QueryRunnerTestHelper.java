@@ -529,7 +529,9 @@ public class QueryRunnerTestHelper
               public Sequence<T> run(Query<T> query, Map<String, Object> responseContext)
               {
                 List<TimelineObjectHolder> segments = Lists.newArrayList();
-                for (Interval interval : query.getIntervals()) {
+                Iterable<DataSourceWithSegmentSpec> iterables = query.getDataSources();
+                DataSourceWithSegmentSpec source = Iterables.getOnlyElement(iterables);
+                for (Interval interval : source.getQuerySegmentSpec().getIntervals()) {
                   segments.addAll(timeline.lookup(interval));
                 }
                 List<Sequence<T>> sequences = Lists.newArrayList();

@@ -20,10 +20,12 @@
 package io.druid.query.timeseries;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.java.util.common.guava.Sequences;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.Druids;
 import io.druid.query.Query;
 import io.druid.query.QueryRunner;
@@ -190,7 +192,10 @@ public class TimeSeriesUnionQueryRunnerTest
                   Map<String, Object> responseContext
               )
               {
-                if (query.getDataSource().equals(new TableDataSource("ds1"))) {
+                Iterable<DataSourceWithSegmentSpec> iterables = query.getDataSources();
+                DataSourceWithSegmentSpec source = Iterables.getOnlyElement(iterables);
+
+                if (source.getDataSource().equals(new TableDataSource("ds1"))) {
                   return Sequences.simple(descending ? Lists.reverse(ds1) : ds1);
                 } else {
                   return Sequences.simple(descending ? Lists.reverse(ds2) : ds2);

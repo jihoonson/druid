@@ -34,9 +34,7 @@ import io.druid.query.timeboundary.TimeBoundaryQuery;
 import io.druid.query.timeseries.TimeseriesQuery;
 import io.druid.query.topn.TopNQuery;
 import org.joda.time.Duration;
-import org.joda.time.Interval;
 
-import java.util.List;
 import java.util.Map;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "queryType")
@@ -65,7 +63,7 @@ public interface Query<T>
 
 //  DataSource getDataSource();
   // TODO: DS + interval
-  Iterable<DataSource> getDataSources();
+  Iterable<DataSourceWithSegmentSpec> getDataSources();
 
   boolean hasFilters();
 
@@ -75,9 +73,14 @@ public interface Query<T>
 
   Sequence<T> run(QuerySegmentWalker walker, Map<String, Object> context);
 
+  default Sequence<T> run(QueryRunnerMaker maker, Map<String, Object> context)
+  {
+    return run(maker.getQueryRunner(this), context);
+  }
+
   Sequence<T> run(QueryRunner<T> runner, Map<String, Object> context);
 
-  List<Interval> getIntervals();
+//  List<Interval> getIntervals();
 
   // TODO => for each source
   Duration getDuration();

@@ -21,6 +21,7 @@ package io.druid.query;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import io.druid.java.util.common.guava.Sequence;
@@ -36,6 +37,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 
@@ -73,6 +75,12 @@ public class TimewarpOperatorTest
     }
   }
 
+  private static List<Interval> getIntervalFromQuery(Query query)
+  {
+    Iterable<DataSourceWithSegmentSpec> iterable = query.getDataSources();
+    return Iterables.getOnlyElement(iterable).getQuerySegmentSpec().getIntervals();
+  }
+
   @Test
   public void testPostProcess() throws Exception
   {
@@ -96,7 +104,7 @@ public class TimewarpOperatorTest
                         new TimeseriesResultValue(ImmutableMap.<String, Object>of("metric", 3))
                     ),
                     new Result<>(
-                        query.getIntervals().get(0).getEnd(),
+                        getIntervalFromQuery(query).get(0).getEnd(),
                         new TimeseriesResultValue(ImmutableMap.<String, Object>of("metric", 5))
                     )
                 )
@@ -200,11 +208,11 @@ public class TimewarpOperatorTest
             return Sequences.simple(
                 ImmutableList.of(
                     new Result<>(
-                        query.getIntervals().get(0).getStart(),
+                        getIntervalFromQuery(query).get(0).getStart(),
                         new TimeseriesResultValue(ImmutableMap.<String, Object>of("metric", 2))
                     ),
                     new Result<>(
-                        query.getIntervals().get(0).getEnd(),
+                        getIntervalFromQuery(query).get(0).getEnd(),
                         new TimeseriesResultValue(ImmutableMap.<String, Object>of("metric", 3))
                     )
                 )

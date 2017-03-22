@@ -21,6 +21,7 @@ package io.druid.query;
 
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.metamx.emitter.service.ServiceEmitter;
 import com.metamx.emitter.service.ServiceMetricEvent;
@@ -76,7 +77,7 @@ public class IntervalChunkingQueryRunner<T> implements QueryRunner<T>
 
     List<Interval> chunkIntervals = Lists.newArrayList(
         FunctionalIterable
-            .create(query.getIntervals())
+            .create(Iterables.getOnlyElement(query.getDataSources()).getQuerySegmentSpec().getIntervals())
             .transformCat(
                 new Function<Interval, Iterable<Interval>>()
                 {

@@ -258,7 +258,7 @@ public class ServerManager implements QuerySegmentWalker
     final Function<Query<T>, ServiceMetricEvent.Builder> builderFn = getBuilderFn(toolChest);
     final AtomicLong cpuTimeAccumulator = new AtomicLong(0L);
 
-    DataSource dataSource = query.getDataSource();
+    DataSource dataSource = Iterables.getOnlyElement(query.getDataSources()).getDataSource();
     if (!(dataSource instanceof TableDataSource)) {
       throw new UnsupportedOperationException("data source type '" + dataSource.getClass().getName() + "' unsupported");
     }
@@ -346,14 +346,14 @@ public class ServerManager implements QuerySegmentWalker
     final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);
     if (factory == null) {
       log.makeAlert("Unknown query type, [%s]", query.getClass())
-         .addData("dataSource", query.getDataSource())
+         .addData("dataSource", Iterables.getOnlyElement(query.getDataSources()).getDataSource())
          .emit();
       return new NoopQueryRunner<T>();
     }
 
     final QueryToolChest<T, Query<T>> toolChest = factory.getToolchest();
 
-    String dataSourceName = getDataSourceName(query.getDataSource());
+    String dataSourceName = getDataSourceName(Iterables.getOnlyElement(query.getDataSources()).getDataSource());
 
     // TODO: find broadcasted segments
     final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = dataSources.get(

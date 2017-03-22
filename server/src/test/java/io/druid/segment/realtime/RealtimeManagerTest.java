@@ -41,6 +41,7 @@ import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.granularity.Granularities;
 import io.druid.java.util.common.parsers.ParseException;
 import io.druid.query.BaseQuery;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.Query;
 import io.druid.query.QueryRunner;
 import io.druid.query.QueryRunnerFactory;
@@ -968,13 +969,15 @@ public class RealtimeManagerTest
 
       final BaseQuery baseQuery = (BaseQuery) query;
 
-      if (baseQuery.getQuerySegmentSpec() instanceof MultipleIntervalSegmentSpec) {
+      Iterable<DataSourceWithSegmentSpec> iterables = query.getDataSources();
+      DataSourceWithSegmentSpec source = Iterables.getOnlyElement(iterables);
+      if (source.getQuerySegmentSpec() instanceof MultipleIntervalSegmentSpec) {
         return factory.getToolchest()
                       .mergeResults(
                           factory.mergeRunners(
                               MoreExecutors.sameThreadExecutor(),
                               Iterables.transform(
-                                  baseQuery.getIntervals(),
+                                  source.getQuerySegmentSpec().getIntervals(),
                                   new Function<Interval, QueryRunner<T>>()
                                   {
                                     @Override
@@ -988,10 +991,10 @@ public class RealtimeManagerTest
                       );
       }
 
-      Assert.assertEquals(1, query.getIntervals().size());
+      Assert.assertEquals(1, source.getQuerySegmentSpec().getIntervals().size());
 
       final SegmentDescriptor descriptor =
-          ((SpecificSegmentSpec) ((BaseQuery) query).getQuerySegmentSpec()).getDescriptor();
+          ((SpecificSegmentSpec) source.getQuerySegmentSpec()).getDescriptor();
 
       return new SpecificSegmentQueryRunner<T>(
           runners.get(descriptor.getInterval()),

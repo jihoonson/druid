@@ -30,6 +30,7 @@ import io.druid.curator.discovery.ServerDiscoverySelector;
 import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.lifecycle.LifecycleStart;
 import io.druid.java.util.common.lifecycle.LifecycleStop;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.Query;
 import io.druid.server.coordinator.rules.LoadRule;
 import io.druid.server.coordinator.rules.Rule;
@@ -142,14 +143,16 @@ public class TieredBrokerHostSelector<T> implements HostSelector<T>
 
     if (brokerServiceName == null) {
       // For Union Queries tier will be selected on the rules for first dataSource.
-      List<Rule> rules = ruleManager.getRulesWithDefault(Iterables.getFirst(query.getDataSource().getNames(), null));
+      Iterable<DataSourceWithSegmentSpec> iterables = query.getDataSources();
+      DataSourceWithSegmentSpec source = Iterables.getOnlyElement(iterables);
+      List<Rule> rules = ruleManager.getRulesWithDefault(Iterables.getFirst(source.getDataSource().getNames(), null));
 
       // find the rule that can apply to the entire set of intervals
       DateTime now = new DateTime();
       int lastRulePosition = -1;
       LoadRule baseRule = null;
 
-      for (Interval interval : query.getIntervals()) {
+      for (Interval interval : source.getQuerySegmentSpec().getIntervals()) {
         int currRulePosition = 0;
         for (Rule rule : rules) {
           if (rule instanceof LoadRule && currRulePosition > lastRulePosition && rule.appliesTo(interval, now)) {
@@ -174,11 +177,13 @@ public class TieredBrokerHostSelector<T> implements HostSelector<T>
       }
     }
 
+    Iterable<DataSourceWithSegmentSpec> iterables = query.getDataSources();
+    DataSourceWithSegmentSpec source = Iterables.getOnlyElement(iterables);
     if (brokerServiceName == null) {
       log.error(
           "WTF?! No brokerServiceName found for datasource[%s], intervals[%s]. Using default[%s].",
-          query.getDataSource(),
-          query.getIntervals(),
+          source.getDataSource(),
+          source.getQuerySegmentSpec().getIntervals(),
           tierConfig.getDefaultBrokerServiceName()
       );
       brokerServiceName = tierConfig.getDefaultBrokerServiceName();

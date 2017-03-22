@@ -39,7 +39,7 @@ import io.druid.guice.JsonConfigProvider;
 import io.druid.guice.LazySingleton;
 import io.druid.guice.LifecycleModule;
 import io.druid.java.util.common.logger.Logger;
-import io.druid.query.QuerySegmentWalker;
+import io.druid.query.QueryRunnerMaker;
 import io.druid.query.RetryQueryRunnerConfig;
 import io.druid.query.lookup.LookupModule;
 import io.druid.server.BrokerQueryResource;
@@ -98,7 +98,8 @@ public class CliBroker extends ServerRunnable
             JsonConfigProvider.bind(binder, "druid.broker.retryPolicy", RetryQueryRunnerConfig.class);
             JsonConfigProvider.bind(binder, "druid.broker.segment", BrokerSegmentWatcherConfig.class);
 
-            binder.bind(QuerySegmentWalker.class).to(ClientQuerySegmentWalker.class).in(LazySingleton.class);
+//            binder.bind(QuerySegmentWalker.class).to(ClientQuerySegmentWalker.class).in(LazySingleton.class);
+            binder.bind(QueryRunnerMaker.class).to(ClientQuerySegmentWalker.class).in(LazySingleton.class);
 
             binder.bind(JettyServerInitializer.class).to(QueryJettyServerInitializer.class).in(LazySingleton.class);
 

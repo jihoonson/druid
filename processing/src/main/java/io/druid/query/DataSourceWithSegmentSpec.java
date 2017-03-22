@@ -19,38 +19,36 @@
 
 package io.druid.query;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.google.common.collect.Iterables;
+import io.druid.query.spec.QuerySegmentSpec;
 
-import java.util.List;
+import java.util.Objects;
 
-@JsonTypeName("query")
-public class QueryDataSource implements DataSource
+public class DataSourceWithSegmentSpec
 {
-  @JsonProperty
-  private final Query query;
+  private final DataSource dataSource;
+  private final QuerySegmentSpec querySegmentSpec;
 
-  @JsonCreator
-  public QueryDataSource(@JsonProperty("query") Query query)
+  public DataSourceWithSegmentSpec(DataSource dataSource, QuerySegmentSpec querySegmentSpec)
   {
-    this.query = query;
+    this.dataSource = dataSource;
+    this.querySegmentSpec = querySegmentSpec;
+  }
+
+  public DataSource getDataSource()
+  {
+    return dataSource;
+  }
+
+  public QuerySegmentSpec getQuerySegmentSpec()
+  {
+    return querySegmentSpec;
   }
 
   @Override
-  public List<String> getNames()
+  public int hashCode()
   {
-    return ((DataSourceWithSegmentSpec)Iterables.getOnlyElement(query.getDataSources())).getDataSource().getNames();
+    return Objects.hash(dataSource, querySegmentSpec);
   }
-
-  @JsonProperty
-  public Query getQuery()
-  {
-    return query;
-  }
-
-  public String toString() { return query.toString(); }
 
   @Override
   public boolean equals(Object o)
@@ -58,22 +56,17 @@ public class QueryDataSource implements DataSource
     if (this == o) {
       return true;
     }
-    if (o == null || getClass() != o.getClass()) {
+
+    if (o == null || o.getClass() != getClass()) {
       return false;
     }
 
-    QueryDataSource that = (QueryDataSource) o;
+    DataSourceWithSegmentSpec that = (DataSourceWithSegmentSpec) o;
 
-    if (!query.equals(that.query)) {
+    if (!dataSource.equals(that.dataSource)) {
       return false;
     }
 
-    return true;
-  }
-
-  @Override
-  public int hashCode()
-  {
-    return query.hashCode();
+    return querySegmentSpec.equals(that.querySegmentSpec);
   }
 }

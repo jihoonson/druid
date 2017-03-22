@@ -201,7 +201,7 @@ public class GroupByStrategyV1 implements GroupByStrategy
     // We need the inner incremental index to have all the columns required by the outer query
     final GroupByQuery innerQuery = new GroupByQuery.Builder(subquery)
         .setAggregatorSpecs(Lists.newArrayList(aggs))
-        .setInterval(subquery.getIntervals())
+        .setInterval(Iterables.getOnlyElement(subquery.getDataSources()).getQuerySegmentSpec().getIntervals())
         .setPostAggregatorSpecs(Lists.<PostAggregator>newArrayList())
         .build();
 
@@ -231,7 +231,7 @@ public class GroupByStrategyV1 implements GroupByStrategy
         bufferPool,
         Sequences.concat(
             Sequences.map(
-                Sequences.simple(outerQuery.getIntervals()),
+                Sequences.simple(Iterables.getOnlyElement(outerQuery.getDataSources()).getQuerySegmentSpec().getIntervals()),
                 new Function<Interval, Sequence<Row>>()
                 {
                   @Override

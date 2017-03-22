@@ -20,6 +20,7 @@
 package io.druid.query;
 
 import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import io.druid.java.util.common.guava.MergeSequence;
 import io.druid.java.util.common.guava.Sequence;
@@ -41,7 +42,7 @@ public class UnionQueryRunner<T> implements QueryRunner<T>
   @Override
   public Sequence<T> run(final Query<T> query, final Map<String, Object> responseContext)
   {
-    DataSource dataSource = query.getDataSource();
+    DataSource dataSource = Iterables.getOnlyElement(query.getDataSources()).getDataSource();
     if (dataSource instanceof UnionDataSource) {
 
       return new MergeSequence<>(

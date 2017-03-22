@@ -33,6 +33,7 @@ import io.druid.java.util.common.granularity.Granularities;
 import io.druid.java.util.common.guava.Sequences;
 import io.druid.query.BySegmentResultValue;
 import io.druid.query.BySegmentResultValueClass;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.Druids;
 import io.druid.query.FinalizeResultsQueryRunner;
 import io.druid.query.Query;
@@ -879,8 +880,10 @@ public class SegmentMetadataQueryTest
 
     Query query = MAPPER.readValue(queryStr, Query.class);
     Assert.assertTrue(query instanceof SegmentMetadataQuery);
-    Assert.assertEquals("test_ds", Iterables.getOnlyElement(query.getDataSource().getNames()));
-    Assert.assertEquals(new Interval("2013-12-04T00:00:00.000Z/2013-12-05T00:00:00.000Z"), query.getIntervals().get(0));
+    Iterable<DataSourceWithSegmentSpec> iterables = query.getDataSources();
+    DataSourceWithSegmentSpec source = Iterables.getOnlyElement(iterables);
+    Assert.assertEquals("test_ds", Iterables.getOnlyElement(source.getDataSource().getNames()));
+    Assert.assertEquals(new Interval("2013-12-04T00:00:00.000Z/2013-12-05T00:00:00.000Z"), source.getQuerySegmentSpec().getIntervals().get(0));
     Assert.assertEquals(expectedAnalysisTypes, ((SegmentMetadataQuery) query).getAnalysisTypes());
 
     // test serialize and deserialize
@@ -896,8 +899,10 @@ public class SegmentMetadataQueryTest
                       + "}";
     Query query = MAPPER.readValue(queryStr, Query.class);
     Assert.assertTrue(query instanceof SegmentMetadataQuery);
-    Assert.assertEquals("test_ds", Iterables.getOnlyElement(query.getDataSource().getNames()));
-    Assert.assertEquals(new Interval(JodaUtils.MIN_INSTANT, JodaUtils.MAX_INSTANT), query.getIntervals().get(0));
+    Iterable<DataSourceWithSegmentSpec> iterables = query.getDataSources();
+    DataSourceWithSegmentSpec source = Iterables.getOnlyElement(iterables);
+    Assert.assertEquals("test_ds", Iterables.getOnlyElement(source.getDataSource().getNames()));
+    Assert.assertEquals(new Interval(JodaUtils.MIN_INSTANT, JodaUtils.MAX_INSTANT), source.getQuerySegmentSpec().getIntervals().get(0));
     Assert.assertTrue(((SegmentMetadataQuery) query).isUsingDefaultInterval());
 
     // test serialize and deserialize

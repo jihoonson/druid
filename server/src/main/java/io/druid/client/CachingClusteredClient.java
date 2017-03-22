@@ -58,6 +58,7 @@ import io.druid.java.util.common.guava.Sequences;
 import io.druid.query.BaseQuery;
 import io.druid.query.BySegmentResultValueClass;
 import io.druid.query.CacheStrategy;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.Query;
 import io.druid.query.QueryRunner;
 import io.druid.query.QueryToolChest;
@@ -164,7 +165,9 @@ public class CachingClusteredClient<T> implements QueryRunner<T>
       contextBuilder.put("bySegment", true);
     }
 
-    TimelineLookup<String, ServerSelector> timeline = serverView.getTimeline(query.getDataSource());
+    Iterable<DataSourceWithSegmentSpec> iterables = query.getDataSources();
+    DataSourceWithSegmentSpec source = Iterables.getOnlyElement(iterables);
+    TimelineLookup<String, ServerSelector> timeline = serverView.getTimeline(source.getDataSource());
 
     if (timeline == null) {
       return Sequences.empty();
@@ -183,7 +186,7 @@ public class CachingClusteredClient<T> implements QueryRunner<T>
       List<Interval> uncoveredIntervals = Lists.newArrayListWithCapacity(uncoveredIntervalsLimit);
       boolean uncoveredIntervalsOverflowed = false;
 
-      for (Interval interval : query.getIntervals()) {
+      for (Interval interval : source.getQuerySegmentSpec().getIntervals()) {
         Iterable<TimelineObjectHolder<String, ServerSelector>> lookup = timeline.lookup(interval);
         long startMillis = interval.getStartMillis();
         long endMillis = interval.getEndMillis();
@@ -219,7 +222,7 @@ public class CachingClusteredClient<T> implements QueryRunner<T>
         responseContext.put("uncoveredIntervalsOverflowed", uncoveredIntervalsOverflowed);
       }
     } else {
-      for (Interval interval : query.getIntervals()) {
+      for (Interval interval : source.getQuerySegmentSpec().getIntervals()) {
         Iterables.addAll(serversLookup, timeline.lookup(interval));
       }
     }
@@ -336,7 +339,7 @@ public class CachingClusteredClient<T> implements QueryRunner<T>
         log.makeAlert(
             "No servers found for SegmentDescriptor[%s] for DataSource[%s]?! How can this be?!",
             segment.rhs,
-            query.getDataSource()
+            source.getDataSource()
         ).emit();
       } else {
         final DruidServer server = queryableDruidServer.getServer();

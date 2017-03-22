@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Function;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.metamx.emitter.service.ServiceMetricEvent;
 import io.druid.query.aggregation.AggregatorFactory;
@@ -61,15 +62,16 @@ public class DruidMetrics
     return retVal;
   }
 
+  // TODO: validation
   public static <T> ServiceMetricEvent.Builder makePartialQueryTimeMetric(Query<T> query)
   {
     return new ServiceMetricEvent.Builder()
-        .setDimension(DATASOURCE, DataSourceUtil.getMetricName(query.getDataSource()))
+        .setDimension(DATASOURCE, DataSourceUtil.getMetricName(Iterables.getOnlyElement(query.getDataSources()).getDataSource()))
         .setDimension(TYPE, query.getType())
         .setDimension(
             INTERVAL,
             Lists.transform(
-                query.getIntervals(),
+                Iterables.getOnlyElement(query.getDataSources()).getQuerySegmentSpec().getIntervals(),
                 new Function<Interval, String>()
                 {
                   @Override
@@ -78,7 +80,7 @@ public class DruidMetrics
                     return input.toString();
                   }
                 }
-            ).toArray(new String[query.getIntervals().size()])
+            ).toArray(new String[Iterables.getOnlyElement(query.getDataSources()).getQuerySegmentSpec().getIntervals().size()])
         )
         .setDimension("hasFilters", String.valueOf(query.hasFilters()))
         .setDimension("duration", query.getDuration().toString())

@@ -22,7 +22,9 @@ package io.druid.server.log;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 
+import com.google.common.collect.Iterables;
 import io.druid.java.util.common.logger.Logger;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.Query;
 import io.druid.server.RequestLogLine;
 import org.slf4j.MDC;
@@ -58,8 +60,10 @@ public class LoggingRequestLogger implements RequestLogger
       if (setMDC) {
         try {
           final Query query = requestLogLine.getQuery();
+          Iterable<DataSourceWithSegmentSpec> iterables = query.getDataSources();
+          DataSourceWithSegmentSpec source = Iterables.getOnlyElement(iterables);
           MDC.put("queryId", query.getId());
-          MDC.put("dataSource", query.getDataSource().toString());
+          MDC.put("dataSource", source.getDataSource().toString());
           MDC.put("queryType", query.getType());
           MDC.put("hasFilters", Boolean.toString(query.hasFilters()));
           MDC.put("remoteAddr", requestLogLine.getRemoteAddr());

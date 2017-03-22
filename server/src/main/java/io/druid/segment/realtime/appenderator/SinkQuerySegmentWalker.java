@@ -37,6 +37,7 @@ import io.druid.java.util.common.guava.CloseQuietly;
 import io.druid.java.util.common.guava.FunctionalIterable;
 import io.druid.query.BySegmentQueryRunner;
 import io.druid.query.CPUTimeMetricQueryRunner;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.MetricsEmittingQueryRunner;
 import io.druid.query.NoopQueryRunner;
 import io.druid.query.Query;
@@ -152,12 +153,14 @@ public class SinkQuerySegmentWalker implements QuerySegmentWalker
   public <T> QueryRunner<T> getQueryRunnerForSegments(final Query<T> query, final Iterable<SegmentDescriptor> specs)
   {
     // We only handle one particular dataSource. Make sure that's what we have, then ignore from here on out.
-    if (!(query.getDataSource() instanceof TableDataSource)
-        || !dataSource.equals(((TableDataSource) query.getDataSource()).getName())) {
-      log.makeAlert("Received query for unknown dataSource")
-         .addData("dataSource", query.getDataSource())
-         .emit();
-      return new NoopQueryRunner<>();
+    for (DataSourceWithSegmentSpec eachSource : query.getDataSources()) {
+      if (!(eachSource.getDataSource() instanceof TableDataSource)
+          || !dataSource.equals(((TableDataSource) eachSource.getDataSource()).getName())) {
+        log.makeAlert("Received query for unknown dataSource")
+           .addData("dataSource", eachSource.getDataSource())
+           .emit();
+        return new NoopQueryRunner<>();
+      }
     }
 
     final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);

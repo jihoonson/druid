@@ -20,10 +20,12 @@
 package io.druid.server;
 
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.SetMultimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.Query;
 import io.druid.query.QueryWatcher;
 
@@ -60,7 +62,9 @@ public class QueryManager implements QueryWatcher
   public void registerQuery(Query query, final ListenableFuture future)
   {
     final String id = query.getId();
-    final List<String> datasources = query.getDataSource().getNames();
+    Iterable<DataSourceWithSegmentSpec> iterables = query.getDataSources();
+    DataSourceWithSegmentSpec source = Iterables.getOnlyElement(iterables);
+    final List<String> datasources = source.getDataSource().getNames();
     queries.put(id, future);
     queryDatasources.putAll(id, datasources);
     future.addListener(

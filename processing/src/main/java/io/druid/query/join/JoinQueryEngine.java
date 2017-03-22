@@ -33,6 +33,7 @@ public interface JoinQueryEngine
       final JoinQuery query,
       final Segment segment,
       final Supplier<Sequence<Row>> joinedBroadcastedSources,
+      final String nonBroadcastedSourceName,
       final StupidPool<ByteBuffer> pool
   );
 }

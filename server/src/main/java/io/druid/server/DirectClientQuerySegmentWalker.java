@@ -23,14 +23,12 @@ import io.druid.client.DirectDruidClient;
 import io.druid.query.FinalizeResultsQueryRunner;
 import io.druid.query.Query;
 import io.druid.query.QueryRunner;
-import io.druid.query.QuerySegmentWalker;
+import io.druid.query.QueryRunnerMaker;
 import io.druid.query.QueryToolChestWarehouse;
-import io.druid.query.SegmentDescriptor;
-import org.joda.time.Interval;
 
 /**
  */
-public class DirectClientQuerySegmentWalker implements QuerySegmentWalker
+public class DirectClientQuerySegmentWalker implements QueryRunnerMaker
 {
   private final QueryToolChestWarehouse warehouse;
   private final DirectDruidClient baseClient;
@@ -44,20 +42,26 @@ public class DirectClientQuerySegmentWalker implements QuerySegmentWalker
     this.baseClient = baseClient;
   }
 
-  @Override
-  public <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Iterable<Interval> intervals)
-  {
-    return makeRunner(query);
-  }
-
-  @Override
-  public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Iterable<SegmentDescriptor> specs)
-  {
-    return makeRunner(query);
-  }
+//  @Override
+//  public <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Iterable<Interval> intervals)
+//  {
+//    return makeRunner(query);
+//  }
+//
+//  @Override
+//  public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Iterable<SegmentDescriptor> specs)
+//  {
+//    return makeRunner(query);
+//  }
 
   private <T> FinalizeResultsQueryRunner<T> makeRunner(final Query<T> query)
   {
     return new FinalizeResultsQueryRunner<T>(baseClient, warehouse.getToolChest(query));
+  }
+
+  @Override
+  public <T> QueryRunner<T> getQueryRunner(Query<T> query)
+  {
+    return makeRunner(query);
   }
 }

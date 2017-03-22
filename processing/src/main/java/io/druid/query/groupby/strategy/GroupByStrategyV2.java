@@ -24,6 +24,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -120,7 +121,7 @@ public class GroupByStrategyV2 implements GroupByStrategy
     if (!timestampStringFromContext.isEmpty()) {
       return new DateTime(Long.parseLong(timestampStringFromContext));
     } else if (Granularities.ALL.equals(gran)) {
-      final long timeStart = query.getIntervals().get(0).getStartMillis();
+      final long timeStart = query.getQuerySegmentSpec().getIntervals().get(0).getStartMillis();
       return gran.getIterable(new Interval(timeStart, timeStart + 1)).iterator().next().getStart();
     } else {
       return null;
@@ -165,7 +166,8 @@ public class GroupByStrategyV2 implements GroupByStrategy
     // until the outer groupBy processing completes.
     // This is same for subsequent groupBy layers, and thus the maximum number of required merge buffers becomes 2.
 
-    final DataSource dataSource = query.getDataSource();
+    final Iterable<DataSource> dataSources = query.getDataSources();
+    final DataSource dataSource = Iterables.getOnlyElement(dataSources);
     if (foundNum == MAX_MERGE_BUFFER_NUM + 1 || !(dataSource instanceof QueryDataSource)) {
       return foundNum - 1;
     } else {

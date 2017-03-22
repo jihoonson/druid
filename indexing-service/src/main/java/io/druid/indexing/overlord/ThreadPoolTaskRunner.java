@@ -48,8 +48,7 @@ import io.druid.java.util.common.lifecycle.LifecycleStop;
 import io.druid.query.NoopQueryRunner;
 import io.druid.query.Query;
 import io.druid.query.QueryRunner;
-import io.druid.query.QuerySegmentWalker;
-import io.druid.query.SegmentDescriptor;
+import io.druid.query.QueryRunnerMaker;
 import io.druid.server.DruidNode;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
@@ -70,7 +69,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Runs tasks in a JVM thread using an ExecutorService.
  */
-public class ThreadPoolTaskRunner implements TaskRunner, QuerySegmentWalker
+public class ThreadPoolTaskRunner implements TaskRunner, QueryRunnerMaker
 {
   private static final EmittingLogger log = new EmittingLogger(ThreadPoolTaskRunner.class);
 
@@ -328,22 +327,23 @@ public class ThreadPoolTaskRunner implements TaskRunner, QuerySegmentWalker
     // No state startup required
   }
 
-  @Override
-  public <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Iterable<Interval> intervals)
-  {
-    return getQueryRunnerImpl(query);
-  }
-
-  @Override
-  public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Iterable<SegmentDescriptor> specs)
-  {
-    return getQueryRunnerImpl(query);
-  }
+//  @Override
+//  public <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Iterable<Interval> intervals)
+//  {
+//    return getQueryRunnerImpl(query);
+//  }
+//
+//  @Override
+//  public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Iterable<SegmentDescriptor> specs)
+//  {
+//    return getQueryRunnerImpl(query);
+//  }
 
   private <T> QueryRunner<T> getQueryRunnerImpl(Query<T> query)
   {
     QueryRunner<T> queryRunner = null;
-    final String queryDataSource = Iterables.getOnlyElement(query.getDataSource().getNames());
+//    final String queryDataSource = Iterables.getOnlyElement(query.getDataSource().getNames());
+    final String queryDataSource = Iterables.getOnlyElement(Iterables.getOnlyElement(query.getDataSources()).getDataSource().getNames());
 
     for (final ThreadPoolTaskRunnerWorkItem taskRunnerWorkItem : ImmutableList.copyOf(runningItems)) {
       final Task task = taskRunnerWorkItem.getTask();
@@ -363,6 +363,12 @@ public class ThreadPoolTaskRunner implements TaskRunner, QuerySegmentWalker
     }
 
     return queryRunner == null ? new NoopQueryRunner<T>() : queryRunner;
+  }
+
+  @Override
+  public <T> QueryRunner<T> getQueryRunner(Query<T> query)
+  {
+    return getQueryRunnerImpl(query);
   }
 
   private static class ThreadPoolTaskRunnerWorkItem extends TaskRunnerWorkItem

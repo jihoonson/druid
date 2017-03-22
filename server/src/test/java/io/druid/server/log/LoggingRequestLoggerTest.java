@@ -29,6 +29,7 @@ import io.druid.query.DataSource;
 import io.druid.query.LegacyDataSource;
 import io.druid.query.Query;
 import io.druid.query.QueryRunner;
+import io.druid.query.QueryRunnerMaker;
 import io.druid.query.QuerySegmentWalker;
 import io.druid.query.SingleSourceBaseQuery;
 import io.druid.query.filter.DimFilter;
@@ -76,6 +77,12 @@ public class LoggingRequestLoggerTest
 
         @Override
         public <T> QueryRunner<T> lookup(Query<T> query, QuerySegmentWalker walker)
+        {
+          return null;
+        }
+
+        @Override
+        public <T> QueryRunner<T> lookup(Query<T> query, QueryRunnerMaker maker)
         {
           return null;
         }
