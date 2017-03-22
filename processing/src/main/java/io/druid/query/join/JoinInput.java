@@ -31,24 +31,49 @@ public class JoinInput implements JoinInputSpec
 
   @JsonCreator
   public JoinInput(
-      @JsonProperty String name,
-      @JsonProperty JoinSpec joinSpec
+      @JsonProperty("name") String name,
+      @JsonProperty("joinSpec") JoinSpec joinSpec
   )
   {
     this.name = Objects.requireNonNull(name);
-    this.joinSpec = joinSpec;
+    this.joinSpec = Objects.requireNonNull(joinSpec);
   }
 
   @Override
-  @JsonProperty
+  @JsonProperty("name")
   public String getName()
   {
     return name;
   }
 
-  @JsonProperty
+  @JsonProperty("joinSpec")
   public JoinSpec getJoinSpec()
   {
     return joinSpec;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (o == this) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    JoinInput that = (JoinInput) o;
+    if (!name.equals(that.name)) {
+      return false;
+    }
+
+    return joinSpec.equals(that.joinSpec);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(name, joinSpec);
   }
 }

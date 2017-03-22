@@ -23,6 +23,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 
+import java.util.Objects;
+
 public class JoinSpec
 {
   // left and right don't have to be aligned
@@ -33,7 +35,7 @@ public class JoinSpec
 
   @JsonCreator
   public JoinSpec(
-      @JsonProperty("type") JoinType joinType,
+      @JsonProperty("joinType") JoinType joinType,
       @JsonProperty("predicate") JoinPredicate predicate,
       @JsonProperty("left") JoinInputSpec left,
       @JsonProperty("right") JoinInputSpec right
@@ -66,11 +68,46 @@ public class JoinSpec
     return joinType;
   }
 
+  @JsonProperty
   public JoinInputSpec getLeft() {
     return left;
   }
 
+  @JsonProperty
   public JoinInputSpec getRight() {
     return right;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (o == this) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    JoinSpec that = (JoinSpec) o;
+    if (!joinType.equals(that.joinType)) {
+      return false;
+    }
+
+    if (!predicate.equals(that.predicate)) {
+      return false;
+    }
+
+    if (!left.equals(that.left)) {
+      return false;
+    }
+
+    return right.equals(that.right);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(joinType, predicate, left, right);
   }
 }

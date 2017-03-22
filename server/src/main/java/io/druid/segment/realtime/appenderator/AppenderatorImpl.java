@@ -280,7 +280,7 @@ public class AppenderatorImpl implements Appenderator
   }
 
   @Override
-  public <T> QueryRunner<T> getQueryRunnerForIntervals(final Query<T> query, final Iterable<Interval> intervals)
+  public <T> QueryRunner<T> getQueryRunnerForIntervals(final Query<T> query, final Map<String, Iterable<Interval>> intervals)
   {
     if (texasRanger == null) {
       throw new IllegalStateException("Don't query me, bro.");
@@ -290,7 +290,7 @@ public class AppenderatorImpl implements Appenderator
   }
 
   @Override
-  public <T> QueryRunner<T> getQueryRunnerForSegments(final Query<T> query, final Iterable<SegmentDescriptor> specs)
+  public <T> QueryRunner<T> getQueryRunnerForSegments(final Query<T> query, final Map<String, Iterable<SegmentDescriptor>> specs)
   {
     if (texasRanger == null) {
       throw new IllegalStateException("Don't query me, bro.");

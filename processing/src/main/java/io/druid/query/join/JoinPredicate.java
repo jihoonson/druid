@@ -37,4 +37,16 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 public interface JoinPredicate extends Visitable
 {
   // TODO: JoinFilter?
+
+  enum PredicateType {
+    AND,
+    OR,
+    NOT,
+    EQUAL,
+    DIMENSION,
+    ADD,
+    LITERAL
+  }
+
+  PredicateType getType();
 }

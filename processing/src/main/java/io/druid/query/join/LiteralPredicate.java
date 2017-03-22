@@ -22,12 +22,14 @@ package io.druid.query.join;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Objects;
+
 public class LiteralPredicate implements JoinPredicate
 {
   private final String literal;
 
   @JsonCreator
-  public LiteralPredicate(@JsonProperty String literal)
+  public LiteralPredicate(@JsonProperty("literal") String literal)
   {
     this.literal = literal;
   }
@@ -42,5 +44,32 @@ public class LiteralPredicate implements JoinPredicate
   public void accept(JoinPredicateVisitor visitor)
   {
     visitor.visit(this);
+  }
+
+  @Override
+  public PredicateType getType()
+  {
+    return PredicateType.LITERAL;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (o == this) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    LiteralPredicate that = (LiteralPredicate) o;
+    return literal.equals(that.literal);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(getType(), literal);
   }
 }

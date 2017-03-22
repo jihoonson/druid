@@ -26,6 +26,7 @@ import io.druid.java.util.common.guava.Sequence;
 import io.druid.query.datasourcemetadata.DataSourceMetadataQuery;
 import io.druid.query.filter.DimFilter;
 import io.druid.query.groupby.GroupByQuery;
+import io.druid.query.join.JoinQuery;
 import io.druid.query.metadata.metadata.SegmentMetadataQuery;
 import io.druid.query.search.search.SearchQuery;
 import io.druid.query.select.SelectQuery;
@@ -46,6 +47,7 @@ import java.util.Map;
     @JsonSubTypes.Type(name = Query.SEGMENT_METADATA, value = SegmentMetadataQuery.class),
     @JsonSubTypes.Type(name = Query.SELECT, value = SelectQuery.class),
     @JsonSubTypes.Type(name = Query.TOPN, value = TopNQuery.class),
+    @JsonSubTypes.Type(name = Query.JOIN, value = JoinQuery.class),
     @JsonSubTypes.Type(name = Query.DATASOURCE_METADATA, value = DataSourceMetadataQuery.class)
 
 })
@@ -61,8 +63,6 @@ public interface Query<T>
   String DATASOURCE_METADATA = "dataSourceMetadata";
   String JOIN = "join";
 
-//  DataSource getDataSource();
-  // TODO: DS + interval
   Iterable<DataSourceWithSegmentSpec> getDataSources();
 
   boolean hasFilters();
@@ -71,16 +71,16 @@ public interface Query<T>
 
   String getType();
 
+  /**
+   * run a query for each data source
+   *
+   * @param walker
+   * @param context
+   * @return
+   */
   Sequence<T> run(QuerySegmentWalker walker, Map<String, Object> context);
 
-  default Sequence<T> run(QueryRunnerMaker maker, Map<String, Object> context)
-  {
-    return run(maker.getQueryRunner(this), context);
-  }
-
   Sequence<T> run(QueryRunner<T> runner, Map<String, Object> context);
-
-//  List<Interval> getIntervals();
 
   // TODO => for each source
   Duration getDuration();
@@ -97,14 +97,15 @@ public interface Query<T>
 
   Ordering<T> getResultOrdering();
 
+  String getId();
+
+  Query<T> withId(String id);
+
   Query<T> withOverriddenContext(Map<String, Object> contextOverride);
 
   // TODO => for each source
   Query<T> withQuerySegmentSpec(QuerySegmentSpec spec);
 
-  Query<T> withId(String id);
-
-  String getId();
-
+  // TODO => for each source (replaceDataSourceWith?)
   Query<T> withDataSource(DataSource dataSource);
 }

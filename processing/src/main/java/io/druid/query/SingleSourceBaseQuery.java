@@ -21,6 +21,7 @@ package io.druid.query;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.query.spec.QuerySegmentSpec;
 import org.joda.time.Duration;
@@ -72,7 +73,13 @@ public abstract class SingleSourceBaseQuery<T extends Comparable<T>> extends Bas
   @Override
   public Sequence<T> run(QuerySegmentWalker walker, Map<String, Object> context)
   {
-    return run(dataSource.getQuerySegmentSpec().lookup(this, walker), context);
+    // TODO: check
+    return run(
+        dataSource.getQuerySegmentSpec().lookup(
+            this,
+            Iterables.getOnlyElement(dataSource.getDataSource().getNames()), walker),
+        context
+    );
   }
 
 //  @Override

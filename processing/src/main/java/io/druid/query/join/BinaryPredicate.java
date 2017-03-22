@@ -31,4 +31,25 @@ public abstract class BinaryPredicate implements JoinPredicate
     this.left = Objects.requireNonNull(left);
     this.right = Objects.requireNonNull(right);
   }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (o == this) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    BinaryPredicate that = (BinaryPredicate) o;
+    return getType().equals(that.getType());
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(getType(), left, right);
+  }
 }

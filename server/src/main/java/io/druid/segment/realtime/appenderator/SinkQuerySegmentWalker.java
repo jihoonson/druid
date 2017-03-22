@@ -54,6 +54,7 @@ import io.druid.query.spec.SpecificSegmentQueryRunner;
 import io.druid.query.spec.SpecificSegmentSpec;
 import io.druid.segment.Segment;
 import io.druid.segment.realtime.FireHydrant;
+import io.druid.segment.realtime.QuerySegmentWalkers;
 import io.druid.segment.realtime.plumber.Sink;
 import io.druid.timeline.TimelineObjectHolder;
 import io.druid.timeline.VersionedIntervalTimeline;
@@ -63,6 +64,7 @@ import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.io.Closeable;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -106,8 +108,13 @@ public class SinkQuerySegmentWalker implements QuerySegmentWalker
   }
 
   @Override
-  public <T> QueryRunner<T> getQueryRunnerForIntervals(final Query<T> query, final Iterable<Interval> intervals)
+  public <T> QueryRunner<T> getQueryRunnerForIntervals(
+      final Query<T> query,
+      final Map<String, Iterable<Interval>> intervalMap
+  )
   {
+    QuerySegmentWalkers.checkSingleSourceIntervals(intervalMap);
+    final Iterable<Interval> intervals = Iterables.getOnlyElement(intervalMap.values());
     final Iterable<SegmentDescriptor> specs = FunctionalIterable
         .create(intervals)
         .transformCat(
@@ -146,11 +153,17 @@ public class SinkQuerySegmentWalker implements QuerySegmentWalker
             }
         );
 
-    return getQueryRunnerForSegments(query, specs);
+    return getQueryRunnerForSegments(
+        query,
+        ImmutableMap.of(Iterables.getOnlyElement(intervalMap.keySet()), specs)
+    );
   }
 
   @Override
-  public <T> QueryRunner<T> getQueryRunnerForSegments(final Query<T> query, final Iterable<SegmentDescriptor> specs)
+  public <T> QueryRunner<T> getQueryRunnerForSegments(
+      final Query<T> query,
+      final Map<String, Iterable<SegmentDescriptor>> specs
+  )
   {
     // We only handle one particular dataSource. Make sure that's what we have, then ignore from here on out.
     for (DataSourceWithSegmentSpec eachSource : query.getDataSources()) {
@@ -181,12 +194,14 @@ public class SinkQuerySegmentWalker implements QuerySegmentWalker
     final boolean skipIncrementalSegment = query.getContextValue(CONTEXT_SKIP_INCREMENTAL_SEGMENT, false);
     final AtomicLong cpuTimeAccumulator = new AtomicLong(0L);
 
+    QuerySegmentWalkers.checkSingleSourceSegments(specs);
+    final Iterable<SegmentDescriptor> descriptors = Iterables.getOnlyElement(specs.values());
     return CPUTimeMetricQueryRunner.safeBuild(
         toolChest.mergeResults(
             factory.mergeRunners(
                 queryExecutorService,
                 FunctionalIterable
-                    .create(specs)
+                    .create(descriptors)
                     .transform(
                         new Function<SegmentDescriptor, QueryRunner<T>>()
                         {

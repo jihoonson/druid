@@ -33,7 +33,7 @@ public class DataInput implements JoinInputSpec
 {
   private final DataSource dataSource;
   private final QuerySegmentSpec querySegmentSpec;
-  private final Duration duration;
+  private volatile Duration duration;
 
   @JsonCreator
   public DataInput(
@@ -43,7 +43,6 @@ public class DataInput implements JoinInputSpec
   {
     this.dataSource = Objects.requireNonNull(dataSource);
     this.querySegmentSpec = Objects.requireNonNull(querySegmentSpec);
-    this.duration = BaseQuery.initDuration(querySegmentSpec);
   }
 
   public DataInput(
@@ -57,7 +56,7 @@ public class DataInput implements JoinInputSpec
     this.duration = Objects.requireNonNull(duration);
   }
 
-  @JsonProperty
+  @JsonProperty("dataSource")
   public DataSource getDataSource()
   {
     return dataSource;
@@ -69,15 +68,42 @@ public class DataInput implements JoinInputSpec
     return Iterables.getOnlyElement(dataSource.getNames());
   }
 
-  @JsonProperty
+  @JsonProperty("intervals")
   public QuerySegmentSpec getQuerySegmentSpec()
   {
     return querySegmentSpec;
   }
 
-  @JsonProperty
   public Duration getDuration()
   {
+    if (duration == null) {
+      this.duration = BaseQuery.initDuration(querySegmentSpec);
+    }
     return duration;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (o == this) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    DataInput that = (DataInput) o;
+    if (!dataSource.equals(that.dataSource)) {
+      return false;
+    }
+
+    return querySegmentSpec.equals(that.querySegmentSpec);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(dataSource, querySegmentSpec);
   }
 }

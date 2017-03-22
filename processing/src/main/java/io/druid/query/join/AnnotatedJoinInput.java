@@ -45,4 +45,29 @@ public class AnnotatedJoinInput implements JoinInputSpec
   {
     return joinSpec;
   }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (o == this) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    AnnotatedJoinInput that = (AnnotatedJoinInput) o;
+    if (!name.equals(that.name)) {
+      return false;
+    }
+
+    return joinSpec.equals(that.joinSpec);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(name, joinSpec);
+  }
 }

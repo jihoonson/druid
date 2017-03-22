@@ -231,7 +231,8 @@ public class QueryResource implements QueryCountStatsProvider
       }
 
       final Map<String, Object> responseContext = new MapMaker().makeMap();
-      final Sequence res = query.run(texasRanger, responseContext);
+      final Sequence res;
+      res = query.run(texasRanger, responseContext);
 
       if (prevEtag != null && prevEtag.equals(responseContext.get(HDR_ETAG))) {
         return Response.notModified().build();

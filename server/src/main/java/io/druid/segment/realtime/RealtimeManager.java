@@ -149,7 +149,7 @@ public class RealtimeManager implements QuerySegmentWalker
   }
 
   @Override
-  public <T> QueryRunner<T> getQueryRunnerForIntervals(final Query<T> query, Iterable<Interval> intervals)
+  public <T> QueryRunner<T> getQueryRunnerForIntervals(final Query<T> query, Map<String, Iterable<Interval>> intervals)
   {
     final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);
     final Map<Integer, FireChief> partitionChiefs = chiefs.get(Iterables.getOnlyElement(Iterables.getOnlyElement(query.getDataSources()).getDataSource()
@@ -174,19 +174,21 @@ public class RealtimeManager implements QuerySegmentWalker
   }
 
   @Override
-  public <T> QueryRunner<T> getQueryRunnerForSegments(final Query<T> query, final Iterable<SegmentDescriptor> specs)
+  public <T> QueryRunner<T> getQueryRunnerForSegments(final Query<T> query, final Map<String, Iterable<SegmentDescriptor>> specs)
   {
     final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);
     final Map<Integer, FireChief> partitionChiefs = chiefs.get(Iterables.getOnlyElement(Iterables.getOnlyElement(query.getDataSources()).getDataSource()
                                                                                              .getNames()));
 
+    QuerySegmentWalkers.checkSingleSourceSegments(specs);
+    final Iterable<SegmentDescriptor> descriptors = Iterables.getOnlyElement(specs.values());
     return partitionChiefs == null
            ? new NoopQueryRunner<T>()
            : factory.getToolchest().mergeResults(
                factory.mergeRunners(
                    MoreExecutors.sameThreadExecutor(),
                    Iterables.transform(
-                       specs,
+                       descriptors,
                        new Function<SegmentDescriptor, QueryRunner<T>>()
                        {
                          @Override

@@ -45,6 +45,7 @@ import io.druid.query.spec.SpecificSegmentSpec;
 import io.druid.segment.QueryableIndex;
 import io.druid.segment.QueryableIndexSegment;
 import io.druid.segment.Segment;
+import io.druid.segment.realtime.QuerySegmentWalkers;
 import io.druid.timeline.DataSegment;
 import io.druid.timeline.TimelineObjectHolder;
 import io.druid.timeline.VersionedIntervalTimeline;
@@ -94,7 +95,7 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
   @Override
   public <T> QueryRunner<T> getQueryRunnerForIntervals(
       final Query<T> query,
-      final Iterable<Interval> intervals
+      final Map<String, Iterable<Interval>> intervalMap
   )
   {
     final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);
@@ -104,6 +105,8 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
 
     final QueryToolChest<T, Query<T>> toolChest = factory.getToolchest();
 
+    QuerySegmentWalkers.checkSingleSourceIntervals(intervalMap);
+    final Iterable<Interval> intervals = Iterables.getOnlyElement(intervalMap.values());
     return new FinalizeResultsQueryRunner<>(
         toolChest.postMergeQueryDecoration(
             toolChest.mergeResults(
@@ -168,7 +171,7 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
   @Override
   public <T> QueryRunner<T> getQueryRunnerForSegments(
       final Query<T> query,
-      final Iterable<SegmentDescriptor> specs
+      final Map<String, Iterable<SegmentDescriptor>> specs
   )
   {
     final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);
@@ -178,11 +181,13 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
 
     final QueryToolChest<T, Query<T>> toolChest = factory.getToolchest();
 
+    QuerySegmentWalkers.checkSingleSourceSegments(specs);
+    final Iterable<SegmentDescriptor> descriptors = Iterables.getOnlyElement(specs.values());
     return new FinalizeResultsQueryRunner<>(
         toolChest.postMergeQueryDecoration(
             toolChest.mergeResults(
                 toolChest.preMergeQueryDecoration(
-                    makeBaseRunner(query, toolChest, factory, specs)
+                    makeBaseRunner(query, toolChest, factory, descriptors)
                 )
             )
         ),

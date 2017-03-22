@@ -69,4 +69,5 @@ public class DataSourceWithSegmentSpec
 
     return querySegmentSpec.equals(that.querySegmentSpec);
   }
+
 }

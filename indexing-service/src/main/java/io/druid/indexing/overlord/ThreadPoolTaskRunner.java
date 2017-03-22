@@ -45,10 +45,12 @@ import io.druid.indexing.overlord.autoscaling.ScalingStats;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.lifecycle.LifecycleStop;
+import io.druid.query.DataSource;
 import io.druid.query.NoopQueryRunner;
 import io.druid.query.Query;
 import io.druid.query.QueryRunner;
-import io.druid.query.QueryRunnerMaker;
+import io.druid.query.QuerySegmentWalker;
+import io.druid.query.SegmentDescriptor;
 import io.druid.server.DruidNode;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
@@ -69,7 +71,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Runs tasks in a JVM thread using an ExecutorService.
  */
-public class ThreadPoolTaskRunner implements TaskRunner, QueryRunnerMaker
+public class ThreadPoolTaskRunner implements TaskRunner, QuerySegmentWalker
 {
   private static final EmittingLogger log = new EmittingLogger(ThreadPoolTaskRunner.class);
 
@@ -327,27 +329,27 @@ public class ThreadPoolTaskRunner implements TaskRunner, QueryRunnerMaker
     // No state startup required
   }
 
-//  @Override
-//  public <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Iterable<Interval> intervals)
-//  {
-//    return getQueryRunnerImpl(query);
-//  }
-//
-//  @Override
-//  public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Iterable<SegmentDescriptor> specs)
-//  {
-//    return getQueryRunnerImpl(query);
-//  }
+  @Override
+  public <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Map<String, Iterable<Interval>> intervals)
+  {
+    return getQueryRunnerImpl(query);
+  }
+
+  @Override
+  public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Map<String, Iterable<SegmentDescriptor>> specs)
+  {
+    return getQueryRunnerImpl(query);
+  }
 
   private <T> QueryRunner<T> getQueryRunnerImpl(Query<T> query)
   {
     QueryRunner<T> queryRunner = null;
-//    final String queryDataSource = Iterables.getOnlyElement(query.getDataSource().getNames());
-    final String queryDataSource = Iterables.getOnlyElement(Iterables.getOnlyElement(query.getDataSources()).getDataSource().getNames());
+    final DataSource dataSource = Iterables.getOnlyElement(query.getDataSources()).getDataSource();
+    final String dataSourceName = Iterables.getOnlyElement(dataSource.getNames());
 
     for (final ThreadPoolTaskRunnerWorkItem taskRunnerWorkItem : ImmutableList.copyOf(runningItems)) {
       final Task task = taskRunnerWorkItem.getTask();
-      if (task.getDataSource().equals(queryDataSource)) {
+      if (task.getDataSource().equals(dataSourceName)) {
         final QueryRunner<T> taskQueryRunner = task.getQueryRunner(query);
 
         if (taskQueryRunner != null) {
@@ -355,7 +357,7 @@ public class ThreadPoolTaskRunner implements TaskRunner, QueryRunnerMaker
             queryRunner = taskQueryRunner;
           } else {
             log.makeAlert("Found too many query runners for datasource")
-               .addData("dataSource", queryDataSource)
+               .addData("dataSource", dataSourceName)
                .emit();
           }
         }
@@ -363,12 +365,6 @@ public class ThreadPoolTaskRunner implements TaskRunner, QueryRunnerMaker
     }
 
     return queryRunner == null ? new NoopQueryRunner<T>() : queryRunner;
-  }
-
-  @Override
-  public <T> QueryRunner<T> getQueryRunner(Query<T> query)
-  {
-    return getQueryRunnerImpl(query);
   }
 
   private static class ThreadPoolTaskRunnerWorkItem extends TaskRunnerWorkItem

@@ -21,6 +21,8 @@ package io.druid.query;
 
 import org.joda.time.Interval;
 
+import java.util.Map;
+
 /**
  */
 public interface QuerySegmentWalker
@@ -34,7 +36,8 @@ public interface QuerySegmentWalker
    * @param intervals the intervals to find a Queryable for
    * @return a Queryable object that represents the interval
    */
-  public <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Iterable<Interval> intervals);
+//  public <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Iterable<Interval> intervals);
+  <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Map<String, Iterable<Interval>> intervals);
 
   /**
    * Gets the Queryable for a given list of SegmentSpecs.
@@ -44,5 +47,6 @@ public interface QuerySegmentWalker
    * @param specs the list of SegmentSpecs to find a Queryable for
    * @return the Queryable object with the given SegmentSpecs
    */
-  public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Iterable<SegmentDescriptor> specs);
+//  public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Iterable<SegmentDescriptor> specs);
+  <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Map<String, Iterable<SegmentDescriptor>> specs);
 }

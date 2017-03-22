@@ -28,15 +28,19 @@ import io.druid.query.FluentQueryRunnerBuilder;
 import io.druid.query.PostProcessingOperator;
 import io.druid.query.Query;
 import io.druid.query.QueryRunner;
-import io.druid.query.QueryRunnerMaker;
+import io.druid.query.QuerySegmentWalker;
 import io.druid.query.QueryToolChest;
 import io.druid.query.QueryToolChestWarehouse;
 import io.druid.query.RetryQueryRunner;
 import io.druid.query.RetryQueryRunnerConfig;
+import io.druid.query.SegmentDescriptor;
+import org.joda.time.Interval;
+
+import java.util.Map;
 
 /**
  */
-public class ClientQuerySegmentWalker implements QueryRunnerMaker
+public class ClientQuerySegmentWalker implements QuerySegmentWalker
 {
   private final ServiceEmitter emitter;
   private final CachingClusteredClient baseClient;
@@ -60,17 +64,17 @@ public class ClientQuerySegmentWalker implements QueryRunnerMaker
     this.objectMapper = objectMapper;
   }
 
-//  @Override
-//  public <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Iterable<Interval> intervals)
-//  {
-//    return makeRunner(query);
-//  }
-//
-//  @Override
-//  public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Iterable<SegmentDescriptor> specs)
-//  {
-//    return makeRunner(query);
-//  }
+  @Override
+  public <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Map<String, Iterable<Interval>> intervals)
+  {
+    return makeRunner(query);
+  }
+
+  @Override
+  public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Map<String, Iterable<SegmentDescriptor>> specs)
+  {
+    return makeRunner(query);
+  }
 
   private <T> QueryRunner<T> makeRunner(Query<T> query)
   {
@@ -96,12 +100,5 @@ public class ClientQuerySegmentWalker implements QueryRunnerMaker
         .applyPostMergeDecoration()
         .emitCPUTimeMetric(emitter)
         .postProcess(postProcessing);
-  }
-
-
-  @Override
-  public <T> QueryRunner<T> getQueryRunner(Query<T> query)
-  {
-    return makeRunner(query);
   }
 }

@@ -25,7 +25,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class AddPredicate extends BinaryPredicate
 {
   @JsonCreator
-  public AddPredicate(JoinPredicate left, JoinPredicate right)
+  public AddPredicate(
+      @JsonProperty("left") JoinPredicate left,
+      @JsonProperty("right") JoinPredicate right)
   {
     super(left, right);
   }
@@ -46,5 +48,11 @@ public class AddPredicate extends BinaryPredicate
   public void accept(JoinPredicateVisitor visitor)
   {
     visitor.visit(this);
+  }
+
+  @Override
+  public PredicateType getType()
+  {
+    return PredicateType.ADD;
   }
 }

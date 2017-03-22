@@ -112,6 +112,7 @@ public class DefaultDimensionSpec implements DimensionSpec
   }
 
   @Override
+  @JsonProperty("dataSource")
   public String getDataSourceName()
   {
     return dataSourceName;

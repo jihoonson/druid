@@ -434,7 +434,7 @@ public class RealtimeManagerTest
           factory,
           realtimeManager3.getQueryRunnerForIntervals(
               query,
-              QueryRunnerTestHelper.firstToThird.getIntervals()
+              ImmutableMap.of(QueryRunnerTestHelper.dataSource, QueryRunnerTestHelper.firstToThird.getIntervals())
           ),
           query
       );
@@ -492,12 +492,16 @@ public class RealtimeManagerTest
           factory,
           realtimeManager3.getQueryRunnerForSegments(
               query,
-              ImmutableList.<SegmentDescriptor>of(
-                  new SegmentDescriptor(
-                      new Interval("2011-04-01T00:00:00.000Z/2011-04-03T00:00:00.000Z"),
-                      "ver",
-                      0
-                  ))
+              ImmutableMap.of(
+                  QueryRunnerTestHelper.dataSource,
+                  ImmutableList.of(
+                      new SegmentDescriptor(
+                          new Interval("2011-04-01T00:00:00.000Z/2011-04-03T00:00:00.000Z"),
+                          "ver",
+                          0
+                      )
+                  )
+              )
           ),
           query
       );
@@ -507,12 +511,16 @@ public class RealtimeManagerTest
           factory,
           realtimeManager3.getQueryRunnerForSegments(
               query,
-              ImmutableList.<SegmentDescriptor>of(
-                  new SegmentDescriptor(
-                      new Interval("2011-04-01T00:00:00.000Z/2011-04-03T00:00:00.000Z"),
-                      "ver",
-                      1
-                  ))
+              ImmutableMap.of(
+                  QueryRunnerTestHelper.dataSource,
+                  ImmutableList.of(
+                      new SegmentDescriptor(
+                          new Interval("2011-04-01T00:00:00.000Z/2011-04-03T00:00:00.000Z"),
+                          "ver",
+                          1
+                      )
+                  )
+              )
           ),
           query
       );
@@ -616,7 +624,7 @@ public class RealtimeManagerTest
 
     Iterable<Row> results = GroupByQueryRunnerTestHelper.runQuery(
         factory,
-        query.getQuerySegmentSpec().lookup(query, realtimeManager3),
+        query.getQuerySegmentSpec().lookup(query, QueryRunnerTestHelper.dataSource, realtimeManager3),
         query
     );
     TestHelper.assertExpectedObjects(expectedResults_both_partitions, results, "");
@@ -625,8 +633,10 @@ public class RealtimeManagerTest
         factory,
         realtimeManager3.getQueryRunnerForSegments(
             query,
-            ImmutableList.<SegmentDescriptor>of(
-                descriptor_26_28_0)
+            ImmutableMap.of(
+                QueryRunnerTestHelper.dataSource,
+                ImmutableList.of(descriptor_26_28_0)
+            )
         ),
         query
     );
@@ -636,8 +646,10 @@ public class RealtimeManagerTest
         factory,
         realtimeManager3.getQueryRunnerForSegments(
             query,
-            ImmutableList.<SegmentDescriptor>of(
-                descriptor_28_29_0)
+            ImmutableMap.of(
+                QueryRunnerTestHelper.dataSource,
+                ImmutableList.of(descriptor_28_29_0)
+            )
         ),
         query
     );
@@ -647,8 +659,10 @@ public class RealtimeManagerTest
         factory,
         realtimeManager3.getQueryRunnerForSegments(
             query,
-            ImmutableList.<SegmentDescriptor>of(
-                descriptor_26_28_1)
+            ImmutableMap.of(
+                QueryRunnerTestHelper.dataSource,
+                ImmutableList.of(descriptor_26_28_1)
+            )
         ),
         query
     );
@@ -658,8 +672,10 @@ public class RealtimeManagerTest
         factory,
         realtimeManager3.getQueryRunnerForSegments(
             query,
-            ImmutableList.<SegmentDescriptor>of(
-                descriptor_28_29_1)
+            ImmutableMap.of(
+                QueryRunnerTestHelper.dataSource,
+                ImmutableList.of(descriptor_28_29_1)
+            )
         ),
         query
     );

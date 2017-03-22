@@ -426,7 +426,7 @@ public class ServerManagerTest
                                     .build();
     final QueryRunner<Result<SearchResultValue>> runner = serverManager.getQueryRunnerForIntervals(
         query,
-        intervals
+        ImmutableMap.of(dataSource, intervals)
     );
     return serverManagerExec.submit(
         new Runnable()

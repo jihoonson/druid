@@ -79,9 +79,9 @@ public class JoinQueryTest
                                  .setGranularity(QueryRunnerTestHelper.dayGran)
                                  .setDimensions(
                                      ImmutableList.of(
-                                         new DefaultDimensionSpec("src1", "dim5"),
-                                         new DefaultDimensionSpec("src2", "dim5"),
-                                         new DefaultDimensionSpec("src3", "dim5")
+                                         new DefaultDimensionSpec("src1", "dim5", "dim5"),
+                                         new DefaultDimensionSpec("src2", "dim5", "dim5"),
+                                         new DefaultDimensionSpec("src3", "dim5", "dim5")
                                      )
                                  )
                                  .setMetrics(

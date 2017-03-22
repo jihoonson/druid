@@ -67,7 +67,7 @@ import io.druid.indexing.worker.executor.ExecutorLifecycleConfig;
 import io.druid.java.util.common.lifecycle.Lifecycle;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.metadata.IndexerSQLMetadataStorageCoordinator;
-import io.druid.query.QueryRunnerMaker;
+import io.druid.query.QuerySegmentWalker;
 import io.druid.query.lookup.LookupModule;
 import io.druid.segment.loading.DataSegmentArchiver;
 import io.druid.segment.loading.DataSegmentKiller;
@@ -177,8 +177,7 @@ public class CliPeon extends GuiceRunnable
             );
 
             binder.bind(TaskRunner.class).to(ThreadPoolTaskRunner.class);
-//            binder.bind(QuerySegmentWalker.class).to(ThreadPoolTaskRunner.class);
-            binder.bind(QueryRunnerMaker.class).to(ThreadPoolTaskRunner.class);
+            binder.bind(QuerySegmentWalker.class).to(ThreadPoolTaskRunner.class);
             binder.bind(ThreadPoolTaskRunner.class).in(ManageLifecycle.class);
 
             JsonConfigProvider.bind(binder, "druid.realtime.cache", CacheConfig.class);

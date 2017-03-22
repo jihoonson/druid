@@ -60,6 +60,7 @@ import org.apache.calcite.schema.Table;
 import org.apache.calcite.schema.impl.AbstractSchema;
 import org.joda.time.DateTime;
 
+import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -96,13 +97,14 @@ public class DruidSchema extends AbstractSchema
 
   @Inject
   public DruidSchema(
-      final QuerySegmentWalker walker,
+      @Nullable final QuerySegmentWalker walker,
       final TimelineServerView serverView,
       final PlannerConfig config,
       final ViewManager viewManager
   )
   {
-    this.walker = Preconditions.checkNotNull(walker, "walker");
+//    this.walker = Preconditions.checkNotNull(walker, "walker");
+    this.walker = walker;
     this.serverView = Preconditions.checkNotNull(serverView, "serverView");
     this.config = Preconditions.checkNotNull(config, "config");
     this.viewManager = Preconditions.checkNotNull(viewManager, "viewManager");

@@ -21,6 +21,8 @@ package io.druid.query.join;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import io.druid.data.input.Row;
 import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.granularity.Granularity;
@@ -81,11 +83,12 @@ public class JoinQuery extends BaseQuery<Row>
     // TODO: remove dataSource from the super class. SingleSourceBaseQuery?
     super(false, context);
     this.joinSpec = Objects.requireNonNull(joinSpec);
-    this.granularity = granularity;
-    this.dimensions = dimensions;
-    this.metrics = metrics;
-    this.virtualColumns = virtualColumns;
+    this.granularity = Objects.requireNonNull(granularity);
+    this.dimensions = dimensions == null ? ImmutableList.of() : dimensions;
+    this.metrics = metrics == null ? ImmutableList.of() : metrics;
+    this.virtualColumns = virtualColumns == null ? VirtualColumns.EMPTY : virtualColumns;
     this.filter = filter;
+    Preconditions.checkState(dimensions != null || metrics != null, "At least one dimension or metric must be specified.");
     this.annotatedJoinSpec = annotateJoinSpec(joinSpec, dimensions, metrics);
   }
 
@@ -326,15 +329,50 @@ public class JoinQuery extends BaseQuery<Row>
   @Override
   public boolean equals(Object o)
   {
-    // TODO
-    return false;
+    if (o == this) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    final JoinQuery that = (JoinQuery) o;
+    if (!joinSpec.equals(that.joinSpec)) {
+      return false;
+    }
+
+    if (!granularity.equals(that.granularity)) {
+      return false;
+    }
+
+    if (!dimensions.equals(that.dimensions)) {
+      return false;
+    }
+
+    if (!metrics.equals(that.metrics)) {
+      return false;
+    }
+
+    if (!virtualColumns.equals(that.virtualColumns)) {
+      return false;
+    }
+
+    if (!Objects.equals(filter, that.filter)) {
+      return false;
+    }
+
+//    if (!annotatedJoinSpec.equals(that.annotatedJoinSpec)) {
+//      return false;
+//    }
+
+    return Objects.equals(getContext(), that.getContext());
   }
 
   @Override
   public int hashCode()
   {
-    // TODO
-    return 0;
+    return Objects.hash(joinSpec, getType(), dimensions, metrics, virtualColumns, filter, annotatedJoinSpec);
   }
 
   public static class Builder
@@ -343,7 +381,6 @@ public class JoinQuery extends BaseQuery<Row>
     private Granularity granularity;
     private List<DimensionSpec> dimensions;
     private List<String> metrics;
-    private QuerySegmentSpec querySegmentSpec;
     private VirtualColumns virtualColumns;
     private DimFilter filter;
     private Map<String, Object> context;

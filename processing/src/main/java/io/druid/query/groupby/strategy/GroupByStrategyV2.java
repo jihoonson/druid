@@ -44,6 +44,7 @@ import io.druid.java.util.common.guava.Sequence;
 import io.druid.java.util.common.guava.Sequences;
 import io.druid.java.util.common.guava.nary.BinaryFn;
 import io.druid.query.DataSource;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.DruidProcessingConfig;
 import io.druid.query.InsufficientResourcesException;
 import io.druid.query.IntervalChunkingQueryRunnerDecorator;
@@ -166,8 +167,8 @@ public class GroupByStrategyV2 implements GroupByStrategy
     // until the outer groupBy processing completes.
     // This is same for subsequent groupBy layers, and thus the maximum number of required merge buffers becomes 2.
 
-    final Iterable<DataSource> dataSources = query.getDataSources();
-    final DataSource dataSource = Iterables.getOnlyElement(dataSources);
+    final Iterable<DataSourceWithSegmentSpec> dataSources = query.getDataSources();
+    final DataSource dataSource = Iterables.getOnlyElement(dataSources).getDataSource();
     if (foundNum == MAX_MERGE_BUFFER_NUM + 1 || !(dataSource instanceof QueryDataSource)) {
       return foundNum - 1;
     } else {

@@ -26,8 +26,8 @@ public class EqualPredicate extends BinaryPredicate
 {
   @JsonCreator
   public EqualPredicate(
-      @JsonProperty JoinPredicate left,
-      @JsonProperty JoinPredicate right
+      @JsonProperty("left") JoinPredicate left,
+      @JsonProperty("right") JoinPredicate right
   )
   {
     super(left, right);
@@ -49,5 +49,11 @@ public class EqualPredicate extends BinaryPredicate
   public void accept(JoinPredicateVisitor visitor)
   {
     visitor.visit(this);
+  }
+
+  @Override
+  public PredicateType getType()
+  {
+    return PredicateType.EQUAL;
   }
 }

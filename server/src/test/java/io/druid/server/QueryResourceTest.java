@@ -88,7 +88,8 @@ public class QueryResourceTest
   {
     @Override
     public <T> QueryRunner<T> getQueryRunnerForIntervals(
-        Query<T> query, Iterable<Interval> intervals
+//        Query<T> query, Iterable<Interval> intervals
+        Query<T> query, Map<String, Iterable<Interval>> intervals
     )
     {
       return new QueryRunner<T>()
@@ -105,7 +106,8 @@ public class QueryResourceTest
 
     @Override
     public <T> QueryRunner<T> getQueryRunnerForSegments(
-        Query<T> query, Iterable<SegmentDescriptor> specs
+//        Query<T> query, Iterable<SegmentDescriptor> specs
+        Query<T> query, Map<String, Iterable<SegmentDescriptor>> spec
     )
     {
       return getQueryRunnerForIntervals(null, null);

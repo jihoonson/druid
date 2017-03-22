@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.name.Names;
-
 import io.airlift.airline.Command;
 import io.druid.client.cache.CacheConfig;
 import io.druid.client.cache.CacheMonitor;
@@ -37,13 +36,13 @@ import io.druid.guice.NodeTypeConfig;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.query.QuerySegmentWalker;
 import io.druid.query.lookup.LookupModule;
-import io.druid.server.metrics.QueryCountStatsProvider;
 import io.druid.server.QueryResource;
 import io.druid.server.coordination.ServerManager;
 import io.druid.server.coordination.ZkCoordinator;
 import io.druid.server.http.HistoricalResource;
 import io.druid.server.initialization.jetty.JettyServerInitializer;
 import io.druid.server.metrics.MetricsModule;
+import io.druid.server.metrics.QueryCountStatsProvider;
 import org.eclipse.jetty.server.Server;
 
 import java.util.List;

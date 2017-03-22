@@ -17,9 +17,26 @@
  * under the License.
  */
 
-package io.druid.query;
+package io.druid.segment.realtime;
 
-public interface QueryRunnerMaker
+import com.google.common.base.Preconditions;
+import io.druid.query.SegmentDescriptor;
+import org.joda.time.Interval;
+
+import java.util.Map;
+
+public class QuerySegmentWalkers
 {
-  <T> QueryRunner<T> getQueryRunner(Query<T> query);
+
+  public static void checkSingleSourceIntervals(Map<String, Iterable<Interval>> intervals)
+  {
+    Preconditions.checkState(intervals.size() == 1, "Multi source queries are not allowed yet.");
+  }
+
+  public static void checkSingleSourceSegments(Map<String, Iterable<SegmentDescriptor>> specs)
+  {
+    Preconditions.checkState(specs.size() == 1, "Multi source queries are not allowed yet.");
+  }
+
+  private QuerySegmentWalkers() {}
 }

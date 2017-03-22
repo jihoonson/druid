@@ -22,11 +22,11 @@ package io.druid.query.spec;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Function;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import io.druid.common.utils.JodaUtils;
 import io.druid.query.Query;
 import io.druid.query.QueryRunner;
-import io.druid.query.QueryRunnerMaker;
 import io.druid.query.QuerySegmentWalker;
 import io.druid.query.SegmentDescriptor;
 import org.joda.time.Interval;
@@ -80,15 +80,9 @@ public class MultipleSpecificSegmentSpec implements QuerySegmentSpec
   }
 
   @Override
-  public <T> QueryRunner<T> lookup(Query<T> query, QuerySegmentWalker walker)
+  public <T> QueryRunner<T> lookup(Query<T> query, String dataSourceName, QuerySegmentWalker walker)
   {
-    return walker.getQueryRunnerForSegments(query, descriptors);
-  }
-
-  @Override
-  public <T> QueryRunner<T> lookup(Query<T> query, QueryRunnerMaker maker)
-  {
-    return maker.getQueryRunner(query);
+    return walker.getQueryRunnerForSegments(query, ImmutableMap.of(dataSourceName, descriptors));
   }
 
   @Override

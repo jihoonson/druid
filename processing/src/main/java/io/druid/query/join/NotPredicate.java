@@ -22,19 +22,21 @@ package io.druid.query.join;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Objects;
+
 public class NotPredicate implements JoinPredicate
 {
   private final JoinPredicate predicate;
 
   @JsonCreator
   public NotPredicate(
-      @JsonProperty JoinPredicate predicate
+      @JsonProperty("base") JoinPredicate predicate
   )
   {
     this.predicate = predicate;
   }
 
-  @JsonProperty
+  @JsonProperty("base")
   public JoinPredicate getBase()
   {
     return predicate;
@@ -44,5 +46,32 @@ public class NotPredicate implements JoinPredicate
   public void accept(JoinPredicateVisitor visitor)
   {
     visitor.visit(this);
+  }
+
+  @Override
+  public PredicateType getType()
+  {
+    return PredicateType.NOT;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (o == this) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    NotPredicate that = (NotPredicate) o;
+    return predicate.equals(that.predicate);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(getType(), predicate);
   }
 }

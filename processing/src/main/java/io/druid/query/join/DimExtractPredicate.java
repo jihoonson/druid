@@ -23,13 +23,15 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.druid.query.dimension.DimensionSpec;
 
+import java.util.Objects;
+
 public class DimExtractPredicate implements JoinPredicate
 {
   private final DimensionSpec dimension;
 
   @JsonCreator
   public DimExtractPredicate(
-      @JsonProperty DimensionSpec dimension
+      @JsonProperty("dimension") DimensionSpec dimension
   )
   {
     this.dimension = dimension;
@@ -45,5 +47,32 @@ public class DimExtractPredicate implements JoinPredicate
   public void accept(JoinPredicateVisitor visitor)
   {
     visitor.visit(this);
+  }
+
+  @Override
+  public PredicateType getType()
+  {
+    return PredicateType.DIMENSION;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (o == this) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    DimExtractPredicate that = (DimExtractPredicate) o;
+    return dimension.equals(that.dimension);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(getType(), dimension);
   }
 }

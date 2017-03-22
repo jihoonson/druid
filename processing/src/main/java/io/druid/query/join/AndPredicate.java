@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
+import java.util.Objects;
 
 public class AndPredicate implements JoinPredicate
 {
@@ -30,7 +31,7 @@ public class AndPredicate implements JoinPredicate
 
   @JsonCreator
   public AndPredicate(
-      @JsonProperty List<JoinPredicate> predicates
+      @JsonProperty("predicates") List<JoinPredicate> predicates
   )
   {
     this.predicates = predicates;
@@ -46,5 +47,32 @@ public class AndPredicate implements JoinPredicate
   public void accept(JoinPredicateVisitor visitor)
   {
     visitor.visit(this);
+  }
+
+  @Override
+  public PredicateType getType()
+  {
+    return PredicateType.AND;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (o == this) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    AndPredicate that = (AndPredicate) o;
+    return predicates.equals(that.predicates);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(getType(), predicates);
   }
 }

@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.druid.query.Query;
 import io.druid.query.QueryRunner;
-import io.druid.query.QueryRunnerMaker;
 import io.druid.query.QuerySegmentWalker;
 import org.joda.time.Interval;
 
@@ -38,9 +37,7 @@ import java.util.List;
 })
 public interface QuerySegmentSpec
 {
-  public List<Interval> getIntervals();
+  List<Interval> getIntervals();
 
-  public <T> QueryRunner<T> lookup(Query<T> query, QuerySegmentWalker walker);
-
-  <T> QueryRunner<T> lookup(Query<T> query, QueryRunnerMaker maker);
+  <T> QueryRunner<T> lookup(Query<T> query, String dataSourceName, QuerySegmentWalker walker);
 }

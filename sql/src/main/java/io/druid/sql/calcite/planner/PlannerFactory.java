@@ -36,6 +36,7 @@ import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 
+import javax.annotation.Nullable;
 import java.util.Map;
 
 public class PlannerFactory
@@ -48,7 +49,7 @@ public class PlannerFactory
   @Inject
   public PlannerFactory(
       final SchemaPlus rootSchema,
-      final QuerySegmentWalker walker,
+      @Nullable final QuerySegmentWalker walker,
       final DruidOperatorTable operatorTable,
       final PlannerConfig plannerConfig
   )

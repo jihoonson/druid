@@ -59,6 +59,7 @@ import io.druid.segment.ReferenceCountingSegment;
 import io.druid.segment.Segment;
 import io.druid.segment.loading.SegmentLoader;
 import io.druid.segment.loading.SegmentLoadingException;
+import io.druid.segment.realtime.QuerySegmentWalkers;
 import io.druid.timeline.DataSegment;
 import io.druid.timeline.TimelineObjectHolder;
 import io.druid.timeline.VersionedIntervalTimeline;
@@ -247,7 +248,7 @@ public class ServerManager implements QuerySegmentWalker
   }
 
   @Override
-  public <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Iterable<Interval> intervals)
+  public <T> QueryRunner<T> getQueryRunnerForIntervals(Query<T> query, Map<String, Iterable<Interval>> intervalMap)
   {
     final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);
     if (factory == null) {
@@ -271,6 +272,8 @@ public class ServerManager implements QuerySegmentWalker
       return new NoopQueryRunner<T>();
     }
 
+    QuerySegmentWalkers.checkSingleSourceIntervals(intervalMap);
+    final Iterable<Interval> intervals = Iterables.getOnlyElement(intervalMap.values());
     FunctionalIterable<QueryRunner<T>> queryRunners = FunctionalIterable
         .create(intervals)
         .transformCat(
@@ -341,7 +344,7 @@ public class ServerManager implements QuerySegmentWalker
   }
 
   @Override
-  public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Iterable<SegmentDescriptor> specs)
+  public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Map<String, Iterable<SegmentDescriptor>> specs)
   {
     final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);
     if (factory == null) {
@@ -353,6 +356,7 @@ public class ServerManager implements QuerySegmentWalker
 
     final QueryToolChest<T, Query<T>> toolChest = factory.getToolchest();
 
+    // TODO: how to map data source names and segments
     String dataSourceName = getDataSourceName(Iterables.getOnlyElement(query.getDataSources()).getDataSource());
 
     // TODO: find broadcasted segments
@@ -367,8 +371,10 @@ public class ServerManager implements QuerySegmentWalker
     final Function<Query<T>, ServiceMetricEvent.Builder> builderFn = getBuilderFn(toolChest);
     final AtomicLong cpuTimeAccumulator = new AtomicLong(0L);
 
+    QuerySegmentWalkers.checkSingleSourceSegments(specs);
+    final Iterable<SegmentDescriptor> descriptors = Iterables.getOnlyElement(specs.values());
     FunctionalIterable<QueryRunner<T>> queryRunners = FunctionalIterable
-        .create(specs)
+        .create(descriptors)
         .transformCat(
             new Function<SegmentDescriptor, Iterable<QueryRunner<T>>>()
             {
