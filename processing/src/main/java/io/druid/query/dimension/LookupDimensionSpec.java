@@ -101,6 +101,30 @@ public class LookupDimensionSpec implements DimensionSpec
     }
   }
 
+  public LookupDimensionSpec(
+      String dimension,
+      String outputName,
+      LookupExtractor lookup,
+      boolean retainMissingValue,
+      String replaceMissingValueWith,
+      String name,
+      LookupReferencesManager lookupReferencesManager,
+      Boolean optimize
+  )
+  {
+    this(
+        null,
+        dimension,
+        outputName,
+        lookup,
+        retainMissingValue,
+        replaceMissingValueWith,
+        name,
+        lookupReferencesManager,
+        optimize
+    );
+  }
+
   @Override
   public String getDataSourceName()
   {

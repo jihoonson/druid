@@ -40,7 +40,6 @@ import io.druid.java.util.common.guava.Sequences;
 import io.druid.query.ResourceLimitExceededException;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.dimension.DimensionSpec;
-import io.druid.query.join.JoinQuery;
 import io.druid.segment.column.ValueType;
 import io.druid.segment.incremental.IncrementalIndex;
 import io.druid.segment.incremental.IncrementalIndexSchema;
@@ -258,25 +257,39 @@ public class GroupByQueryHelper
     return types.build();
   }
 
-  public static Map<String, ValueType> rowSignatureFor(final JoinQuery query)
+//  public static Map<String, ValueType> rowSignatureFor(final JoinQuery query)
+//  {
+//    final ImmutableMap.Builder<String, ValueType> types = ImmutableMap.builder();
+//
+//    for (DimensionSpec dimensionSpec : query.getDimensions()) {
+//      types.put(dimensionSpec.getOutputName(), dimensionSpec.getOutputType());
+//    }
+//
+//    for (AggregatorFactory aggregatorFactory : query.getAggregatorSpecs()) {
+//      final String typeName = aggregatorFactory.getTypeName();
+//      final ValueType valueType = typeName != null
+//                                  ? Enums.getIfPresent(ValueType.class, typeName.toUpperCase()).orNull()
+//                                  : null;
+//      if (valueType != null) {
+//        types.put(aggregatorFactory.getName(), valueType);
+//      }
+//    }
+//
+//    // Don't include post-aggregators since we don't know what types they are.
+//    return types.build();
+//  }
+
+  /**
+   * Throw a {@link ResourceLimitExceededException}. Only used by groupBy v2 when accumulation resources
+   * are exceeded, triggered by false return from {@link io.druid.query.groupby.epinephelinae.Grouper#aggregate(Object)}.
+   *
+   * @return nothing will ever be returned; this return type is for your convenience, similar to
+   * Throwables.propagate in Guava.
+   */
+  public static ResourceLimitExceededException throwAccumulationResourceLimitExceededException()
   {
-    final ImmutableMap.Builder<String, ValueType> types = ImmutableMap.builder();
-
-    for (DimensionSpec dimensionSpec : query.getDimensions()) {
-      types.put(dimensionSpec.getOutputName(), dimensionSpec.getOutputType());
-    }
-
-    for (AggregatorFactory aggregatorFactory : query.getAggregatorSpecs()) {
-      final String typeName = aggregatorFactory.getTypeName();
-      final ValueType valueType = typeName != null
-                                  ? Enums.getIfPresent(ValueType.class, typeName.toUpperCase()).orNull()
-                                  : null;
-      if (valueType != null) {
-        types.put(aggregatorFactory.getName(), valueType);
-      }
-    }
-
-    // Don't include post-aggregators since we don't know what types they are.
-    return types.build();
+    throw new ResourceLimitExceededException(
+        "Not enough resources to execute this query. Try increasing druid.query.groupBy.maxOnDiskStorage, "
+        + "druid.query.groupBy.maxMergingDictionarySize, or druid.processing.buffer.sizeBytes.");
   }
 }

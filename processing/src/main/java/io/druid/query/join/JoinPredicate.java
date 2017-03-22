@@ -31,9 +31,10 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
     @Type(name = "not", value = NotPredicate.class),
     @Type(name = "equal", value = EqualPredicate.class),
     @Type(name = "dimension", value = DimExtractPredicate.class),
-    @Type(name = "add", value = AddJoinPredicate.class)
+    @Type(name = "add", value = AddPredicate.class),
+    @Type(name = "literal", value = LiteralPredicate.class)
 })
-public interface JoinPredicate
+public interface JoinPredicate extends Visitable
 {
   // TODO: JoinFilter?
 }

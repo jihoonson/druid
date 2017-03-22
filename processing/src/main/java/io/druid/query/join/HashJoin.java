@@ -20,7 +20,8 @@
 package io.druid.query.join;
 
 import io.druid.data.input.Row;
-import io.druid.java.util.common.Pair;
+import io.druid.query.join.AnnotatedJoinSpec.InputDirection;
+import it.unimi.dsi.fastutil.ints.IntList;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -68,11 +69,14 @@ public class HashJoin
     if (matched != null) {
       final List<List<Object>> outVal = new ArrayList<>();
 
-      for (Pair<Boolean, Integer> outCol : joinSpec.getOutputDimensions()) {
-        if (outCol.lhs) {
-          outVal.add(allValues.get(outCol.rhs));
+      final List<InputDirection> directions = joinSpec.getOutputDirections();
+      final IntList dimIndexes = joinSpec.getOutputDimIndexes();
+
+      for (int i = 0; i < dimIndexes.size(); i++) {
+        if (directions.get(i) == AnnotatedJoinSpec.InputDirection.RIGHT) {
+          outVal.add(allValues.get(dimIndexes.getInt(i)));
         } else {
-          outVal.add(matched.get(outCol.rhs));
+          outVal.add(matched.get(dimIndexes.getInt(i)));
         }
       }
 

@@ -44,4 +44,10 @@ public class EqualPredicate extends BinaryPredicate
   {
     return right;
   }
+
+  @Override
+  public void accept(JoinPredicateVisitor visitor)
+  {
+    visitor.visit(this);
+  }
 }

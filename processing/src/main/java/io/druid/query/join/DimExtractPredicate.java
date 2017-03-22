@@ -25,16 +25,13 @@ import io.druid.query.dimension.DimensionSpec;
 
 public class DimExtractPredicate implements JoinPredicate
 {
-  private final String dataSource;
   private final DimensionSpec dimension;
 
   @JsonCreator
   public DimExtractPredicate(
-      @JsonProperty String dataSource,
       @JsonProperty DimensionSpec dimension
   )
   {
-    this.dataSource = dataSource;
     this.dimension = dimension;
   }
 
@@ -44,9 +41,9 @@ public class DimExtractPredicate implements JoinPredicate
     return dimension;
   }
 
-  @JsonProperty
-  public String getDataSource()
+  @Override
+  public void accept(JoinPredicateVisitor visitor)
   {
-    return dataSource;
+    visitor.visit(this);
   }
 }

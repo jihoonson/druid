@@ -26,7 +26,6 @@ import io.druid.java.util.common.guava.Sequence;
 import io.druid.segment.Segment;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 
 public interface JoinQueryEngine
 {

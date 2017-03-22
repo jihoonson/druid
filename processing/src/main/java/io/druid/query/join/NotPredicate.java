@@ -35,8 +35,14 @@ public class NotPredicate implements JoinPredicate
   }
 
   @JsonProperty
-  public JoinPredicate getPredicate()
+  public JoinPredicate getBase()
   {
     return predicate;
+  }
+
+  @Override
+  public void accept(JoinPredicateVisitor visitor)
+  {
+    visitor.visit(this);
   }
 }

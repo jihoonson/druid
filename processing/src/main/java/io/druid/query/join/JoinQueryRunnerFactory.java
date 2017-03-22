@@ -33,7 +33,6 @@ import io.druid.query.QueryWatcher;
 import io.druid.segment.Segment;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
@@ -107,7 +106,8 @@ public class JoinQueryRunnerFactory implements QueryRunnerFactory<Row, JoinQuery
     @Override
     public Sequence<Row> run(Query<Row> query, Map<String, Object> responseContext)
     {
-      return factory.strategize(query).createEngine().process((JoinQuery)query, segment, joinedBroadcastedSources, pool);
+      final JoinQuery joinQuery = (JoinQuery) query;
+      return factory.strategize(query).createEngine(joinQuery.getJoinSpec()).process(joinQuery, segment, joinedBroadcastedSources, pool);
     }
   }
 }

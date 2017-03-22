@@ -22,51 +22,186 @@ package io.druid.query.join;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.druid.data.input.Row;
+import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.granularity.Granularity;
 import io.druid.query.BaseQuery;
 import io.druid.query.DataSource;
 import io.druid.query.Query;
 import io.druid.query.dimension.DimensionSpec;
 import io.druid.query.filter.DimFilter;
+import io.druid.query.join.AnnotatedJoinSpec.InputDirection;
 import io.druid.query.spec.QuerySegmentSpec;
 import io.druid.segment.VirtualColumns;
+import it.unimi.dsi.fastutil.ints.AbstractIntList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.IntStream;
 
 // TODO: Row?
 public class JoinQuery extends BaseQuery<Row>
 {
   // join type
   private final JoinSpec joinSpec;
-  private final Granularity granularity;
+  private final Granularity granularity; // TODO: per data source?
   private final List<DimensionSpec> dimensions; // out
   private final List<String> metrics; // out
   private final VirtualColumns virtualColumns;
   private final DimFilter filter;
 
-  private AnnotatedJoinSpec annotatedJoinSpec;
+  private final AnnotatedJoinSpec annotatedJoinSpec;
+
+  public static Builder newBuilder()
+  {
+    return new Builder();
+  }
 
   @JsonCreator
   public JoinQuery(
-      @JsonProperty("dataSource") DataSource dataSource,
-      @JsonProperty("joinSpec") JoinSpec joinSpec, // input spec
+      @JsonProperty("joinSpec") JoinSpec joinSpec,// input spec
       @JsonProperty("granularity") Granularity granularity,
-      @JsonProperty("dimensions") List<DimensionSpec> dimensions, // output dimension
-      @JsonProperty("metrics") List<String> metrics, // output metrics
-      @JsonProperty("intervals") QuerySegmentSpec querySegmentSpec,
+      @JsonProperty("dimensions") List<DimensionSpec> dimensions,// output dimension
+      @JsonProperty("metrics") List<String> metrics,// output metrics, TODO: consider to use only dimensionSpec for metrics as well
       @JsonProperty("virtualColumns") VirtualColumns virtualColumns,
       @JsonProperty("filter") DimFilter filter,
       @JsonProperty("context") Map<String, Object> context
   )
   {
-    super(dataSource, querySegmentSpec, false, context);
-    this.joinSpec = joinSpec;
+    // TODO: remove dataSource from the super class. SingleSourceBaseQuery?
+    super(false, context);
+    this.joinSpec = Objects.requireNonNull(joinSpec);
     this.granularity = granularity;
     this.dimensions = dimensions;
     this.metrics = metrics;
     this.virtualColumns = virtualColumns;
     this.filter = filter;
+    this.annotatedJoinSpec = annotateJoinSpec(joinSpec, dimensions, metrics);
+  }
+
+  private static AnnotatedJoinSpec annotateJoinSpec(JoinSpec joinSpec, Collection<DimensionSpec> outDimensions, Collection<String> outMetrics)
+  {
+    // find a unique set of output dimensions for each left and right input (TODO: + metrics)
+    final Set<DimensionSpec> uniqueLeftOutDims = new HashSet<>();
+    final Set<DimensionSpec> uniqueRightOutDims = new HashSet<>();
+
+    final String leftInputName = joinSpec.getLeft().getName();
+    final String rightInputName = joinSpec.getRight().getName();
+
+    outDimensions.forEach(eachDim -> {
+      if (eachDim.getDataSourceName().equals(leftInputName)) {
+        uniqueLeftOutDims.add(eachDim);
+      } else if (eachDim.getDataSourceName().equals(rightInputName)) {
+        uniqueRightOutDims.add(eachDim);
+      } else {
+        // TODO: error
+      }
+    });
+
+    // find left and right keys from predicate
+    final Pair<Set<DimensionSpec>, Set<DimensionSpec>> leftRightKeys = findLeftRightDimsFromPredicate(joinSpec);
+
+    // get total required left and right dims
+    final List<DimensionSpec> requiredLeftDims = new ArrayList<>(leftRightKeys.lhs);
+    final List<DimensionSpec> requiredRightDims = new ArrayList<>(leftRightKeys.rhs);
+    uniqueLeftOutDims.stream().filter(eachDim -> !requiredLeftDims.contains(eachDim)).forEach(requiredLeftDims::add);
+    uniqueRightOutDims.stream().filter(eachDim -> !requiredRightDims.contains(eachDim)).forEach(requiredRightDims::add);
+
+    final JoinInputSpec simpleLeftSpec = joinSpec.getLeft();
+    final JoinInputSpec simpleRightSpec = joinSpec.getRight();
+
+    final JoinInputSpec annotatedLeftSpec = annotateJoinInputSpec(simpleLeftSpec, requiredLeftDims, null);
+    final JoinInputSpec annotatedRightSpec = annotateJoinInputSpec(simpleRightSpec, requiredRightDims, null);
+
+    final IntList leftKeyIndexes = IntStream.range(0, leftRightKeys.lhs.size()).collect(
+        IntArrayList::new,
+        (acc, val) -> acc.add(val),
+        AbstractIntList::addAll
+    );
+    final IntList rightKeyIndexes = IntStream.range(0, leftRightKeys.rhs.size()).collect(
+        IntArrayList::new,
+        (acc, val) -> acc.add(val),
+        AbstractIntList::addAll
+    );
+
+    final IntList outputDimIndexes = new IntArrayList(outDimensions.size());
+    final List<InputDirection> outputDirections = new ArrayList<>(outDimensions.size());
+    outDimensions.forEach(eachDim -> {
+      if (eachDim.getDataSourceName().equals(leftInputName)) {
+        outputDirections.add(InputDirection.LEFT);
+        outputDimIndexes.add(requiredLeftDims.indexOf(eachDim));
+      } else {
+        outputDirections.add(InputDirection.RIGHT);
+        outputDimIndexes.add(requiredRightDims.indexOf(eachDim));
+      }
+    });
+
+    return new AnnotatedJoinSpec(
+        joinSpec.getJoinType(),
+        joinSpec.getPredicate(),
+        annotatedLeftSpec,
+        annotatedRightSpec,
+        requiredLeftDims,
+        requiredRightDims,
+        leftKeyIndexes,
+        rightKeyIndexes,
+        outputDimIndexes,
+        outputDirections
+    );
+  }
+
+  private static JoinInputSpec annotateJoinInputSpec(JoinInputSpec simpleSpec, List<DimensionSpec> requiredDims, List<String> requiredMetrics)
+  {
+    if (simpleSpec instanceof JoinInput) {
+      final AnnotatedJoinSpec leftChildJoinSpec = annotateJoinSpec(((JoinInput) simpleSpec).getJoinSpec(), requiredDims, requiredMetrics);
+      return new AnnotatedJoinInput(simpleSpec.getName(), leftChildJoinSpec);
+    } else {
+      final DataInput dataInput = (DataInput) simpleSpec;
+      return new DataInput(dataInput.getDataSource(), dataInput.getQuerySegmentSpec(), dataInput.getDuration());
+    }
+  }
+
+  private static Pair<Set<DimensionSpec>, Set<DimensionSpec>> findLeftRightDimsFromPredicate(JoinSpec spec)
+  {
+    final DimensionFinder finder = new DimensionFinder(spec.getLeft().getName(), spec.getRight().getName());
+    spec.getPredicate().accept(finder);
+    return new Pair<>(finder.foundLeftDims, finder.foundRightDims);
+  }
+
+  private static class DimensionFinder extends JoinPredicateVisitor {
+    private Set<DimensionSpec> foundLeftDims = new HashSet<>();
+    private Set<DimensionSpec> foundRightDims = new HashSet<>();
+    private final String leftSourceName;
+    private final String rightSourceName;
+
+    DimensionFinder(String leftSourceName, String rightSourceName)
+    {
+      this.leftSourceName = leftSourceName;
+      this.rightSourceName = rightSourceName;
+    }
+
+    @Override
+    public void visit(DimExtractPredicate predicate)
+    {
+      if (predicate.getDimension().getDataSourceName().equals(leftSourceName)) {
+        foundLeftDims.add(predicate.getDimension());
+      } else if (predicate.getDimension().getDataSourceName().equals(rightSourceName)) {
+        foundRightDims.add(predicate.getDimension());
+      } else {
+        // TODO: error
+      }
+    }
+  }
+
+  AnnotatedJoinSpec getAnnotatedJoinSpec()
+  {
+    return annotatedJoinSpec;
   }
 
   @Override
@@ -91,11 +226,6 @@ public class JoinQuery extends BaseQuery<Row>
   public JoinSpec getJoinSpec()
   {
     return joinSpec;
-  }
-
-  public AnnotatedJoinSpec getAnnotatedJoinSpec()
-  {
-    return annotatedJoinSpec;
   }
 
   @JsonProperty
@@ -126,12 +256,10 @@ public class JoinQuery extends BaseQuery<Row>
   public Query<Row> withOverriddenContext(Map<String, Object> contextOverride)
   {
     return new JoinQuery(
-        getDataSource(),
         joinSpec,
         granularity,
         dimensions,
         metrics,
-        getQuerySegmentSpec(),
         virtualColumns,
         filter,
         computeOverridenContext(contextOverride)
@@ -141,33 +269,31 @@ public class JoinQuery extends BaseQuery<Row>
   @Override
   public Query<Row> withQuerySegmentSpec(QuerySegmentSpec spec)
   {
-    return new JoinQuery(
-        getDataSource(),
-        joinSpec,
-        granularity,
-        dimensions,
-        metrics,
-        spec,
-        virtualColumns,
-        filter,
-        getContext()
-    );
+//    return new JoinQuery(
+//        joinSpec,
+//        granularity,
+//        dimensions,
+//        metrics,
+//        virtualColumns,
+//        filter,
+//        getContext()
+//    );
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public Query<Row> withDataSource(DataSource dataSource)
   {
-    return new JoinQuery(
-        dataSource,
-        joinSpec,
-        granularity,
-        dimensions,
-        metrics,
-        getQuerySegmentSpec(),
-        virtualColumns,
-        filter,
-        getContext()
-    );
+//    return new JoinQuery(
+//        joinSpec,
+//        granularity,
+//        dimensions,
+//        metrics,
+//        virtualColumns,
+//        filter,
+//        getContext()
+//    );
+    throw new UnsupportedOperationException();
   }
 
   @Override
@@ -182,5 +308,119 @@ public class JoinQuery extends BaseQuery<Row>
   {
     // TODO
     return 0;
+  }
+
+  public static class Builder
+  {
+    private JoinSpec joinSpec;
+    private Granularity granularity;
+    private List<DimensionSpec> dimensions;
+    private List<String> metrics;
+    private QuerySegmentSpec querySegmentSpec;
+    private VirtualColumns virtualColumns;
+    private DimFilter filter;
+    private Map<String, Object> context;
+
+    public Builder() {}
+
+    public Builder(JoinQuery query)
+    {
+      this(
+          query.joinSpec,
+          query.granularity,
+          query.dimensions,
+          query.metrics,
+          query.virtualColumns,
+          query.filter,
+          query.getContext()
+      );
+    }
+
+    public Builder(Builder builder)
+    {
+      this(
+          builder.joinSpec,
+          builder.granularity,
+          builder.dimensions,
+          builder.metrics,
+          builder.virtualColumns,
+          builder.filter,
+          builder.context
+      );
+    }
+
+    public Builder(
+        JoinSpec joinSpec,
+        Granularity granularity,
+        List<DimensionSpec> dimensions,
+        List<String> metrics,
+        VirtualColumns virtualColumns,
+        DimFilter filter,
+        Map<String, Object> context
+    )
+    {
+      this.joinSpec = joinSpec;
+      this.granularity = granularity;
+      this.dimensions = dimensions;
+      this.metrics = metrics;
+      this.virtualColumns = virtualColumns;
+      this.filter = filter;
+      this.context = context;
+    }
+
+    public Builder setJoinSpec(JoinSpec joinSpec)
+    {
+      this.joinSpec = joinSpec;
+      return this;
+    }
+
+    public Builder setGranularity(Granularity granularity)
+    {
+      this.granularity = granularity;
+      return this;
+    }
+
+    public Builder setDimensions(List<DimensionSpec> dimensions)
+    {
+      this.dimensions = dimensions;
+      return this;
+    }
+
+    public Builder setMetrics(List<String> metrics)
+    {
+      this.metrics = metrics;
+      return this;
+    }
+
+    public Builder setVirtualColumns(VirtualColumns virtualColumns)
+    {
+      this.virtualColumns = virtualColumns;
+      return this;
+    }
+
+    public Builder setFilter(DimFilter filter)
+    {
+      this.filter = filter;
+      return this;
+    }
+
+    public Builder setContext(Map<String, Object> context)
+    {
+      this.context = context;
+      return this;
+    }
+
+    public JoinQuery build()
+    {
+      return new JoinQuery(
+          joinSpec,
+          granularity,
+          dimensions,
+          metrics,
+          virtualColumns,
+          filter,
+          context
+      );
+    }
   }
 }

@@ -63,7 +63,9 @@ public interface Query<T>
   String DATASOURCE_METADATA = "dataSourceMetadata";
   String JOIN = "join";
 
-  DataSource getDataSource();
+//  DataSource getDataSource();
+  // TODO: DS + interval
+  Iterable<DataSource> getDataSources();
 
   boolean hasFilters();
 
@@ -77,6 +79,7 @@ public interface Query<T>
 
   List<Interval> getIntervals();
 
+  // TODO => for each source
   Duration getDuration();
 
   Map<String, Object> getContext();
@@ -93,6 +96,7 @@ public interface Query<T>
 
   Query<T> withOverriddenContext(Map<String, Object> contextOverride);
 
+  // TODO => for each source
   Query<T> withQuerySegmentSpec(QuerySegmentSpec spec);
 
   Query<T> withId(String id);

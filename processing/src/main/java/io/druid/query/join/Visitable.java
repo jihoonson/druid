@@ -19,18 +19,7 @@
 
 package io.druid.query.join;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
-
-public class JoinJoinInput implements JoinInput
+public interface Visitable
 {
-  private final JoinSpec joinSpec;
-
-  @JsonCreator
-  public JoinJoinInput(
-      @JsonProperty JoinSpec joinSpec
-  )
-  {
-    this.joinSpec = joinSpec;
-  }
+  void accept(JoinPredicateVisitor visitor);
 }

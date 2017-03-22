@@ -96,6 +96,15 @@ public class DefaultDimensionSpec implements DimensionSpec
 
   public DefaultDimensionSpec(
       String dimension,
+      String outputName,
+      ValueType outputType
+  )
+  {
+    this(null, dimension, outputName, outputType);
+  }
+
+  public DefaultDimensionSpec(
+      String dimension,
       String outputName
   )
   {

@@ -356,10 +356,12 @@ public class HashJoinQueryEngine implements JoinQueryEngine
 
       final AnnotatedJoinSpec joinSpec = query.getAnnotatedJoinSpec();
 
+      // TODO: the below code stores all join results in memory, and gets an iterator for the result.
+      // Streaming join is also possible. Which approach is better?
       while (!cursor.isDone()) {
         List<List<Object>> keys = new ArrayList<>();
 
-        for (DimensionSpec keySpec : joinSpec.getLeftKeyDimensions()) {
+        for (DimensionSpec keySpec : joinSpec.getLeftKeyIndexes()) {
           final DimensionSelector dimensionSelector = cursor.makeDimensionSelector(keySpec);
           final IndexedInts vals = dimensionSelector.getRow();
           List<Object> key = new ArrayList<>(vals.size());

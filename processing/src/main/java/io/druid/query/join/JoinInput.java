@@ -19,15 +19,36 @@
 
 package io.druid.query.join;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
-@JsonSubTypes(value = {
-    @Type(name = "dataSource", value = DataJoinInput.class),
-    @Type(name = "joinSource", value = JoinJoinInput.class)
-})
-public interface JoinInput
+import java.util.Objects;
+
+public class JoinInput implements JoinInputSpec
 {
+  private final String name;
+  private final JoinSpec joinSpec;
+
+  @JsonCreator
+  public JoinInput(
+      @JsonProperty String name,
+      @JsonProperty JoinSpec joinSpec
+  )
+  {
+    this.name = Objects.requireNonNull(name);
+    this.joinSpec = joinSpec;
+  }
+
+  @Override
+  @JsonProperty
+  public String getName()
+  {
+    return name;
+  }
+
+  @JsonProperty
+  public JoinSpec getJoinSpec()
+  {
+    return joinSpec;
+  }
 }

@@ -21,22 +21,30 @@ package io.druid.query.join;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.druid.query.DataSource;
 
-public class DataJoinInput implements JoinInput
+public class AddPredicate extends BinaryPredicate
 {
-  private final DataSource dataSource;
-
   @JsonCreator
-  public DataJoinInput(
-      @JsonProperty DataSource dataSource
-  )
+  public AddPredicate(JoinPredicate left, JoinPredicate right)
   {
-    this.dataSource = dataSource;
+    super(left, right);
   }
 
-  public DataSource getDataSource()
+  @JsonProperty
+  public JoinPredicate getLeft()
   {
-    return dataSource;
+    return left;
+  }
+
+  @JsonProperty
+  public JoinPredicate getRight()
+  {
+    return right;
+  }
+
+  @Override
+  public void accept(JoinPredicateVisitor visitor)
+  {
+    visitor.visit(this);
   }
 }

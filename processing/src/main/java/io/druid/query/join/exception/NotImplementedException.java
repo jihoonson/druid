@@ -17,28 +17,10 @@
  * under the License.
  */
 
-package io.druid.query.join;
+package io.druid.query.join.exception;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
-
-public class AddJoinPredicate extends BinaryPredicate
+// TODO: rename
+// TODO: runtime?
+public class NotImplementedException extends RuntimeException
 {
-  @JsonCreator
-  public AddJoinPredicate(JoinPredicate left, JoinPredicate right)
-  {
-    super(left, right);
-  }
-
-  @JsonProperty
-  public JoinPredicate getLeft()
-  {
-    return left;
-  }
-
-  @JsonProperty
-  public JoinPredicate getRight()
-  {
-    return right;
-  }
 }

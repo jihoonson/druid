@@ -41,4 +41,10 @@ public class AndPredicate implements JoinPredicate
   {
     return predicates;
   }
+
+  @Override
+  public void accept(JoinPredicateVisitor visitor)
+  {
+    visitor.visit(this);
+  }
 }

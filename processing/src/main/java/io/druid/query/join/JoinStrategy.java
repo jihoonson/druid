@@ -21,5 +21,5 @@ package io.druid.query.join;
 
 public interface JoinStrategy
 {
-  HashJoinQueryEngine createEngine();
+  JoinQueryEngine createEngine(JoinSpec joinSpec);
 }

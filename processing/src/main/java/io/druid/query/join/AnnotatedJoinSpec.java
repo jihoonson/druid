@@ -19,44 +19,87 @@
 
 package io.druid.query.join;
 
-import io.druid.java.util.common.Pair;
 import io.druid.query.dimension.DimensionSpec;
 import it.unimi.dsi.fastutil.ints.IntList;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class AnnotatedJoinSpec extends JoinSpec
+// TODO: Not extend and make package-private
+public class AnnotatedJoinSpec
 {
+  public enum InputDirection {
+    LEFT,
+    RIGHT
+  }
 
-  private final IntList leftKeyDimensions;
-  private final IntList rightKeyDimensions;
+  private final JoinType joinType;
+  private final JoinPredicate predicate;
+  private final JoinInputSpec left;
+  private final JoinInputSpec right;
+
+  // TODO: left and right must be aligned
+  private final IntList leftKeyIndexes;
+  private final IntList rightKeyIndexes;
 
   private final List<DimensionSpec> leftDimensions;
   private final List<DimensionSpec> rightDimensions;
-  private final List<Pair<Boolean, Integer>> outputDimensions;
+  private final IntList outputDimIndexes;
+  private final List<InputDirection> outputDirections;
 
   public AnnotatedJoinSpec(
-      JoinSpec baseSpec,
+      JoinType joinType,
+      JoinPredicate predicate,
+      JoinInputSpec left,
+      JoinInputSpec right,
       List<DimensionSpec> leftDimensions,
       List<DimensionSpec> rightDimensions,
-      IntList leftKeyDimensions,
-      IntList rightKeyDimensions,
-      List<Pair<Boolean, Integer>> outputDimensions
+      IntList leftKeyIndexes,
+      IntList rightKeyIndexes,
+      IntList outputDimIndexes,
+      List<InputDirection> outputDirections
   )
   {
-    super(baseSpec.getJoinType(), baseSpec.getPredicate(), baseSpec.getLeft(), baseSpec.getRight());
-
+    this.joinType = joinType;
+    this.predicate = predicate;
+    this.left = left;
+    this.right = right;
     this.leftDimensions = leftDimensions;
     this.rightDimensions = rightDimensions;
-    this.leftKeyDimensions = leftKeyDimensions;
-    this.rightKeyDimensions = rightKeyDimensions;
-    this.outputDimensions = outputDimensions;
+    this.leftKeyIndexes = leftKeyIndexes;
+    this.rightKeyIndexes = rightKeyIndexes;
+    this.outputDimIndexes = outputDimIndexes;
+    this.outputDirections = outputDirections;
   }
 
-  public List<Pair<Boolean, Integer>> getOutputDimensions()
+  public JoinType getJoinType()
   {
-    return outputDimensions;
+    return joinType;
+  }
+
+  public JoinPredicate getPredicate()
+  {
+    return predicate;
+  }
+
+  public JoinInputSpec getLeft()
+  {
+    return left;
+  }
+
+  public JoinInputSpec getRight()
+  {
+    return right;
+  }
+
+  public IntList getOutputDimIndexes()
+  {
+    return outputDimIndexes;
+  }
+
+  public List<InputDirection> getOutputDirections()
+  {
+    return outputDirections;
   }
 
   public List<DimensionSpec> getLeftDimensions()
@@ -69,71 +112,27 @@ public class AnnotatedJoinSpec extends JoinSpec
     return rightDimensions;
   }
 
-  public List<DimensionSpec> getLeftKeyDimensions()
+  public List<DimensionSpec> getLeftKeyIndexes()
   {
-    final List<DimensionSpec> keyDimensions = new ArrayList<>(leftKeyDimensions.size());
-    for (int i = 0; i < leftKeyDimensions.size(); i++) {
-      keyDimensions.add(leftDimensions.get(leftKeyDimensions.get(i)));
+    final List<DimensionSpec> keyDimensions = new ArrayList<>(leftKeyIndexes.size());
+    for (int i = 0; i < leftKeyIndexes.size(); i++) {
+      keyDimensions.add(leftDimensions.get(leftKeyIndexes.get(i)));
     }
     return keyDimensions;
   }
 
-  public List<DimensionSpec> getRightKeyDimensions()
+  public List<DimensionSpec> getRightKeyIndexes()
   {
-    final List<DimensionSpec> keyDimensions = new ArrayList<>(rightKeyDimensions.size());
-    for (int i = 0; i < rightKeyDimensions.size(); i++) {
-      keyDimensions.add(rightDimensions.get(rightKeyDimensions.get(i)));
+    final List<DimensionSpec> keyDimensions = new ArrayList<>(rightKeyIndexes.size());
+    for (int i = 0; i < rightKeyIndexes.size(); i++) {
+      keyDimensions.add(rightDimensions.get(rightKeyIndexes.get(i)));
     }
     return keyDimensions;
   }
 
-//  public List<String> getLeftValueColumnNames()
-//  {
-//    return leftValueColumnNames;
-//  }
-//
-//  public List<ValueType> getLeftValueColumnTypes()
-//  {
-//    return leftValueColumnTypes;
-//  }
-//
-//  public List<String> getRightValueColumnNames()
-//  {
-//    return rightValueColumnNames;
-//  }
-//
-//  public List<ValueType> getRightValueColumnTypes()
-//  {
-//    return rightValueColumnTypes;
-//  }
-//
-//  public List<String> getOutputColumnNames()
-//  {
-//    return outputColumnNames;
-//  }
-//
-//  public List<ValueType> getOutputColumnTypes()
-//  {
-//    return outputColumnTypes;
-//  }
-//
-//  public List<String> getLeftKeyColumnNames()
-//  {
-//    return leftKeyColumnNames;
-//  }
-//
-//  public List<ValueType> getLeftKeyColumnTypes()
-//  {
-//    return leftKeyColumnTypes;
-//  }
-//
-//  public List<String> getRightKeyColumnNames()
-//  {
-//    return rightKeyColumnNames;
-//  }
-//
-//  public List<ValueType> getRightKeyColumnTypes()
-//  {
-//    return rightKeyColumnTypes;
-//  }
+  public AnnotatedJoinSpec swapLeftRightInputs()
+  {
+    // TODO
+    return null;
+  }
 }

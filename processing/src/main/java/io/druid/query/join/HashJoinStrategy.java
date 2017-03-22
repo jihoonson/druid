@@ -19,11 +19,28 @@
 
 package io.druid.query.join;
 
+import io.druid.query.join.exception.NotImplementedException;
+
 public class HashJoinStrategy implements JoinStrategy
 {
-  public HashJoinQueryEngine createEngine()
+  public HashJoinQueryEngine createEngine(JoinSpec joinSpec)
   {
-    // TODO: singleton
-    return new HashJoinQueryEngine();
+    if (isEquiJoin(joinSpec) && isAndPredicate(joinSpec)) {
+      // TODO: singleton
+      return new HashJoinQueryEngine();
+    } else {
+      throw new NotImplementedException();
+    }
+  }
+
+  private static boolean isEquiJoin(JoinSpec joinSpec)
+  {
+    return true;
+  }
+
+  // TODO: rename
+  private static boolean isAndPredicate(JoinSpec joinSpec)
+  {
+    return true;
   }
 }

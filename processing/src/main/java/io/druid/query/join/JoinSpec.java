@@ -25,28 +25,28 @@ import com.google.common.base.Preconditions;
 
 public class JoinSpec
 {
+  // left and right don't have to be aligned
   private final JoinType joinType;
   private final JoinPredicate predicate;
-  private final JoinInput left;
-  private final JoinInput right;
+  private final JoinInputSpec left;
+  private final JoinInputSpec right;
 
   @JsonCreator
   public JoinSpec(
       @JsonProperty("type") JoinType joinType,
       @JsonProperty("predicate") JoinPredicate predicate,
-      @JsonProperty("left") JoinInput left,
-      @JsonProperty("right") JoinInput right
+      @JsonProperty("left") JoinInputSpec left,
+      @JsonProperty("right") JoinInputSpec right
   )
   {
-    Preconditions.checkArgument(JoinType.INNER == joinType, "%s join type is not supported yet", joinType);
-    Preconditions.checkNotNull(predicate, "%s join requires any predicate", joinType);
-    Preconditions.checkNotNull(left);
-    Preconditions.checkNotNull(right);
+    this.joinType = Preconditions.checkNotNull(joinType);
+    this.predicate = Preconditions.checkNotNull(predicate, "%s join requires any predicate", joinType);
+    this.left = Preconditions.checkNotNull(left);
+    this.right = Preconditions.checkNotNull(right);
 
-    this.joinType = joinType;
-    this.predicate = predicate;
-    this.left = left;
-    this.right = right;
+    Preconditions.checkArgument(JoinType.INNER == joinType, "%s join type is not supported yet", joinType);
+    Preconditions.checkArgument(JoinPredicates.validatePredicate(predicate));
+    Preconditions.checkArgument(JoinPredicates.isEquiJoin(predicate));
   }
 
   public boolean hasPredicate()
@@ -66,11 +66,11 @@ public class JoinSpec
     return joinType;
   }
 
-  public JoinInput getLeft() {
+  public JoinInputSpec getLeft() {
     return left;
   }
 
-  public JoinInput getRight() {
+  public JoinInputSpec getRight() {
     return right;
   }
 }
