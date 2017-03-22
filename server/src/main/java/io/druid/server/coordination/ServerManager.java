@@ -21,6 +21,7 @@ package io.druid.server.coordination;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Function;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
@@ -68,11 +69,15 @@ import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  */
@@ -258,13 +263,59 @@ public class ServerManager implements QuerySegmentWalker
     final Function<Query<T>, ServiceMetricEvent.Builder> builderFn = getBuilderFn(toolChest);
     final AtomicLong cpuTimeAccumulator = new AtomicLong(0L);
 
-    DataSource dataSource = query.getDataSource();
+    final DataSource dataSource = query.getDistributionTarget().getDataSource();
     if (!(dataSource instanceof TableDataSource)) {
       throw new UnsupportedOperationException("data source type '" + dataSource.getClass().getName() + "' unsupported");
     }
-    String dataSourceName = getDataSourceName(dataSource);
+    final DataSource nonBroadcastDataSource = query.getDistributionTarget().getDataSource();
+    final String nonBroadcastDataSourceName = getDataSourceName(nonBroadcastDataSource);
+    final List<String> dataSourceNames = StreamSupport.stream(query.getDataSources().spliterator(), false)
+                                                      .map(spec -> getDataSourceName(spec.getDataSource()))
+                                                      .collect(Collectors.toList());
 
-    final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = dataSources.get(dataSourceName);
+    if (dataSourceNames.stream().anyMatch(name -> !dataSources.containsKey(name))) {
+      return new NoopQueryRunner<>();
+    }
+
+    final Map<String, List<ReferenceCountingSegment>> broadcastSegmentMap = new HashMap<>();
+    final Map<String, List<SegmentDescriptor>> broadcastSegmentDescMap = new HashMap<>();
+    query.getDataSources().forEach(
+        spec -> {
+          final String sourceName = getDataSourceName(spec.getDataSource());
+          final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = dataSources.get(sourceName);
+          if (!sourceName.equals(nonBroadcastDataSourceName)) {
+            spec.getQuerySegmentSpec().getIntervals().stream()
+                .flatMap(interval -> timeline.lookup(interval).stream())
+                .forEach(holder ->
+                             StreamSupport
+                                 .stream(holder.getObject().spliterator(), false)
+                                 .forEach(chunk -> {
+                                            final List<SegmentDescriptor> descriptors = broadcastSegmentDescMap.computeIfAbsent(
+                                                sourceName,
+                                                key -> new ArrayList<>()
+                                            );
+                                            descriptors.add(
+                                                new SegmentDescriptor(
+                                                    holder.getInterval(),
+                                                    holder.getVersion(),
+                                                    chunk.getChunkNumber()
+                                                )
+                                            );
+                                            final List<ReferenceCountingSegment> segments = broadcastSegmentMap.computeIfAbsent(
+                                                sourceName,
+                                                key -> new ArrayList<>()
+                                            );
+                                            segments.add(chunk.getObject());
+                                          }
+                                 )
+                );
+          }
+        }
+    );
+
+    final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = dataSources.get(
+        nonBroadcastDataSourceName
+    );
 
     if (timeline == null) {
       return new NoopQueryRunner<T>();
@@ -303,15 +354,20 @@ public class ServerManager implements QuerySegmentWalker
                           @Override
                           public QueryRunner<T> apply(PartitionChunk<ReferenceCountingSegment> input)
                           {
+                            final SegmentDescriptor descriptor = new SegmentDescriptor(
+                                holder.getInterval(),
+                                holder.getVersion(),
+                                input.getChunkNumber()
+                            );
+                            final Map<String, List<SegmentDescriptor>> segmentDescMap = new HashMap<>(broadcastSegmentDescMap);
+                            segmentDescMap.put(nonBroadcastDataSourceName, ImmutableList.of(descriptor));
                             return buildAndDecorateQueryRunner(
                                 factory,
                                 toolChest,
+                                nonBroadcastDataSourceName,
                                 input.getObject(),
-                                new SegmentDescriptor(
-                                    holder.getInterval(),
-                                    holder.getVersion(),
-                                    input.getChunkNumber()
-                                ),
+                                descriptor,
+                                segmentDescMap,
                                 builderFn,
                                 cpuTimeAccumulator
                             );
@@ -334,7 +390,7 @@ public class ServerManager implements QuerySegmentWalker
     );
   }
 
-  private String getDataSourceName(DataSource dataSource)
+  private static String getDataSourceName(DataSource dataSource)
   {
     return Iterables.getOnlyElement(dataSource.getNames());
   }
@@ -345,22 +401,61 @@ public class ServerManager implements QuerySegmentWalker
     final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);
     if (factory == null) {
       log.makeAlert("Unknown query type, [%s]", query.getClass())
-         .addData("dataSource", query.getDataSource())
          .emit();
       return new NoopQueryRunner<T>();
     }
 
     final QueryToolChest<T, Query<T>> toolChest = factory.getToolchest();
 
-    String dataSourceName = getDataSourceName(query.getDataSource());
+    final DataSource nonBroadcastDataSource = query.getDistributionTarget().getDataSource();
+    final String nonBroadcastDataSourceName = getDataSourceName(nonBroadcastDataSource);
+    final List<String> dataSourceNames = StreamSupport.stream(query.getDataSources().spliterator(), false)
+                                                      .map(spec -> getDataSourceName(spec.getDataSource()))
+                                                      .collect(Collectors.toList());
 
-    final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = dataSources.get(
-        dataSourceName
+    if (dataSourceNames.stream().anyMatch(name -> !dataSources.containsKey(name))) {
+      return new NoopQueryRunner<>();
+    }
+
+    final Map<String, List<ReferenceCountingSegment>> broadcastSegmentMap = new HashMap<>();
+    final Map<String, List<SegmentDescriptor>> broadcastSegmentDescMap = new HashMap<>();
+    query.getDataSources().forEach(
+        spec -> {
+          final String sourceName = getDataSourceName(spec.getDataSource());
+          final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = dataSources.get(sourceName);
+          if (!sourceName.equals(nonBroadcastDataSourceName)) {
+            spec.getQuerySegmentSpec().getIntervals().stream()
+                .flatMap(interval -> timeline.lookup(interval).stream())
+                .forEach(holder ->
+                             StreamSupport
+                                 .stream(holder.getObject().spliterator(), false)
+                                 .forEach(chunk -> {
+                                            final List<SegmentDescriptor> descriptors = broadcastSegmentDescMap.computeIfAbsent(
+                                                sourceName,
+                                                key -> new ArrayList<>()
+                                            );
+                                            descriptors.add(
+                                                new SegmentDescriptor(
+                                                    holder.getInterval(),
+                                                    holder.getVersion(),
+                                                    chunk.getChunkNumber()
+                                                )
+                                            );
+                                            final List<ReferenceCountingSegment> segments = broadcastSegmentMap.computeIfAbsent(
+                                                sourceName,
+                                                key -> new ArrayList<>()
+                                            );
+                                            segments.add(chunk.getObject());
+                                          }
+                                 )
+                );
+          }
+        }
     );
 
-    if (timeline == null) {
-      return new NoopQueryRunner<T>();
-    }
+    final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = dataSources.get(
+        nonBroadcastDataSourceName
+    );
 
     final Function<Query<T>, ServiceMetricEvent.Builder> builderFn = getBuilderFn(toolChest);
     final AtomicLong cpuTimeAccumulator = new AtomicLong(0L);
@@ -374,23 +469,33 @@ public class ServerManager implements QuerySegmentWalker
               @SuppressWarnings("unchecked")
               public Iterable<QueryRunner<T>> apply(SegmentDescriptor input)
               {
-
                 final PartitionHolder<ReferenceCountingSegment> entry = timeline.findEntry(
                     input.getInterval(), input.getVersion()
                 );
+                final Map<String, List<SegmentDescriptor>> segmentDescMap = new HashMap<>(broadcastSegmentDescMap);
+                segmentDescMap.put(nonBroadcastDataSourceName, ImmutableList.of(input));
 
                 if (entry == null) {
-                  return Arrays.<QueryRunner<T>>asList(new ReportTimelineMissingSegmentQueryRunner<T>(input));
+                  return Arrays.asList(new ReportTimelineMissingSegmentQueryRunner<T>(segmentDescMap));
                 }
 
                 final PartitionChunk<ReferenceCountingSegment> chunk = entry.getChunk(input.getPartitionNumber());
                 if (chunk == null) {
-                  return Arrays.<QueryRunner<T>>asList(new ReportTimelineMissingSegmentQueryRunner<T>(input));
+                  return Arrays.asList(new ReportTimelineMissingSegmentQueryRunner<T>(segmentDescMap));
                 }
 
                 final ReferenceCountingSegment adapter = chunk.getObject();
                 return Arrays.asList(
-                    buildAndDecorateQueryRunner(factory, toolChest, adapter, input, builderFn, cpuTimeAccumulator)
+                    buildAndDecorateQueryRunner(
+                        factory,
+                        toolChest,
+                        nonBroadcastDataSourceName,
+                        adapter,
+                        input,
+                        segmentDescMap,
+                        builderFn,
+                        cpuTimeAccumulator
+                    )
                 );
               }
             }
@@ -408,11 +513,31 @@ public class ServerManager implements QuerySegmentWalker
     );
   }
 
+  private ReferenceCountingSegment getSegment(String dataSourceName, SegmentDescriptor descriptor)
+  {
+    final PartitionHolder<ReferenceCountingSegment> entry = dataSources.get(dataSourceName).findEntry(
+        descriptor.getInterval(), descriptor.getVersion()
+    );
+
+    if (entry == null) {
+      return null;
+    }
+
+    final PartitionChunk<ReferenceCountingSegment> chunk = entry.getChunk(descriptor.getPartitionNumber());
+    if (chunk == null) {
+      return null;
+    }
+
+    return chunk.getObject();
+  }
+
   private <T> QueryRunner<T> buildAndDecorateQueryRunner(
       final QueryRunnerFactory<T, Query<T>> factory,
       final QueryToolChest<T, Query<T>> toolChest,
+      final String datasourceName,
       final ReferenceCountingSegment adapter,
       final SegmentDescriptor segmentDescriptor,
+      final Map<String, List<SegmentDescriptor>> segmentDescMap,
       final Function<Query<T>, ServiceMetricEvent.Builder> builderFn,
       final AtomicLong cpuTimeAccumulator
   )
@@ -442,7 +567,7 @@ public class ServerManager implements QuerySegmentWalker
                                 return toolChest.makeMetricBuilder(input);
                               }
                             },
-                            new ReferenceCountingSegmentQueryRunner<T>(factory, adapter, segmentDescriptor),
+                            new ReferenceCountingSegmentQueryRunner<T>(factory, adapter, segmentDescMap),
                             "query/segment/time",
                             ImmutableMap.of("segment", adapter.getIdentifier())
                         ),
@@ -453,6 +578,7 @@ public class ServerManager implements QuerySegmentWalker
                 "query/segmentAndCache/time",
                 ImmutableMap.of("segment", adapter.getIdentifier())
             ).withWaitMeasuredFromNow(),
+            datasourceName,
             segmentSpec
         ),
         builderFn,
@@ -462,7 +588,9 @@ public class ServerManager implements QuerySegmentWalker
     );
   }
 
-  private static <T> Function<Query<T>, ServiceMetricEvent.Builder> getBuilderFn(final QueryToolChest<T, Query<T>> toolChest)
+  private static <T> Function<Query<T>, ServiceMetricEvent.Builder> getBuilderFn(
+      final QueryToolChest<T, Query<T>> toolChest
+  )
   {
     return new Function<Query<T>, ServiceMetricEvent.Builder>()
     {

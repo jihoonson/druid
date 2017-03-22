@@ -33,6 +33,7 @@ import io.druid.guice.annotations.Smile;
 import io.druid.guice.http.DruidHttpClientConfig;
 import io.druid.query.DruidMetrics;
 import io.druid.query.Query;
+import io.druid.query.QueryToolChest;
 import io.druid.query.QueryToolChestWarehouse;
 import io.druid.server.log.RequestLogger;
 import io.druid.server.metrics.QueryCountStatsProvider;
@@ -389,9 +390,14 @@ public class AsyncQueryForwardingServlet extends AsyncProxyServlet implements Qu
         } else {
           failedQueryCount.incrementAndGet();
         }
+        final QueryToolChest queryToolChest = warehouse.getToolChest(query);
         emitter.emit(
-            DruidMetrics.makeQueryTimeMetric(warehouse.getToolChest(query), jsonMapper, query, req.getRemoteAddr())
-                        .build("query/time", requestTime)
+            DruidMetrics.makeQueryTimeMetric(
+                queryToolChest,
+                jsonMapper,
+                query,
+                req.getRemoteAddr()
+            ).build("query/time", requestTime)
         );
         requestLogger.log(
             new RequestLogLine(

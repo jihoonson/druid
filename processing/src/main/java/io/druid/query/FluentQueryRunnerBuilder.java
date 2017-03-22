@@ -120,5 +120,12 @@ public class FluentQueryRunnerBuilder<T>
           toolChest.mergeResults(baseRunner)
       );
     }
+
+    public FluentQueryRunner annotateDistributionTarget()
+    {
+      return from(
+          toolChest.annotateDistributionTarget(baseRunner)
+      );
+    }
   }
 }

@@ -21,13 +21,10 @@ package io.druid.query;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Function;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.metamx.emitter.service.ServiceMetricEvent;
 import io.druid.query.aggregation.AggregatorFactory;
-import org.joda.time.Interval;
 
 import java.util.List;
 
@@ -64,24 +61,25 @@ public class DruidMetrics
   public static <T> ServiceMetricEvent.Builder makePartialQueryTimeMetric(Query<T> query)
   {
     return new ServiceMetricEvent.Builder()
-        .setDimension(DATASOURCE, DataSourceUtil.getMetricName(query.getDataSource()))
+        .setDimension(DATASOURCE, DataSourceUtil.getMetricName(query.getDataSources()))
         .setDimension(TYPE, query.getType())
-        .setDimension(
-            INTERVAL,
-            Lists.transform(
-                query.getIntervals(),
-                new Function<Interval, String>()
-                {
-                  @Override
-                  public String apply(Interval input)
-                  {
-                    return input.toString();
-                  }
-                }
-            ).toArray(new String[query.getIntervals().size()])
-        )
+//        .setDimension(
+//            INTERVAL,
+//            Lists.transform(
+//                query.getIntervals(),
+//                new Function<Interval, String>()
+//                {
+//                  @Override
+//                  public String apply(Interval input)
+//                  {
+//                    return input.toString();
+//                  }
+//                }
+//            ).toArray(new String[query.getIntervals().size()])
+//        )
         .setDimension("hasFilters", String.valueOf(query.hasFilters()))
-        .setDimension("duration", query.getDuration().toString())
+//        .setDimension("duration", query.getDuration().toString())
+        .setDimension("duration", query.getTotalDuration().toString())
         .setDimension(ID, Strings.nullToEmpty(query.getId()));
   }
 

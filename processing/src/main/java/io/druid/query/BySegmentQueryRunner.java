@@ -19,6 +19,7 @@
 
 package io.druid.query;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.java.util.common.guava.Sequences;
@@ -52,6 +53,11 @@ public class BySegmentQueryRunner<T> implements QueryRunner<T>
   public Sequence<T> run(final Query<T> query, Map<String, Object> responseContext)
   {
     if (BaseQuery.getContextBySegment(query, false)) {
+      final List<DataSourceWithSegmentSpec> specs = Lists.newArrayList(query.getDataSources());
+      Preconditions.checkArgument(specs.size() == 1);
+      final DataSourceWithSegmentSpec spec = specs.get(0);
+      Preconditions.checkArgument(spec.getQuerySegmentSpec().getIntervals().size() == 1);
+
       final Sequence<T> baseSequence = base.run(query, responseContext);
       final List<T> results = Sequences.toList(baseSequence, Lists.<T>newArrayList());
       return Sequences.simple(
@@ -61,7 +67,7 @@ public class BySegmentQueryRunner<T> implements QueryRunner<T>
                   new BySegmentResultValueClass<T>(
                       results,
                       segmentIdentifier,
-                      query.getIntervals().get(0)
+                      spec.getQuerySegmentSpec().getIntervals().get(0)
                   )
               )
           )

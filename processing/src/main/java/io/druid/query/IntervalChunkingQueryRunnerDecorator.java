@@ -40,7 +40,10 @@ public class IntervalChunkingQueryRunnerDecorator
     this.emitter = emitter;
   }
 
-  public <T> QueryRunner<T> decorate(QueryRunner<T> delegate, QueryToolChest<T, ? extends Query<T>> toolChest)
+  public <T> QueryRunner<T> decorate(
+      QueryRunner<T> delegate,
+      QueryToolChest<T, ? extends Query<T>> toolChest
+  )
   {
     return new IntervalChunkingQueryRunner<T>(delegate, (QueryToolChest<T, Query<T>>)toolChest,
         executor, queryWatcher, emitter);

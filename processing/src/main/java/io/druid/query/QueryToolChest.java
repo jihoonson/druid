@@ -169,4 +169,6 @@ public abstract class QueryToolChest<ResultType, QueryType extends Query<ResultT
   {
     return segments;
   }
+
+  public abstract QueryRunner<ResultType> annotateDistributionTarget(QueryRunner<ResultType> runner);
 }

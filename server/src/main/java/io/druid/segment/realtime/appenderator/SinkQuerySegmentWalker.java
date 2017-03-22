@@ -22,6 +22,7 @@ package io.druid.segment.realtime.appenderator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -37,6 +38,8 @@ import io.druid.java.util.common.guava.CloseQuietly;
 import io.druid.java.util.common.guava.FunctionalIterable;
 import io.druid.query.BySegmentQueryRunner;
 import io.druid.query.CPUTimeMetricQueryRunner;
+import io.druid.query.DataSource;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.MetricsEmittingQueryRunner;
 import io.druid.query.NoopQueryRunner;
 import io.druid.query.Query;
@@ -105,7 +108,10 @@ public class SinkQuerySegmentWalker implements QuerySegmentWalker
   }
 
   @Override
-  public <T> QueryRunner<T> getQueryRunnerForIntervals(final Query<T> query, final Iterable<Interval> intervals)
+  public <T> QueryRunner<T> getQueryRunnerForIntervals(
+      final Query<T> query,
+      final Iterable<Interval> intervals
+  )
   {
     final Iterable<SegmentDescriptor> specs = FunctionalIterable
         .create(intervals)
@@ -149,14 +155,25 @@ public class SinkQuerySegmentWalker implements QuerySegmentWalker
   }
 
   @Override
-  public <T> QueryRunner<T> getQueryRunnerForSegments(final Query<T> query, final Iterable<SegmentDescriptor> specs)
+  public <T> QueryRunner<T> getQueryRunnerForSegments(
+      final Query<T> query,
+      final Iterable<SegmentDescriptor> specs
+  )
   {
     // We only handle one particular dataSource. Make sure that's what we have, then ignore from here on out.
-    if (!(query.getDataSource() instanceof TableDataSource)
-        || !dataSource.equals(((TableDataSource) query.getDataSource()).getName())) {
-      log.makeAlert("Received query for unknown dataSource")
-         .addData("dataSource", query.getDataSource())
-         .emit();
+    int dataSourceNum = 0;
+    for (DataSourceWithSegmentSpec eachSource : query.getDataSources()) {
+      if (!(eachSource.getDataSource() instanceof TableDataSource)
+          || !dataSource.equals(((TableDataSource) eachSource.getDataSource()).getName())) {
+        log.makeAlert("Received query for unknown dataSource")
+           .addData("dataSource", eachSource.getDataSource())
+           .emit();
+        return new NoopQueryRunner<>();
+      }
+      dataSourceNum++;
+    }
+
+    if (dataSourceNum == 0) {
       return new NoopQueryRunner<>();
     }
 
@@ -177,6 +194,8 @@ public class SinkQuerySegmentWalker implements QuerySegmentWalker
         };
     final boolean skipIncrementalSegment = query.getContextValue(CONTEXT_SKIP_INCREMENTAL_SEGMENT, false);
     final AtomicLong cpuTimeAccumulator = new AtomicLong(0L);
+    final DataSource dataSource = Iterables.getOnlyElement(query.getDataSources()).getDataSource();
+    final String dataSourceName = Iterables.getOnlyElement(dataSource.getNames());
 
     return CPUTimeMetricQueryRunner.safeBuild(
         toolChest.mergeResults(
@@ -195,12 +214,16 @@ public class SinkQuerySegmentWalker implements QuerySegmentWalker
                                 descriptor.getVersion()
                             );
                             if (holder == null) {
-                              return new ReportTimelineMissingSegmentQueryRunner<>(descriptor);
+                              return new ReportTimelineMissingSegmentQueryRunner<>(
+                                  ImmutableMap.of(dataSourceName, ImmutableList.of(descriptor))
+                              );
                             }
 
                             final PartitionChunk<Sink> chunk = holder.getChunk(descriptor.getPartitionNumber());
                             if (chunk == null) {
-                              return new ReportTimelineMissingSegmentQueryRunner<>(descriptor);
+                              return new ReportTimelineMissingSegmentQueryRunner<>(
+                                  ImmutableMap.of(dataSourceName, ImmutableList.of(descriptor))
+                              );
                             }
 
                             final Sink theSink = chunk.getObject();
@@ -266,6 +289,7 @@ public class SinkQuerySegmentWalker implements QuerySegmentWalker
                                     sinkSegmentIdentifier,
                                     cpuTimeAccumulator
                                 ),
+                                Iterables.getOnlyElement(dataSource.getNames()),
                                 new SpecificSegmentSpec(descriptor)
                             );
                           }

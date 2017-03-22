@@ -425,7 +425,7 @@ public class ServerManagerTest
                                     .query("wow")
                                     .build();
     final QueryRunner<Result<SearchResultValue>> runner = serverManager.getQueryRunnerForIntervals(
-        query,
+        query.distributeBy(query.getDataSourceWithSegmentSpec()),
         intervals
     );
     return serverManagerExec.submit(
@@ -590,6 +590,12 @@ public class ServerManagerTest
       return new TypeReference<T>()
       {
       };
+    }
+
+    @Override
+    public QueryRunner<T> annotateDistributionTarget(QueryRunner<T> runner)
+    {
+      return runner;
     }
   }
 

@@ -40,7 +40,7 @@ import io.druid.jackson.DefaultObjectMapper;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.granularity.Granularities;
 import io.druid.java.util.common.parsers.ParseException;
-import io.druid.query.BaseQuery;
+import io.druid.query.DataSourceWithSegmentSpec;
 import io.druid.query.Query;
 import io.druid.query.QueryRunner;
 import io.druid.query.QueryRunnerFactory;
@@ -425,6 +425,7 @@ public class RealtimeManagerTest
               )
           )
           .setGranularity(QueryRunnerTestHelper.dayGran)
+          .updateDistributionTarget()
           .build();
       plumber.setRunners(ImmutableMap.of(query.getIntervals().get(0), runner));
       plumber2.setRunners(ImmutableMap.of(query.getIntervals().get(0), runner));
@@ -483,6 +484,7 @@ public class RealtimeManagerTest
               )
           )
           .setGranularity(QueryRunnerTestHelper.dayGran)
+          .updateDistributionTarget()
           .build();
       plumber.setRunners(ImmutableMap.of(query.getIntervals().get(0), runner));
       plumber2.setRunners(ImmutableMap.of(query.getIntervals().get(0), runner));
@@ -491,12 +493,13 @@ public class RealtimeManagerTest
           factory,
           realtimeManager3.getQueryRunnerForSegments(
               query,
-              ImmutableList.<SegmentDescriptor>of(
+              ImmutableList.of(
                   new SegmentDescriptor(
                       new Interval("2011-04-01T00:00:00.000Z/2011-04-03T00:00:00.000Z"),
                       "ver",
                       0
-                  ))
+                  )
+              )
           ),
           query
       );
@@ -506,12 +509,13 @@ public class RealtimeManagerTest
           factory,
           realtimeManager3.getQueryRunnerForSegments(
               query,
-              ImmutableList.<SegmentDescriptor>of(
+              ImmutableList.of(
                   new SegmentDescriptor(
                       new Interval("2011-04-01T00:00:00.000Z/2011-04-03T00:00:00.000Z"),
                       "ver",
                       1
-                  ))
+                  )
+              )
           ),
           query
       );
@@ -593,6 +597,7 @@ public class RealtimeManagerTest
             )
         )
         .setGranularity(QueryRunnerTestHelper.dayGran)
+        .updateDistributionTarget()
         .build();
 
     final Map<Interval, QueryRunner> runnerMap = ImmutableMap.<Interval, QueryRunner>of(
@@ -624,8 +629,7 @@ public class RealtimeManagerTest
         factory,
         realtimeManager3.getQueryRunnerForSegments(
             query,
-            ImmutableList.<SegmentDescriptor>of(
-                descriptor_26_28_0)
+            ImmutableList.of(descriptor_26_28_0)
         ),
         query
     );
@@ -635,8 +639,7 @@ public class RealtimeManagerTest
         factory,
         realtimeManager3.getQueryRunnerForSegments(
             query,
-            ImmutableList.<SegmentDescriptor>of(
-                descriptor_28_29_0)
+            ImmutableList.of(descriptor_28_29_0)
         ),
         query
     );
@@ -646,8 +649,7 @@ public class RealtimeManagerTest
         factory,
         realtimeManager3.getQueryRunnerForSegments(
             query,
-            ImmutableList.<SegmentDescriptor>of(
-                descriptor_26_28_1)
+            ImmutableList.of(descriptor_26_28_1)
         ),
         query
     );
@@ -657,8 +659,7 @@ public class RealtimeManagerTest
         factory,
         realtimeManager3.getQueryRunnerForSegments(
             query,
-            ImmutableList.<SegmentDescriptor>of(
-                descriptor_28_29_1)
+            ImmutableList.of(descriptor_28_29_1)
         ),
         query
     );
@@ -966,15 +967,15 @@ public class RealtimeManagerTest
         throw new UnsupportedOperationException();
       }
 
-      final BaseQuery baseQuery = (BaseQuery) query;
+      final DataSourceWithSegmentSpec spec = query.getDistributionTarget();
 
-      if (baseQuery.getQuerySegmentSpec() instanceof MultipleIntervalSegmentSpec) {
+      if (spec.getQuerySegmentSpec() instanceof MultipleIntervalSegmentSpec) {
         return factory.getToolchest()
                       .mergeResults(
                           factory.mergeRunners(
                               MoreExecutors.sameThreadExecutor(),
                               Iterables.transform(
-                                  baseQuery.getIntervals(),
+                                  spec.getQuerySegmentSpec().getIntervals(),
                                   new Function<Interval, QueryRunner<T>>()
                                   {
                                     @Override
@@ -988,13 +989,14 @@ public class RealtimeManagerTest
                       );
       }
 
-      Assert.assertEquals(1, query.getIntervals().size());
+      Assert.assertEquals(1, spec.getQuerySegmentSpec().getIntervals().size());
 
       final SegmentDescriptor descriptor =
-          ((SpecificSegmentSpec) ((BaseQuery) query).getQuerySegmentSpec()).getDescriptor();
+          ((SpecificSegmentSpec) spec.getQuerySegmentSpec()).getDescriptor();
 
       return new SpecificSegmentQueryRunner<T>(
           runners.get(descriptor.getInterval()),
+          Iterables.getOnlyElement(spec.getDataSource().getNames()),
           new SpecificSegmentSpec(descriptor)
       );
     }
