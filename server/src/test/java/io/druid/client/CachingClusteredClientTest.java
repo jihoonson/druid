@@ -2203,14 +2203,6 @@ public class CachingClusteredClientTest
             {
               HashMap<String, List> context = new HashMap<String, List>();
               for (int i = 0; i < numTimesToQuery; ++i) {
-//                final Query running = query.replaceQuerySegmentSpecWith(
-//                    Iterables.getOnlyElement(spec.getDataSource().getNames()),
-//                    new MultipleIntervalSegmentSpec(
-//                        ImmutableList.of(
-//                            actualQueryInterval
-//                        )
-//                    )
-//                );
                 TestHelper.assertExpectedResults(
                     new MergeIterable<>(
                         Ordering.<Result<Object>>natural().nullsFirst(),
@@ -2245,9 +2237,6 @@ public class CachingClusteredClientTest
                                 )
                             )
                         ),
-//                        running.distributeBy(
-//                            Iterables.getOnlyElement((Iterable<DataSourceWithSegmentSpec>)running.getDataSources())
-//                        ),
                         context
                     )
                 );

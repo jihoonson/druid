@@ -65,18 +65,11 @@ public abstract class SingleSourceBaseQuery<T extends Comparable<T>> extends Bas
     return dataSourceWithSegment;
   }
 
-//  @Override
   @JsonProperty
   public DataSource getDataSource()
   {
     return dataSourceWithSegment.getDataSource();
   }
-
-//  @Override
-//  public DataSource getDistributionTargetSource()
-//  {
-//    return dataSource.getDataSource();
-//  }
 
   @JsonProperty("intervals")
   public QuerySegmentSpec getQuerySegmentSpec()
@@ -90,7 +83,6 @@ public abstract class SingleSourceBaseQuery<T extends Comparable<T>> extends Bas
     return run(dataSourceWithSegment.getQuerySegmentSpec().lookup(this, walker), context);
   }
 
-//  @Override
   public List<Interval> getIntervals()
   {
     return dataSourceWithSegment.getQuerySegmentSpec().getIntervals();
@@ -103,7 +95,6 @@ public abstract class SingleSourceBaseQuery<T extends Comparable<T>> extends Bas
     return getDuration();
   }
 
-//  @Override
   public Duration getDuration()
   {
     if (duration == null) {
@@ -132,7 +123,7 @@ public abstract class SingleSourceBaseQuery<T extends Comparable<T>> extends Bas
     Preconditions.checkArgument(Iterables.getOnlyElement(this.dataSourceWithSegment.getDataSource().getNames()).equals(dataSource));
     final Query<T> query = withQuerySegmentSpec(spec);
     if (getDistributionTarget() != null) {
-      if (dataSource.equals(getDistributionTarget().getDataSource().getName())) {
+      if (dataSource.equals(getDistributionTarget().getDataSource().getConcatenatedName())) {
         return query.distributeBy(((SingleSourceBaseQuery<T>) query).getDataSourceWithSegmentSpec());
       }
     }
@@ -184,7 +175,9 @@ public abstract class SingleSourceBaseQuery<T extends Comparable<T>> extends Bas
     return result;
   }
 
-  public static <T extends Comparable<T>> DataSourceWithSegmentSpec getLeafDataSourceWithSegmentSpec(SingleSourceBaseQuery<T> query)
+  public static <T extends Comparable<T>> DataSourceWithSegmentSpec getLeafDataSourceWithSegmentSpec(
+      SingleSourceBaseQuery<T> query
+  )
   {
     final DataSourceWithSegmentSpec sourceWithSegmentSpec = query.getDataSourceWithSegmentSpec();
     if (sourceWithSegmentSpec.getDataSource() instanceof QueryDataSource) {

@@ -36,7 +36,7 @@ import java.util.List;
               })
 public interface DataSource
 {
-  default String getName()
+  default String getConcatenatedName()
   {
     final List<String> names = getNames();
     return names.size() > 1 ? names.toString() : names.get(0);

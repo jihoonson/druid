@@ -181,7 +181,7 @@ public class GroupByStrategyV2 implements GroupByStrategy
   private static <T> int countGroupByLayers(final Query<T> query, final int foundNum)
   {
     if (foundNum == MAX_MERGE_BUFFER_NUM + 1) {
-      return foundNum; // TODO?
+      return foundNum;
     }
 
     int maxFoundFromChildren = -1;

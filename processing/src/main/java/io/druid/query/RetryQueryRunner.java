@@ -73,7 +73,6 @@ public class RetryQueryRunner<T> implements QueryRunner<T>
           OutType initValue, YieldingAccumulator<OutType, T> accumulator
       )
       {
-//        List<SegmentDescriptor> missingSegments = getMissingSegments(context);
         Map<String, List<SegmentDescriptor>> missingSegments = getMissingSegments(context);
 
         if (!missingSegments.isEmpty()) {

@@ -17,28 +17,30 @@
  * under the License.
  */
 
-package io.druid.query;
+package io.druid.query.join;
 
-import com.google.common.collect.ImmutableMap;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.util.Map;
-
-public class QueryContexts
+public class MultiplyPredicate extends BinaryPredicate
 {
-  public static <T> Query<T> distributeBy(Query<T> query, DataSourceWithSegmentSpec spec)
+  @JsonCreator
+  public MultiplyPredicate(
+      @JsonProperty("left") JoinPredicate left,
+      @JsonProperty("right") JoinPredicate right)
   {
-    return query.withOverriddenContext(ImmutableMap.of(QueryContextKeys.DIST_TARGET_SOURCE, spec));
+    super(left, right);
   }
 
-  public static <T> DataSourceWithSegmentSpec getDistributionTarget(Query<T> query)
+  @Override
+  public PredicateType getType()
   {
-    return query.getContextValue(QueryContextKeys.DIST_TARGET_SOURCE);
+    return PredicateType.MULTIPLY;
   }
 
-  public static DataSourceWithSegmentSpec getDistributionTarget(Map<String, Object> context)
+  @Override
+  public void accept(JoinPredicateVisitor visitor)
   {
-    return (DataSourceWithSegmentSpec) context.get(QueryContextKeys.DIST_TARGET_SOURCE);
+    visitor.visit(this);
   }
-
-  private QueryContexts() {}
 }

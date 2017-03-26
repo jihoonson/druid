@@ -43,19 +43,12 @@ public interface JoinPredicateVisitor
     return predicate;
   }
 
-  default JoinPredicate visit(EqualPredicate predicate)
-  {
-    predicate.getLeft().accept(this);
-    predicate.getRight().accept(this);
-    return predicate;
-  }
-
   default JoinPredicate visit(DimExtractPredicate predicate)
   {
     return predicate;
   }
 
-  default JoinPredicate visit(AddPredicate predicate)
+  default JoinPredicate visit(BinaryPredicate predicate)
   {
     predicate.getLeft().accept(this);
     predicate.getRight().accept(this);

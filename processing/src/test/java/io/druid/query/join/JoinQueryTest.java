@@ -70,8 +70,6 @@ public class JoinQueryTest
             new DimExtractPredicate(new DefaultDimensionSpec("j1", "dim4", "dim4")),
             new DimExtractPredicate(new DefaultDimensionSpec("src3", "dim4", "dim4"))
         ),
-//        new JoinInput("j1", leftChildSpec),
-//        new JoinInput(leftChildSpec),
         leftChildSpec,
         new DataInput(new TableDataSource("src3"), QueryRunnerTestHelper.firstToThird)
     );
@@ -94,10 +92,8 @@ public class JoinQueryTest
                                  .setVirtualColumns(VirtualColumns.EMPTY)
                                  .build();
 
-    final String json = JSON_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(query);
+    final String json = JSON_MAPPER.writeValueAsString(query);
     final Query fromJson = JSON_MAPPER.readValue(json, Query.class);
-
-//    System.out.println(json);
 
     assertEquals(query, fromJson);
   }

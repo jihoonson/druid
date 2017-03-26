@@ -394,22 +394,11 @@ public class AsyncQueryForwardingServlet extends AsyncProxyServlet implements Qu
         } else {
           failedQueryCount.incrementAndGet();
         }
-//<<<<<<< HEAD
-//        final QueryToolChest queryToolChest = warehouse.getToolChest(query);
-//        emitter.emit(
-//            DruidMetrics.makeQueryTimeMetric(
-//                queryToolChest,
-//                jsonMapper,
-//                query,
-//                req.getRemoteAddr()
-//            ).build("query/time", requestTime)
-//=======
         QueryMetrics queryMetrics = DruidMetrics.makeRequestMetrics(
             queryMetricsFactory,
             warehouse.getToolChest(query),
             query,
             req.getRemoteAddr()
-//>>>>>>> a0f2cf05d5a3a7d71635d1f54dd0efdfe57e469a
         );
         queryMetrics.reportQueryTime(requestTimeNs).emit(emitter);
         requestLogger.log(

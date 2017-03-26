@@ -17,10 +17,30 @@
  * under the License.
  */
 
-package io.druid.query.join.exception;
+package io.druid.query.join;
 
-// TODO: rename
-// TODO: runtime?
-public class NotImplementedException extends RuntimeException
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public class SubtractPredicate extends BinaryPredicate
 {
+  @JsonCreator
+  public SubtractPredicate(
+      @JsonProperty("left") JoinPredicate left,
+      @JsonProperty("right") JoinPredicate right)
+  {
+    super(left, right);
+  }
+
+  @Override
+  public PredicateType getType()
+  {
+    return PredicateType.SUBTRACT;
+  }
+
+  @Override
+  public void accept(JoinPredicateVisitor visitor)
+  {
+    visitor.visit(this);
+  }
 }

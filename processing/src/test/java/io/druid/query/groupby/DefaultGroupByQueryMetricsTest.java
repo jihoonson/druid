@@ -98,8 +98,6 @@ public class DefaultGroupByQueryMetricsTest
     Assert.assertEquals("", actualEvent.get("service"));
     Assert.assertEquals(DataSourceUtil.getMetricName(query.getDataSources()), actualEvent.get(DruidMetrics.DATASOURCE));
     Assert.assertEquals(query.getType(), actualEvent.get(DruidMetrics.TYPE));
-//    Interval expectedInterval = new Interval("2011-04-02/2011-04-04");
-//    Assert.assertEquals(Collections.singletonList(expectedInterval.toString()), actualEvent.get(DruidMetrics.INTERVAL));
     Assert.assertEquals("true", actualEvent.get("hasFilters"));
     Assert.assertEquals(query.getTotalDuration().toString(), actualEvent.get("duration"));
     Assert.assertEquals("", actualEvent.get(DruidMetrics.ID));

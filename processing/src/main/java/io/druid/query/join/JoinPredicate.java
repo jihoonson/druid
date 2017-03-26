@@ -32,6 +32,9 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
     @Type(name = "equal", value = EqualPredicate.class),
     @Type(name = "dimension", value = DimExtractPredicate.class),
     @Type(name = "add", value = AddPredicate.class),
+    @Type(name = "subtract", value = SubtractPredicate.class),
+    @Type(name = "multiply", value = MultiplyPredicate.class),
+    @Type(name = "divide", value = DividePredicate.class),
     @Type(name = "literal", value = LiteralPredicate.class)
 })
 public interface JoinPredicate
@@ -43,6 +46,9 @@ public interface JoinPredicate
     EQUAL,
     DIMENSION,
     ADD,
+    SUBTRACT,
+    MULTIPLY,
+    DIVIDE,
     LITERAL
   }
 

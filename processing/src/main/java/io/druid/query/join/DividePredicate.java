@@ -17,26 +17,30 @@
  * under the License.
  */
 
-package io.druid.segment.realtime;
+package io.druid.query.join;
 
-import com.google.common.base.Preconditions;
-import io.druid.query.SegmentDescriptor;
-import org.joda.time.Interval;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.util.Map;
-
-public class QuerySegmentWalkers
+public class DividePredicate extends BinaryPredicate
 {
-
-  public static void checkSingleSourceIntervals(Map<String, Iterable<Interval>> intervals)
+  @JsonCreator
+  public DividePredicate(
+      @JsonProperty("left") JoinPredicate left,
+      @JsonProperty("right") JoinPredicate right)
   {
-    Preconditions.checkState(intervals.size() == 1, "Multi source queries are not allowed yet.");
+    super(left, right);
   }
 
-  public static void checkSingleSourceSegments(Map<String, Iterable<SegmentDescriptor>> specs)
+  @Override
+  public PredicateType getType()
   {
-    Preconditions.checkState(specs.size() == 1, "Multi source queries are not allowed yet.");
+    return PredicateType.DIVIDE;
   }
 
-  private QuerySegmentWalkers() {}
+  @Override
+  public void accept(JoinPredicateVisitor visitor)
+  {
+    visitor.visit(this);
+  }
 }

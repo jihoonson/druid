@@ -171,7 +171,6 @@ public class CachingClusteredClient<T> implements QueryRunner<T>
     Preconditions.checkArgument(dataSourceNames.size() > 0);
     final String dataSourceName = dataSourceNames.get(0);
 
-    // TODO: modify to consider multiple data sources
     TimelineLookup<String, ServerSelector> timeline = serverView.getTimeline(spec.getDataSource());
 
     if (timeline == null) {

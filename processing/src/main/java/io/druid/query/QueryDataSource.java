@@ -31,7 +31,7 @@ import java.util.stream.StreamSupport;
 public class QueryDataSource implements DataSource
 {
   @JsonProperty
-  private final Query query;
+  private final Query<?> query;
 
   @JsonCreator
   public QueryDataSource(@JsonProperty("query") Query query)
@@ -42,7 +42,6 @@ public class QueryDataSource implements DataSource
   @Override
   public List<String> getNames()
   {
-    // TODO: validate?
     final Iterable<DataSourceWithSegmentSpec> sourceSpecs = query.getDataSources();
     return StreamSupport.stream(sourceSpecs.spliterator(), false)
                  .flatMap(spec -> spec.getDataSource().getNames().stream())

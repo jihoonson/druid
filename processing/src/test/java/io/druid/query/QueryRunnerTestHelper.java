@@ -530,10 +530,6 @@ public class QueryRunnerTestHelper
               @Override
               public Sequence<T> run(Query<T> query, Map<String, Object> responseContext)
               {
-//                List<TimelineObjectHolder> segments = Lists.newArrayList();
-//                for (Interval interval : query.getIntervals()) {
-//                  segments.addAll(timeline.lookup(interval));
-//                }
                 final List<TimelineObjectHolder> segments = StreamSupport
                     .stream(query.getDataSources().spliterator(), false)
                     .flatMap(spec -> spec.getQuerySegmentSpec().getIntervals().stream())

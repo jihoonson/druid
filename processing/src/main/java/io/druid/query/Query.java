@@ -67,12 +67,6 @@ public interface Query<T>
 
   Iterable<DataSourceWithSegmentSpec> getDataSources();
 
-//  @Deprecated
-//  default DataSource getDataSource()
-//  {
-//    return Iterables.getOnlyElement(getDataSources()).getDataSource();
-//  }
-
   boolean hasFilters();
 
   DimFilter getFilter();
@@ -83,12 +77,6 @@ public interface Query<T>
 
   Sequence<T> run(QueryRunner<T> runner, Map<String, Object> context);
 
-//  @Deprecated
-//  default List<Interval> getIntervals()
-//  {
-//    return Iterables.getOnlyElement(getDataSources()).getQuerySegmentSpec().getIntervals();
-//  }
-
   Duration getDuration(DataSource dataSource);
 
   default Duration getTotalDuration()
@@ -97,12 +85,6 @@ public interface Query<T>
         .map(spec -> BaseQuery.initDuration(spec.getQuerySegmentSpec()))
         .reduce(new Duration(0), Duration::plus);
   }
-
-//  @Deprecated
-//  default Duration getDuration()
-//  {
-//    return getDuration(getDataSource());
-//  }
 
   Map<String, Object> getContext();
 
@@ -136,17 +118,5 @@ public interface Query<T>
 
   Query<T> replaceQuerySegmentSpecWith(String dataSource, QuerySegmentSpec spec);
 
-//  @Deprecated
-//  default Query<T> withQuerySegmentSpec(QuerySegmentSpec spec)
-//  {
-//    return replaceQuerySegmentSpecWith(getDataSource(), spec);
-//  }
-
   Query<T> replaceDataSourceWith(DataSource src, DataSource dst);
-
-//  @Deprecated
-//  default Query<T> withDataSource(DataSource dataSource)
-//  {
-//    return replaceDataSourceWith(getDataSource(), dataSource);
-//  }
 }

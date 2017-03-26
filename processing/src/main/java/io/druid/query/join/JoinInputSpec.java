@@ -30,6 +30,5 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 })
 public interface JoinInputSpec
 {
-//  String getName();
   JoinInputSpec accept(JoinSpecVisitor visitor);
 }

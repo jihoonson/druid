@@ -73,7 +73,6 @@ import java.util.Set;
 
 /**
  */
-//public class GroupByQuery extends BaseQuery<Row>
 public class GroupByQuery extends SingleSourceBaseQuery<Row>
 {
   public final static String CTX_KEY_SORT_BY_DIMS_FIRST = "sortByDimsFirst";

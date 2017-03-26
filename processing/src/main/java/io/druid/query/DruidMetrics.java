@@ -54,37 +54,8 @@ public class DruidMetrics
     return retVal;
   }
 
-//<<<<<<< HEAD
-//  public static <T> ServiceMetricEvent.Builder makePartialQueryTimeMetric(Query<T> query)
-//  {
-//    return new ServiceMetricEvent.Builder()
-//        .setDimension(DATASOURCE, DataSourceUtil.getMetricName(query.getDataSources()))
-//        .setDimension(TYPE, query.getType())
-////        .setDimension(
-////            INTERVAL,
-////            Lists.transform(
-////                query.getIntervals(),
-////                new Function<Interval, String>()
-////                {
-////                  @Override
-////                  public String apply(Interval input)
-////                  {
-////                    return input.toString();
-////                  }
-////                }
-////            ).toArray(new String[query.getIntervals().size()])
-////        )
-//        .setDimension("hasFilters", String.valueOf(query.hasFilters()))
-////        .setDimension("duration", query.getDuration().toString())
-//        .setDimension("duration", query.getTotalDuration().toString())
-//        .setDimension(ID, Strings.nullToEmpty(query.getId()));
-//  }
-//
-//  public static <T> ServiceMetricEvent.Builder makeQueryTimeMetric(
-//=======
   public static <T> QueryMetrics<?> makeRequestMetrics(
       final GenericQueryMetricsFactory queryMetricsFactory,
-//>>>>>>> a0f2cf05d5a3a7d71635d1f54dd0efdfe57e469a
       final QueryToolChest<T, Query<T>> toolChest,
       final Query<T> query,
       final String remoteAddr

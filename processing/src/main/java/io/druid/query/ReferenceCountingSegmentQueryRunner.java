@@ -34,7 +34,6 @@ public class ReferenceCountingSegmentQueryRunner<T> implements QueryRunner<T>
 {
   private final QueryRunnerFactory<T, Query<T>> factory;
   private final ReferenceCountingSegment adapter;
-//  private final SegmentDescriptor descriptor;
   private final Map<String, List<SegmentDescriptor>> segmentDescMap;
 
   public ReferenceCountingSegmentQueryRunner(

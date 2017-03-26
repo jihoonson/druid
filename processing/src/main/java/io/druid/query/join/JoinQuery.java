@@ -47,8 +47,8 @@ public class JoinQuery extends BaseQuery<Row>
 {
   private final JoinSpec joinSpec;
   private final Granularity granularity;
-  private final List<DimensionSpec> dimensions; // out
-  private final List<String> metrics; // out
+  private final List<DimensionSpec> dimensions; // output dimensions
+  private final List<String> metrics;           // output metrics
   private final VirtualColumns virtualColumns;
   private final DimFilter filter;
 
@@ -59,10 +59,10 @@ public class JoinQuery extends BaseQuery<Row>
 
   @JsonCreator
   public JoinQuery(
-      @JsonProperty("joinSpec") JoinSpec joinSpec,// input spec
+      @JsonProperty("joinSpec") JoinSpec joinSpec,
       @JsonProperty("granularity") Granularity granularity,
-      @JsonProperty("dimensions") List<DimensionSpec> dimensions,// output dimension
-      @JsonProperty("metrics") List<String> metrics,// output metrics, TODO: consider to use only dimensionSpec for metrics as well
+      @JsonProperty("dimensions") List<DimensionSpec> dimensions,
+      @JsonProperty("metrics") List<String> metrics,
       @JsonProperty("virtualColumns") VirtualColumns virtualColumns,
       @JsonProperty("filter") DimFilter filter,
       @JsonProperty("context") Map<String, Object> context

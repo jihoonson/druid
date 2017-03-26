@@ -62,7 +62,6 @@ public class DataInput implements JoinInputSpec
     return dataSource;
   }
 
-//  @Override
   public String getName()
   {
     return Iterables.getOnlyElement(dataSource.getNames());

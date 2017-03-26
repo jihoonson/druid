@@ -84,7 +84,9 @@ public class DataSourceQueryQueryToolChest
   }
 
   @Override
-  public QueryRunner<Result<DataSourceMetadataResultValue>> annotateDistributionTarget(QueryRunner<Result<DataSourceMetadataResultValue>> runner)
+  public QueryRunner<Result<DataSourceMetadataResultValue>> annotateDistributionTarget(
+      QueryRunner<Result<DataSourceMetadataResultValue>> runner
+  )
   {
     return (query, responseContext) -> {
       final DataSourceMetadataQuery dataSourceMetadataQuery = (DataSourceMetadataQuery) query;

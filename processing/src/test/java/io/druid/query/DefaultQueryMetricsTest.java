@@ -73,12 +73,7 @@ public class DefaultQueryMetricsTest
     Assert.assertEquals("", actualEvent.get("service"));
     Assert.assertEquals(DataSourceUtil.getMetricName(query.getDataSources()), actualEvent.get(DruidMetrics.DATASOURCE));
     Assert.assertEquals(query.getType(), actualEvent.get(DruidMetrics.TYPE));
-//    List<Interval> expectedIntervals = QueryRunnerTestHelper.fullOnInterval.getIntervals();
-//    List<String> expectedStringIntervals =
-//        expectedIntervals.stream().map(Interval::toString).collect(Collectors.toList());
-//    Assert.assertEquals(expectedStringIntervals, actualEvent.get(DruidMetrics.INTERVAL));
     Assert.assertEquals("true", actualEvent.get("hasFilters"));
-//    Assert.assertEquals(expectedIntervals.get(0).toDuration().toString(), actualEvent.get("duration"));
     Assert.assertEquals(query.getTotalDuration().toString(), actualEvent.get("duration"));
     Assert.assertEquals("", actualEvent.get(DruidMetrics.ID));
     Assert.assertEquals("query/time", actualEvent.get("metric"));

@@ -30,7 +30,6 @@ import java.util.Map;
  */
 public class ReportTimelineMissingSegmentQueryRunner<T> implements QueryRunner<T>
 {
-//  private final SegmentDescriptor descriptor;
   private final Map<String, List<SegmentDescriptor>> segmentDescMap;
 
   public ReportTimelineMissingSegmentQueryRunner(Map<String, List<SegmentDescriptor>> segmentDescMap)
@@ -43,11 +42,6 @@ public class ReportTimelineMissingSegmentQueryRunner<T> implements QueryRunner<T
       Query<T> query, Map<String, Object> responseContext
   )
   {
-//    Map<String, List<SegmentDescriptor>> missingSegments = (Map<String, List<SegmentDescriptor>>) responseContext.get(Result.MISSING_SEGMENTS_KEY);
-//    if (missingSegments == null) {
-//      missingSegments = new HashMap<>();
-//      responseContext.put(Result.MISSING_SEGMENTS_KEY, missingSegments);
-//    }
     Map<String, List<SegmentDescriptor>> missingSegments =
         (Map<String, List<SegmentDescriptor>>) responseContext.computeIfAbsent(
             Result.MISSING_SEGMENTS_KEY, k -> new HashMap<>()

@@ -27,7 +27,6 @@ import java.util.Objects;
 
 public class JoinSpec implements JoinInputSpec
 {
-  // left and right don't have to be aligned
   private final JoinType joinType;
   private final JoinPredicate predicate;
   private final JoinInputSpec left;
@@ -47,8 +46,6 @@ public class JoinSpec implements JoinInputSpec
     this.right = Preconditions.checkNotNull(right);
 
     Preconditions.checkArgument(JoinType.INNER == joinType, "%s join type is not supported yet", joinType);
-    Preconditions.checkArgument(JoinPredicates.validatePredicate(predicate));
-    Preconditions.checkArgument(JoinPredicates.isEquiJoin(predicate));
   }
 
   public JoinSpec accept(JoinSpecVisitor visitor)
