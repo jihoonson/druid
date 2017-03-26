@@ -187,15 +187,71 @@ public class JoinQuery extends BaseQuery<Row>
   @Override
   public Query<Row> replaceQuerySegmentSpecWith(String dataSource, QuerySegmentSpec spec)
   {
-    // TODO
-    return null;
+    final JoinSpecVisitor visitor = new JoinSpecVisitor()
+    {
+      @Override
+      public JoinSpec visit(JoinSpec joinSpec)
+      {
+        final JoinInputSpec newLeft = joinSpec.getLeft().accept(this);
+        final JoinInputSpec newRight = joinSpec.getRight().accept(this);
+        return new JoinSpec(joinSpec.getJoinType(), joinSpec.getPredicate(), newLeft, newRight);
+      }
+
+      @Override
+      public DataInput visit(DataInput dataInput)
+      {
+        if (dataInput.getDataSource().getFirstName().equals(dataSource)) {
+          return new DataInput(dataInput.getDataSource(), spec);
+        } else {
+          return dataInput;
+        }
+      }
+    };
+
+    return new JoinQuery(
+        joinSpec.accept(visitor),
+        granularity,
+        dimensions,
+        metrics,
+        virtualColumns,
+        filter,
+        getContext()
+    );
   }
 
   @Override
   public Query<Row> replaceDataSourceWith(DataSource src, DataSource dst)
   {
-    // TODO
-    return null;
+    final JoinSpecVisitor visitor = new JoinSpecVisitor()
+    {
+      @Override
+      public JoinSpec visit(JoinSpec joinSpec)
+      {
+        final JoinInputSpec newLeft = joinSpec.getLeft().accept(this);
+        final JoinInputSpec newRight = joinSpec.getRight().accept(this);
+        return new JoinSpec(joinSpec.getJoinType(), joinSpec.getPredicate(), newLeft, newRight);
+      }
+
+      @Override
+      public DataInput visit(DataInput dataInput)
+      {
+        if (dataInput.getDataSource().equals(src)) {
+          return new DataInput(dst, dataInput.getQuerySegmentSpec());
+        } else {
+          return dataInput;
+        }
+      }
+    };
+
+    return new JoinQuery(
+        joinSpec.accept(visitor),
+        granularity,
+        dimensions,
+        metrics,
+        virtualColumns,
+        filter,
+        getContext()
+    );
   }
 
   @Override
@@ -240,8 +296,7 @@ public class JoinQuery extends BaseQuery<Row>
   @Override
   public int hashCode()
   {
-    // TODO
-    return Objects.hash(joinSpec, getType(), dimensions, metrics, virtualColumns, filter);
+    return Objects.hash(getType(), joinSpec, granularity, dimensions, metrics, virtualColumns, filter, getContext());
   }
 
   public static class Builder

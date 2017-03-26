@@ -51,9 +51,9 @@ public class JoinSpec implements JoinInputSpec
     Preconditions.checkArgument(JoinPredicates.isEquiJoin(predicate));
   }
 
-  public void accept(JoinSpecVisitor visitor)
+  public JoinSpec accept(JoinSpecVisitor visitor)
   {
-    visitor.visit(this);
+    return visitor.visit(this);
   }
 
   public boolean hasPredicate()

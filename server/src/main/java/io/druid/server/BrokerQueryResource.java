@@ -30,6 +30,7 @@ import io.druid.client.TimelineServerView;
 import io.druid.guice.annotations.Json;
 import io.druid.guice.annotations.Smile;
 import io.druid.query.DataSourceWithSegmentSpec;
+import io.druid.query.GenericQueryMetricsFactory;
 import io.druid.query.Query;
 import io.druid.query.QueryContextKeys;
 import io.druid.query.QuerySegmentWalker;
@@ -70,10 +71,22 @@ public class BrokerQueryResource extends QueryResource
       RequestLogger requestLogger,
       QueryManager queryManager,
       AuthConfig authConfig,
+      GenericQueryMetricsFactory queryMetricsFactory,
       TimelineServerView brokerServerView
   )
   {
-    super(warehouse, config, jsonMapper, smileMapper, texasRanger, emitter, requestLogger, queryManager, authConfig);
+    super(
+        warehouse,
+        config,
+        jsonMapper,
+        smileMapper,
+        texasRanger,
+        emitter,
+        requestLogger,
+        queryManager,
+        authConfig,
+        queryMetricsFactory
+    );
     this.brokerServerView = brokerServerView;
   }
 

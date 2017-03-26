@@ -28,12 +28,6 @@ public interface JoinSpecVisitor
     return joinSpec;
   }
 
-  default JoinInput visit(JoinInput joinInput)
-  {
-    joinInput.getJoinSpec().accept(this);
-    return joinInput;
-  }
-
   default DataInput visit(DataInput dataInput)
   {
     return dataInput;

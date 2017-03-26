@@ -108,8 +108,8 @@ public class DataInput implements JoinInputSpec
   }
 
   @Override
-  public void accept(JoinSpecVisitor visitor)
+  public DataInput accept(JoinSpecVisitor visitor)
   {
-    visitor.visit(this);
+    return visitor.visit(this);
   }
 }
