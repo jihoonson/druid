@@ -244,6 +244,8 @@ public class DruidCoordinator
               retVal.put(entry.getKey(), dataSourceMap);
             }
 
+            log.info("val: " + entry.getValue());
+            log.info("# of replicants:" + segmentReplicantLookup.getTotalReplicants(segment.getIdentifier(), entry.getKey()));
             int diff = Math.max(
                 entry.getValue() - segmentReplicantLookup.getTotalReplicants(segment.getIdentifier(), entry.getKey()),
                 0
@@ -759,16 +761,16 @@ public class DruidCoordinator
                           }
                       );
 
-                  if (log.isDebugEnabled()) {
-                    log.debug("Servers");
+//                  if (log.isDebugEnabled()) {
+                    log.info("Servers");
                     for (ImmutableDruidServer druidServer : servers) {
-                      log.debug("  %s", druidServer);
-                      log.debug("    -- DataSources");
+                      log.info("  %s", druidServer);
+                      log.info("    -- DataSources");
                       for (ImmutableDruidDataSource druidDataSource : druidServer.getDataSources()) {
-                        log.debug("    %s", druidDataSource);
+                        log.info("    %s", druidDataSource);
                       }
                     }
-                  }
+//                  }
 
                   // Find all historical servers, group them by subType and sort by ascending usage
                   final DruidCluster cluster = new DruidCluster();

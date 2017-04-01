@@ -342,6 +342,8 @@ public class DruidCoordinatorTest extends CuratorTestBase
 
     Assert.assertEquals(ImmutableMap.of(dataSource, 100.0), coordinator.getLoadStatus());
     curator.delete().guaranteed().forPath(ZKPaths.makePath(LOADPATH, dataSegment.getIdentifier()));
+//    Assert.assertNull(curator.checkExists().forPath(ZKPaths.makePath(LOADPATH, dataSegment.getIdentifier())));
+    System.err.println("path exists? " + curator.checkExists().forPath(ZKPaths.makePath(LOADPATH, dataSegment.getIdentifier())));
     // Wait for coordinator thread to run so that replication status is updated
     while (coordinator.getSegmentAvailability().snapshot().get(dataSource) != 0) {
       Thread.sleep(50);
@@ -371,8 +373,10 @@ public class DruidCoordinatorTest extends CuratorTestBase
     Assert.assertNotNull(dataSourceMap.get(dataSource));
     // Simulated the adding of segment to druidServer during SegmentChangeRequestLoad event
     // The load rules asks for 2 replicas, therefore 1 replica should still be pending
+    System.err.println("# of replicas: " + dataSourceMap.get(dataSource).get());
     while(dataSourceMap.get(dataSource).get() != 1L) {
       Thread.sleep(50);
+      System.err.println("# of replicas: " + dataSourceMap.get(dataSource).get());
     }
 
     coordinator.stop();
