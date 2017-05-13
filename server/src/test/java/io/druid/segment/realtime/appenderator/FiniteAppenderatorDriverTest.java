@@ -127,20 +127,22 @@ public class FiniteAppenderatorDriverTest
       Assert.assertNotNull(driver.add(ROWS.get(i), "dummy", committerSupplier));
     }
 
-    final SegmentsAndMetadata segmentsAndMetadata = driver.finish(
+    final SegmentsAndMetadata segmentsAndMetadata = driver.publish(
         makeOkPublisher(),
         committerSupplier.get()
-    );
+    ).get();
+
+    final SegmentsAndMetadata handedoff = driver.waitForHandoff(segmentsAndMetadata).get();
 
     Assert.assertEquals(
         ImmutableSet.of(
             new SegmentIdentifier(DATA_SOURCE, new Interval("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0)),
             new SegmentIdentifier(DATA_SOURCE, new Interval("2000T01/PT1H"), VERSION, new NumberedShardSpec(0, 0))
         ),
-        asIdentifiers(segmentsAndMetadata.getSegments())
+        asIdentifiers(handedoff.getSegments())
     );
 
-    Assert.assertEquals(3, segmentsAndMetadata.getCommitMetadata());
+    Assert.assertEquals(3, handedoff.getCommitMetadata());
   }
 
   @Test
@@ -165,9 +167,10 @@ public class FiniteAppenderatorDriverTest
       Assert.assertNotNull(driver.add(row, "dummy", committerSupplier));
     }
 
-    final SegmentsAndMetadata segmentsAndMetadata = driver.finish(makeOkPublisher(), committerSupplier.get());
-    Assert.assertEquals(numSegments, segmentsAndMetadata.getSegments().size());
-    Assert.assertEquals(numSegments * MAX_ROWS_PER_SEGMENT, segmentsAndMetadata.getCommitMetadata());
+    final SegmentsAndMetadata segmentsAndMetadata = driver.publish(makeOkPublisher(), committerSupplier.get()).get();
+    final SegmentsAndMetadata handedoff = driver.waitForHandoff(segmentsAndMetadata).get();
+    Assert.assertEquals(numSegments, handedoff.getSegments().size());
+    Assert.assertEquals(numSegments * MAX_ROWS_PER_SEGMENT, handedoff.getCommitMetadata());
   }
 
   private Set<SegmentIdentifier> asIdentifiers(Iterable<DataSegment> segments)

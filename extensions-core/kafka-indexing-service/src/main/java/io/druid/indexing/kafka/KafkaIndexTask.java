@@ -67,7 +67,7 @@ import io.druid.segment.realtime.RealtimeMetricsMonitor;
 import io.druid.segment.realtime.appenderator.Appenderator;
 import io.druid.segment.realtime.appenderator.Appenderators;
 import io.druid.segment.realtime.appenderator.FiniteAppenderatorDriver;
-import io.druid.segment.realtime.appenderator.SegmentIdentifier;
+import io.druid.segment.realtime.appenderator.FiniteAppenderatorDriver.AddResult;
 import io.druid.segment.realtime.appenderator.SegmentsAndMetadata;
 import io.druid.segment.realtime.appenderator.TransactionalSegmentPublisher;
 import io.druid.segment.realtime.firehose.ChatHandler;
@@ -93,11 +93,11 @@ import javax.ws.rs.core.Response;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
-import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -424,13 +424,13 @@ public class KafkaIndexTask extends AbstractTask implements ChatHandler
                 if (!ioConfig.getMinimumMessageTime().isPresent() ||
                     !ioConfig.getMinimumMessageTime().get().isAfter(row.getTimestamp())) {
 
-                  final SegmentIdentifier identifier = driver.add(
+                  final AddResult addResult = driver.add(
                       row,
                       sequenceNames.get(record.partition()),
                       committerSupplier
                   );
 
-                  if (identifier == null) {
+                  if (!addResult.isOk()) {
                     // Failure to allocate segment puts determinism at risk, bail out to be safe.
                     // May want configurable behavior here at some point.
                     // If we allow continuing, then consider blacklisting the interval for a while to avoid constant checks.
@@ -514,10 +514,11 @@ public class KafkaIndexTask extends AbstractTask implements ChatHandler
         }
       };
 
-      final SegmentsAndMetadata published = driver.finish(publisher, committerSupplier.get());
+      final SegmentsAndMetadata published = driver.publish(publisher, committerSupplier.get()).get();
       if (published == null) {
         throw new ISE("Transaction failure publishing segments, aborting");
       } else {
+        driver.waitForHandoff(published).get();
         log.info(
             "Published segments[%s] with metadata[%s].",
             Joiner.on(", ").join(

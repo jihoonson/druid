@@ -30,6 +30,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedMap;
@@ -76,6 +77,7 @@ import io.druid.segment.realtime.appenderator.Appenderator;
 import io.druid.segment.realtime.appenderator.AppenderatorConfig;
 import io.druid.segment.realtime.appenderator.Appenderators;
 import io.druid.segment.realtime.appenderator.FiniteAppenderatorDriver;
+import io.druid.segment.realtime.appenderator.FiniteAppenderatorDriver.AddResult;
 import io.druid.segment.realtime.appenderator.SegmentAllocator;
 import io.druid.segment.realtime.appenderator.SegmentIdentifier;
 import io.druid.segment.realtime.appenderator.SegmentsAndMetadata;
@@ -100,6 +102,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.concurrent.ExecutionException;
 
 public class IndexTask extends AbstractTask
 {
@@ -447,9 +450,9 @@ public class IndexTask extends AbstractTask
               sequenceNameToShardSpecMap.put(sequenceName, shardSpecForPublishing);
             }
 
-            final SegmentIdentifier identifier = driver.add(inputRow, sequenceName, committerSupplier);
+            final AddResult addResult = driver.add(inputRow, sequenceName, committerSupplier);
 
-            if (identifier == null) {
+            if (!addResult.isOk()) {
               throw new ISE("Could not allocate segment for row with timestamp[%s]", inputRow.getTimestamp());
             }
 
@@ -478,27 +481,33 @@ public class IndexTask extends AbstractTask
         }
       };
 
-      final SegmentsAndMetadata published = driver.finish(publisher, committerSupplier.get());
-      if (published == null) {
-        log.error("Failed to publish segments, aborting!");
-        return false;
-      } else {
-        log.info(
-            "Published segments[%s]", Joiner.on(", ").join(
-                Iterables.transform(
-                    published.getSegments(),
-                    new Function<DataSegment, String>()
-                    {
-                      @Override
-                      public String apply(DataSegment input)
+      final SegmentsAndMetadata published;
+      try {
+        published = driver.publish(publisher, committerSupplier.get()).get();
+        if (published == null) {
+          log.error("Failed to publish segments, aborting!");
+          return false;
+        } else {
+          log.info(
+              "Published segments[%s]", Joiner.on(", ").join(
+                  Iterables.transform(
+                      published.getSegments(),
+                      new Function<DataSegment, String>()
                       {
-                        return input.getIdentifier();
+                        @Override
+                        public String apply(DataSegment input)
+                        {
+                          return input.getIdentifier();
+                        }
                       }
-                    }
-                )
-            )
-        );
-        return true;
+                  )
+              )
+          );
+          return true;
+        }
+      }
+      catch (ExecutionException e) {
+        throw Throwables.propagate(e);
       }
     }
   }

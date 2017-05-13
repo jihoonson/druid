@@ -35,7 +35,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-
+import io.druid.concurrent.Execs;
 import io.druid.data.input.Committer;
 import io.druid.data.input.InputRow;
 import io.druid.java.util.common.ISE;
@@ -47,6 +47,7 @@ import io.druid.segment.realtime.plumber.SegmentHandoffNotifierFactory;
 import io.druid.timeline.DataSegment;
 import org.joda.time.DateTime;
 
+import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
@@ -55,6 +56,8 @@ import java.util.NavigableMap;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 /**
  * A FiniteAppenderatorDriver drives an Appenderator to index a finite stream of data. This class does not help you
@@ -91,6 +94,10 @@ public class FiniteAppenderatorDriver implements Closeable
   // Notified when segments are dropped.
   private final Object handoffMonitor = new Object();
 
+  private final ExecutorService publishExecutor;
+
+  private final ExecutorService handoffExecutor;
+
   /**
    * Create a driver.
    *
@@ -124,6 +131,9 @@ public class FiniteAppenderatorDriver implements Closeable
     this.maxRowsPerSegment = maxRowsPerSegment;
     this.handoffConditionTimeout = handoffConditionTimeout;
     this.metrics = Preconditions.checkNotNull(metrics, "metrics");
+
+    this.publishExecutor = Execs.newBlockingSingleThreaded("publish-%d", 1);
+    this.handoffExecutor = Execs.newBlockingSingleThreaded("handoff-%d", 1);
   }
 
   /**
@@ -188,7 +198,7 @@ public class FiniteAppenderatorDriver implements Closeable
    *
    * @throws IOException if there is an I/O error while allocating or writing to a segment
    */
-  public SegmentIdentifier add(
+  public AddResult add(
       final InputRow row,
       final String sequenceName,
       final Supplier<Committer> committerSupplier
@@ -206,13 +216,51 @@ public class FiniteAppenderatorDriver implements Closeable
         if (numRows >= maxRowsPerSegment) {
           moveSegmentOut(sequenceName, ImmutableList.of(identifier));
         }
+        return AddResult.ok(identifier, numRows);
       }
       catch (SegmentNotWritableException e) {
         throw new ISE(e, "WTF?! Segment[%s] not writable when it should have been.", identifier);
       }
+    } else {
+      return AddResult.fail();
+    }
+  }
+
+  public static class AddResult
+  {
+    private final SegmentIdentifier segmentIdentifier;
+    private final int numRowsInSegment;
+
+    public static AddResult ok(SegmentIdentifier segmentIdentifier, int numRowsInSegment)
+    {
+      return new AddResult(segmentIdentifier, numRowsInSegment);
     }
 
-    return identifier;
+    public static AddResult fail()
+    {
+      return new AddResult(null, 0);
+    }
+
+    private AddResult(@Nullable SegmentIdentifier segmentIdentifier, int numRowsInSegment)
+    {
+      this.segmentIdentifier = segmentIdentifier;
+      this.numRowsInSegment = numRowsInSegment;
+    }
+
+    public boolean isOk()
+    {
+      return segmentIdentifier != null;
+    }
+
+    public SegmentIdentifier getSegmentIdentifier()
+    {
+      return segmentIdentifier;
+    }
+
+    public int getNumRowsInSegment()
+    {
+      return numRowsInSegment;
+    }
   }
 
   /**
@@ -241,61 +289,47 @@ public class FiniteAppenderatorDriver implements Closeable
     }
   }
 
-  /**
-   * Publish all data indexed through this driver so far, and waits for it to be handed off. Blocks until complete.
-   * Retries forever on transient failures, but may exit early on permanent failures.
-   *
-   * Should be called after all data has been added and persisted through {@link #add(InputRow, String, Supplier)} and
-   * {@link #persist(Committer)}.
-   *
-   * @param publisher publisher to use for this set of segments
-   * @param committer committer representing all data that has been added so far
-   *
-   * @return segments and metadata published if successful, or null if segments could not be handed off due to
-   * transaction failure with commit metadata.
-   */
-  public SegmentsAndMetadata finish(
-      final TransactionalSegmentPublisher publisher,
-      final Committer committer
-  ) throws InterruptedException
+  public Future<SegmentsAndMetadata> waitForHandoff(SegmentsAndMetadata segmentsAndMetadata) throws InterruptedException
   {
-    final SegmentsAndMetadata segmentsAndMetadata = publishAll(publisher, wrapCommitter(committer));
+    return handoffExecutor.submit(
+        () -> {
+          if (segmentsAndMetadata != null) {
+            final long giveUpAt = handoffConditionTimeout > 0
+                                  ? System.currentTimeMillis() + handoffConditionTimeout
+                                  : 0;
 
-    if (segmentsAndMetadata != null) {
-      final long giveUpAt = handoffConditionTimeout > 0
-                            ? System.currentTimeMillis() + handoffConditionTimeout
-                            : 0;
+            log.info("Awaiting handoff of segments: [%s]", Joiner.on(", ").join(appenderator.getSegments()));
 
-      log.info("Awaiting handoff of segments: [%s]", Joiner.on(", ").join(appenderator.getSegments()));
+            synchronized (handoffMonitor) {
+              while (!appenderator.getSegments().isEmpty()) {
 
-      synchronized (handoffMonitor) {
-        while (!appenderator.getSegments().isEmpty()) {
-
-          if (giveUpAt == 0) {
-            handoffMonitor.wait();
-          } else {
-            final long remaining = giveUpAt - System.currentTimeMillis();
-            if (remaining > 0) {
-              handoffMonitor.wait(remaining);
-            } else {
-              throw new ISE(
-                  "Segment handoff wait timeout. Segments not yet handed off: [%s]",
-                  Joiner.on(", ").join(appenderator.getSegments())
-              );
+                if (giveUpAt == 0) {
+                  handoffMonitor.wait();
+                } else {
+                  final long remaining = giveUpAt - System.currentTimeMillis();
+                  if (remaining > 0) {
+                    handoffMonitor.wait(remaining);
+                  } else {
+                    throw new ISE(
+                        "Segment handoff wait timeout. Segments not yet handed off: [%s]",
+                        Joiner.on(", ").join(appenderator.getSegments())
+                    );
+                  }
+                }
+              }
             }
+
+            log.info("All segments handed off.");
+
+            return new SegmentsAndMetadata(
+                segmentsAndMetadata.getSegments(),
+                ((FiniteAppenderatorDriverMetadata) segmentsAndMetadata.getCommitMetadata()).getCallerMetadata()
+            );
+          } else {
+            return null;
           }
         }
-      }
-
-      log.info("All segments handed off.");
-
-      return new SegmentsAndMetadata(
-          segmentsAndMetadata.getSegments(),
-          ((FiniteAppenderatorDriverMetadata) segmentsAndMetadata.getCommitMetadata()).getCallerMetadata()
-      );
-    } else {
-      return null;
-    }
+    );
   }
 
   /**
@@ -409,111 +443,115 @@ public class FiniteAppenderatorDriver implements Closeable
    * @return published segments and metadata, or null if segments could not be published due to transaction failure
    * with commit metadata.
    */
-  private SegmentsAndMetadata publishAll(
+  public Future<SegmentsAndMetadata> publish(
       final TransactionalSegmentPublisher publisher,
-      final Committer wrappedCommitter
+      final Committer committer
   ) throws InterruptedException
   {
     final List<SegmentIdentifier> theSegments = ImmutableList.copyOf(appenderator.getSegments());
+    final Committer wrappedCommitter = wrapCommitter(committer);
 
-    long nTry = 0;
-    while (true) {
-      try {
-        log.info("Pushing segments: [%s]", Joiner.on(", ").join(theSegments));
-        final SegmentsAndMetadata segmentsAndMetadata = appenderator.push(theSegments, wrappedCommitter).get();
+    return publishExecutor.submit(
+        () -> {
+          long nTry = 0;
+          while (true) {
+            try {
+              log.info("Pushing segments: [%s]", Joiner.on(", ").join(theSegments));
+              final SegmentsAndMetadata segmentsAndMetadata = appenderator.push(theSegments, wrappedCommitter).get();
 
-        // Sanity check
-        if (!segmentsToIdentifiers(segmentsAndMetadata.getSegments()).equals(Sets.newHashSet(theSegments))) {
-          throw new ISE(
-              "WTF?! Pushed different segments than requested. Pushed[%s], requested[%s].",
-              Joiner.on(", ").join(identifiersToStrings(segmentsToIdentifiers(segmentsAndMetadata.getSegments()))),
-              Joiner.on(", ").join(identifiersToStrings(theSegments))
-          );
-        }
+              // Sanity check
+              if (!segmentsToIdentifiers(segmentsAndMetadata.getSegments()).equals(Sets.newHashSet(theSegments))) {
+                throw new ISE(
+                    "WTF?! Pushed different segments than requested. Pushed[%s], requested[%s].",
+                    Joiner.on(", ").join(identifiersToStrings(segmentsToIdentifiers(segmentsAndMetadata.getSegments()))),
+                    Joiner.on(", ").join(identifiersToStrings(theSegments))
+                );
+              }
 
-        log.info(
-            "Publishing segments with commitMetadata[%s]: [%s]",
-            segmentsAndMetadata.getCommitMetadata(),
-            Joiner.on(", ").join(segmentsAndMetadata.getSegments())
-        );
+              log.info(
+                  "Publishing segments with commitMetadata[%s]: [%s]",
+                  segmentsAndMetadata.getCommitMetadata(),
+                  Joiner.on(", ").join(segmentsAndMetadata.getSegments())
+              );
 
-        if (segmentsAndMetadata.getSegments().isEmpty()) {
-          log.info("Nothing to publish, skipping publish step.");
-        } else {
-          final boolean published = publisher.publishSegments(
-              ImmutableSet.copyOf(segmentsAndMetadata.getSegments()),
-              ((FiniteAppenderatorDriverMetadata) segmentsAndMetadata.getCommitMetadata()).getCallerMetadata()
-          );
+              if (segmentsAndMetadata.getSegments().isEmpty()) {
+                log.info("Nothing to publish, skipping publish step.");
+              } else {
+                final boolean published = publisher.publishSegments(
+                    ImmutableSet.copyOf(segmentsAndMetadata.getSegments()),
+                    ((FiniteAppenderatorDriverMetadata) segmentsAndMetadata.getCommitMetadata()).getCallerMetadata()
+                );
 
-          if (published) {
-            log.info("Published segments, awaiting handoff.");
-          } else {
-            log.info("Transaction failure while publishing segments, checking if someone else beat us to it.");
-            if (usedSegmentChecker.findUsedSegments(segmentsToIdentifiers(segmentsAndMetadata.getSegments()))
-                                  .equals(Sets.newHashSet(segmentsAndMetadata.getSegments()))) {
-              log.info("Our segments really do exist, awaiting handoff.");
-            } else {
-              log.warn("Our segments don't exist, giving up.");
-              return null;
-            }
-          }
-        }
-
-        for (final DataSegment dataSegment : segmentsAndMetadata.getSegments()) {
-          handoffNotifier.registerSegmentHandoffCallback(
-              new SegmentDescriptor(
-                  dataSegment.getInterval(),
-                  dataSegment.getVersion(),
-                  dataSegment.getShardSpec().getPartitionNum()
-              ),
-              MoreExecutors.sameThreadExecutor(),
-              new Runnable()
-              {
-                @Override
-                public void run()
-                {
-                  final SegmentIdentifier identifier = SegmentIdentifier.fromDataSegment(dataSegment);
-                  log.info("Segment[%s] successfully handed off, dropping.", identifier);
-                  metrics.incrementHandOffCount();
-                  final ListenableFuture<?> dropFuture = appenderator.drop(identifier);
-                  Futures.addCallback(
-                      dropFuture,
-                      new FutureCallback<Object>()
-                      {
-                        @Override
-                        public void onSuccess(Object result)
-                        {
-                          synchronized (handoffMonitor) {
-                            handoffMonitor.notifyAll();
-                          }
-                        }
-
-                        @Override
-                        public void onFailure(Throwable e)
-                        {
-                          log.warn(e, "Failed to drop segment[%s]?!");
-                          synchronized (handoffMonitor) {
-                            handoffMonitor.notifyAll();
-                          }
-                        }
-                      }
-                  );
+                if (published) {
+                  log.info("Published segments, awaiting handoff.");
+                } else {
+                  log.info("Transaction failure while publishing segments, checking if someone else beat us to it.");
+                  if (usedSegmentChecker.findUsedSegments(segmentsToIdentifiers(segmentsAndMetadata.getSegments()))
+                                        .equals(Sets.newHashSet(segmentsAndMetadata.getSegments()))) {
+                    log.info("Our segments really do exist, awaiting handoff.");
+                  } else {
+                    log.warn("Our segments don't exist, giving up.");
+                    return null;
+                  }
                 }
               }
-          );
-        }
 
-        return segmentsAndMetadata;
-      }
-      catch (InterruptedException e) {
-        throw e;
-      }
-      catch (Exception e) {
-        final long sleepMillis = computeNextRetrySleep(++nTry);
-        log.warn(e, "Failed publishAll (try %d), retrying in %,dms.", nTry, sleepMillis);
-        Thread.sleep(sleepMillis);
-      }
-    }
+              for (final DataSegment dataSegment : segmentsAndMetadata.getSegments()) {
+                handoffNotifier.registerSegmentHandoffCallback(
+                    new SegmentDescriptor(
+                        dataSegment.getInterval(),
+                        dataSegment.getVersion(),
+                        dataSegment.getShardSpec().getPartitionNum()
+                    ),
+                    MoreExecutors.sameThreadExecutor(),
+                    new Runnable()
+                    {
+                      @Override
+                      public void run()
+                      {
+                        final SegmentIdentifier identifier = SegmentIdentifier.fromDataSegment(dataSegment);
+                        log.info("Segment[%s] successfully handed off, dropping.", identifier);
+                        metrics.incrementHandOffCount();
+                        final ListenableFuture<?> dropFuture = appenderator.drop(identifier);
+                        Futures.addCallback(
+                            dropFuture,
+                            new FutureCallback<Object>()
+                            {
+                              @Override
+                              public void onSuccess(Object result)
+                              {
+                                synchronized (handoffMonitor) {
+                                  handoffMonitor.notifyAll();
+                                }
+                              }
+
+                              @Override
+                              public void onFailure(Throwable e)
+                              {
+                                log.warn(e, "Failed to drop segment[%s]?!");
+                                synchronized (handoffMonitor) {
+                                  handoffMonitor.notifyAll();
+                                }
+                              }
+                            }
+                        );
+                      }
+                    }
+                );
+              }
+
+              return segmentsAndMetadata;
+            }
+            catch (InterruptedException e) {
+              throw e;
+            }
+            catch (Exception e) {
+              final long sleepMillis = computeNextRetrySleep(++nTry);
+              log.warn(e, "Failed publishAll (try %d), retrying in %,dms.", nTry, sleepMillis);
+              Thread.sleep(sleepMillis);
+            }
+          }
+        });
   }
 
   private Supplier<Committer> wrapCommitterSupplier(final Supplier<Committer> committerSupplier)
