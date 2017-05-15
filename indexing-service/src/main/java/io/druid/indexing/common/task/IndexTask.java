@@ -413,6 +413,16 @@ public class IndexTask extends AbstractTask
         driver.clear();
       }
 
+      final TransactionalSegmentPublisher publisher = new TransactionalSegmentPublisher()
+      {
+        @Override
+        public boolean publishSegments(Set<DataSegment> segments, Object commitMetadata) throws IOException
+        {
+          final SegmentTransactionalInsertAction action = new SegmentTransactionalInsertAction(segments, null, null);
+          return toolbox.getTaskActionClient().submit(action).isSuccess();
+        }
+      };
+
       try {
         while (firehose.hasMore()) {
           try {
@@ -456,6 +466,14 @@ public class IndexTask extends AbstractTask
               throw new ISE("Could not allocate segment for row with timestamp[%s]", inputRow.getTimestamp());
             }
 
+            final int maxNumRowsInSegment = ingestionSchema.getTuningConfig().getTargetPartitionSize() == null
+                                             ? Integer.MAX_VALUE
+                                             : ingestionSchema.getTuningConfig().getTargetPartitionSize();
+            if (addResult.getNumRowsInSegment() > maxNumRowsInSegment) {
+              log.info("Incremental publish!");
+              driver.publish(publisher, committerSupplier.get(), sequenceNameToShardSpecMap.keySet()).get();
+            }
+
             fireDepartmentMetrics.incrementProcessed();
           }
           catch (ParseException e) {
@@ -465,25 +483,18 @@ public class IndexTask extends AbstractTask
               fireDepartmentMetrics.incrementUnparseable();
             }
           }
+          catch (ExecutionException e) {
+            Throwables.propagate(e);
+          }
         }
       }
       finally {
         driver.persist(committerSupplier.get());
       }
 
-      final TransactionalSegmentPublisher publisher = new TransactionalSegmentPublisher()
-      {
-        @Override
-        public boolean publishSegments(Set<DataSegment> segments, Object commitMetadata) throws IOException
-        {
-          final SegmentTransactionalInsertAction action = new SegmentTransactionalInsertAction(segments, null, null);
-          return toolbox.getTaskActionClient().submit(action).isSuccess();
-        }
-      };
-
       final SegmentsAndMetadata published;
       try {
-        published = driver.publish(publisher, committerSupplier.get()).get();
+        published = driver.publish(publisher, committerSupplier.get(), sequenceNameToShardSpecMap.keySet()).get();
         if (published == null) {
           log.error("Failed to publish segments, aborting!");
           return false;

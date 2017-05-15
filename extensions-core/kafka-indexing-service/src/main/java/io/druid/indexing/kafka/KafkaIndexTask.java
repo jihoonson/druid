@@ -514,7 +514,7 @@ public class KafkaIndexTask extends AbstractTask implements ChatHandler
         }
       };
 
-      final SegmentsAndMetadata published = driver.publish(publisher, committerSupplier.get()).get();
+      final SegmentsAndMetadata published = driver.publish(publisher, committerSupplier.get(), sequenceNames.values()).get();
       if (published == null) {
         throw new ISE("Transaction failure publishing segments, aborting");
       } else {

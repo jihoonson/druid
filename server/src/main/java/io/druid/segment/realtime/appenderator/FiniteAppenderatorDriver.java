@@ -34,6 +34,7 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import io.druid.concurrent.Execs;
 import io.druid.data.input.Committer;
@@ -50,14 +51,17 @@ import org.joda.time.DateTime;
 import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 /**
  * A FiniteAppenderatorDriver drives an Appenderator to index a finite stream of data. This class does not help you
@@ -94,9 +98,9 @@ public class FiniteAppenderatorDriver implements Closeable
   // Notified when segments are dropped.
   private final Object handoffMonitor = new Object();
 
-  private final ExecutorService publishExecutor;
+  private final ListeningExecutorService publishExecutor;
 
-  private final ExecutorService handoffExecutor;
+  private final ListeningExecutorService handoffExecutor;
 
   /**
    * Create a driver.
@@ -132,8 +136,8 @@ public class FiniteAppenderatorDriver implements Closeable
     this.handoffConditionTimeout = handoffConditionTimeout;
     this.metrics = Preconditions.checkNotNull(metrics, "metrics");
 
-    this.publishExecutor = Execs.newBlockingSingleThreaded("publish-%d", 1);
-    this.handoffExecutor = Execs.newBlockingSingleThreaded("handoff-%d", 1);
+    this.publishExecutor = MoreExecutors.listeningDecorator(Execs.newBlockingSingleThreaded("publish-%d", 0));
+    this.handoffExecutor = MoreExecutors.listeningDecorator(Execs.newBlockingSingleThreaded("handoff-%d", 0));
   }
 
   /**
@@ -289,7 +293,7 @@ public class FiniteAppenderatorDriver implements Closeable
     }
   }
 
-  public Future<SegmentsAndMetadata> waitForHandoff(SegmentsAndMetadata segmentsAndMetadata) throws InterruptedException
+  public ListenableFuture<SegmentsAndMetadata> waitForHandoff(SegmentsAndMetadata segmentsAndMetadata) throws InterruptedException
   {
     return handoffExecutor.submit(
         () -> {
@@ -443,12 +447,21 @@ public class FiniteAppenderatorDriver implements Closeable
    * @return published segments and metadata, or null if segments could not be published due to transaction failure
    * with commit metadata.
    */
-  public Future<SegmentsAndMetadata> publish(
+  public ListenableFuture<SegmentsAndMetadata> publish(
       final TransactionalSegmentPublisher publisher,
-      final Committer committer
+      final Committer committer,
+      final Collection<String> sequenceNames
   ) throws InterruptedException
   {
-    final List<SegmentIdentifier> theSegments = ImmutableList.copyOf(appenderator.getSegments());
+    final List<SegmentIdentifier> theSegments;
+    synchronized (activeSegments) {
+      theSegments = sequenceNames.stream()
+                                 .map(activeSegments::get)
+                                 .filter(Objects::nonNull) // maybe need to throw an exception
+                                 .flatMap(intervalToSegmentIdMap -> intervalToSegmentIdMap.values().stream())
+                                 .collect(Collectors.toList());
+    }
+
     final Committer wrappedCommitter = wrapCommitter(committer);
 
     return publishExecutor.submit(

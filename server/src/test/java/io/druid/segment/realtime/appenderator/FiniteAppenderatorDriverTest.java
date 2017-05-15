@@ -129,7 +129,8 @@ public class FiniteAppenderatorDriverTest
 
     final SegmentsAndMetadata segmentsAndMetadata = driver.publish(
         makeOkPublisher(),
-        committerSupplier.get()
+        committerSupplier.get(),
+        ImmutableList.of("dummy")
     ).get();
 
     final SegmentsAndMetadata handedoff = driver.waitForHandoff(segmentsAndMetadata).get();
@@ -167,7 +168,11 @@ public class FiniteAppenderatorDriverTest
       Assert.assertNotNull(driver.add(row, "dummy", committerSupplier));
     }
 
-    final SegmentsAndMetadata segmentsAndMetadata = driver.publish(makeOkPublisher(), committerSupplier.get()).get();
+    final SegmentsAndMetadata segmentsAndMetadata = driver.publish(
+        makeOkPublisher(),
+        committerSupplier.get(),
+        ImmutableList.of("dummy")
+    ).get();
     final SegmentsAndMetadata handedoff = driver.waitForHandoff(segmentsAndMetadata).get();
     Assert.assertEquals(numSegments, handedoff.getSegments().size());
     Assert.assertEquals(numSegments * MAX_ROWS_PER_SEGMENT, handedoff.getCommitMetadata());
