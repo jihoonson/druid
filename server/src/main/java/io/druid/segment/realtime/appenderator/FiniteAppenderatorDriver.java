@@ -136,8 +136,8 @@ public class FiniteAppenderatorDriver implements Closeable
     this.handoffConditionTimeout = handoffConditionTimeout;
     this.metrics = Preconditions.checkNotNull(metrics, "metrics");
 
-    this.publishExecutor = MoreExecutors.listeningDecorator(Execs.newBlockingSingleThreaded("publish-%d", 0));
-    this.handoffExecutor = MoreExecutors.listeningDecorator(Execs.newBlockingSingleThreaded("handoff-%d", 0));
+    this.publishExecutor = MoreExecutors.listeningDecorator(Execs.singleThreaded("publish-%d"));
+    this.handoffExecutor = MoreExecutors.listeningDecorator(Execs.singleThreaded("handoff-%d"));
   }
 
   /**
