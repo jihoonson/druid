@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -138,26 +139,31 @@ public class SegmentManager
 
     final DataSourceState computeResult = dataSources.compute(
         segment.getDataSource(),
-        (k, v) -> {
-          final DataSourceState dataSourceState = v == null ? new DataSourceState() : v;
-          final VersionedIntervalTimeline<String, ReferenceCountingSegment> loadedIntervals =
-              dataSourceState.getTimeline();
-          final PartitionHolder<ReferenceCountingSegment> entry = loadedIntervals.findEntry(
-              segment.getInterval(),
-              segment.getVersion()
-          );
-
-          if ((entry != null) && (entry.getChunk(segment.getShardSpec().getPartitionNum()) != null)) {
-            log.warn("Told to load a adapter for a segment[%s] that already exists", segment.getIdentifier());
-            return null;
-          } else {
-            loadedIntervals.add(
+        new BiFunction<String, DataSourceState, DataSourceState>()
+        {
+          @Override
+          public DataSourceState apply(String s, DataSourceState v)
+          {
+            final DataSourceState dataSourceState = v == null ? new DataSourceState() : v;
+            final VersionedIntervalTimeline<String, ReferenceCountingSegment> loadedIntervals =
+                dataSourceState.getTimeline();
+            final PartitionHolder<ReferenceCountingSegment> entry = loadedIntervals.findEntry(
                 segment.getInterval(),
-                segment.getVersion(),
-                segment.getShardSpec().createChunk(new ReferenceCountingSegment(adapter))
+                segment.getVersion()
             );
-            dataSourceState.addSegment(segment);
-            return dataSourceState;
+
+            if ((entry != null) && (entry.getChunk(segment.getShardSpec().getPartitionNum()) != null)) {
+              log.warn("Told to load a adapter for a segment[%s] that already exists", segment.getIdentifier());
+              return null;
+            } else {
+              loadedIntervals.add(
+                  segment.getInterval(),
+                  segment.getVersion(),
+                  segment.getShardSpec().createChunk(new ReferenceCountingSegment(adapter))
+              );
+              dataSourceState.addSegment(segment);
+              return dataSourceState;
+            }
           }
         }
     );
@@ -193,47 +199,52 @@ public class SegmentManager
 
     dataSources.compute(
         dataSource,
-        (k, v) -> {
-          final DataSourceState dataSourceState = v == null ? new DataSourceState() : v;
+        new BiFunction<String, DataSourceState, DataSourceState>()
+        {
+          @Override
+          public DataSourceState apply(String s, DataSourceState v)
+          {
+            final DataSourceState dataSourceState = v == null ? new DataSourceState() : v;
 
-          final VersionedIntervalTimeline<String, ReferenceCountingSegment> loadedIntervals =
-              dataSourceState.getTimeline();
+            final VersionedIntervalTimeline<String, ReferenceCountingSegment> loadedIntervals =
+                dataSourceState.getTimeline();
 
-          if (loadedIntervals == null) {
-            log.info("Told to delete a queryable for a dataSource[%s] that doesn't exist.", dataSource);
-            return null;
-          }
-
-          final PartitionChunk<ReferenceCountingSegment> removed = loadedIntervals.remove(
-              segment.getInterval(),
-              segment.getVersion(),
-              segment.getShardSpec().createChunk(null)
-          );
-          final ReferenceCountingSegment oldQueryable = (removed == null) ? null : removed.getObject();
-
-          if (oldQueryable != null) {
-            dataSourceState.removeSegment(segment);
-
-            try {
-              log.info("Attempting to close segment %s", segment.getIdentifier());
-              oldQueryable.close();
+            if (loadedIntervals == null) {
+              log.info("Told to delete a queryable for a dataSource[%s] that doesn't exist.", dataSource);
+              return null;
             }
-            catch (IOException e) {
-              log.makeAlert(e, "Exception closing segment")
-                 .addData("dataSource", dataSource)
-                 .addData("segmentId", segment.getIdentifier())
-                 .emit();
-            }
-          } else {
-            log.info(
-                "Told to delete a queryable on dataSource[%s] for interval[%s] and version [%s] that I don't have.",
-                dataSource,
+
+            final PartitionChunk<ReferenceCountingSegment> removed = loadedIntervals.remove(
                 segment.getInterval(),
-                segment.getVersion()
+                segment.getVersion(),
+                segment.getShardSpec().createChunk(null)
             );
-          }
+            final ReferenceCountingSegment oldQueryable = (removed == null) ? null : removed.getObject();
 
-          return dataSourceState;
+            if (oldQueryable != null) {
+              dataSourceState.removeSegment(segment);
+
+              try {
+                log.info("Attempting to close segment %s", segment.getIdentifier());
+                oldQueryable.close();
+              }
+              catch (IOException e) {
+                log.makeAlert(e, "Exception closing segment")
+                   .addData("dataSource", dataSource)
+                   .addData("segmentId", segment.getIdentifier())
+                   .emit();
+              }
+            } else {
+              log.info(
+                  "Told to delete a queryable on dataSource[%s] for interval[%s] and version [%s] that I don't have.",
+                  dataSource,
+                  segment.getInterval(),
+                  segment.getVersion()
+              );
+            }
+
+            return dataSourceState;
+          }
         }
     );
 
