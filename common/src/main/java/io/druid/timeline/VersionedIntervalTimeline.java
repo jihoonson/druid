@@ -37,7 +37,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -610,7 +609,10 @@ public class VersionedIntervalTimeline<VersionType, ObjectType> implements Timel
     @Override
     public int hashCode()
     {
-      return Objects.hash(trueInterval, version, partitionHolder);
+      int result = trueInterval.hashCode();
+      result = 31 * result + version.hashCode();
+      result = 31 * result + partitionHolder.hashCode();
+      return result;
     }
   }
 }
