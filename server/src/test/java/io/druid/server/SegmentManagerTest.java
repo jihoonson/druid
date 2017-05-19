@@ -43,14 +43,18 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.stream.Collectors;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public class SegmentManagerTest
 {
@@ -223,13 +227,21 @@ public class SegmentManagerTest
   @Test
   public void testLoadSegment() throws ExecutionException, InterruptedException, SegmentLoadingException
   {
-    final List<Future<Boolean>> futures = segments.stream()
-                                                  .map(
-                                                      segment -> executor.submit(
-                                                          () -> segmentManager.loadSegment(segment)
-                                                      )
-                                                  )
-                                                  .collect(Collectors.toList());
+    final List<Future<Boolean>> futures = new ArrayList<>();
+    for (DataSegment segment : segments) {
+      futures.add(
+          executor.submit(
+              new Callable<Boolean>()
+              {
+                @Override
+                public Boolean call() throws Exception
+                {
+                  return segmentManager.loadSegment(segment);
+                }
+              }
+          )
+      );
+    }
 
     for (Future<Boolean> eachFuture : futures) {
       Assert.assertTrue(eachFuture.get());
@@ -245,16 +257,22 @@ public class SegmentManagerTest
       segmentManager.loadSegment(eachSegment);
     }
 
-    final List<Future<Void>> futures = ImmutableList.of(segments.get(0), segments.get(2)).stream()
-                                                    .map(
-                                                        segment -> executor.submit(
-                                                            () -> {
-                                                              segmentManager.dropSegment(segment);
-                                                              return (Void) null;
-                                                            }
-                                                        )
-                                                    )
-                                                    .collect(Collectors.toList());
+    final List<Future<Void>> futures = new ArrayList<>();
+    for (DataSegment segment : ImmutableList.of(segments.get(0), segments.get(2))) {
+      futures.add(
+          executor.submit(
+              new Callable<Void>()
+              {
+                @Override
+                public Void call() throws Exception
+                {
+                  segmentManager.dropSegment(segment);
+                  return null;
+                }
+              }
+          )
+      );
+    }
 
     for (Future<Void> eachFuture : futures) {
       eachFuture.get();
@@ -271,24 +289,37 @@ public class SegmentManagerTest
     segmentManager.loadSegment(segments.get(0));
     segmentManager.loadSegment(segments.get(2));
 
-    final List<Future<Boolean>> loadFutures = ImmutableList.of(segments.get(1), segments.get(3), segments.get(4))
-                                                           .stream()
-                                                           .map(
-                                                               segment -> executor.submit(
-                                                                   () -> segmentManager.loadSegment(segment)
-                                                               )
-                                                           )
-                                                           .collect(Collectors.toList());
-    final List<Future<Void>> dropFutures = ImmutableList.of(segments.get(0), segments.get(2)).stream()
-                                                        .map(
-                                                            segment -> executor.submit(
-                                                                () -> {
-                                                                  segmentManager.dropSegment(segment);
-                                                                  return (Void) null;
-                                                                }
-                                                            )
-                                                        )
-                                                        .collect(Collectors.toList());
+    final List<Future<Boolean>> loadFutures = new ArrayList<>();
+    for (DataSegment segment : ImmutableList.of(segments.get(1), segments.get(3), segments.get(4))) {
+      loadFutures.add(
+          executor.submit(
+              new Callable<Boolean>()
+              {
+                @Override
+                public Boolean call() throws Exception
+                {
+                  return segmentManager.loadSegment(segment);
+                }
+              }
+          )
+      );
+    }
+    final List<Future<Void>> dropFutures = new ArrayList<>();
+    for (DataSegment segment : ImmutableList.of(segments.get(0), segments.get(2))) {
+      dropFutures.add(
+          executor.submit(
+              new Callable<Void>()
+              {
+                @Override
+                public Void call() throws Exception
+                {
+                  segmentManager.dropSegment(segment);
+                  return null;
+                }
+              }
+          )
+      );
+    }
 
     for (Future<Boolean> eachFuture : loadFutures) {
       Assert.assertTrue(eachFuture.get());
@@ -304,25 +335,42 @@ public class SegmentManagerTest
 
   private void assertResult(List<DataSegment> expectedExistingSegments) throws SegmentLoadingException
   {
-    final Map<String, Long> expectedDataSourceSizes = expectedExistingSegments.stream()
-                                                                              .collect(Collectors.toMap(
-                                                                                  DataSegment::getDataSource,
-                                                                                  DataSegment::getSize,
-                                                                                  Long::sum
-                                                                              ));
-    final Map<String, Long> expectedDataSourceCounts = expectedExistingSegments.stream()
-                                                                               .collect(Collectors.toMap(
-                                                                                   DataSegment::getDataSource,
-                                                                                   segment -> 1L,
-                                                                                   Long::sum
-                                                                               ));
+    final Map<String, Long> expectedDataSourceSizes = new HashMap<>();
+    for (DataSegment segment : expectedExistingSegments) {
+      expectedDataSourceSizes.compute(segment.getDataSource(), new BiFunction<String, Long, Long>()
+      {
+        @Override
+        public Long apply(String dataSourceName, Long size)
+        {
+          return (size == null ? 0 : size) + segment.getSize();
+        }
+      });
+    }
+    final Map<String, Long> expectedDataSourceCounts = new HashMap<>();
+    for (DataSegment segment : expectedExistingSegments) {
+      expectedDataSourceCounts.compute(segment.getDataSource(), new BiFunction<String, Long, Long>()
+      {
+        @Override
+        public Long apply(String s, Long aLong)
+        {
+          return (aLong == null ? 0 : aLong) + 1L;
+        }
+      });
+    }
     final Map<String, VersionedIntervalTimeline<String, ReferenceCountingSegment>> expectedDataSources
         = new HashMap<>();
     for (DataSegment segment : expectedExistingSegments) {
       final VersionedIntervalTimeline<String, ReferenceCountingSegment> expectedTimeline =
           expectedDataSources.computeIfAbsent(
               segment.getDataSource(),
-              k -> new VersionedIntervalTimeline<>(Ordering.natural())
+              new Function<String, VersionedIntervalTimeline<String, ReferenceCountingSegment>>()
+              {
+                @Override
+                public VersionedIntervalTimeline<String, ReferenceCountingSegment> apply(String s)
+                {
+                  return new VersionedIntervalTimeline<>(Ordering.natural());
+                }
+              }
           );
       expectedTimeline.add(
           segment.getInterval(),
@@ -337,15 +385,15 @@ public class SegmentManagerTest
     final Map<String, DataSourceState> dataSources = segmentManager.getDataSources();
     Assert.assertEquals(expectedDataSources.size(), dataSources.size());
 
-    dataSources.forEach(
-        (sourceName, dataSourceState) -> {
-          Assert.assertEquals(expectedDataSourceCounts.get(sourceName).longValue(), dataSourceState.getNumSegments());
-          Assert.assertEquals(expectedDataSourceSizes.get(sourceName).longValue(), dataSourceState.getTotalSegmentSize());
-          Assert.assertEquals(
-              expectedDataSources.get(sourceName).getAllTimelineEntries(),
-              dataSourceState.getTimeline().getAllTimelineEntries()
-          );
-        }
-    );
+    for (Entry<String, DataSourceState> entry : dataSources.entrySet()) {
+      final String sourceName = entry.getKey();
+      final DataSourceState dataSourceState = entry.getValue();
+      Assert.assertEquals(expectedDataSourceCounts.get(sourceName).longValue(), dataSourceState.getNumSegments());
+      Assert.assertEquals(expectedDataSourceSizes.get(sourceName).longValue(), dataSourceState.getTotalSegmentSize());
+      Assert.assertEquals(
+          expectedDataSources.get(sourceName).getAllTimelineEntries(),
+          dataSourceState.getTimeline().getAllTimelineEntries()
+      );
+    }
   }
 }
