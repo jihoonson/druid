@@ -1016,7 +1016,7 @@
                             <forceJavacCompilerUse>true</forceJavacCompilerUse>
                             <fork>true</fork>
                             <meminitial>1024m</meminitial>
-                            <maxmem>4000m</maxmem>
+                            <maxmem>3072m</maxmem>
                             <source>1.8</source>
                             <target>1.8</target>
                             <showWarnings>false</showWarnings>
