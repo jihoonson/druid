@@ -122,11 +122,12 @@ import org.joda.time.DateTime;
 import org.joda.time.Interval;
 import org.joda.time.Period;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -146,14 +147,14 @@ import java.util.concurrent.TimeoutException;
 public class KafkaIndexTaskTest
 {
   private final boolean buildV9Directly;
-  private long handoffConditionTimeout = 0;
-  private boolean reportParseExceptions = false;
-  private boolean doHandoff = true;
+  private static long handoffConditionTimeout = 0;
+  private static boolean reportParseExceptions = false;
+  private static boolean doHandoff = true;
 
-  private TestingCluster zkServer;
-  private TestBroker kafkaServer;
-  private ServiceEmitter emitter;
-  private ListeningExecutorService taskExec;
+  private static TestingCluster zkServer;
+  private static TestBroker kafkaServer;
+  private static ServiceEmitter emitter;
+  private static ListeningExecutorService taskExec;
   private TaskToolboxFactory toolboxFactory;
   private IndexerMetadataStorageCoordinator metadataStorageCoordinator;
   private TaskStorage taskStorage;
@@ -165,7 +166,28 @@ public class KafkaIndexTaskTest
   private static final Logger log = new Logger(KafkaIndexTaskTest.class);
   private static final ObjectMapper objectMapper = new DefaultObjectMapper();
 
-  private static final DataSchema DATA_SCHEMA;
+  private static final DataSchema DATA_SCHEMA = new DataSchema(
+      "test_ds",
+      objectMapper.convertValue(
+          new StringInputRowParser(
+              new JSONParseSpec(
+                  new TimestampSpec("timestamp", "iso", null),
+                  new DimensionsSpec(
+                      DimensionsSpec.getDefaultSchemas(ImmutableList.<String>of("dim1", "dim2")),
+                      null,
+                      null
+                  ),
+                  new JSONPathSpec(true, ImmutableList.<JSONPathFieldSpec>of()),
+                  ImmutableMap.<String, Boolean>of()
+              ),
+              Charsets.UTF_8.name()
+          ),
+          Map.class
+      ),
+      new AggregatorFactory[]{new CountAggregatorFactory("rows")},
+      new UniformGranularitySpec(Granularities.DAY, Granularities.NONE, null),
+      objectMapper
+  );
 
   private static final List<ProducerRecord<byte[], byte[]>> RECORDS = ImmutableList.of(
       new ProducerRecord<byte[], byte[]>("topic0", 0, null, JB("2008", "a", "y", 1.0f)),
@@ -180,31 +202,6 @@ public class KafkaIndexTaskTest
       new ProducerRecord<byte[], byte[]>("topic0", 1, null, JB("2011", "h", "y", 1.0f))
   );
 
-  static {
-    DATA_SCHEMA = new DataSchema(
-        "test_ds",
-        objectMapper.convertValue(
-            new StringInputRowParser(
-                new JSONParseSpec(
-                    new TimestampSpec("timestamp", "iso", null),
-                    new DimensionsSpec(
-                        DimensionsSpec.getDefaultSchemas(ImmutableList.<String>of("dim1", "dim2")),
-                        null,
-                        null
-                    ),
-                    new JSONPathSpec(true, ImmutableList.<JSONPathFieldSpec>of()),
-                    ImmutableMap.<String, Boolean>of()
-                ),
-                Charsets.UTF_8.name()
-            ),
-            Map.class
-        ),
-        new AggregatorFactory[]{new CountAggregatorFactory("rows")},
-        new UniformGranularitySpec(Granularities.DAY, Granularities.NONE, null),
-        objectMapper
-    );
-  }
-
   @Parameterized.Parameters(name = "buildV9Directly = {0}")
   public static Iterable<Object[]> constructorFeeder()
   {
@@ -216,14 +213,14 @@ public class KafkaIndexTaskTest
     this.buildV9Directly = buildV9Directly;
   }
 
-  @Rule
-  public final TemporaryFolder tempFolder = new TemporaryFolder();
+//  @Rule
+//  public final TemporaryFolder tempFolder = new TemporaryFolder();
 
   @Rule
   public final TestDerbyConnector.DerbyConnectorRule derby = new TestDerbyConnector.DerbyConnectorRule();
 
-  @Before
-  public void setUp() throws Exception
+  @BeforeClass
+  public static void setupClass() throws Exception
   {
     emitter = new ServiceEmitter(
         "service",
@@ -237,14 +234,12 @@ public class KafkaIndexTaskTest
     emitter.start();
     EmittingLogger.registerEmitter(emitter);
 
-    makeToolboxFactory();
-
     zkServer = new TestingCluster(1);
     zkServer.start();
 
     kafkaServer = new TestBroker(
         zkServer.getConnectString(),
-        tempFolder.newFolder(),
+        null,
         1,
         ImmutableMap.of("num.partitions", "2")
     );
@@ -261,11 +256,15 @@ public class KafkaIndexTaskTest
     doHandoff = true;
   }
 
-  @After
-  public void tearDown() throws Exception
+  @Before
+  public void setupTest() throws IOException
   {
-    emitter.close();
+    makeToolboxFactory();
+  }
 
+  @After
+  public void tearDownTest()
+  {
     synchronized (runningTasks) {
       for (Task task : runningTasks) {
         task.stopGracefully();
@@ -273,6 +272,14 @@ public class KafkaIndexTaskTest
 
       runningTasks.clear();
     }
+
+    destroyToolboxFactory();
+  }
+
+  @AfterClass
+  public static void tearDownClass() throws Exception
+  {
+    emitter.close();
 
     taskExec.shutdown();
     taskExec.awaitTermination(9999, TimeUnit.DAYS);
@@ -282,8 +289,6 @@ public class KafkaIndexTaskTest
 
     zkServer.stop();
     zkServer = null;
-
-    destroyToolboxFactory();
   }
 
   @Test(timeout = 60_000L)
@@ -1429,7 +1434,8 @@ public class KafkaIndexTaskTest
 
   private void makeToolboxFactory() throws IOException
   {
-    directory = tempFolder.newFolder();
+//    directory = tempFolder.newFolder();
+    directory = Files.createTempDir();
     final TestUtils testUtils = new TestUtils();
     final ObjectMapper objectMapper = testUtils.getTestObjectMapper();
     for (Module module : new KafkaIndexTaskModule().getJacksonModules()) {

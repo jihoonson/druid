@@ -21,6 +21,7 @@ package io.druid.indexing.kafka.test;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.google.common.io.Files;
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServer;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -52,7 +53,7 @@ public class TestBroker implements Closeable
   public TestBroker(String zookeeperConnect, File directory, int id, Map<String, String> brokerProps)
   {
     this.zookeeperConnect = zookeeperConnect;
-    this.directory = directory;
+    this.directory = directory == null ? Files.createTempDir() : directory;
     this.id = id;
     this.brokerProps = brokerProps == null ? ImmutableMap.<String, String>of() : brokerProps;
   }
