@@ -3,7 +3,7 @@ language: java
 jdk:
   - oraclejdk8
 
-install: false
+install: true
 
 # The script execution consists of 4 steps:
 # 1) Increase the jvm max heap size. Strict compilation in 2) requires more than 2 GB.
