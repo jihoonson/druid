@@ -3,13 +3,17 @@ language: java
 jdk:
   - oraclejdk8
 
+before_install:
+  - echo "MAVEN_OPTS='-Xmx2600m'" > ~/.mavenrc
+
+install:
+  - mvn clean -Pstrict -pl '!benchmarks' compile test-compile -B install
+
 before_script:
-  - echo "MAVEN_OPTS='-Xmx1500m -XX:MaxPermSize=512m'" > ~/.mavenrc
+  - rm ~/.mavenrc
 
 # Using && instead of two script steps to make Travis build fail faster, if "strict" compilation is not successful
-script: mvn clean -Pstrict -pl '!benchmarks' compile test-compile -B && mvn test -B -Pparallel-test -Dmaven.fork.count=2
-
-install: true
+script: mvn test -B -Pparallel-test -Dmaven.fork.count=2
 
 sudo: false
 
