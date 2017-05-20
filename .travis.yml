@@ -7,7 +7,8 @@ before_install:
   - echo "MAVEN_OPTS='-Xmx2600m'" > ~/.mavenrc
 
 install:
-  - mvn clean -Pstrict -pl '!benchmarks' install -B -DskipTests
+  - mvn clean -Pstrict -pl '!benchmarks' compile test-compile -B
+  - mvn install -DskipTests
 
 before_script:
   - rm ~/.mavenrc
