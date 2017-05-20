@@ -4,21 +4,20 @@ jdk:
   - oraclejdk8
 
 before_install:
-  - echo "MAVEN_OPTS='-Xmx2600m'" > ~/.mavenrc
+  - echo "MAVEN_OPTS='-Xmx3000m'" > ~/.mavenrc
 
 install:
   - mvn clean -Pstrict -pl '!benchmarks' compile test-compile -B
-  - mvn install -DskipTests
 
 before_script:
   - rm ~/.mavenrc
 
 # Using && instead of two script steps to make Travis build fail faster, if "strict" compilation is not successful
-script: mvn test -B -Pparallel-test -Dmaven.fork.count=2
+script:
+  - mvn test -B -Pparallel-test -Dmaven.fork.count=2
 
 sudo: false
 
 cache:
   directories:
-      - $HOME/.m2
-
+    - $HOME/.m2
