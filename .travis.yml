@@ -7,11 +7,10 @@ cache:
   directories:
     - $HOME/.m2
 
-install: true
-
 matrix:
   include:
     - sudo: false
+      install: true
       script:
         # The script execution consists of 4 steps:
         # 1) Increase the jvm max heap size. Strict compilation in 2) requires more than 2 GB.
@@ -23,5 +22,7 @@ matrix:
     - sudo: required
       services:
         - docker
+      install:
+        - mvn clean install -q -ff -DskipTests -B
       script:
         - $TRAVIS_BUILD_DIR/ci/travis_script_integration.sh

@@ -19,12 +19,6 @@
 
 set -e
 
-pushd $TRAVIS_BUILD_DIR
-
-mvn clean install -DskipTests -B
-
-popd
-
 pushd $TRAVIS_BUILD_DIR/integration-tests
 
 mvn verify -P integration-tests
