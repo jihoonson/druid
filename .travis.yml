@@ -22,7 +22,10 @@ matrix:
     - sudo: required
       services:
         - docker
+      env:
+        - DOCKER_IP=172.17.0.1
       install:
+        # Only errors will be shown with the -q option. This is to avoid generating too many logs which make travis build failed.
         - mvn clean install -q -ff -DskipTests -B
       script:
         - $TRAVIS_BUILD_DIR/ci/travis_script_integration.sh
