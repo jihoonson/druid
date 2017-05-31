@@ -21,8 +21,7 @@ set -e
 
 pushd $TRAVIS_BUILD_DIR
 
-#mvn clean -pl '!benchmarks' install -DskipTests -B
-mvn clean -Pstrict -pl '!benchmarks' compile test-compile -B
+mvn clean install -DskipTests -B
 
 popd
 
