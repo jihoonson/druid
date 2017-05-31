@@ -19,7 +19,11 @@
 
 set -e
 
+pushd $TRAVIS_BUILD_DIR
+
 mvn clean -pl '!benchmarks' install -DskipTests -B
+
+popd
 
 pushd $TRAVIS_BUILD_DIR/integration-tests
 
