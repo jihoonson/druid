@@ -21,10 +21,8 @@ set -e
 
 pushd $TRAVIS_BUILD_DIR
 
-files=`ls`
-echo "ls: $files"
-
-mvn clean -pl '!benchmarks' install -DskipTests -B
+#mvn clean -pl '!benchmarks' install -DskipTests -B
+mvn clean -Pstrict -pl '!benchmarks' compile test-compile -B
 
 popd
 

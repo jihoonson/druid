@@ -25,5 +25,3 @@ matrix:
         - docker
       script:
         - $TRAVIS_BUILD_DIR/ci/travis_script_integration.sh
-
-
