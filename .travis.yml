@@ -3,6 +3,15 @@ language: java
 jdk:
   - oraclejdk8
 
+sudo: required
+
+services:
+  - docker
+
+cache:
+  directories:
+    - $HOME/.m2
+
 install: true
 
 # The script execution consists of 4 steps:
@@ -13,10 +22,4 @@ install: true
 # Using && instead of independent script steps to make Travis build fail faster, if each step is not successful
 script: 
 - echo "MAVEN_OPTS='-Xmx3000m'" > ~/.mavenrc && mvn clean -Pstrict -pl '!benchmarks' compile test-compile -B && rm ~/.mavenrc && mvn test -B -Pparallel-test -Dmaven.fork.count=2
-- sudo mvn verify -P integration-tests
-
-sudo: required
-
-cache:
-  directories:
-    - $HOME/.m2
+- mvn verify -P integration-tests
