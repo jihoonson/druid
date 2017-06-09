@@ -56,6 +56,13 @@ public class MessageTimeRejectionPolicyFactory implements RejectionPolicyFactory
     }
 
     @Override
+    public long getCurrMinTimestamp()
+    {
+      final long maxTimestamp = this.maxTimestamp;
+      return maxTimestamp - windowMillis;
+    }
+
+    @Override
     public boolean accept(long timestamp)
     {
       long maxTimestamp = this.maxTimestamp;

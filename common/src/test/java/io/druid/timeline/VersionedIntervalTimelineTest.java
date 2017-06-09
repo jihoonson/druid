@@ -1755,17 +1755,28 @@ public class VersionedIntervalTimelineTest
 
   private void add(Interval interval, String version, Integer value)
   {
-    add(new Interval(interval), version, makeSingle(value));
+    add(new Interval(interval), version, makeSingle(value), false);
   }
 
   private void add(String interval, String version, PartitionChunk<Integer> value)
   {
-    add(new Interval(interval), version, value);
+    add(new Interval(interval), version, value, false);
   }
 
-  private void add(Interval interval, String version, PartitionChunk<Integer> value)
+  // TODO: check where to add these methods
+  private void addLast(Interval interval, String version, Integer value)
   {
-    timeline.add(interval, version, value);
+    add(new Interval(interval), version, makeSingle(value), true);
+  }
+
+  private void addLast(String interval, String version, PartitionChunk<Integer> value)
+  {
+    add(new Interval(interval), version, value, true);
+  }
+
+  private void add(Interval interval, String version, PartitionChunk<Integer> value, boolean last)
+  {
+    timeline.add(interval, version, value, last);
   }
 
   private void assertValues(

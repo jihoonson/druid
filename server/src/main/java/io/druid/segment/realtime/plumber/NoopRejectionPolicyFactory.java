@@ -36,6 +36,12 @@ public class NoopRejectionPolicyFactory implements RejectionPolicyFactory
       }
 
       @Override
+      public long getCurrMinTimestamp()
+      {
+        return 0;
+      }
+
+      @Override
       public boolean accept(long timestamp)
       {
         return true;

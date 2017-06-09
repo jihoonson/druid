@@ -435,6 +435,12 @@ public class AppenderatorDriverFailTest
     }
 
     @Override
+    public void markAsComplete(Collection<DataSegment> segments)
+    {
+
+    }
+
+    @Override
     public void close()
     {
 

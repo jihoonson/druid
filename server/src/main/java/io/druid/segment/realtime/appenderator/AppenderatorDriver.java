@@ -45,6 +45,7 @@ import io.druid.query.SegmentDescriptor;
 import io.druid.segment.realtime.FireDepartmentMetrics;
 import io.druid.segment.realtime.plumber.SegmentHandoffNotifier;
 import io.druid.segment.realtime.plumber.SegmentHandoffNotifierFactory;
+import io.druid.timeline.DataSegment;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
@@ -339,6 +340,11 @@ public class AppenderatorDriver implements Closeable
 
       return resultFuture;
     }
+  }
+
+  public void markAsComplete(Collection<DataSegment> segments)
+  {
+    appenderator.markAsComplete(segments);
   }
 
   /**

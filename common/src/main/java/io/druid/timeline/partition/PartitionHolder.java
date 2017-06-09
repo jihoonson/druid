@@ -36,6 +36,7 @@ import java.util.TreeSet;
 public class PartitionHolder<T> implements Iterable<PartitionChunk<T>>
 {
   private final TreeSet<PartitionChunk<T>> holderSet;
+  private boolean complete;
 
   public PartitionHolder(PartitionChunk<T> initialChunk)
   {
@@ -55,11 +56,27 @@ public class PartitionHolder<T> implements Iterable<PartitionChunk<T>>
   {
     this.holderSet = Sets.newTreeSet();
     this.holderSet.addAll(partitionHolder.holderSet);
+    this.complete = partitionHolder.complete;
   }
 
   public void add(PartitionChunk<T> chunk)
   {
     holderSet.add(chunk);
+  }
+
+  public void addLast(PartitionChunk<T> chunk) {
+    add(chunk);
+    complete = true;
+  }
+
+  public void markAsIncomplete()
+  {
+    complete = false;
+  }
+
+  public void markAsComplete()
+  {
+    complete = true;
   }
 
   public int size()
@@ -90,32 +107,33 @@ public class PartitionHolder<T> implements Iterable<PartitionChunk<T>>
 
   public boolean isComplete()
   {
-    if (holderSet.isEmpty()) {
-      return false;
-    }
-
-    Iterator<PartitionChunk<T>> iter = holderSet.iterator();
-
-    PartitionChunk<T> curr = iter.next();
-    boolean endSeen = curr.isEnd();
-
-    if (!curr.isStart()) {
-      return false;
-    }
-
-    while (iter.hasNext()) {
-      PartitionChunk<T> next = iter.next();
-      if (!curr.abuts(next)) {
-        return false;
-      }
-
-      if (next.isEnd()) {
-        endSeen = true;
-      }
-      curr = next;
-    }
-
-    return endSeen;
+//    if (holderSet.isEmpty()) {
+//      return false;
+//    }
+//
+//    Iterator<PartitionChunk<T>> iter = holderSet.iterator();
+//
+//    PartitionChunk<T> curr = iter.next();
+//    boolean endSeen = curr.isEnd();
+//
+//    if (!curr.isStart()) {
+//      return false;
+//    }
+//
+//    while (iter.hasNext()) {
+//      PartitionChunk<T> next = iter.next();
+//      if (!curr.abuts(next)) {
+//        return false;
+//      }
+//
+//      if (next.isEnd()) {
+//        endSeen = true;
+//      }
+//      curr = next;
+//    }
+//
+//    return endSeen;
+    return complete;
   }
 
   public PartitionChunk<T> getChunk(final int partitionNum)

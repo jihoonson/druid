@@ -37,6 +37,7 @@ import io.druid.client.cache.Cache;
 import io.druid.client.cache.CacheConfig;
 import io.druid.common.guava.ThreadRenamingCallable;
 import io.druid.common.guava.ThreadRenamingRunnable;
+import io.druid.common.utils.JodaUtils;
 import io.druid.common.utils.VMUtils;
 import io.druid.concurrent.Execs;
 import io.druid.concurrent.TaskThreadPriority;
@@ -123,6 +124,8 @@ public class RealtimePlumber implements Plumber
 
   private static final String COMMIT_METADATA_KEY = "%commitMetadata%";
   private static final String COMMIT_METADATA_TIMESTAMP_KEY = "%commitMetadataTimestamp%";
+
+  private volatile long lastConcreteTimestamp = JodaUtils.MIN_INSTANT;
 
   public RealtimePlumber(
       DataSchema schema,
@@ -231,15 +234,13 @@ public class RealtimePlumber implements Plumber
 
     final long truncatedTime = segmentGranularity.bucketStart(new DateTime(timestamp)).getMillis();
 
-    Sink retVal = sinks.get(truncatedTime);
-
-    if (retVal == null) {
+    final Sink retVal = sinks.computeIfAbsent(truncatedTime, keyTime -> {
       final Interval sinkInterval = new Interval(
-          new DateTime(truncatedTime),
-          segmentGranularity.increment(new DateTime(truncatedTime))
+          new DateTime(keyTime),
+          segmentGranularity.increment(new DateTime(keyTime))
       );
 
-      retVal = new Sink(
+      final Sink sink = new Sink(
           sinkInterval,
           schema,
           config.getShardSpec(),
@@ -247,9 +248,12 @@ public class RealtimePlumber implements Plumber
           config.getMaxRowsInMemory(),
           config.isReportParseExceptions()
       );
-      addSink(retVal);
+      addSink(sink);
+      return sink;
+    });
 
-    }
+    // TODO: is this a good way??
+    sinkTimeline.markAsCompleteEalierThan(timestamp, null);
 
     return retVal;
   }
@@ -721,7 +725,8 @@ public class RealtimePlumber implements Plumber
     sinkTimeline.add(
         sink.getInterval(),
         sink.getVersion(),
-        new SingleElementPartitionChunk<Sink>(sink)
+        new SingleElementPartitionChunk<Sink>(sink),
+        false
     );
     try {
       segmentAnnouncer.announceSegment(sink.getSegment());

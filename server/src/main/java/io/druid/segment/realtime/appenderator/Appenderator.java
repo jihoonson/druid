@@ -25,6 +25,7 @@ import io.druid.data.input.Committer;
 import io.druid.data.input.InputRow;
 import io.druid.query.QuerySegmentWalker;
 import io.druid.segment.incremental.IndexSizeExceededException;
+import io.druid.timeline.DataSegment;
 
 import java.io.Closeable;
 import java.util.Collection;
@@ -164,6 +165,8 @@ public interface Appenderator extends QuerySegmentWalker, Closeable
    * that have been pushed and the commit metadata from the Committer.
    */
   ListenableFuture<SegmentsAndMetadata> push(Collection<SegmentIdentifier> identifiers, Committer committer);
+
+  void markAsComplete(Collection<DataSegment> segments);
 
   /**
    * Stop any currently-running processing and clean up after ourselves. This will not remove any on-disk persisted

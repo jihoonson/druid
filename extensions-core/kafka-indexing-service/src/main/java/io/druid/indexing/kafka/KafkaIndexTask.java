@@ -554,6 +554,7 @@ public class KafkaIndexTask extends AbstractTask implements ChatHandler
       if (handedOff == null) {
         throw new ISE("Transaction failure publishing segments, aborting");
       } else {
+        driver.markAsComplete(handedOff.getSegments());
         log.info(
             "Published segments[%s] with metadata[%s].",
             Joiner.on(", ").join(

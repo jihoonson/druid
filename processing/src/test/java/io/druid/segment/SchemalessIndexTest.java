@@ -449,8 +449,9 @@ public class SchemalessIndexTest
 
       ShardSpec noneShardSpec = NoneShardSpec.instance();
 
+      // TODO
       for (int i = 0; i < intervals.size(); i++) {
-        timeline.add(intervals.get(i), i, noneShardSpec.createChunk(filesToMap.get(i)));
+        timeline.add(intervals.get(i), i, noneShardSpec.createChunk(filesToMap.get(i)), false);
       }
 
       final List<IndexableAdapter> adapters = Lists.newArrayList(

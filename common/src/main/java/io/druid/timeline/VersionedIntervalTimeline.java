@@ -86,7 +86,8 @@ public class VersionedIntervalTimeline<VersionType, ObjectType> implements Timel
   {
     VersionedIntervalTimeline<String, DataSegment> timeline = new VersionedIntervalTimeline<>(Ordering.natural());
     for (final DataSegment segment : segments) {
-      timeline.add(segment.getInterval(), segment.getVersion(), segment.getShardSpec().createChunk(segment));
+      // TODO: maybe not determined?
+      timeline.add(segment.getInterval(), segment.getVersion(), segment.getShardSpec().createChunk(segment), false);
     }
     return timeline;
   }
@@ -97,7 +98,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType> implements Timel
     return allTimelineEntries;
   }
 
-  public void add(final Interval interval, VersionType version, PartitionChunk<ObjectType> object)
+  public void add(final Interval interval, VersionType version, PartitionChunk<ObjectType> object, boolean last)
   {
     try {
       lock.writeLock().lock();
@@ -113,23 +114,41 @@ public class VersionedIntervalTimeline<VersionType, ObjectType> implements Timel
       } else {
         entry = exists.get(version);
 
+        final PartitionHolder<ObjectType> partitionHolder;
         if (entry == null) {
-          entry = new TimelineEntry(interval, version, new PartitionHolder<ObjectType>(object));
+          partitionHolder = new PartitionHolder<>(object);
+          entry = new TimelineEntry(interval, version, partitionHolder);
           exists.put(version, entry);
         } else {
-          PartitionHolder<ObjectType> partitionHolder = entry.getPartitionHolder();
+          partitionHolder = entry.getPartitionHolder();
           partitionHolder.add(object);
+        }
+
+        if (last) {
+          partitionHolder.markAsComplete();
         }
       }
 
-      if (entry.getPartitionHolder().isComplete()) {
-        add(completePartitionsTimeline, interval, entry);
-      }
+//      if (entry.getPartitionHolder().isComplete()) {
+//        add(completePartitionsTimeline, interval, entry);
+//      }
 
       add(incompletePartitionsTimeline, interval, entry);
     }
     finally {
       lock.writeLock().unlock();
+    }
+  }
+
+  // TODO: maybe version is needed?
+  public void markAsCompleteEalierThan(long timestamp, VersionType version)
+  {
+    for (Map.Entry<Interval, TimelineEntry> entry : incompletePartitionsTimeline.entrySet()) {
+      if (entry.getKey().getStartMillis() >= timestamp) {
+        break;
+      }
+
+      add(completePartitionsTimeline, entry.getKey(), entry.getValue());
     }
   }
 
@@ -223,6 +242,11 @@ public class VersionedIntervalTimeline<VersionType, ObjectType> implements Timel
     }
   }
 
+  /**
+   * Find TimelineEntries which are not in completePartitionsTimeline and incompletePartitionsTimeline from
+   * allTimelineEntries
+   * @return
+   */
   public Set<TimelineObjectHolder<VersionType, ObjectType>> findOvershadowed()
   {
     try {
@@ -276,6 +300,9 @@ public class VersionedIntervalTimeline<VersionType, ObjectType> implements Timel
     }
   }
 
+  /**
+   * Find TimelineEntries having a lower version from completePartitionsTimeline
+   */
   public boolean isOvershadowed(Interval interval, VersionType version)
   {
     try {

@@ -149,8 +149,8 @@ public class TimeBoundaryQueryRunnerTest
     segment1 = new IncrementalIndexSegment(index1, makeIdentifier(index1, "v1"));
 
     VersionedIntervalTimeline<String, Segment> timeline = new VersionedIntervalTimeline(StringComparators.LEXICOGRAPHIC);
-    timeline.add(index0.getInterval(), "v1", new SingleElementPartitionChunk(segment0));
-    timeline.add(index1.getInterval(), "v1", new SingleElementPartitionChunk(segment1));
+    timeline.add(index0.getInterval(), "v1", new SingleElementPartitionChunk(segment0), false);
+    timeline.add(index1.getInterval(), "v1", new SingleElementPartitionChunk(segment1), false);
 
     segmentIdentifiers = Lists.newArrayList();
     for (TimelineObjectHolder<String, ?> holder : timeline.lookup(new Interval("2011-01-12/2011-01-17"))) {

@@ -274,7 +274,7 @@ public class AppenderatorImpl implements Appenderator
 
       sinks.put(identifier, retVal);
       metrics.setSinkCount(sinks.size());
-      sinkTimeline.add(retVal.getInterval(), retVal.getVersion(), identifier.getShardSpec().createChunk(retVal));
+      sinkTimeline.add(retVal.getInterval(), retVal.getVersion(), identifier.getShardSpec().createChunk(retVal), false);
     }
 
     return retVal;
@@ -593,6 +593,13 @@ public class AppenderatorImpl implements Appenderator
     }
   }
 
+  public void markAsComplete(Collection<DataSegment> segments)
+  {
+    segments.forEach(segment ->  {
+      sinkTimeline.markAsCompleteEalierThan(segment.getInterval().getEndMillis(), null);
+    });
+  }
+
   @Override
   public void close()
   {
@@ -818,7 +825,8 @@ public class AppenderatorImpl implements Appenderator
         sinkTimeline.add(
             currSink.getInterval(),
             currSink.getVersion(),
-            identifier.getShardSpec().createChunk(currSink)
+            identifier.getShardSpec().createChunk(currSink),
+            false
         );
 
         segmentAnnouncer.announceSegment(currSink.getSegment());

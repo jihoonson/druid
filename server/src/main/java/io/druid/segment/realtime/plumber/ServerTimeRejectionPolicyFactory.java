@@ -38,6 +38,12 @@ public class ServerTimeRejectionPolicyFactory implements RejectionPolicyFactory
       }
 
       @Override
+      public long getCurrMinTimestamp()
+      {
+        return System.currentTimeMillis() - windowMillis;
+      }
+
+      @Override
       public boolean accept(long timestamp)
       {
         long now = System.currentTimeMillis();
