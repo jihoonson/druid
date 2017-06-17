@@ -215,6 +215,13 @@ public class IndexTask extends AbstractTask
     }
   }
 
+  private static boolean isGuaranteedRollup(IndexIOConfig ioConfig, IndexTuningConfig tuningConfig)
+  {
+    return tuningConfig.isForceGuaranteedRollup() &&
+           !tuningConfig.isForceExtendableShardSpecs() &&
+           !ioConfig.isAppendToExisting();
+  }
+
   /**
    * Determines intervals and shardSpecs for input data.  This method first checks that it must determine intervals and
    * shardSpecs by itself.  Intervals must be determined if they are not specified in {@link GranularitySpec}.
@@ -244,9 +251,7 @@ public class IndexTask extends AbstractTask
 
     final boolean determineIntervals = !granularitySpec.bucketIntervals().isPresent();
     // Guaranteed rollup means that this index task guarantees the 'perfect rollup' across the entire data set.
-    final boolean guaranteedRollup = tuningConfig.isForceGuaranteedRollup() &&
-                                     !tuningConfig.isForceExtendableShardSpecs() &&
-                                     !ioConfig.isAppendToExisting();
+    final boolean guaranteedRollup = isGuaranteedRollup(ioConfig, tuningConfig);
     final boolean determineNumPartitions = tuningConfig.getNumShards() == null && guaranteedRollup;
     final boolean useExtendableShardSpec = !guaranteedRollup;
 
@@ -570,6 +575,7 @@ public class IndexTask extends AbstractTask
     final int maxRowsInSegment = tuningConfig.getTargetPartitionSize() == null
                                   ? Integer.MAX_VALUE
                                   : tuningConfig.getTargetPartitionSize();
+    final boolean isGuaranteedRollup = isGuaranteedRollup(ioConfig, tuningConfig);
 
     final SegmentAllocator segmentAllocator;
     if (ioConfig.isAppendToExisting()) {
@@ -634,8 +640,11 @@ public class IndexTask extends AbstractTask
             final AppenderatorDriverAddResult addResult = driver.add(inputRow, sequenceName, committerSupplier);
 
             if (addResult.isOk()) {
-              if (addResult.getNumRowsInSegment() >= maxRowsInSegment ||
-                  addResult.getTotalNumRowsInAppenderator() >= maxRowsInAppenderator) {
+              // todo: add test
+              // incremental segment publishment is allowed only when rollup don't have to be perfect.
+              if (!isGuaranteedRollup &&
+                  (addResult.getNumRowsInSegment() >= maxRowsInSegment ||
+                   addResult.getTotalNumRowsInAppenderator() >= maxRowsInAppenderator)) {
                 // There can be some segments waiting for being published even though any rows won't be added to them.
                 // If those segments are not published here, the available space in appenderator will be kept to be small
                 // which makes the size of segments smaller.
