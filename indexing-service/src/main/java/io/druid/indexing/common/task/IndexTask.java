@@ -258,24 +258,24 @@ public class IndexTask extends AbstractTask
     // if we were given number of shards per interval and the intervals, we don't need to scan the data
     if (!determineNumPartitions && !determineIntervals) {
       log.info("Skipping determine partition scan");
-      return createShardSpecsWithoutDataScan(jsonMapper, granularitySpec, tuningConfig, useExtendableShardSpec);
+      return createShardSpecWithoutInputScan(jsonMapper, granularitySpec, tuningConfig, useExtendableShardSpec);
+    } else {
+      // determine intervals containing data and prime HLL collectors
+      return createShardSpecsFromInput(
+          jsonMapper,
+          ingestionSchema,
+          firehoseFactory,
+          firehoseTempDir,
+          granularitySpec,
+          tuningConfig,
+          determineIntervals,
+          determineNumPartitions,
+          useExtendableShardSpec
+      );
     }
-
-    // determine intervals containing data and prime HLL collectors
-    return createShardSpecsFromData(
-        jsonMapper,
-        ingestionSchema,
-        firehoseFactory,
-        firehoseTempDir,
-        granularitySpec,
-        tuningConfig,
-        determineIntervals,
-        determineNumPartitions,
-        useExtendableShardSpec
-    );
   }
 
-  private static ShardSpecs createShardSpecsWithoutDataScan(
+  private static ShardSpecs createShardSpecWithoutInputScan(
       ObjectMapper jsonMapper,
       GranularitySpec granularitySpec,
       IndexTuningConfig tuningConfig,
@@ -306,7 +306,7 @@ public class IndexTask extends AbstractTask
     }
   }
 
-  private static ShardSpecs createShardSpecsFromData(
+  private static ShardSpecs createShardSpecsFromInput(
       ObjectMapper jsonMapper,
       IndexIngestionSpec ingestionSchema,
       FirehoseFactory firehoseFactory,
@@ -640,7 +640,6 @@ public class IndexTask extends AbstractTask
             final AppenderatorDriverAddResult addResult = driver.add(inputRow, sequenceName, committerSupplier);
 
             if (addResult.isOk()) {
-              // todo: add test
               // incremental segment publishment is allowed only when rollup don't have to be perfect.
               if (!isGuaranteedRollup &&
                   (addResult.getNumRowsInSegment() >= maxRowsInSegment ||
