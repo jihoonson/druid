@@ -47,11 +47,11 @@ import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -134,13 +134,10 @@ public class KafkaLookupExtractorFactoryTest
 
     final LookupExtractor extractor = factory.get();
 
-    final List<byte[]> byteArrays = new ArrayList<>(n);
+    final Set<byte[]> byteArrays = new HashSet<>(n);
     for (int i = 0; i < n; ++i) {
       final byte[] myKey = extractor.getCacheKey();
-      // Not terribly efficient.. but who cares
-      for (byte[] byteArray : byteArrays) {
-        Assert.assertFalse(Arrays.equals(byteArray, myKey));
-      }
+      Assert.assertFalse(byteArrays.contains(myKey));
       byteArrays.add(myKey);
       events.incrementAndGet();
     }
@@ -159,14 +156,11 @@ public class KafkaLookupExtractorFactoryTest
     factory.getMapRef().set(ImmutableMap.<String, String>of());
     final AtomicLong events = factory.getDoubleEventCount();
 
-    final List<byte[]> byteArrays = new ArrayList<>(n);
+    final Set<byte[]> byteArrays = new HashSet<>(n);
     for (int i = 0; i < n; ++i) {
       final LookupExtractor extractor = factory.get();
       final byte[] myKey = extractor.getCacheKey();
-      // Not terribly efficient.. but who cares
-      for (byte[] byteArray : byteArrays) {
-        Assert.assertFalse(Arrays.equals(byteArray, myKey));
-      }
+      Assert.assertFalse(byteArrays.contains(myKey));
       byteArrays.add(myKey);
       events.incrementAndGet();
     }
