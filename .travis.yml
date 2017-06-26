@@ -10,6 +10,7 @@ cache:
 matrix:
   include:
     - sudo: false
+      install: true
       script: echo "MAVEN_OPTS='-Xmx3000m'" > ~/.mavenrc && mvn clean -Pstrict -pl '!benchmarks' compile test-compile -B
     - sudo: false
       install: mvn install -q -ff -DskipTests -B
