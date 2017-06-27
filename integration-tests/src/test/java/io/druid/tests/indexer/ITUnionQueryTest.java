@@ -23,6 +23,7 @@ import com.beust.jcommander.internal.Lists;
 import com.google.common.base.Throwables;
 import com.google.inject.Inject;
 import com.metamx.http.client.HttpClient;
+import io.druid.concurrent.Execs;
 import io.druid.curator.discovery.ServerDiscoveryFactory;
 import io.druid.curator.discovery.ServerDiscoverySelector;
 import io.druid.java.util.common.logger.Logger;
@@ -36,8 +37,10 @@ import org.joda.time.DateTime;
 import org.testng.annotations.Guice;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 @Guice(moduleFactory = DruidTestModuleFactory.class)
@@ -65,6 +68,8 @@ public class ITUnionQueryTest extends AbstractIndexerTest
   {
     final int numTasks = 4;
 
+    final ExecutorService service = Execs.newBlockingSingleThreaded("event-receiver-closer-%d", numTasks);
+
     try {
       // Load 4 datasources with same dimensions
       String task = setShutOffTime(
@@ -83,7 +88,7 @@ public class ITUnionQueryTest extends AbstractIndexerTest
         );
       }
       for (int i = 0; i < numTasks; i++) {
-        postEvents(i);
+        postEvents(service, i);
       }
 
       // wait until all events are ingested
@@ -140,6 +145,7 @@ public class ITUnionQueryTest extends AbstractIndexerTest
       for (int i = 0; i < numTasks; i++) {
         unloadAndKillData(UNION_DATASOURCE + i);
       }
+      service.shutdownNow();
     }
 
   }
@@ -159,7 +165,7 @@ public class ITUnionQueryTest extends AbstractIndexerTest
     return taskAsString.replace(EVENT_RECEIVER_SERVICE_PREFIX, serviceName);
   }
 
-  public void postEvents(int id) throws Exception
+  private void postEvents(ExecutorService service, int id) throws Exception
   {
     final ServerDiscoverySelector eventReceiverSelector = factory.createSelector(EVENT_RECEIVER_SERVICE_PREFIX + id);
     eventReceiverSelector.start();
@@ -180,7 +186,14 @@ public class ITUnionQueryTest extends AbstractIndexerTest
       client.postEventsFromFile(UNION_DATA_FILE);
     }
     finally {
-      eventReceiverSelector.stop();
+      service.submit(() -> {
+        try {
+          eventReceiverSelector.stop();
+        }
+        catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      });
     }
   }
 }
