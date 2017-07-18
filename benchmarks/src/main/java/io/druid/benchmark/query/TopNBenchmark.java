@@ -105,10 +105,12 @@ public class TopNBenchmark
   @Param({"750000"})
   private int rowsPerSegment;
 
-  @Param({"basic.A", "basic.numericSort", "basic.alphanumericSort"})
+//  @Param({"basic.A", "basic.numericSort", "basic.alphanumericSort"})
+
+  @Param({"basic.A"})
   private String schemaAndQuery;
 
-  @Param({"10"})
+  @Param({"10000"})
   private int threshold;
 
   private static final Logger log = new Logger(TopNBenchmark.class);
@@ -156,17 +158,22 @@ public class TopNBenchmark
       QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(Collections.singletonList(basicSchema.getDataInterval()));
 
       List<AggregatorFactory> queryAggs = new ArrayList<>();
-      queryAggs.add(new LongSumAggregatorFactory("sumLongSequential", "sumLongSequential"));
-      queryAggs.add(new LongMaxAggregatorFactory("maxLongUniform", "maxLongUniform"));
-      queryAggs.add(new DoubleSumAggregatorFactory("sumFloatNormal", "sumFloatNormal"));
-      queryAggs.add(new DoubleMinAggregatorFactory("minFloatZipf", "minFloatZipf"));
-      queryAggs.add(new HyperUniquesAggregatorFactory("hyperUniquesMet", "hyper"));
+//      queryAggs.add(new LongSumAggregatorFactory("sumLongSequential", "sumLongSequential"));
+//      queryAggs.add(new LongMaxAggregatorFactory("maxLongUniform", "maxLongUniform"));
+//      queryAggs.add(new DoubleSumAggregatorFactory("sumFloatNormal", "sumFloatNormal"));
+//      queryAggs.add(new DoubleMinAggregatorFactory("minFloatZipf", "minFloatZipf"));
+//      queryAggs.add(new HyperUniquesAggregatorFactory("hyperUniquesMet", "hyper"));
+      queryAggs.add(new LongSumAggregatorFactory(
+          "sumLongSequential",
+          "sumLongSequential"
+      ));
 
       TopNQueryBuilder queryBuilderA = new TopNQueryBuilder()
           .dataSource("blah")
           .granularity(Granularities.ALL)
           .dimension("dimSequential")
-          .metric("sumFloatNormal")
+//          .metric("sumFloatNormal")
+          .metric("sumLongSequential")
           .intervals(intervalSpec)
           .aggregators(queryAggs);
 

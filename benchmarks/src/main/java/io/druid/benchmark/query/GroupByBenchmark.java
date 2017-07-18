@@ -24,6 +24,7 @@ import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -62,6 +63,9 @@ import io.druid.query.groupby.GroupByQueryConfig;
 import io.druid.query.groupby.GroupByQueryEngine;
 import io.druid.query.groupby.GroupByQueryQueryToolChest;
 import io.druid.query.groupby.GroupByQueryRunnerFactory;
+import io.druid.query.groupby.orderby.DefaultLimitSpec;
+import io.druid.query.groupby.orderby.OrderByColumnSpec;
+import io.druid.query.groupby.orderby.OrderByColumnSpec.Direction;
 import io.druid.query.groupby.strategy.GroupByStrategySelector;
 import io.druid.query.groupby.strategy.GroupByStrategyV1;
 import io.druid.query.groupby.strategy.GroupByStrategyV2;
@@ -107,29 +111,36 @@ import java.util.concurrent.TimeUnit;
 
 @State(Scope.Benchmark)
 @Fork(value = 1)
-@Warmup(iterations = 15)
-@Measurement(iterations = 30)
+@Warmup(iterations = 10)
+@Measurement(iterations = 25)
 public class GroupByBenchmark
 {
-  @Param({"4"})
+  @Param({"1"})
   private int numSegments;
 
-  @Param({"2", "4"})
+//  @Param({"2", "4"})
+  @Param({"4"})
   private int numProcessingThreads;
 
   @Param({"-1"})
   private int initialBuckets;
 
-  @Param({"100000"})
+  @Param({"750000"})
   private int rowsPerSegment;
 
-  @Param({"basic.A", "basic.nested"})
+//  @Param({"basic.A", "basic.nested"})
+
+  @Param({"basic.A"})
   private String schemaAndQuery;
 
-  @Param({"v1", "v2"})
+//  @Param({"v1", "v2"})
+
+  @Param({"v2"})
   private String defaultStrategy;
 
-  @Param({"all", "day"})
+//  @Param({"all", "day"})
+
+  @Param({"all"})
   private String queryGranularity;
 
   private static final Logger log = new Logger(GroupByBenchmark.class);
@@ -185,8 +196,8 @@ public class GroupByBenchmark
           .setDataSource("blah")
           .setQuerySegmentSpec(intervalSpec)
           .setDimensions(Lists.<DimensionSpec>newArrayList(
-              new DefaultDimensionSpec("dimSequential", null),
-              new DefaultDimensionSpec("dimZipf", null)
+              new DefaultDimensionSpec("dimSequential", null)
+//              new DefaultDimensionSpec("dimZipf", null)
               //new DefaultDimensionSpec("dimUniform", null),
               //new DefaultDimensionSpec("dimSequentialHalfNull", null)
               //new DefaultDimensionSpec("dimMultivalEnumerated", null), //multival dims greatly increase the running time, disable for now
@@ -196,6 +207,14 @@ public class GroupByBenchmark
               queryAggs
           )
           .setGranularity(Granularity.fromString(queryGranularity))
+          .setLimitSpec(
+              new DefaultLimitSpec(
+                  ImmutableList.of(
+                      new OrderByColumnSpec("sumLongSequential", Direction.ASCENDING)
+                  ),
+                  10000
+              )
+          )
           .build();
 
       basicQueries.put("A", queryA);
