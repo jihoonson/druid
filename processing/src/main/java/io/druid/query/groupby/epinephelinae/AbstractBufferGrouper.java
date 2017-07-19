@@ -27,6 +27,7 @@ import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.BufferAggregator;
 
 import java.nio.ByteBuffer;
+import java.util.function.IntFunction;
 
 public abstract class AbstractBufferGrouper<KeyType> implements Grouper<KeyType>
 {
@@ -182,7 +183,7 @@ public abstract class AbstractBufferGrouper<KeyType> implements Grouper<KeyType>
   }
 
   @Override
-  public AggregateResult aggregate(Object obj, final KeyType key)
+  public AggregateResult aggregate(final KeyType key)
   {
     return aggregate(key, Groupers.hash(key));
   }

@@ -86,7 +86,7 @@ public class StringTopNColumnSelectorStrategy
   )
   {
     if (selector.getValueCardinality() != DimensionSelector.CARDINALITY_UNKNOWN) {
-      return dimExtractionScanAndAggregateWithCardinalityKnown(query, cursor, selector, rowSelector, aggregatesStore);
+      return dimExtractionScanAndAggregateWithCardinalityKnown(query, cursor, selector, rowSelector);
     } else {
       return dimExtractionScanAndAggregateWithCardinalityUnknown(query, cursor, selector, aggregatesStore);
     }
@@ -125,8 +125,7 @@ public class StringTopNColumnSelectorStrategy
       TopNQuery query,
       Cursor cursor,
       DimensionSelector selector,
-      Aggregator[][] rowSelector,
-      Map<String, Aggregator[]> aggregatesStore
+      Aggregator[][] rowSelector
   )
   {
     long processedRows = 0;
@@ -136,13 +135,7 @@ public class StringTopNColumnSelectorStrategy
         final int dimIndex = dimValues.get(i);
         Aggregator[] theAggregators = rowSelector[dimIndex];
         if (theAggregators == null) {
-          final String key = selector.lookupName(dimIndex);
-          theAggregators = aggregatesStore.get(key);
-          if (theAggregators == null) {
-            theAggregators = BaseTopNAlgorithm.makeAggregators(cursor, query.getAggregatorSpecs());
-            aggregatesStore.put(key, theAggregators);
-          }
-          rowSelector[dimIndex] = theAggregators;
+          rowSelector[dimIndex] = theAggregators = BaseTopNAlgorithm.makeAggregators(cursor, query.getAggregatorSpecs());
         }
 
         for (Aggregator aggregator : theAggregators) {

@@ -73,12 +73,7 @@ public interface Grouper<KeyType> extends Closeable
    *
    * @return result that is ok if the row was aggregated, not ok if a resource limit was hit
    */
-  default AggregateResult aggregate(KeyType key)
-  {
-    return aggregate(null, key);
-  }
-
-  AggregateResult aggregate(Object obj, KeyType key);
+  AggregateResult aggregate(KeyType key);
 
   /**
    * Reset the grouper to its initial state.

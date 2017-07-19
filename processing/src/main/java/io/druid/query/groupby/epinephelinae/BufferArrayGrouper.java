@@ -23,7 +23,6 @@ import com.google.common.base.Supplier;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.BufferAggregator;
 import io.druid.segment.ColumnSelectorFactory;
-import io.druid.segment.data.IndexedInts;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -46,7 +45,7 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
   private final int keySize;
   private int keyArena;
 
-  private final boolean[] keyFilter;
+  private final boolean[] keyCheck; // TODO: rename
 
   public BufferArrayGrouper(
       final Supplier<ByteBuffer> bufferSupplier,
@@ -71,7 +70,7 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
       offset += aggregatorFactories[i].getMaxIntermediateSize();
     }
     numBytesPerRecord = offset;
-    keyFilter = new boolean[cardinality];
+    keyCheck = new boolean[cardinality];
   }
 
   @Override
@@ -106,28 +105,32 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
   @Override
   public AggregateResult aggregate(KeyType key, int keyHash)
   {
-    return aggregate(key);
-  }
-
-  @Override
-  public AggregateResult aggregate(Object obj, KeyType key)
-  {
     final ByteBuffer keyBuffer = keySerde.toByteBuffer(key);
-    final IndexedInts indexedInts = (IndexedInts) obj;
-    final int dimIndex = indexedInts.get(0);
-    if (!keyFilter[dimIndex]) {
-      keyFilter[dimIndex] = true;
-      this.keyBuffer.position(dimIndex * keySize);
+    if (!keyCheck[keyHash]) {
+      keyCheck[keyHash] = true;
+      this.keyBuffer.position(keyHash * keySize);
       this.keyBuffer.put(keyBuffer);
     }
 
-    final int baseOffset = keyOffsets[dimIndex];
+    final int baseOffset = keyOffsets[keyHash];
 
     for (int i = 0; i < aggregators.length; i++) {
       aggregators[i].aggregate(aggBuffer, baseOffset + aggregatorOffsets[i]);
     }
 
     return AggregateResult.ok();
+  }
+
+  @Override
+  public AggregateResult aggregate(KeyType key)
+  {
+    // BufferArrayGrouper is used only for dictionary-indexed single-value string dimensions.
+    // Here, the key contains the dictionary-encoded value of the grouping key
+    // and we use it as the index for the aggregation array.
+    final ByteBuffer fromKey = keySerde.toByteBuffer(key);
+    final int keyHash = fromKey.getInt();
+    fromKey.rewind();
+    return aggregate(key, keyHash);
   }
 
   @Override
@@ -149,7 +152,7 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
       try {
         aggregator.close();
       }
-      catch (Exception e) {
+      catch (Exception e) { // TODO: handling
         throw e;
       }
     }
@@ -158,20 +161,32 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
   @Override
   public Iterator<Entry<KeyType>> iterator(boolean sorted)
   {
+    // TODO: sorted
     return new Iterator<Entry<KeyType>>()
     {
-      int cur = 0;
+      int cur;
+
+      private int findNextKeyIndex(int cur)
+      {
+        for (int i = cur; i < keyCheck.length; i++) {
+          if (keyCheck[i]) {
+            return i;
+          }
+        }
+        return -1;
+      }
 
       @Override
       public boolean hasNext()
       {
-        return cur < cardinality;
+        cur = findNextKeyIndex(cur);
+        return cur > -1;
       }
 
       @Override
       public Entry<KeyType> next()
       {
-        if (!hasNext()) {
+        if (cur == -1) {
           throw new NoSuchElementException();
         }
 

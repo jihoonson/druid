@@ -154,7 +154,7 @@ public class SpillingGrouper<KeyType> implements Grouper<KeyType>
   }
 
   @Override
-  public AggregateResult aggregate(Object obj, KeyType key)
+  public AggregateResult aggregate(KeyType key)
   {
     return aggregate(key, Groupers.hash(key));
   }

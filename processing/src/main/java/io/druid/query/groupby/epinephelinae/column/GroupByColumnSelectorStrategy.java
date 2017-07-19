@@ -74,6 +74,28 @@ public interface GroupByColumnSelectorStrategy extends ColumnSelectorStrategy
   void initColumnValues(ColumnValueSelector selector, int columnIndex, Object[] valuess);
 
   /**
+   * TODO
+   * @param value
+   * @return
+   */
+  Object[] populateColumnValue(Object value);
+
+  /**
+   * TODO
+   * @param selector
+   * @return
+   */
+  Object getOnlyValue(ColumnValueSelector selector);
+
+  /**
+   * TODO
+   * @param keyBufferPosition
+   * @param obj
+   * @param keyBuffer
+   */
+  void writeToKeyBuffer(int keyBufferPosition, Object obj, ByteBuffer keyBuffer);
+
+  /**
    * Read the first value within a row values object (IndexedInts, IndexedLongs, etc.) and write that value
    * to the keyBuffer at keyBufferPosition. If rowSize is 0, write GROUP_BY_MISSING_VALUE instead.
    *

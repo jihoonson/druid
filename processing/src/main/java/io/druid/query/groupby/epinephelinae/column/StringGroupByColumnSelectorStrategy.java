@@ -19,6 +19,7 @@
 
 package io.druid.query.groupby.epinephelinae.column;
 
+import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 import io.druid.segment.ColumnValueSelector;
 import io.druid.segment.DimensionSelector;
@@ -62,13 +63,42 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
   }
 
   @Override
+  public Object[] populateColumnValue(Object value)
+  {
+    final IndexedInts multiValueCell = (IndexedInts) value;
+    final int multiValueNum = multiValueCell.size();
+    final Object[] populated = new Object[multiValueNum];
+    for (int i = 0; i < multiValueNum; i++) {
+      populated[i] = multiValueCell.get(i);
+    }
+    return populated;
+  }
+
+  @Override
+  public Object getOnlyValue(ColumnValueSelector selector)
+  {
+    final DimensionSelector dimSelector = (DimensionSelector) selector;
+    final IndexedInts row = dimSelector.getRow();
+    Preconditions.checkState(row.size() < 2, "Not supported for multi-value dimensions");
+    return row.size() == 1 ? row.get(0) : GROUP_BY_MISSING_VALUE;
+  }
+
+  @Override
+  public void writeToKeyBuffer(int keyBufferPosition, Object obj, ByteBuffer keyBuffer)
+  {
+    keyBuffer.putInt(keyBufferPosition, (int) obj);
+  }
+
+  @Override
   public void initGroupingKeyColumnValue(int keyBufferPosition, int columnIndex, Object rowObj, ByteBuffer keyBuffer, int[] stack)
   {
     IndexedInts row = (IndexedInts) rowObj;
     int rowSize = row.size();
 
     initializeGroupingKeyV2Dimension(row, rowSize, keyBuffer, keyBufferPosition);
-    stack[columnIndex] = rowSize == 0 ? 0 : 1;
+    if (stack != null) {
+      stack[columnIndex] = rowSize == 0 ? 0 : 1;
+    }
   }
 
   @Override
