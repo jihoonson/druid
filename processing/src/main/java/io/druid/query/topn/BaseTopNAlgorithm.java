@@ -94,7 +94,7 @@ public abstract class BaseTopNAlgorithm<DimValSelector, DimValAggregateStore, Pa
     if (queryMetrics != null) {
       queryMetrics.startRecordingScanTime();
     }
-    boolean hasDimValSelector = (dimValSelector != null);
+    final boolean hasDimValSelector = (dimValSelector != null);
 
     int cardinality = params.getCardinality();
     int numProcessed = 0;

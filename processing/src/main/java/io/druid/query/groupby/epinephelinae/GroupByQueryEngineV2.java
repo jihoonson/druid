@@ -112,6 +112,7 @@ public class GroupByQueryEngineV2
         null
     );
 
+    final int cardinality = storageAdapter.getDimensionCardinality(query.getDimensions().get(0).getDimension());
 
     final ResourceHolder<ByteBuffer> bufferHolder = intermediateResultsBufferPool.take();
 
@@ -149,7 +150,8 @@ public class GroupByQueryEngineV2
                                 cursor,
                                 bufferHolder.get(),
                                 fudgeTimestamp,
-                                createGroupBySelectorPlus(selectorPlus)
+                                createGroupBySelectorPlus(selectorPlus),
+                                cardinality
                             );
                           }
 
@@ -217,6 +219,7 @@ public class GroupByQueryEngineV2
     private int stackp = Integer.MIN_VALUE;
     private boolean currentRowWasPartiallyAggregated = false;
     private CloseableGrouperIterator<ByteBuffer, Row> delegate = null;
+    private final int cardinality;
 
     public GroupByEngineIterator(
         final GroupByQuery query,
@@ -224,7 +227,8 @@ public class GroupByQueryEngineV2
         final Cursor cursor,
         final ByteBuffer buffer,
         final DateTime fudgeTimestamp,
-        final GroupByColumnSelectorPlus[] dims
+        final GroupByColumnSelectorPlus[] dims,
+        final int cardinality
     )
     {
       final int dimCount = query.getDimensions().size();
@@ -241,6 +245,7 @@ public class GroupByQueryEngineV2
 
       // Time is the same for every row in the cursor
       this.timestamp = fudgeTimestamp != null ? fudgeTimestamp : cursor.getTime();
+      this.cardinality = cardinality;
     }
 
     @Override
@@ -260,15 +265,24 @@ public class GroupByQueryEngineV2
         delegate = null;
       }
 
-      final Grouper<ByteBuffer> grouper = new BufferGrouper<>(
+      // TODO: choose the best grouper
+//      final Grouper<ByteBuffer> grouper = new BufferGrouper<>(
+//          Suppliers.ofInstance(buffer),
+//          keySerde,
+//          cursor,
+//          query.getAggregatorSpecs()
+//               .toArray(new AggregatorFactory[query.getAggregatorSpecs().size()]),
+//          querySpecificConfig.getBufferGrouperMaxSize(),
+//          querySpecificConfig.getBufferGrouperMaxLoadFactor(),
+//          querySpecificConfig.getBufferGrouperInitialBuckets()
+//      );
+      final Grouper<ByteBuffer> grouper = new BufferArrayGrouper<>(
           Suppliers.ofInstance(buffer),
           keySerde,
           cursor,
           query.getAggregatorSpecs()
                .toArray(new AggregatorFactory[query.getAggregatorSpecs().size()]),
-          querySpecificConfig.getBufferGrouperMaxSize(),
-          querySpecificConfig.getBufferGrouperMaxLoadFactor(),
-          querySpecificConfig.getBufferGrouperInitialBuckets()
+          cardinality
       );
       grouper.init();
 
@@ -301,7 +315,7 @@ outer:
           // Aggregate additional grouping for this row
           if (doAggregate) {
             keyBuffer.rewind();
-            if (!grouper.aggregate(keyBuffer).isOk()) {
+            if (!grouper.aggregate(valuess[0], keyBuffer).isOk()) { // TODO: if multiple dimensions? int/float dims?
               // Buffer full while aggregating; break out and resume later
               currentRowWasPartiallyAggregated = true;
               break outer;

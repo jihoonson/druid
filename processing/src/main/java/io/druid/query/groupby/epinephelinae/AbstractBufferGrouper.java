@@ -182,7 +182,7 @@ public abstract class AbstractBufferGrouper<KeyType> implements Grouper<KeyType>
   }
 
   @Override
-  public AggregateResult aggregate(final KeyType key)
+  public AggregateResult aggregate(Object obj, final KeyType key)
   {
     return aggregate(key, Groupers.hash(key));
   }

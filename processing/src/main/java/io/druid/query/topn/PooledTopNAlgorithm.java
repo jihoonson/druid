@@ -229,7 +229,7 @@ public class PooledTopNAlgorithm
         Pair<Integer, Integer> startEnd = computeStartEnd(cardinality);
 
         Arrays.fill(positions, 0, startEnd.lhs, SKIP_POSITION_VALUE);
-        Arrays.fill(positions, startEnd.lhs, startEnd.rhs, INIT_POSITION_VALUE);
+        Arrays.fill(positions, startEnd.lhs, startEnd.rhs, INIT_POSITION_VALUE); // TODO: separate from topn
         Arrays.fill(positions, startEnd.rhs, positions.length, SKIP_POSITION_VALUE);
 
         return positions;
@@ -316,13 +316,13 @@ public class PooledTopNAlgorithm
       final int numProcessed
   )
   {
-    for (ScanAndAggregate specializedScanAndAggregate : specializedScanAndAggregateImplementations) {
-      long processedRows = specializedScanAndAggregate.scanAndAggregate(params, positions, theAggregators);
-      if (processedRows >= 0) {
-        BaseQuery.checkInterrupted();
-        return processedRows;
-      }
-    }
+//    for (ScanAndAggregate specializedScanAndAggregate : specializedScanAndAggregateImplementations) {
+//      long processedRows = specializedScanAndAggregate.scanAndAggregate(params, positions, theAggregators);
+//      if (processedRows >= 0) {
+//        BaseQuery.checkInterrupted();
+//        return processedRows;
+//      }
+//    }
     long processedRows = scanAndAggregateDefault(params, positions, theAggregators);
     BaseQuery.checkInterrupted();
     return processedRows;
@@ -458,6 +458,7 @@ public class PooledTopNAlgorithm
 
       final int dimSize = dimValues.size();
       final int dimExtra = dimSize % AGG_UNROLL_COUNT;
+      System.err.println("dimSize = " + dimSize + ", dimExtra = " + dimExtra);
       switch(dimExtra){
         case 7:
           currentPosition = aggregateDimValue(

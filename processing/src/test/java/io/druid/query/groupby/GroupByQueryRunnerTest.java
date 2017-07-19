@@ -412,6 +412,9 @@ public class GroupByQueryRunnerTest
   @Test
   public void testGroupBy()
   {
+    if (config.getDefaultStrategy().equals(GroupByStrategySelector.STRATEGY_V1)) {
+      return;
+    }
     GroupByQuery query = GroupByQuery
         .builder()
         .setDataSource(QueryRunnerTestHelper.dataSource)
