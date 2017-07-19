@@ -51,12 +51,6 @@ public class LongGroupByColumnSelectorStrategy implements GroupByColumnSelectorS
   }
 
   @Override
-  public Object[] populateColumnValue(Object value)
-  {
-    return new Object[]{value};
-  }
-
-  @Override
   public Object getOnlyValue(ColumnValueSelector selector)
   {
     return ((LongColumnSelector) selector).get();

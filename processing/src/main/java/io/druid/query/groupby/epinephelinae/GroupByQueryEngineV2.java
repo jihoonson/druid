@@ -64,7 +64,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.function.IntSupplier;
 
 public class GroupByQueryEngineV2
 {
@@ -116,12 +115,11 @@ public class GroupByQueryEngineV2
 
     final boolean allSingleValueDims = query.getDimensions().stream()
                                             .noneMatch(dimension -> {
-                                              final ColumnCapabilities columnCapabilities = storageAdapter.getColumnCapabilities(dimension.getDimension());
-                                              return columnCapabilities == null || columnCapabilities.hasMultipleValues();
+                                              final ColumnCapabilities columnCapabilities =
+                                                  storageAdapter.getColumnCapabilities(dimension.getDimension());
+                                              return columnCapabilities == null ||
+                                                     columnCapabilities.hasMultipleValues();
                                             });
-
-    // TODO: pass the cardinality selector
-    final IntSupplier cardinalitySupplier = () -> storageAdapter.getDimensionCardinality(query.getDimensions().get(0).getDimension());
 
     final ResourceHolder<ByteBuffer> bufferHolder = intermediateResultsBufferPool.take();
 
@@ -160,7 +158,7 @@ public class GroupByQueryEngineV2
                                 bufferHolder.get(),
                                 fudgeTimestamp,
                                 createGroupBySelectorPlus(selectorPlus),
-                                cardinalitySupplier,
+                                storageAdapter::getDimensionCardinality,
                                 allSingleValueDims
                             );
                           }
@@ -229,7 +227,7 @@ public class GroupByQueryEngineV2
     private int stackp = Integer.MIN_VALUE;
     private boolean currentRowWasPartiallyAggregated = false;
     private CloseableGrouperIterator<ByteBuffer, Row> delegate = null;
-    private final IntSupplier cardinalitySupplier;
+    private final Function<String, Integer> cardinalityFunction; // dimensino name -> cardinality
     private final boolean allSingleValueDims;
 
     public GroupByEngineIterator(
@@ -239,7 +237,7 @@ public class GroupByQueryEngineV2
         final ByteBuffer buffer,
         final DateTime fudgeTimestamp,
         final GroupByColumnSelectorPlus[] dims,
-        final IntSupplier cardinalitySupplier,
+        final Function<String, Integer> cardinalityFunction,
         final boolean allSingleValueDims
     )
     {
@@ -257,59 +255,46 @@ public class GroupByQueryEngineV2
 
       // Time is the same for every row in the cursor
       this.timestamp = fudgeTimestamp != null ? fudgeTimestamp : cursor.getTime();
-      this.cardinalitySupplier = cardinalitySupplier;
+      this.cardinalityFunction = cardinalityFunction;
       this.allSingleValueDims = allSingleValueDims;
     }
 
-    private void initNewDelegate()
+    private CloseableGrouperIterator<ByteBuffer, Row> initNewDelegate()
     {
       final Grouper<ByteBuffer> grouper = newGrouper();
       grouper.init();
 
-      // TODO: choose this when all dimensions are single-valued
       if (allSingleValueDims) {
         aggregateSingleValueDims(grouper);
       } else {
         aggregateMultiValueDims(grouper);
       }
 
-      delegate = new CloseableGrouperIterator<>(
+      return new CloseableGrouperIterator<>(
           grouper,
           false,
-          new Function<Grouper.Entry<ByteBuffer>, Row>()
-          {
-            @Override
-            public Row apply(final Grouper.Entry<ByteBuffer> entry)
-            {
-              Map<String, Object> theMap = Maps.newLinkedHashMap();
+          entry -> {
+            Map<String, Object> theMap = Maps.newLinkedHashMap();
 
-              // Add dimensions.
-              for (GroupByColumnSelectorPlus selectorPlus : dims) {
-                selectorPlus.getColumnSelectorStrategy().processValueFromGroupingKey(
-                    selectorPlus,
-                    entry.getKey(),
-                    theMap
-                );
-              }
-
-              convertRowTypesToOutputTypes(query.getDimensions(), theMap);
-
-              // Add aggregations.
-              for (int i = 0; i < entry.getValues().length; i++) {
-                theMap.put(query.getAggregatorSpecs().get(i).getName(), entry.getValues()[i]);
-              }
-
-              return new MapBasedRow(timestamp, theMap);
+            // Add dimensions.
+            for (GroupByColumnSelectorPlus selectorPlus : dims) {
+              selectorPlus.getColumnSelectorStrategy().processValueFromGroupingKey(
+                  selectorPlus,
+                  entry.getKey(),
+                  theMap
+              );
             }
+
+            convertRowTypesToOutputTypes(query.getDimensions(), theMap);
+
+            // Add aggregations.
+            for (int i = 0; i < entry.getValues().length; i++) {
+              theMap.put(query.getAggregatorSpecs().get(i).getName(), entry.getValues()[i]);
+            }
+
+            return new MapBasedRow(timestamp, theMap);
           },
-          new Closeable()
-          {
-            @Override
-            public void close() throws IOException
-            {
-              grouper.close();
-            }
-          }
+          grouper
       );
     }
 
@@ -333,7 +318,7 @@ public class GroupByQueryEngineV2
           if (delegate != null) {
             delegate.close();
           }
-          initNewDelegate();
+          delegate = initNewDelegate();
           return true;
         } else {
           return false;
@@ -359,8 +344,11 @@ public class GroupByQueryEngineV2
     {
       if (dims.length == 1) {
         final ColumnCapabilities columnCapabilities = cursor.getColumnCapabilities(dims[0].getName());
-        final int cardinality = cardinalitySupplier.getAsInt();
-        // TODO: Choose array-based aggregation if the grouping key is a single string dimension with a known cardinality
+
+        @SuppressWarnings("ConstantConditions")
+        final int cardinality = cardinalityFunction.apply(dims[0].getName());
+
+        // Choose array-based aggregation if the grouping key is a single string dimension of a low cardinality
         if ((columnCapabilities == null || columnCapabilities.getType().equals(ValueType.STRING)) &&
             columnCapabilities != null && !columnCapabilities.hasMultipleValues() &&
             cardinality > 0 && cardinality < HIGH_CARDINALITY_THRESHOLD) {
@@ -391,9 +379,12 @@ public class GroupByQueryEngineV2
     {
       while (!cursor.isDone()) {
         for (int i = 0; i < dims.length; i++) {
-          GroupByColumnSelectorStrategy strategy = dims[i].getColumnSelectorStrategy();
-          final Object val = strategy.getOnlyValue(dims[i].getSelector());
-          strategy.writeToKeyBuffer(dims[i].getKeyBufferPosition(), val, keyBuffer);
+          final GroupByColumnSelectorStrategy strategy = dims[i].getColumnSelectorStrategy();
+          strategy.writeToKeyBuffer(
+              dims[i].getKeyBufferPosition(),
+              strategy.getOnlyValue(dims[i].getSelector()),
+              keyBuffer
+          );
         }
         keyBuffer.rewind();
         if (!grouper.aggregate(keyBuffer).isOk()) {

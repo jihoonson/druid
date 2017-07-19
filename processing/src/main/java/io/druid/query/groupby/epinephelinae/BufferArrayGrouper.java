@@ -19,7 +19,10 @@
 
 package io.druid.query.groupby.epinephelinae;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
+import io.druid.java.util.common.ISE;
+import io.druid.java.util.common.logger.Logger;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.BufferAggregator;
 import io.druid.segment.ColumnSelectorFactory;
@@ -30,22 +33,21 @@ import java.util.NoSuchElementException;
 
 public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
 {
+  private static final Logger LOG = new Logger(BufferArrayGrouper.class);
+
   private final Supplier<ByteBuffer> bufferSupplier;
   private final KeySerde<KeyType> keySerde;
   private final BufferAggregator[] aggregators;
   private final int[] aggregatorOffsets;
   private final int[] keyOffsets;
+  private final boolean[] keyCheck; // TODO: rename
   private final int cardinality;
-  private final int numBytesPerRecord;
+  private final int numBytesPerAggValues;
 
   private boolean initialized = false;
-  private ByteBuffer buffer;
   private ByteBuffer aggBuffer;
   private ByteBuffer keyBuffer;
   private final int keySize;
-  private int keyArena;
-
-  private final boolean[] keyCheck; // TODO: rename
 
   public BufferArrayGrouper(
       final Supplier<ByteBuffer> bufferSupplier,
@@ -55,12 +57,16 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
       final int cardinality
   )
   {
-    this.bufferSupplier = bufferSupplier;
-    this.keySerde = keySerde;
+    Preconditions.checkNotNull(aggregatorFactories, "aggregatorFactories");
+    Preconditions.checkArgument(cardinality > 0, "Cardinality must a non-zero positive number");
+
+    this.bufferSupplier = Preconditions.checkNotNull(bufferSupplier, "bufferSupplier");
+    this.keySerde = Preconditions.checkNotNull(keySerde, "keySerde");
     this.keySize = keySerde.keySize();
     this.aggregators = new BufferAggregator[aggregatorFactories.length];
     this.aggregatorOffsets = new int[aggregatorFactories.length];
     this.keyOffsets = new int[cardinality];
+    this.keyCheck = new boolean[cardinality];
     this.cardinality = cardinality;
 
     int offset = 0;
@@ -69,16 +75,21 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
       aggregatorOffsets[i] = offset;
       offset += aggregatorFactories[i].getMaxIntermediateSize();
     }
-    numBytesPerRecord = offset;
-    keyCheck = new boolean[cardinality];
+    numBytesPerAggValues = offset;
   }
 
   @Override
   public void init()
   {
     if (!initialized) {
-      buffer = bufferSupplier.get();
-      keyArena = buffer.capacity() / 2;
+      final ByteBuffer buffer = bufferSupplier.get();
+      final int keyArena = keySize * cardinality;
+      final int aggArena = buffer.capacity() - keyArena;
+      Preconditions.checkState(keyArena < buffer.capacity(), "Too many keys[%s]", cardinality);
+      Preconditions.checkState(
+          aggArena >= numBytesPerAggValues * cardinality,
+          "Not enough aggregation buffer space to execute this query. Try increasing druid.processing.buffer.sizeBytes."
+      );
 
       keyBuffer = buffer.duplicate();
       keyBuffer.position(0);
@@ -137,7 +148,7 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
   public void reset()
   {
     for (int i = 0; i < cardinality; i++) {
-      keyOffsets[i] = i * numBytesPerRecord;
+      keyOffsets[i] = i * numBytesPerAggValues;
       final int baseOffset = keyOffsets[i];
       for (int j = 0; j < aggregators.length; ++j) {
         aggregators[j].init(aggBuffer, baseOffset + aggregatorOffsets[j]);
@@ -152,8 +163,8 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
       try {
         aggregator.close();
       }
-      catch (Exception e) { // TODO: handling
-        throw e;
+      catch (Exception e) {
+        LOG.warn(e, "Could not close aggregator [%s], skipping.", aggregator);
       }
     }
   }
@@ -164,29 +175,36 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
     // TODO: sorted
     return new Iterator<Entry<KeyType>>()
     {
-      int cur;
+      private static final int NOT_INITIALIZED = -2;
+      private static final int NOT_FOUND = -1;
+      int cur = NOT_INITIALIZED;
 
-      private int findNextKeyIndex(int cur)
+      private int findNextKeyIndex()
       {
         for (int i = cur; i < keyCheck.length; i++) {
           if (keyCheck[i]) {
             return i;
           }
         }
-        return -1;
+        return NOT_FOUND;
       }
 
       @Override
       public boolean hasNext()
       {
-        cur = findNextKeyIndex(cur);
-        return cur > -1;
+        if (cur == NOT_INITIALIZED) {
+          cur = 0;
+        }
+        cur = findNextKeyIndex();
+        return cur > NOT_FOUND;
       }
 
       @Override
       public Entry<KeyType> next()
       {
-        if (cur == -1) {
+        if (cur == NOT_INITIALIZED) {
+          throw new ISE("hasNext() must be called first");
+        } else if (cur == NOT_FOUND) {
           throw new NoSuchElementException();
         }
 

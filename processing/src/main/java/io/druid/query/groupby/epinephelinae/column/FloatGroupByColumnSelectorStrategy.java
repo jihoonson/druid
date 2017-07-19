@@ -51,12 +51,6 @@ public class FloatGroupByColumnSelectorStrategy implements GroupByColumnSelector
   }
 
   @Override
-  public Object[] populateColumnValue(Object value)
-  {
-    return new Object[]{value};
-  }
-
-  @Override
   public Object getOnlyValue(ColumnValueSelector selector)
   {
     return ((FloatColumnSelector) selector).get();

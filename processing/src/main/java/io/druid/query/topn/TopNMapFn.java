@@ -105,7 +105,6 @@ public class TopNMapFn
 
     TopNParams params = null;
     try {
-      // init resource, init array
       params = topNAlgorithm.makeInitParams(selectorPlus, cursor);
       if (queryMetrics != null) {
         queryMetrics.columnValueSelector(selectorPlus.getSelector());

@@ -27,7 +27,6 @@ import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.BufferAggregator;
 
 import java.nio.ByteBuffer;
-import java.util.function.IntFunction;
 
 public abstract class AbstractBufferGrouper<KeyType> implements Grouper<KeyType>
 {

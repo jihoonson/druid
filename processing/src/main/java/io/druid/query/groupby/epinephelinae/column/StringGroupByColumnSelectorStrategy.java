@@ -63,18 +63,6 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
   }
 
   @Override
-  public Object[] populateColumnValue(Object value)
-  {
-    final IndexedInts multiValueCell = (IndexedInts) value;
-    final int multiValueNum = multiValueCell.size();
-    final Object[] populated = new Object[multiValueNum];
-    for (int i = 0; i < multiValueNum; i++) {
-      populated[i] = multiValueCell.get(i);
-    }
-    return populated;
-  }
-
-  @Override
   public Object getOnlyValue(ColumnValueSelector selector)
   {
     final DimensionSelector dimSelector = (DimensionSelector) selector;
@@ -96,9 +84,7 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
     int rowSize = row.size();
 
     initializeGroupingKeyV2Dimension(row, rowSize, keyBuffer, keyBufferPosition);
-    if (stack != null) {
-      stack[columnIndex] = rowSize == 0 ? 0 : 1;
-    }
+    stack[columnIndex] = rowSize == 0 ? 0 : 1;
   }
 
   @Override
