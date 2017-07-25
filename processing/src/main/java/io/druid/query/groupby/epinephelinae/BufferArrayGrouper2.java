@@ -46,10 +46,9 @@ import java.util.stream.IntStream;
  * | used flag (4) |  key (4) | agg_1 (fixed size) | agg_2 (fixed size) | ... |
  * +---------------+----------+--------------------+--------------------+-----+
  */
-public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
+public class BufferArrayGrouper2<KeyType> implements Grouper<KeyType>
 {
   private static final Logger LOG = new Logger(BufferArrayGrouper.class);
-  private static final int USED_FLAG_SIZE = Byte.BYTES;
 
   private final Supplier<ByteBuffer> bufferSupplier;
   private final KeySerde<KeyType> keySerde;
@@ -60,14 +59,16 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
 
   private boolean initialized = false;
   private ByteBuffer keyBuffer;
+  private ByteBuffer usedBuffer;
   private ByteBuffer valBuffer;
 
-  static <KeyType> int keySize(KeySerde<KeyType> keySerde)
-  {
-    return keySerde.keySize() + USED_FLAG_SIZE;
-  }
+  // TODO: required capacity
+//  static <KeyType> int keySize(KeySerde<KeyType> keySerde)
+//  {
+//    return keySerde.keySize() + USED_FLAG_SIZE;
+//  }
 
-  public BufferArrayGrouper(
+  public BufferArrayGrouper2(
       final Supplier<ByteBuffer> bufferSupplier,
       final KeySerde<KeyType> keySerde,
       final ColumnSelectorFactory columnSelectorFactory,
@@ -82,7 +83,7 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
     this.keySerde = Preconditions.checkNotNull(keySerde, "keySerde");
     this.aggregators = new BufferAggregator[aggregatorFactories.length];
     this.aggregatorOffsets = new int[aggregatorFactories.length];
-    this.cardinality = cardinality;
+    this.cardinality = cardinality + 1; // TODO: make better
 
     int offset = 0;
     for (int i = 0; i < aggregatorFactories.length; i++) {
@@ -90,7 +91,7 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
       aggregatorOffsets[i] = offset;
       offset += aggregatorFactories[i].getMaxIntermediateSize();
     }
-    recordSize = USED_FLAG_SIZE + offset;
+    recordSize = offset;
   }
 
   @Override
@@ -103,7 +104,12 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
       buffer.limit(keySerde.keySize());
       keyBuffer = buffer.slice();
 
+      final int usedBufferEnd = keySerde.keySize() + (int) Math.ceil((double)(cardinality) / 8);
       buffer.position(keySerde.keySize());
+      buffer.limit(usedBufferEnd);
+      usedBuffer = buffer.slice();
+
+      buffer.position(usedBufferEnd);
       buffer.limit(buffer.capacity());
       valBuffer = buffer.slice();
 
@@ -140,7 +146,6 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
     }
 
     final int recordOffset = dimIndex * recordSize;
-    final int baseOffset = recordOffset + USED_FLAG_SIZE;
 
     if (recordOffset + recordSize > valBuffer.capacity()) {
       // This error cannot be recoverd, and the query must fail
@@ -153,12 +158,12 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
       );
     }
 
-    if (!isUsedKey(recordOffset)) {
+    if (!isUsedKey(dimIndex)) {
       initializeSlot(dimIndex);
     }
 
     for (int i = 0; i < aggregators.length; i++) {
-      aggregators[i].aggregate(valBuffer, baseOffset + aggregatorOffsets[i]);
+      aggregators[i].aggregate(valBuffer, recordOffset + aggregatorOffsets[i]);
     }
 
     return AggregateResult.ok();
@@ -166,11 +171,14 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
 
   private void initializeSlot(int dimIndex)
   {
+    final int index = dimIndex / 8;
+    final int extraIndex = dimIndex % 8;
+    final byte b = usedBuffer.get(index);
+    usedBuffer.put(index, (byte) (b | 1 << extraIndex));
+
     final int recordOffset = dimIndex * recordSize;
-    final int baseOffset = recordOffset + USED_FLAG_SIZE;
-    valBuffer.put(recordOffset, (byte) 0xff);
     for (int j = 0; j < aggregators.length; ++j) {
-      aggregators[j].init(valBuffer, baseOffset + aggregatorOffsets[j]);
+      aggregators[j].init(valBuffer, recordOffset + aggregatorOffsets[j]);
     }
   }
 
@@ -186,16 +194,19 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
     return aggregate(key, dimIndex);
   }
 
-  private boolean isUsedKey(int pos)
+  private boolean isUsedKey(int dimIndex)
   {
-    return valBuffer.get(pos) == (byte)0xff;
+    final int index = dimIndex / 8;
+    final int extraIndex = dimIndex % 8;
+    return (usedBuffer.get(index) & 1 << extraIndex) != 0;
   }
 
   @Override
   public void reset()
   {
-    for (int i = 0; i < cardinality + 1; i++) { // for missing value
-      valBuffer.putInt(i * recordSize, 0);
+    final int usedBufferCapacity = (int) Math.ceil((double)cardinality / 8);
+    for (int i = 0; i < usedBufferCapacity; i++) {
+      usedBuffer.put(i, (byte) 0);
     }
   }
 
@@ -224,9 +235,9 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
     // partial aggregation result in brokers and even data nodes (historicals and realtimes).
     // However, it should be used in the future.
     final BufferComparator comparator = keySerde.bufferComparator();
-    final List<Integer> wrappedOffsets = IntStream.range(0, cardinality + 1).boxed().collect(Collectors.toList());
+    final List<Integer> wrappedOffsets = IntStream.range(0, cardinality).boxed().collect(Collectors.toList());
     wrappedOffsets.sort(
-        (lhs, rhs) -> comparator.compare(valBuffer, valBuffer, lhs + USED_FLAG_SIZE, rhs + USED_FLAG_SIZE)
+        (lhs, rhs) -> comparator.compare(valBuffer, valBuffer, lhs, rhs)
     );
 
     return new ResultIterator(wrappedOffsets);
@@ -235,7 +246,7 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
   private Iterator<Entry<KeyType>> plainIterator()
   {
     return new ResultIterator(
-        IntStream.range(0, cardinality + 1).boxed().collect(Collectors.toList())
+        IntStream.range(0, cardinality).boxed().collect(Collectors.toList())
     );
   }
 
@@ -258,7 +269,7 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
     {
       while (keyIndexIterator.hasNext()) {
         final int index = keyIndexIterator.next();
-        if (isUsedKey(index * recordSize)) {
+        if (isUsedKey(index)) {
           return index;
         }
       }
@@ -285,10 +296,10 @@ public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
       keyBuffer.putInt(0, cur - 1);
 
       needFindNext = true;
-      final int baseOffset = cur * recordSize + USED_FLAG_SIZE;
       final Object[] values = new Object[aggregators.length];
+      final int recordOffset = cur * recordSize;
       for (int i = 0; i < aggregators.length; i++) {
-        values[i] = aggregators[i].get(valBuffer, baseOffset + aggregatorOffsets[i]);
+        values[i] = aggregators[i].get(valBuffer, recordOffset + aggregatorOffsets[i]);
       }
       return new Entry<>(keySerde.fromByteBuffer(keyBuffer, 0), values);
     }
