@@ -61,7 +61,6 @@ import org.joda.time.Interval;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -229,7 +228,7 @@ public class GroupByQueryEngineV2
 
     private int stackp = Integer.MIN_VALUE;
     private boolean currentRowWasPartiallyAggregated = false;
-    private CloseableGrouperIterator<ByteBuffer, Row> delegate = null;
+    private CloseableGrouperIterator<?, Row> delegate = null;
     private final Function<String, Integer> cardinalityFunction; // dimension name -> cardinality
     private final boolean allSingleValueDims;
 
@@ -262,9 +261,9 @@ public class GroupByQueryEngineV2
       this.allSingleValueDims = allSingleValueDims;
     }
 
-    private CloseableGrouperIterator<ByteBuffer, Row> initNewDelegate()
+    private CloseableGrouperIterator<?, Row> initNewDelegate()
     {
-      final Grouper<ByteBuffer> grouper = newGrouper();
+      final Grouper<?> grouper = newGrouper();
       grouper.init();
 
       if (allSingleValueDims) {
@@ -281,11 +280,16 @@ public class GroupByQueryEngineV2
 
             // Add dimensions.
             for (GroupByColumnSelectorPlus selectorPlus : dims) {
-              selectorPlus.getColumnSelectorStrategy().processValueFromGroupingKey(
-                  selectorPlus,
-                  entry.getKey(),
-                  theMap
-              );
+              // TODO
+              if (grouper instanceof BufferArrayGrouper) {
+                theMap.put(selectorPlus.getOutputName(), entry.getKey());
+              } else {
+                selectorPlus.getColumnSelectorStrategy().processValueFromGroupingKey(
+                    selectorPlus,
+                    (ByteBuffer) entry.getKey(),
+                    theMap
+                );
+              }
             }
 
             convertRowTypesToOutputTypes(query.getDimensions(), theMap);
@@ -343,7 +347,7 @@ public class GroupByQueryEngineV2
       }
     }
 
-    private Grouper<ByteBuffer> newGrouper()
+    private Grouper<?> newGrouper()
     {
       final AggregatorFactory[] aggregatorFactories = query.getAggregatorSpecs()
                                                            .toArray(
@@ -360,13 +364,12 @@ public class GroupByQueryEngineV2
           // Choose array-based aggregation if the grouping key is a single string dimension of a known cardinality
           if ((columnCapabilities == null || columnCapabilities.getType().equals(ValueType.STRING)) &&
               cardinality > 0) {
-            final int requiredBufferCapacity = BufferArrayGrouper2.requiredBufferCapacity(keySerde, cardinality, aggregatorFactories);
+            final int requiredBufferCapacity = BufferArrayGrouper.requiredBufferCapacity(keySerde, cardinality, aggregatorFactories);
 
             // Check that all keys and aggregated values can be contained the buffer
             if (requiredBufferCapacity < buffer.capacity()) {
-              return new BufferArrayGrouper2<>(
+              return new BufferArrayGrouper(
                   Suppliers.ofInstance(buffer),
-                  keySerde,
                   cursor,
                   aggregatorFactories,
                   cardinality
@@ -387,7 +390,7 @@ public class GroupByQueryEngineV2
       );
     }
 
-    private void aggregateSingleValueDims(Grouper<ByteBuffer> grouper)
+    private void aggregateSingleValueDims(Grouper<?> grouper)
     {
       while (!cursor.isDone()) {
         for (int i = 0; i < dims.length; i++) {
@@ -406,7 +409,7 @@ public class GroupByQueryEngineV2
       }
     }
 
-    private void aggregateMultiValueDims(Grouper<ByteBuffer> grouper)
+    private void aggregateMultiValueDims(Grouper<?> grouper)
     {
       while (!cursor.isDone()) {
         if (!currentRowWasPartiallyAggregated) {
