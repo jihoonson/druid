@@ -360,30 +360,18 @@ public class GroupByQueryEngineV2
           // Choose array-based aggregation if the grouping key is a single string dimension of a known cardinality
           if ((columnCapabilities == null || columnCapabilities.getType().equals(ValueType.STRING)) &&
               cardinality > 0) {
-//            final int keySize = BufferArrayGrouper.keySize(keySerde);
-//            final int aggValuesSize = Arrays.stream(aggregatorFactories)
-//                                            .mapToInt(AggregatorFactory::getMaxIntermediateSize)
-//                                            .sum();
-//            final int recordSize = keySize + aggValuesSize;
-//
-//            // Check that all keys and aggregated values can be contained the buffer
-//            if ((cardinality + 1 ) * recordSize < buffer.capacity()) {
-//              return new BufferArrayGrouper<>(
-//                  Suppliers.ofInstance(buffer),
-//                  keySerde,
-//                  cursor,
-//                  aggregatorFactories,
-//                  cardinality
-//              );
-//            }
+            final int requiredBufferCapacity = BufferArrayGrouper2.requiredBufferCapacity(keySerde, cardinality, aggregatorFactories);
 
-            return new BufferArrayGrouper2<>(
-                Suppliers.ofInstance(buffer),
-                keySerde,
-                cursor,
-                aggregatorFactories,
-                cardinality
-            );
+            // Check that all keys and aggregated values can be contained the buffer
+            if (requiredBufferCapacity < buffer.capacity()) {
+              return new BufferArrayGrouper2<>(
+                  Suppliers.ofInstance(buffer),
+                  keySerde,
+                  cursor,
+                  aggregatorFactories,
+                  cardinality
+              );
+            }
           }
         }
       }

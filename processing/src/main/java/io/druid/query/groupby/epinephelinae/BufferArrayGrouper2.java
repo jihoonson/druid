@@ -28,14 +28,18 @@ import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.BufferAggregator;
 import io.druid.query.groupby.epinephelinae.column.StringGroupByColumnSelectorStrategy;
 import io.druid.segment.ColumnSelectorFactory;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
 /**
  * A grouper for array-based aggregation.  The array consists of records.  The first record is to store
@@ -48,7 +52,7 @@ import java.util.stream.IntStream;
  */
 public class BufferArrayGrouper2<KeyType> implements Grouper<KeyType>
 {
-  private static final Logger LOG = new Logger(BufferArrayGrouper.class);
+  private static final Logger LOG = new Logger(BufferArrayGrouper2.class);
 
   private final Supplier<ByteBuffer> bufferSupplier;
   private final KeySerde<KeyType> keySerde;
@@ -62,11 +66,14 @@ public class BufferArrayGrouper2<KeyType> implements Grouper<KeyType>
   private ByteBuffer usedBuffer;
   private ByteBuffer valBuffer;
 
-  // TODO: required capacity
-//  static <KeyType> int keySize(KeySerde<KeyType> keySerde)
-//  {
-//    return keySerde.keySize() + USED_FLAG_SIZE;
-//  }
+  static <KeyType> int requiredBufferCapacity(KeySerde<KeyType> keySerde, int cardinality, AggregatorFactory[] aggregatorFactories)
+  {
+    final int cardinalityWithMissingVal = cardinality + 1;
+    final int recordSize = Arrays.stream(aggregatorFactories)
+                                    .mapToInt(AggregatorFactory::getMaxIntermediateSize)
+                                    .sum();
+    return keySerde.keySize() + cardinalityWithMissingVal * recordSize + (int) Math.ceil((double)(cardinalityWithMissingVal) / 8);
+  }
 
   public BufferArrayGrouper2(
       final Supplier<ByteBuffer> bufferSupplier,
@@ -173,8 +180,7 @@ public class BufferArrayGrouper2<KeyType> implements Grouper<KeyType>
   {
     final int index = dimIndex / 8;
     final int extraIndex = dimIndex % 8;
-    final byte b = usedBuffer.get(index);
-    usedBuffer.put(index, (byte) (b | 1 << extraIndex));
+    usedBuffer.put(index, (byte) (usedBuffer.get(index) | 1 << extraIndex));
 
     final int recordOffset = dimIndex * recordSize;
     for (int j = 0; j < aggregators.length; ++j) {
@@ -198,7 +204,8 @@ public class BufferArrayGrouper2<KeyType> implements Grouper<KeyType>
   {
     final int index = dimIndex / 8;
     final int extraIndex = dimIndex % 8;
-    return (usedBuffer.get(index) & 1 << extraIndex) != 0;
+    final int expected = 1 << extraIndex;
+    return (usedBuffer.get(index) & expected) == expected;
   }
 
   @Override
@@ -234,20 +241,38 @@ public class BufferArrayGrouper2<KeyType> implements Grouper<KeyType>
     // Sorted iterator is currently not used because there is no way to get grouping key's cardinality when merging
     // partial aggregation result in brokers and even data nodes (historicals and realtimes).
     // However, it should be used in the future.
-    final BufferComparator comparator = keySerde.bufferComparator();
-    final List<Integer> wrappedOffsets = IntStream.range(0, cardinality).boxed().collect(Collectors.toList());
-    wrappedOffsets.sort(
-        (lhs, rhs) -> comparator.compare(valBuffer, valBuffer, lhs, rhs)
-    );
-
-    return new ResultIterator(wrappedOffsets);
+//    final BufferComparator comparator = keySerde.bufferComparator();
+//    final List<Integer> wrappedOffsets = IntStream.range(0, cardinality)
+//                                                  .filter(this::isUsedKey)
+//                                                  .boxed()
+//                                                  .collect(Collectors.toList());
+//    wrappedOffsets.sort(
+//        (lhs, rhs) -> comparator.compare(valBuffer, valBuffer, lhs, rhs)
+//    );
+//
+//    return new ResultIterator();
+    // TODO
+    throw new UnsupportedOperationException();
   }
 
   private Iterator<Entry<KeyType>> plainIterator()
   {
-    return new ResultIterator(
-        IntStream.range(0, cardinality).boxed().collect(Collectors.toList())
-    );
+//    return new ResultIterator(
+//        IntStream.range(0, cardinality).filter(this::isUsedKey)
+//    );
+
+    return IntStream.range(0, cardinality)
+                    .filter(this::isUsedKey)
+                    .mapToObj(cur -> {
+                      keyBuffer.putInt(0, cur - 1);
+
+                      final Object[] values = new Object[aggregators.length];
+                      final int recordOffset = cur * recordSize;
+                      for (int i = 0; i < aggregators.length; i++) {
+                        values[i] = aggregators[i].get(valBuffer, recordOffset + aggregatorOffsets[i]);
+                      }
+                      return new Entry<>(keySerde.fromByteBuffer(keyBuffer, 0), values);
+                    }).iterator();
   }
 
   private class ResultIterator implements Iterator<Entry<KeyType>>
@@ -258,29 +283,18 @@ public class BufferArrayGrouper2<KeyType> implements Grouper<KeyType>
     private int cur;
     private boolean needFindNext;
 
-    ResultIterator(Collection<Integer> keyOffsets)
+    ResultIterator(IntStream keyOffsets)
     {
       keyIndexIterator = keyOffsets.iterator();
       cur = NOT_FOUND;
       needFindNext = true;
     }
 
-    private int findNextKeyIndex()
-    {
-      while (keyIndexIterator.hasNext()) {
-        final int index = keyIndexIterator.next();
-        if (isUsedKey(index)) {
-          return index;
-        }
-      }
-      return NOT_FOUND;
-    }
-
     @Override
     public boolean hasNext()
     {
       if (needFindNext) {
-        cur = findNextKeyIndex();
+        cur = keyIndexIterator.hasNext() ? keyIndexIterator.next() : NOT_FOUND;
         needFindNext = false;
       }
       return cur > NOT_FOUND;
