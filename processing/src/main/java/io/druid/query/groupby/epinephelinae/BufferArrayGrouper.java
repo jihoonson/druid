@@ -21,7 +21,6 @@ package io.druid.query.groupby.epinephelinae;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
-import com.google.common.primitives.Ints;
 import io.druid.java.util.common.IAE;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.logger.Logger;
@@ -50,7 +49,7 @@ import java.util.stream.IntStream;
 public class BufferArrayGrouper<KeyType> implements Grouper<KeyType>
 {
   private static final Logger LOG = new Logger(BufferArrayGrouper.class);
-  private static final int USED_FLAG_SIZE = Ints.BYTES;
+  private static final int USED_FLAG_SIZE = Byte.BYTES;
 
   private final Supplier<ByteBuffer> bufferSupplier;
   private final KeySerde<KeyType> keySerde;
