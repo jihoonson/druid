@@ -66,7 +66,8 @@ public class GroupByRowProcessor
       final GroupByQueryConfig config,
       final GroupByQueryResource resource,
       final ObjectMapper spillMapper,
-      final String processingTmpDir
+      final String processingTmpDir,
+      final Map<String, Object> responseContext
   )
   {
     final GroupByQuery query = (GroupByQuery) queryParam;
@@ -140,7 +141,7 @@ public class GroupByRowProcessor
 
               closeOnExit.add(temporaryStorage);
 
-              Pair<Grouper<RowBasedKey>, Accumulator<AggregateResult, Row>> pair = RowBasedGrouperHelper.createGrouperAccumulatorPair(
+              Pair<Supplier<Grouper<RowBasedKey>>, Accumulator<AggregateResult, Row>> pair = RowBasedGrouperHelper.createGrouperAccumulatorPair(
                   query,
                   true,
                   rowSignature,
@@ -158,11 +159,12 @@ public class GroupByRowProcessor
                   -1,
                   temporaryStorage,
                   spillMapper,
-                  aggregatorFactories
+                  aggregatorFactories,
+                  responseContext
               );
-              final Grouper<RowBasedKey> grouper = pair.lhs;
+              final Supplier<Grouper<RowBasedKey>> grouper = pair.lhs;
               final Accumulator<AggregateResult, Row> accumulator = pair.rhs;
-              closeOnExit.add(grouper);
+              closeOnExit.add(() -> grouper.get().close());
 
               final AggregateResult retVal = filteredSequence.accumulate(AggregateResult.ok(), accumulator);
               if (!retVal.isOk()) {
@@ -170,7 +172,7 @@ public class GroupByRowProcessor
               }
 
               return RowBasedGrouperHelper.makeGrouperIterator(
-                  grouper,
+                  grouper.get(),
                   query,
                   new Closeable()
                   {

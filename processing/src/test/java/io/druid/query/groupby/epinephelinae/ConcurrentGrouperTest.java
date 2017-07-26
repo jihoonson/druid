@@ -202,7 +202,8 @@ public class ConcurrentGrouperTest
         null,
         8,
         null,
-        false
+        false,
+        0
     );
 
     Future<?>[] futures = new Future[8];

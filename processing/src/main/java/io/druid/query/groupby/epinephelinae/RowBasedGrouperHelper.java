@@ -33,8 +33,10 @@ import com.google.common.primitives.Doubles;
 import com.google.common.primitives.Floats;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
+import io.druid.common.guava.SettableSupplier;
 import io.druid.data.input.MapBasedRow;
 import io.druid.data.input.Row;
+import io.druid.hll.HyperLogLogCollector;
 import io.druid.java.util.common.IAE;
 import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.granularity.AllGranularity;
@@ -48,6 +50,7 @@ import io.druid.query.dimension.DimensionSpec;
 import io.druid.query.groupby.GroupByQuery;
 import io.druid.query.groupby.GroupByQueryConfig;
 import io.druid.query.groupby.RowBasedColumnSelectorFactory;
+import io.druid.query.groupby.epinephelinae.Grouper.KeySerdeFactory;
 import io.druid.query.groupby.orderby.DefaultLimitSpec;
 import io.druid.query.groupby.orderby.OrderByColumnSpec;
 import io.druid.query.groupby.strategy.GroupByStrategyV2;
@@ -83,7 +86,7 @@ public class RowBasedGrouperHelper
    * been applied to the input rows yet, for example, in a nested query, if an extraction function is being
    * applied in the outer query to a field of the inner query. This method must apply those transformations.
    */
-  public static Pair<Grouper<RowBasedKey>, Accumulator<AggregateResult, Row>> createGrouperAccumulatorPair(
+  public static Pair<Supplier<Grouper<RowBasedKey>>, Accumulator<AggregateResult, Row>> createGrouperAccumulatorPair(
       final GroupByQuery query,
       final boolean isInputRaw,
       final Map<String, ValueType> rawInputRowSignature,
@@ -92,7 +95,8 @@ public class RowBasedGrouperHelper
       final int concurrencyHint,
       final LimitedTemporaryStorage temporaryStorage,
       final ObjectMapper spillMapper,
-      final AggregatorFactory[] aggregatorFactories
+      final AggregatorFactory[] aggregatorFactories,
+      final Map<String, Object> responseContext
   )
   {
     // concurrencyHint >= 1 for concurrent groupers, -1 for single-threaded
@@ -113,12 +117,14 @@ public class RowBasedGrouperHelper
 
     final boolean willApplyLimitPushDown = query.isApplyLimitPushDown();
     final DefaultLimitSpec limitSpec = willApplyLimitPushDown ? (DefaultLimitSpec) query.getLimitSpec() : null;
-    boolean sortHasNonGroupingFields = false;
+    final boolean sortHasNonGroupingFields;
     if (willApplyLimitPushDown) {
       sortHasNonGroupingFields = DefaultLimitSpec.sortingOrderHasNonGroupingFields(
           limitSpec,
           query.getDimensions()
       );
+    } else {
+      sortHasNonGroupingFields = false;
     }
 
     final Grouper.KeySerdeFactory<RowBasedKey> keySerdeFactory = new RowBasedKeySerdeFactory(
@@ -131,38 +137,40 @@ public class RowBasedGrouperHelper
         limitSpec
     );
 
-    final Grouper<RowBasedKey> grouper;
-    if (concurrencyHint == -1) {
-      grouper = new SpillingGrouper<>(
-          bufferSupplier,
-          keySerdeFactory,
-          columnSelectorFactory,
-          aggregatorFactories,
-          querySpecificConfig.getBufferGrouperMaxSize(),
-          querySpecificConfig.getBufferGrouperMaxLoadFactor(),
-          querySpecificConfig.getBufferGrouperInitialBuckets(),
-          temporaryStorage,
-          spillMapper,
-          true,
-          limitSpec,
-          sortHasNonGroupingFields
-      );
-    } else {
-      grouper = new ConcurrentGrouper<>(
-          bufferSupplier,
-          keySerdeFactory,
-          columnSelectorFactory,
-          aggregatorFactories,
-          querySpecificConfig.getBufferGrouperMaxSize(),
-          querySpecificConfig.getBufferGrouperMaxLoadFactor(),
-          querySpecificConfig.getBufferGrouperInitialBuckets(),
-          temporaryStorage,
-          spillMapper,
-          concurrencyHint,
-          limitSpec,
-          sortHasNonGroupingFields
-      );
-    }
+//    final Grouper<RowBasedKey> grouper;
+//    if (concurrencyHint == -1) {
+//      grouper = new SpillingGrouper<>(
+//          bufferSupplier,
+//          keySerdeFactory,
+//          columnSelectorFactory,
+//          aggregatorFactories,
+//          querySpecificConfig.getBufferGrouperMaxSize(),
+//          querySpecificConfig.getBufferGrouperMaxLoadFactor(),
+//          querySpecificConfig.getBufferGrouperInitialBuckets(),
+//          temporaryStorage,
+//          spillMapper,
+//          true,
+//          limitSpec,
+//          sortHasNonGroupingFields
+//      );
+//    } else {
+//      grouper = new ConcurrentGrouper<>(
+//          bufferSupplier,
+//          keySerdeFactory,
+//          columnSelectorFactory,
+//          aggregatorFactories,
+//          querySpecificConfig.getBufferGrouperMaxSize(),
+//          querySpecificConfig.getBufferGrouperMaxLoadFactor(),
+//          querySpecificConfig.getBufferGrouperInitialBuckets(),
+//          temporaryStorage,
+//          spillMapper,
+//          concurrencyHint,
+//          limitSpec,
+//          sortHasNonGroupingFields
+//      );
+//    }
+
+    final SettableSupplier<Grouper<RowBasedKey>> grouperSupplier = new SettableSupplier<>();
 
     final int keySize = includeTimestamp ? query.getDimensions().size() + 1 : query.getDimensions().size();
     final ValueExtractFunction valueExtractFn = makeValueExtractFunction(
@@ -182,6 +190,25 @@ public class RowBasedGrouperHelper
       )
       {
         BaseQuery.checkInterrupted();
+
+        Grouper<RowBasedKey> grouper = grouperSupplier.get();
+        if (grouper == null) {
+          grouperSupplier.set(createGrouper(
+              includeTimestamp,
+              concurrencyHint,
+              bufferSupplier,
+              keySerdeFactory,
+              columnSelectorFactory,
+              aggregatorFactories,
+              temporaryStorage,
+              querySpecificConfig,
+              spillMapper,
+              sortHasNonGroupingFields,
+              limitSpec,
+              responseContext
+          ));
+          grouper = grouperSupplier.get();
+        }
 
         if (priorResult != null && !priorResult.isOk()) {
           // Pass-through error returns without doing more work.
@@ -204,7 +231,72 @@ public class RowBasedGrouperHelper
       }
     };
 
-    return new Pair<>(grouper, accumulator);
+    return new Pair<>(grouperSupplier, accumulator);
+  }
+
+  public static Grouper<RowBasedKey> createGrouper(
+      final boolean includeTimestamp,
+      final int concurrencyHint,
+      final Supplier<ByteBuffer> bufferSupplier,
+      final KeySerdeFactory<RowBasedKey> keySerdeFactory,
+      final ColumnSelectorFactory columnSelectorFactory,
+      final AggregatorFactory[] aggregatorFactories,
+      final LimitedTemporaryStorage temporaryStorage,
+      final GroupByQueryConfig querySpecificConfig,
+      final ObjectMapper spillMapper,
+      final boolean sortHasNonGroupingFields,
+      final DefaultLimitSpec limitSpec,
+      final Map<String, Object> responseContext
+  )
+  {
+    final HyperLogLogCollector collector = (HyperLogLogCollector) responseContext.get(GroupByQueryEngineV2.CTX_GROUP_KEY_CARDINALITY_COLLECTOR);
+    final int cardinality;
+    if (!includeTimestamp && collector != null) {
+      cardinality = new Double(collector.estimateCardinality()).intValue();
+//      return new BufferArrayGrouper2<>(
+//          bufferSupplier,
+//          keySerdeFactory.factorize(),
+//          columnSelectorFactory,
+//          aggregatorFactories,
+//          cardinality
+//      );
+    } else {
+      cardinality = 0;
+    }
+
+    if (concurrencyHint == -1) {
+      return new SpillingGrouper<>(
+          bufferSupplier,
+          keySerdeFactory,
+          columnSelectorFactory,
+          aggregatorFactories,
+          querySpecificConfig.getBufferGrouperMaxSize(),
+          querySpecificConfig.getBufferGrouperMaxLoadFactor(),
+          querySpecificConfig.getBufferGrouperInitialBuckets(),
+          temporaryStorage,
+          spillMapper,
+          true,
+          limitSpec,
+          sortHasNonGroupingFields,
+          cardinality
+      );
+    } else {
+      return new ConcurrentGrouper<>(
+          bufferSupplier,
+          keySerdeFactory,
+          columnSelectorFactory,
+          aggregatorFactories,
+          querySpecificConfig.getBufferGrouperMaxSize(),
+          querySpecificConfig.getBufferGrouperMaxLoadFactor(),
+          querySpecificConfig.getBufferGrouperInitialBuckets(),
+          temporaryStorage,
+          spillMapper,
+          concurrencyHint,
+          limitSpec,
+          sortHasNonGroupingFields,
+          cardinality
+      );
+    }
   }
 
   private interface TimestampExtractFunction

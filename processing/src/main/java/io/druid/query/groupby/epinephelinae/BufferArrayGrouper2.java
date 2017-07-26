@@ -28,18 +28,12 @@ import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.BufferAggregator;
 import io.druid.query.groupby.epinephelinae.column.StringGroupByColumnSelectorStrategy;
 import io.druid.segment.ColumnSelectorFactory;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.ints.IntList;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 
 /**
  * A grouper for array-based aggregation.  The array consists of records.  The first record is to store
@@ -66,7 +60,7 @@ public class BufferArrayGrouper2<KeyType> implements Grouper<KeyType>
   private ByteBuffer usedBuffer;
   private ByteBuffer valBuffer;
 
-  static <KeyType> int requiredBufferCapacity(KeySerde<KeyType> keySerde, int cardinality, AggregatorFactory[] aggregatorFactories)
+  public static <KeyType> int requiredBufferCapacity(KeySerde<KeyType> keySerde, int cardinality, AggregatorFactory[] aggregatorFactories)
   {
     final int cardinalityWithMissingVal = cardinality + 1;
     final int recordSize = Arrays.stream(aggregatorFactories)
@@ -132,16 +126,11 @@ public class BufferArrayGrouper2<KeyType> implements Grouper<KeyType>
     return initialized;
   }
 
-  @Override
-  public AggregateResult aggregate(KeyType key, int dimIndex)
+  private ByteBuffer checkAndGetKey(KeyType key)
   {
-    Preconditions.checkArgument(dimIndex > -1, "Invalid dimIndex[%s]", dimIndex);
-
     final ByteBuffer fromKey = keySerde.toByteBuffer(key);
     if (fromKey == null) {
-      // This may just trigger a spill and get ignored, which is ok. If it bubbles up to the user, the message will
-      // be correct.
-      return Groupers.DICTIONARY_FULL;
+      return null;
     }
 
     if (fromKey.remaining() != keySerde.keySize()) {
@@ -150,6 +139,21 @@ public class BufferArrayGrouper2<KeyType> implements Grouper<KeyType>
           fromKey.remaining(),
           keySerde.keySize()
       );
+    }
+
+    return fromKey;
+  }
+
+  @Override
+  public AggregateResult aggregate(KeyType key, int dimIndex)
+  {
+    Preconditions.checkArgument(dimIndex > -1, "Invalid dimIndex[%s]", dimIndex);
+
+    final ByteBuffer fromKey = checkAndGetKey(key);
+    if (fromKey == null) {
+      // This may just trigger a spill and get ignored, which is ok. If it bubbles up to the user, the message will
+      // be correct.
+      return Groupers.DICTIONARY_FULL;
     }
 
     final int recordOffset = dimIndex * recordSize;
@@ -194,7 +198,14 @@ public class BufferArrayGrouper2<KeyType> implements Grouper<KeyType>
     // BufferArrayGrouper is used only for dictionary-indexed single-value string dimensions.
     // Here, the key contains the dictionary-encoded value of the grouping key
     // and we use it as the index for the aggregation array.
-    final ByteBuffer fromKey = keySerde.toByteBuffer(key);
+
+    final ByteBuffer fromKey = checkAndGetKey(key);
+    if (fromKey == null) {
+      // This may just trigger a spill and get ignored, which is ok. If it bubbles up to the user, the message will
+      // be correct.
+      return Groupers.DICTIONARY_FULL;
+    }
+
     final int dimIndex = fromKey.getInt() + 1; // the first index is for missing value
     fromKey.rewind();
     return aggregate(key, dimIndex);
@@ -252,7 +263,7 @@ public class BufferArrayGrouper2<KeyType> implements Grouper<KeyType>
 //
 //    return new ResultIterator();
     // TODO
-    throw new UnsupportedOperationException();
+    return plainIterator();
   }
 
   private Iterator<Entry<KeyType>> plainIterator()

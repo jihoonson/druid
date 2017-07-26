@@ -22,6 +22,7 @@ package io.druid.query.groupby.epinephelinae;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Function;
 import com.google.common.base.Predicates;
+import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
@@ -185,7 +186,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
                 throw new QueryInterruptedException(e);
               }
 
-              Pair<Grouper<RowBasedKey>, Accumulator<AggregateResult, Row>> pair = RowBasedGrouperHelper.createGrouperAccumulatorPair(
+              Pair<Supplier<Grouper<RowBasedKey>>, Accumulator<AggregateResult, Row>> pair = RowBasedGrouperHelper.createGrouperAccumulatorPair(
                   query,
                   false,
                   null,
@@ -194,14 +195,19 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
                   concurrencyHint,
                   temporaryStorage,
                   spillMapper,
-                  combiningAggregatorFactories
+                  combiningAggregatorFactories,
+                  responseContext
               );
-              final Grouper<RowBasedKey> grouper = pair.lhs;
+              final Supplier<Grouper<RowBasedKey>> grouper = pair.lhs;
               final Accumulator<AggregateResult, Row> accumulator = pair.rhs;
-              grouper.init();
+//              grouper.init();
 
-              final ReferenceCountingResourceHolder<Grouper<RowBasedKey>> grouperHolder =
-                  ReferenceCountingResourceHolder.fromCloseable(grouper);
+              final ReferenceCountingResourceHolder<Supplier<Grouper<RowBasedKey>>> grouperHolder =
+                  new ReferenceCountingResourceHolder<>(grouper, () -> {
+                    if (grouper.get() != null) {
+                      grouper.get().close();
+                    }
+                  });
               resources.add(grouperHolder);
 
               ListenableFuture<List<AggregateResult>> futures = Futures.allAsList(
@@ -270,7 +276,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
               }
 
               return RowBasedGrouperHelper.makeGrouperIterator(
-                  grouper,
+                  grouper.get(),
                   query,
                   new Closeable()
                   {

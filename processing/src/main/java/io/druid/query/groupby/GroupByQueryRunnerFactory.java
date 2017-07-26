@@ -73,7 +73,8 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<Row, GroupB
       {
         QueryRunner<Row> rowQueryRunner = strategySelector.strategize((GroupByQuery) queryPlus.getQuery()).mergeRunners(
             queryExecutor,
-            queryRunners
+            queryRunners,
+            responseContext
         );
         return rowQueryRunner.run(queryPlus, responseContext);
       }
@@ -105,7 +106,7 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<Row, GroupB
         throw new ISE("Got a [%s] which isn't a %s", query.getClass(), GroupByQuery.class);
       }
 
-      return strategySelector.strategize((GroupByQuery) query).process((GroupByQuery) query, adapter);
+      return strategySelector.strategize((GroupByQuery) query).process((GroupByQuery) query, adapter, responseContext);
     }
   }
 }

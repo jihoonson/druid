@@ -81,7 +81,8 @@ public class SpillingGrouper<KeyType> implements Grouper<KeyType>
       final ObjectMapper spillMapper,
       final boolean spillingAllowed,
       final DefaultLimitSpec limitSpec,
-      final boolean sortHasNonGroupingFields
+      final boolean sortHasNonGroupingFields,
+      final int cardinality
   )
   {
     this.keySerde = keySerdeFactory.factorize();
@@ -100,15 +101,25 @@ public class SpillingGrouper<KeyType> implements Grouper<KeyType>
           sortHasNonGroupingFields
       );
     } else {
-      this.grouper = new BufferHashGrouper<>(
-          bufferSupplier,
-          keySerde,
-          columnSelectorFactory,
-          aggregatorFactories,
-          bufferGrouperMaxSize,
-          bufferGrouperMaxLoadFactor,
-          bufferGrouperInitialBuckets
-      );
+//      if (bufferSupplier.get().capacity() < BufferArrayGrouper2.requiredBufferCapacity(keySerdeFactory.factorize(), cardinality, aggregatorFactories)) {
+//        this.grouper = new BufferArrayGrouper2<>(
+//            bufferSupplier,
+//            keySerdeFactory.factorize(),
+//            columnSelectorFactory,
+//            aggregatorFactories,
+//            cardinality
+//        );
+//      } else {
+        this.grouper = new BufferHashGrouper<>(
+            bufferSupplier,
+            keySerde,
+            columnSelectorFactory,
+            aggregatorFactories,
+            bufferGrouperMaxSize,
+            bufferGrouperMaxLoadFactor,
+            bufferGrouperInitialBuckets
+        );
+//      }
     }
     this.aggregatorFactories = aggregatorFactories;
     this.temporaryStorage = temporaryStorage;

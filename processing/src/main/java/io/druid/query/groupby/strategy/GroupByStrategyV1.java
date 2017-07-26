@@ -152,7 +152,7 @@ public class GroupByStrategyV1 implements GroupByStrategy
 
   @Override
   public Sequence<Row> processSubqueryResult(
-      GroupByQuery subquery, GroupByQuery query, GroupByQueryResource resource, Sequence<Row> subqueryResult
+      GroupByQuery subquery, GroupByQuery query, GroupByQueryResource resource, Sequence<Row> subqueryResult, Map<String, Object> responseContext
   )
   {
     final Set<AggregatorFactory> aggs = Sets.newHashSet();
@@ -238,7 +238,8 @@ public class GroupByStrategyV1 implements GroupByStrategy
                         outerQuery.withQuerySegmentSpec(
                             new MultipleIntervalSegmentSpec(ImmutableList.of(interval))
                         ),
-                        new IncrementalIndexStorageAdapter(innerQueryResultIndex)
+                        new IncrementalIndexStorageAdapter(innerQueryResultIndex),
+                        responseContext
                     );
                   }
                 }
@@ -258,7 +259,8 @@ public class GroupByStrategyV1 implements GroupByStrategy
   @Override
   public QueryRunner<Row> mergeRunners(
       final ListeningExecutorService exec,
-      final Iterable<QueryRunner<Row>> queryRunners
+      final Iterable<QueryRunner<Row>> queryRunners,
+      final Map<String, Object> responseContext
   )
   {
     return new GroupByMergedQueryRunner<>(exec, configSupplier, queryWatcher, bufferPool, queryRunners);
@@ -267,7 +269,8 @@ public class GroupByStrategyV1 implements GroupByStrategy
   @Override
   public Sequence<Row> process(
       final GroupByQuery query,
-      final StorageAdapter storageAdapter
+      final StorageAdapter storageAdapter,
+      final Map<String, Object> responseContext
   )
   {
     return engine.process(query, storageAdapter);

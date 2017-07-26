@@ -77,16 +77,19 @@ public interface GroupByStrategy
       GroupByQuery subquery,
       GroupByQuery query,
       GroupByQueryResource resource,
-      Sequence<Row> subqueryResult
+      Sequence<Row> subqueryResult,
+      Map<String, Object> responseContext
   );
 
   QueryRunner<Row> mergeRunners(
       ListeningExecutorService exec,
-      Iterable<QueryRunner<Row>> queryRunners
+      Iterable<QueryRunner<Row>> queryRunners,
+      Map<String, Object> responseContext
   );
 
   Sequence<Row> process(
       GroupByQuery query,
-      StorageAdapter storageAdapter
+      StorageAdapter storageAdapter,
+      Map<String, Object> responseContext
   );
 }

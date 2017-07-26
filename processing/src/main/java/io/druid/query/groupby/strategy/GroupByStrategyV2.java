@@ -300,7 +300,8 @@ public class GroupByStrategyV2 implements GroupByStrategy
       GroupByQuery subquery,
       GroupByQuery query,
       GroupByQueryResource resource,
-      Sequence<Row> subqueryResult
+      Sequence<Row> subqueryResult,
+      Map<String, Object> responseContext
   )
   {
     final Sequence<Row> results = GroupByRowProcessor.process(
@@ -310,7 +311,8 @@ public class GroupByStrategyV2 implements GroupByStrategy
         configSupplier.get(),
         resource,
         spillMapper,
-        processingConfig.getTmpDir()
+        processingConfig.getTmpDir(),
+        responseContext
     );
     return mergeResults(new QueryRunner<Row>()
     {
@@ -325,7 +327,8 @@ public class GroupByStrategyV2 implements GroupByStrategy
   @Override
   public QueryRunner<Row> mergeRunners(
       ListeningExecutorService exec,
-      Iterable<QueryRunner<Row>> queryRunners
+      Iterable<QueryRunner<Row>> queryRunners,
+      Map<String, Object> responseContext
   )
   {
     return new GroupByMergingQueryRunnerV2(
@@ -343,9 +346,10 @@ public class GroupByStrategyV2 implements GroupByStrategy
   @Override
   public Sequence<Row> process(
       GroupByQuery query,
-      StorageAdapter storageAdapter
+      StorageAdapter storageAdapter,
+      Map<String, Object> responseContext
   )
   {
-    return GroupByQueryEngineV2.process(query, storageAdapter, bufferPool, configSupplier.get());
+    return GroupByQueryEngineV2.process(query, storageAdapter, bufferPool, configSupplier.get(), responseContext);
   }
 }

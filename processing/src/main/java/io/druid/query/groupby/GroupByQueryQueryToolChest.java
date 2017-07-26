@@ -216,7 +216,7 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
         finalizingResults = subqueryResult;
       }
 
-      return groupByStrategy.processSubqueryResult(subquery, query, resource, finalizingResults);
+      return groupByStrategy.processSubqueryResult(subquery, query, resource, finalizingResults, context);
     } else {
       return groupByStrategy.mergeResults(runner, query, context);
     }

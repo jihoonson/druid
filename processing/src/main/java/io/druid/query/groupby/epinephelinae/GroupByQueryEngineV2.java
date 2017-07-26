@@ -23,10 +23,12 @@ import com.google.common.base.Function;
 import com.google.common.base.Strings;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Maps;
+import com.google.common.hash.Hashing;
 import io.druid.collections.NonBlockingPool;
 import io.druid.collections.ResourceHolder;
 import io.druid.data.input.MapBasedRow;
 import io.druid.data.input.Row;
+import io.druid.hll.HyperLogLogCollector;
 import io.druid.java.util.common.IAE;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.guava.BaseSequence;
@@ -61,7 +63,6 @@ import org.joda.time.Interval;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -91,7 +92,8 @@ public class GroupByQueryEngineV2
       final GroupByQuery query,
       final StorageAdapter storageAdapter,
       final NonBlockingPool<ByteBuffer> intermediateResultsBufferPool,
-      final GroupByQueryConfig config
+      final GroupByQueryConfig config,
+      final Map<String, Object> responseContext
   )
   {
     if (storageAdapter == null) {
@@ -160,7 +162,8 @@ public class GroupByQueryEngineV2
                                 fudgeTimestamp,
                                 createGroupBySelectorPlus(selectorPlus),
                                 storageAdapter::getDimensionCardinality,
-                                allSingleValueDims
+                                allSingleValueDims,
+                                responseContext
                             );
                           }
 
@@ -214,6 +217,8 @@ public class GroupByQueryEngineV2
     }
   }
 
+  public static final String CTX_GROUP_KEY_CARDINALITY_COLLECTOR = "groupKeyCardinalityCollector";
+
   private static class GroupByEngineIterator implements Iterator<Row>, Closeable
   {
     private final GroupByQuery query;
@@ -232,6 +237,7 @@ public class GroupByQueryEngineV2
     private CloseableGrouperIterator<ByteBuffer, Row> delegate = null;
     private final Function<String, Integer> cardinalityFunction; // dimension name -> cardinality
     private final boolean allSingleValueDims;
+    private final Map<String, Object> responseContext;
 
     public GroupByEngineIterator(
         final GroupByQuery query,
@@ -241,7 +247,8 @@ public class GroupByQueryEngineV2
         final DateTime fudgeTimestamp,
         final GroupByColumnSelectorPlus[] dims,
         final Function<String, Integer> cardinalityFunction,
-        final boolean allSingleValueDims
+        final boolean allSingleValueDims,
+        final Map<String, Object> responseContext
     )
     {
       final int dimCount = query.getDimensions().size();
@@ -260,6 +267,7 @@ public class GroupByQueryEngineV2
       this.timestamp = fudgeTimestamp != null ? fudgeTimestamp : cursor.getTime();
       this.cardinalityFunction = cardinalityFunction;
       this.allSingleValueDims = allSingleValueDims;
+      this.responseContext = responseContext;
     }
 
     private CloseableGrouperIterator<ByteBuffer, Row> initNewDelegate()
@@ -398,6 +406,8 @@ public class GroupByQueryEngineV2
               keyBuffer
           );
         }
+        final HyperLogLogCollector collector = (HyperLogLogCollector) responseContext.computeIfAbsent(CTX_GROUP_KEY_CARDINALITY_COLLECTOR, k -> HyperLogLogCollector.makeLatestCollector());
+        collector.add(Hashing.murmur3_128().hashBytes(keyBuffer.array()).asBytes());
         keyBuffer.rewind();
         if (!grouper.aggregate(keyBuffer).isOk()) {
           return;

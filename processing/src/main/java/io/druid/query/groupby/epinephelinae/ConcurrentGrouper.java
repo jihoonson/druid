@@ -65,6 +65,7 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
   private final KeySerdeFactory<KeyType> keySerdeFactory;
   private final DefaultLimitSpec limitSpec;
   private final boolean sortHasNonGroupingFields;
+  private final int cardinality;
 
   private volatile boolean initialized = false;
 
@@ -80,7 +81,8 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       final ObjectMapper spillMapper,
       final int concurrencyHint,
       final DefaultLimitSpec limitSpec,
-      final boolean sortHasNonGroupingFields
+      final boolean sortHasNonGroupingFields,
+      final int cardinality
   )
   {
     Preconditions.checkArgument(concurrencyHint > 0, "concurrencyHint > 0");
@@ -108,6 +110,7 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
     this.limitSpec = limitSpec;
     this.sortHasNonGroupingFields = sortHasNonGroupingFields;
     this.keyObjComparator = keySerdeFactory.objectComparator(sortHasNonGroupingFields);
+    this.cardinality = cardinality;
   }
 
   @Override
@@ -135,7 +138,8 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
                 spillMapper,
                 false,
                 limitSpec,
-                sortHasNonGroupingFields
+                sortHasNonGroupingFields,
+                cardinality
             );
             grouper.init();
             groupers.add(grouper);

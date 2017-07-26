@@ -48,7 +48,7 @@ public class ReferenceCountingResourceHolder<T> implements ResourceHolder<T>
   @SuppressWarnings("unused")
   private final Cleaner cleaner;
 
-  ReferenceCountingResourceHolder(final T object, final Closeable closer)
+  public ReferenceCountingResourceHolder(final T object, final Closeable closer)
   {
     this.object = object;
     this.closer = closer;
