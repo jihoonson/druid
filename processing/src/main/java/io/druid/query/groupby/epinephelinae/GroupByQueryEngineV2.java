@@ -141,7 +141,7 @@ public class GroupByQueryEngineV2
                   public Sequence<Row> apply(final Cursor cursor)
                   {
                     return new BaseSequence<>(
-                        new BaseSequence.IteratorMaker<Row, GroupByEngineIterator>()
+                        new BaseSequence.IteratorMaker<Row, GroupByEngineIterator<?>>()
                         {
                           @Override
                           public GroupByEngineIterator make()
@@ -151,14 +151,63 @@ public class GroupByQueryEngineV2
                                 query.getDimensions(),
                                 cursor
                             );
-                            return new GroupByEngineIterator(
+                            GroupByColumnSelectorPlus[] dims = createGroupBySelectorPlus(selectorPlus);
+
+                            final AggregatorFactory[] aggregatorFactories = query
+                                .getAggregatorSpecs()
+                                .toArray(new AggregatorFactory[query.getAggregatorSpecs().size()]);
+                            final ByteBuffer buffer = bufferHolder.get();
+
+                            if (!config.isForceHashAggregation()) {
+                              if (dims.length == 1) {
+                                final ColumnCapabilities columnCapabilities = cursor.getColumnCapabilities(dims[0].getName());
+                                final int cardinality = storageAdapter.getDimensionCardinality(dims[0].getName());
+
+                                // Choose array-based aggregation if the grouping key is a single string dimension of a known cardinality
+                                if ((columnCapabilities == null || columnCapabilities.getType().equals(ValueType.STRING)) &&
+                                    cardinality > 0) {
+                                  final int requiredBufferCapacity = BufferArrayGrouper.requiredBufferCapacity(cardinality, aggregatorFactories);
+
+                                  // Check that all keys and aggregated values can be contained the buffer
+                                  if (requiredBufferCapacity <= buffer.capacity()) {
+//                                    return new BufferArrayGrouper(
+//                                        Suppliers.ofInstance(buffer),
+//                                        cursor,
+//                                        aggregatorFactories,
+//                                        cardinality
+//                                    );
+
+                                    return new IntegerKeyIterator(
+                                        query,
+                                        config,
+                                        cursor,
+                                        buffer,
+                                        fudgeTimestamp,
+                                        dims,
+                                        allSingleValueDims,
+                                        cardinality
+                                    );
+                                  }
+                                }
+                              }
+                            }
+//                            return new GroupByEngineIterator(
+//                                query,
+//                                config,
+//                                cursor,
+//                                buffer,
+//                                fudgeTimestamp,
+//                                dims,
+//                                allSingleValueDims
+//                            );
+
+                            return new ByteBufferKeyIterator(
                                 query,
                                 config,
                                 cursor,
-                                bufferHolder.get(),
+                                buffer,
                                 fudgeTimestamp,
-                                createGroupBySelectorPlus(selectorPlus),
-                                storageAdapter::getDimensionCardinality,
+                                dims,
                                 allSingleValueDims
                             );
                           }
@@ -213,24 +262,22 @@ public class GroupByQueryEngineV2
     }
   }
 
-  private static class GroupByEngineIterator implements Iterator<Row>, Closeable
+  private abstract static class GroupByEngineIterator<KeyType> implements Iterator<Row>, Closeable
   {
-    private final GroupByQuery query;
-    private final GroupByQueryConfig querySpecificConfig;
-    private final Cursor cursor;
-    private final ByteBuffer buffer;
-    private final Grouper.KeySerde<ByteBuffer> keySerde;
-    private final DateTime timestamp;
-//    private final ByteBuffer keyBuffer;
-    private final int[] stack;
-    private final Object[] valuess;
-    private final GroupByColumnSelectorPlus[] dims;
+    protected final GroupByQuery query;
+    protected final GroupByQueryConfig querySpecificConfig;
+    protected final Cursor cursor;
+    protected final ByteBuffer buffer;
+    protected final Grouper.KeySerde<ByteBuffer> keySerde;
+    protected final DateTime timestamp;
+    protected final int[] stack;
+    protected final Object[] valuess;
+    protected final GroupByColumnSelectorPlus[] dims;
 
-    private int stackp = Integer.MIN_VALUE;
-    private boolean currentRowWasPartiallyAggregated = false;
-    private CloseableGrouperIterator<Integer, Row> delegate = null;
-    private final Function<String, Integer> cardinalityFunction; // dimension name -> cardinality
-    private final boolean allSingleValueDims;
+    protected int stackp = Integer.MIN_VALUE;
+    protected boolean currentRowWasPartiallyAggregated = false;
+    protected CloseableGrouperIterator<KeyType, Row> delegate = null;
+    protected final boolean allSingleValueDims;
 
     public GroupByEngineIterator(
         final GroupByQuery query,
@@ -239,7 +286,6 @@ public class GroupByQueryEngineV2
         final ByteBuffer buffer,
         final DateTime fudgeTimestamp,
         final GroupByColumnSelectorPlus[] dims,
-        final Function<String, Integer> cardinalityFunction,
         final boolean allSingleValueDims
     )
     {
@@ -257,13 +303,12 @@ public class GroupByQueryEngineV2
 
       // Time is the same for every row in the cursor
       this.timestamp = fudgeTimestamp != null ? fudgeTimestamp : cursor.getTime();
-      this.cardinalityFunction = cardinalityFunction;
       this.allSingleValueDims = allSingleValueDims;
     }
 
-    private CloseableGrouperIterator<Integer, Row> initNewDelegate()
+    private CloseableGrouperIterator<KeyType, Row> initNewDelegate()
     {
-      final Grouper<Integer> grouper = newGrouper();
+      final Grouper<KeyType> grouper = newGrouper();
       grouper.init();
 
       if (allSingleValueDims) {
@@ -286,15 +331,16 @@ public class GroupByQueryEngineV2
 //                  entry.getKey(),
 //                  theMap
 //              );
-              final int id = entry.getKey();
-              if (id != -1) {
-                theMap.put(
-                    selectorPlus.getOutputName(),
-                    ((DimensionSelector) selectorPlus.getSelector()).lookupName(id)
-                );
-              } else {
-                theMap.put(selectorPlus.getOutputName(), "");
-              }
+//              final int id = entry.getKey();
+//              if (id != -1) {
+//                theMap.put(
+//                    selectorPlus.getOutputName(),
+//                    ((DimensionSelector) selectorPlus.getSelector()).lookupName(id)
+//                );
+//              } else {
+//                theMap.put(selectorPlus.getOutputName(), "");
+//              }
+              putToMap(entry.getKey(), theMap);
             }
 
             convertRowTypesToOutputTypes(query.getDimensions(), theMap);
@@ -352,37 +398,41 @@ public class GroupByQueryEngineV2
       }
     }
 
-    private Grouper<Integer> newGrouper()
-    {
-      final AggregatorFactory[] aggregatorFactories = query
-          .getAggregatorSpecs()
-          .toArray(new AggregatorFactory[query.getAggregatorSpecs().size()]);
+    protected abstract Grouper<KeyType> newGrouper();
 
-      if (!querySpecificConfig.isForceHashAggregation()) {
-        if (dims.length == 1) {
-          final ColumnCapabilities columnCapabilities = cursor.getColumnCapabilities(dims[0].getName());
-          final int cardinality = computeCardinality(cardinalityFunction, dims[0]);
+    protected abstract boolean aggregate(Grouper<KeyType> grouper, GroupByColumnSelectorPlus[] dims);
 
-          // Choose array-based aggregation if the grouping key is a single string dimension of a known cardinality
-          if ((columnCapabilities == null || columnCapabilities.getType().equals(ValueType.STRING)) &&
-              cardinality > 0) {
-            final int requiredBufferCapacity = BufferArrayGrouper.requiredBufferCapacity(keySerde, cardinality, aggregatorFactories);
+    protected abstract void putToMap(KeyType key, Map<String, Object> map);
 
-            // Check that all keys and aggregated values can be contained the buffer
-            if (requiredBufferCapacity <= buffer.capacity()) {
-              return new BufferArrayGrouper(
-                  Suppliers.ofInstance(buffer),
-                  cursor,
-                  aggregatorFactories,
-                  cardinality
-              );
-            }
-          }
-        }
-      }
-
-      throw new UnsupportedOperationException();
-
+//    private Grouper<Integer> newGrouper()
+//    {
+//      final AggregatorFactory[] aggregatorFactories = query
+//          .getAggregatorSpecs()
+//          .toArray(new AggregatorFactory[query.getAggregatorSpecs().size()]);
+//
+//      if (!querySpecificConfig.isForceHashAggregation()) {
+//        if (dims.length == 1) {
+//          final ColumnCapabilities columnCapabilities = cursor.getColumnCapabilities(dims[0].getName());
+//          final int cardinality = computeCardinality(cardinalityFunction, dims[0]);
+//
+//          // Choose array-based aggregation if the grouping key is a single string dimension of a known cardinality
+//          if ((columnCapabilities == null || columnCapabilities.getType().equals(ValueType.STRING)) &&
+//              cardinality > 0) {
+//            final int requiredBufferCapacity = BufferArrayGrouper.requiredBufferCapacity(cardinality, aggregatorFactories);
+//
+//            // Check that all keys and aggregated values can be contained the buffer
+//            if (requiredBufferCapacity <= buffer.capacity()) {
+//              return new BufferArrayGrouper(
+//                  Suppliers.ofInstance(buffer),
+//                  cursor,
+//                  aggregatorFactories,
+//                  cardinality
+//              );
+//            }
+//          }
+//        }
+//      }
+//
 //      return new BufferHashGrouper<>(
 //          Suppliers.ofInstance(buffer),
 //          keySerde,
@@ -392,15 +442,9 @@ public class GroupByQueryEngineV2
 //          querySpecificConfig.getBufferGrouperMaxLoadFactor(),
 //          querySpecificConfig.getBufferGrouperInitialBuckets()
 //      );
-    }
+//    }
 
-    @SuppressWarnings("ConstantConditions")
-    private static int computeCardinality(Function<String, Integer> cardinalityFunction, GroupByColumnSelectorPlus dim)
-    {
-      return cardinalityFunction.apply(dim.getName());
-    }
-
-    private void aggregateSingleValueDims(Grouper<Integer> grouper)
+    private void aggregateSingleValueDims(Grouper<KeyType> grouper)
     {
       while (!cursor.isDone()) {
 //        for (int i = 0; i < dims.length; i++) {
@@ -413,7 +457,11 @@ public class GroupByQueryEngineV2
 //        }
 //        keyBuffer.rewind();
 
-        if (!grouper.aggregate((Integer) dims[0].getColumnSelectorStrategy().getOnlyValue(dims[0].getSelector())).isOk()) {
+//        if (!grouper.aggregate((Integer) dims[0].getColumnSelectorStrategy().getOnlyValue(dims[0].getSelector())).isOk()) {
+//          return;
+//        }
+
+        if (!aggregate(grouper, dims)) {
           return;
         }
         cursor.advance();
@@ -491,6 +539,118 @@ public class GroupByQueryEngineV2
 //        currentRowWasPartiallyAggregated = false;
 //      }
 //    }
+  }
+
+  private static class ByteBufferKeyIterator extends GroupByEngineIterator<ByteBuffer>
+  {
+    private final ByteBuffer keyBuffer;
+
+    public ByteBufferKeyIterator(
+        GroupByQuery query,
+        GroupByQueryConfig config,
+        Cursor cursor,
+        ByteBuffer buffer,
+        DateTime fudgeTimestamp,
+        GroupByColumnSelectorPlus[] dims,
+        boolean allSingleValueDims
+    )
+    {
+      super(query, config, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims);
+      keyBuffer = ByteBuffer.allocate(keySerde.keySize());
+    }
+
+    @Override
+    protected Grouper<ByteBuffer> newGrouper()
+    {
+      return new BufferHashGrouper<>(
+          Suppliers.ofInstance(buffer),
+          keySerde,
+          cursor,
+          query.getAggregatorSpecs()
+               .toArray(new AggregatorFactory[query.getAggregatorSpecs().size()]),
+          querySpecificConfig.getBufferGrouperMaxSize(),
+          querySpecificConfig.getBufferGrouperMaxLoadFactor(),
+          querySpecificConfig.getBufferGrouperInitialBuckets()
+      );
+    }
+
+    @Override
+    protected boolean aggregate(Grouper<ByteBuffer> grouper, GroupByColumnSelectorPlus[] dims)
+    {
+      for (int i = 0; i < dims.length; i++) {
+        final GroupByColumnSelectorStrategy strategy = dims[i].getColumnSelectorStrategy();
+        strategy.writeToKeyBuffer(
+            dims[i].getKeyBufferPosition(),
+            strategy.getOnlyValue(dims[i].getSelector()),
+            keyBuffer
+        );
+      }
+      keyBuffer.rewind();
+      return grouper.aggregate(keyBuffer).isOk();
+    }
+
+    @Override
+    protected void putToMap(ByteBuffer key, Map<String, Object> map)
+    {
+      for (GroupByColumnSelectorPlus selectorPlus : dims) {
+        selectorPlus.getColumnSelectorStrategy().processValueFromGroupingKey(
+            selectorPlus,
+            key,
+            map
+        );
+      }
+    }
+  }
+
+  private static class IntegerKeyIterator extends GroupByEngineIterator<Integer>
+  {
+    private final int cardinality;
+
+    public IntegerKeyIterator(
+        GroupByQuery query,
+        GroupByQueryConfig config,
+        Cursor cursor,
+        ByteBuffer buffer,
+        DateTime fudgeTimestamp,
+        GroupByColumnSelectorPlus[] dims,
+        boolean allSingleValueDims,
+        int cardinality
+    )
+    {
+      super(query, config, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims);
+      this.cardinality = cardinality;
+    }
+
+    @Override
+    protected Grouper<Integer> newGrouper()
+    {
+      return new BufferArrayGrouper(
+          Suppliers.ofInstance(buffer),
+          cursor,
+          query.getAggregatorSpecs()
+               .toArray(new AggregatorFactory[query.getAggregatorSpecs().size()]),
+          cardinality
+      );
+    }
+
+    @Override
+    protected boolean aggregate(Grouper<Integer> grouper, GroupByColumnSelectorPlus[] dims)
+    {
+      return grouper.aggregate((Integer) dims[0].getColumnSelectorStrategy().getOnlyValue(dims[0].getSelector())).isOk();
+    }
+
+    @Override
+    protected void putToMap(Integer key, Map<String, Object> map)
+    {
+      if (key != -1) {
+        map.put(
+            dims[0].getOutputName(),
+            ((DimensionSelector) dims[0].getSelector()).lookupName(key)
+        );
+      } else {
+        map.put(dims[0].getOutputName(), "");
+      }
+    }
   }
 
   private static void convertRowTypesToOutputTypes(List<DimensionSpec> dimensionSpecs, Map<String, Object> rowMap)

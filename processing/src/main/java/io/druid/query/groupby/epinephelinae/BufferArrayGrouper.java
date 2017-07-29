@@ -31,7 +31,7 @@ import io.druid.segment.ColumnSelectorFactory;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.stream.IntStream;
+import java.util.NoSuchElementException;
 
 /**
  * A buffer grouper for array-based aggregation.  This grouper stores aggregated values in the buffer using the grouping
@@ -66,8 +66,7 @@ public class BufferArrayGrouper implements Grouper<Integer>
   private ByteBuffer usedFlagBuffer;
   private ByteBuffer valBuffer;
 
-  static <KeyType> int requiredBufferCapacity(
-      KeySerde<KeyType> keySerde,
+  static int requiredBufferCapacity(
       int cardinality,
       AggregatorFactory[] aggregatorFactories
   )
@@ -77,7 +76,7 @@ public class BufferArrayGrouper implements Grouper<Integer>
                                  .mapToInt(AggregatorFactory::getMaxIntermediateSize)
                                  .sum();
 
-    return keySerde.keySize() +                                         // key size
+    return Integer.BYTES +                                         // key size
            (int) Math.ceil((double) cardinalityWithMissingValue / 8) +  // total used flags size
            cardinalityWithMissingValue * recordSize;                    // total values size
   }
@@ -147,6 +146,8 @@ public class BufferArrayGrouper implements Grouper<Integer>
 //      return Groupers.DICTIONARY_FULL;
 //    }
 
+   Preconditions.checkNotNull(key);
+
     // The first index is reserved for missing value which is represented by -1.
 //    final int dimIndex = fromKey.getInt() + 1;
 //    fromKey.rewind();
@@ -168,6 +169,8 @@ public class BufferArrayGrouper implements Grouper<Integer>
 //      // be correct.
 //      return Groupers.DICTIONARY_FULL;
 //    }
+
+    Preconditions.checkNotNull(key);
 
     final int recordOffset = dimIndex * recordSize;
 
@@ -234,7 +237,24 @@ public class BufferArrayGrouper implements Grouper<Integer>
   public void reset()
   {
     final int usedBufferCapacity = usedFlagBuffer.capacity();
-    for (int i = 0; i < usedBufferCapacity; i++) {
+//    for (int i = 0; i < usedBufferCapacity; i++) {
+//      usedFlagBuffer.put(i, (byte) 0);
+//    }
+
+    final int n = usedBufferCapacity / 8;
+
+    for (int i = 0; i < n; i += 8) {
+      usedFlagBuffer.putLong(i, 0L);
+//      usedFlagBuffer.putLong(i + 8, 0L);
+//      usedFlagBuffer.putLong(i + 16, 0L);
+//      usedFlagBuffer.putLong(i + 24, 0L);
+//      usedFlagBuffer.putLong(i + 32, 0L);
+//      usedFlagBuffer.putLong(i + 40, 0L);
+//      usedFlagBuffer.putLong(i + 48, 0L);
+//      usedFlagBuffer.putLong(i + 56, 0L);
+    }
+
+    for (int i = n; i < usedBufferCapacity; i++) {
       usedFlagBuffer.put(i, (byte) 0);
     }
   }
@@ -256,18 +276,65 @@ public class BufferArrayGrouper implements Grouper<Integer>
   public Iterator<Entry<Integer>> iterator(boolean sorted)
   {
     // result is always natually sorted by keys
-    return IntStream.range(0, cardinalityWithMissingValue)
-                    .filter(this::isUsedSlot)
-                    .mapToObj(index -> {
-//                      keyBuffer.putInt(0, index - 1); // Restore key values from the index
+//    return IntStream.range(0, cardinalityWithMissingValue)
+//                    .filter(this::isUsedSlot)
+//                    .mapToObj(index -> {
+////                      keyBuffer.putInt(0, index - 1); // Restore key values from the index
+//
+//                      final Object[] values = new Object[aggregators.length];
+//                      final int recordOffset = index * recordSize;
+//                      for (int i = 0; i < aggregators.length; i++) {
+//                        values[i] = aggregators[i].get(valBuffer, recordOffset + aggregatorOffsets[i]);
+//                      }
+////                      return new Entry<>(keySerde.fromByteBuffer(keyBuffer, 0), values);
+//                      return new Entry<>(index - 1, values);
+//                    }).iterator();
 
-                      final Object[] values = new Object[aggregators.length];
-                      final int recordOffset = index * recordSize;
-                      for (int i = 0; i < aggregators.length; i++) {
-                        values[i] = aggregators[i].get(valBuffer, recordOffset + aggregatorOffsets[i]);
-                      }
-//                      return new Entry<>(keySerde.fromByteBuffer(keyBuffer, 0), values);
-                      return new Entry<>(index - 1, values);
-                    }).iterator();
+    return new Iterator<Entry<Integer>>()
+    {
+      int cur = -1;
+      boolean findNext = false;
+
+      {
+        cur = findNext();
+      }
+
+      @Override
+      public boolean hasNext()
+      {
+        if (findNext) {
+          cur = findNext();
+          findNext = false;
+        }
+        return cur != -1;
+      }
+
+      private int findNext()
+      {
+        for (int i = cur + 1; i < cardinalityWithMissingValue; i++) {
+          if (isUsedSlot(i)) {
+            return i;
+          }
+        }
+        return -1;
+      }
+
+      @Override
+      public Entry<Integer> next()
+      {
+        if (cur == -1) {
+          throw new NoSuchElementException();
+        }
+
+        findNext = true;
+
+        final Object[] values = new Object[aggregators.length];
+        final int recordOffset = cur * recordSize;
+        for (int i = 0; i < aggregators.length; i++) {
+          values[i] = aggregators[i].get(valBuffer, recordOffset + aggregatorOffsets[i]);
+        }
+        return new Entry<>(cur - 1, values);
+      }
+    };
   }
 }
