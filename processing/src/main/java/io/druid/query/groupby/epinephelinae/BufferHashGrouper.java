@@ -26,14 +26,10 @@ import io.druid.java.util.common.IAE;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.segment.ColumnSelectorFactory;
-import it.unimi.dsi.fastutil.ints.IntComparator;
+import it.unimi.dsi.fastutil.ints.AbstractIntComparator;
 
 import java.nio.ByteBuffer;
-import java.util.AbstractList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 
 public class BufferHashGrouper<KeyType> extends AbstractBufferHashGrouper<KeyType>
@@ -168,24 +164,18 @@ public class BufferHashGrouper<KeyType> extends AbstractBufferHashGrouper<KeyTyp
       final int[] offsets = offsetList.toArray();
 
       // Sort offsets in-place.
-      IntTimSort.sort(offsets, new IntComparator()
+      IntTimSort.sort(offsets, new AbstractIntComparator()
       {
         @Override
         public int compare(int lhs, int rhs)
         {
           final ByteBuffer tableBuffer = hashTable.getTableBuffer();
-              return comparator.compare(
-                  tableBuffer,
-                  tableBuffer,
-                  lhs + HASH_SIZE,
-                  rhs + HASH_SIZE
-              );
-        }
-
-        @Override
-        public int compare(Integer o1, Integer o2)
-        {
-          return compare(o1.intValue(), o2.intValue());
+          return comparator.compare(
+              tableBuffer,
+              tableBuffer,
+              lhs + HASH_SIZE,
+              rhs + HASH_SIZE
+          );
         }
       });
 

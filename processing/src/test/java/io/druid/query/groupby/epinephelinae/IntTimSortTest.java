@@ -19,13 +19,11 @@
 
 package io.druid.query.groupby.epinephelinae;
 
-import it.unimi.dsi.fastutil.ints.IntComparator;
+import it.unimi.dsi.fastutil.ints.AbstractIntComparator;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.concurrent.ThreadLocalRandom;
-
-import static org.junit.Assert.*;
 
 public class IntTimSortTest
 {
@@ -44,18 +42,12 @@ public class IntTimSortTest
       values[i] = random.nextInt(valueCardinality);
     }
 
-    IntTimSort.sort(indexes, new IntComparator()
+    IntTimSort.sort(indexes, new AbstractIntComparator()
     {
       @Override
       public int compare(int k1, int k2)
       {
         return Integer.compare(values[k1], values[k2]);
-      }
-
-      @Override
-      public int compare(Integer o1, Integer o2)
-      {
-        return compare(o1.intValue(), o2.intValue());
       }
     });
 
