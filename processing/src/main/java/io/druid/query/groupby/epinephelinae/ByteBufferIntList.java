@@ -77,4 +77,13 @@ public class ByteBufferIntList
   {
     numElements = 0;
   }
+
+  public int[] toArray()
+  {
+    final int[] array = new int[numElements];
+    for (int i = 0; i < numElements; i++) {
+      array[i] = get(i);
+    }
+    return array;
+  }
 }

@@ -26,6 +26,7 @@ import io.druid.java.util.common.IAE;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.segment.ColumnSelectorFactory;
+import it.unimi.dsi.fastutil.ints.IntComparator;
 
 import java.nio.ByteBuffer;
 import java.util.AbstractList;
@@ -163,49 +164,30 @@ public class BufferHashGrouper<KeyType> extends AbstractBufferHashGrouper<KeyTyp
     }
 
     if (sorted) {
-      final List<Integer> wrappedOffsets = new AbstractList<Integer>()
-      {
-        @Override
-        public Integer get(int index)
-        {
-          return offsetList.get(index);
-        }
-
-        @Override
-        public Integer set(int index, Integer element)
-        {
-          final Integer oldValue = get(index);
-          offsetList.set(index, element);
-          return oldValue;
-        }
-
-        @Override
-        public int size()
-        {
-          return hashTable.getSize();
-        }
-      };
-
       final BufferComparator comparator = keySerde.bufferComparator();
+      final int[] offsets = offsetList.toArray();
 
       // Sort offsets in-place.
-      Collections.sort(
-          wrappedOffsets,
-          new Comparator<Integer>()
-          {
-            @Override
-            public int compare(Integer lhs, Integer rhs)
-            {
-              final ByteBuffer tableBuffer = hashTable.getTableBuffer();
+      IntTimSort.sort(offsets, new IntComparator()
+      {
+        @Override
+        public int compare(int lhs, int rhs)
+        {
+          final ByteBuffer tableBuffer = hashTable.getTableBuffer();
               return comparator.compare(
                   tableBuffer,
                   tableBuffer,
                   lhs + HASH_SIZE,
                   rhs + HASH_SIZE
               );
-            }
-          }
-      );
+        }
+
+        @Override
+        public int compare(Integer o1, Integer o2)
+        {
+          return compare(o1.intValue(), o2.intValue());
+        }
+      });
 
       return new Iterator<Entry<KeyType>>()
       {
@@ -224,7 +206,7 @@ public class BufferHashGrouper<KeyType> extends AbstractBufferHashGrouper<KeyTyp
           if (curr >= size) {
             throw new NoSuchElementException();
           }
-          return bucketEntryForOffset(wrappedOffsets.get(curr++));
+          return bucketEntryForOffset(offsets[curr++]);
         }
 
         @Override
