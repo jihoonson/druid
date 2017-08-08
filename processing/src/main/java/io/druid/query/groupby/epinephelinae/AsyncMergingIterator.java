@@ -45,7 +45,7 @@ public class AsyncMergingIterator<T> implements Iterator<T>
   private final Condition notFull;
   private final Condition notEmpty;
 
-  public AsyncMergingIterator(
+  AsyncMergingIterator(
       ExecutorService exec,
       int priority,
       List<Iterator<T>> sourceIterators,

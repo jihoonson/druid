@@ -25,7 +25,10 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
 import java.util.PrimitiveIterator;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.IntStream;
@@ -41,7 +44,7 @@ public class AsyncMergingIteratorTest
   }
 
   @Test
-  public void test()
+  public void testMerge()
   {
     final int numVals = 10000;
     final PrimitiveIterator.OfInt oddIterator = IntStream.range(0, numVals).map(i -> i * 2 + 1).iterator();
@@ -58,6 +61,32 @@ public class AsyncMergingIteratorTest
     while (mergingIterator.hasNext()) {
       Assert.assertEquals(expectedValue++, mergingIterator.next());
     }
+    Assert.assertEquals(expectedValue, numVals * 2);
   }
 
+  @Test
+  public void testMultiLevelMerge()
+  {
+    final int numVals = 10000;
+
+    final List<Iterator<Integer>> iterators = new ArrayList<>();
+    for (int i = 0; i < 5; i++) {
+      final int r = i;
+      iterators.add(IntStream.range(0, numVals).map(v -> v * 5 + r).iterator());
+    }
+
+    final Iterator<Integer> iterator = Groupers.parallalMergeIterators(
+        exec,
+        0,
+        0,
+        iterators,
+        Comparator.comparingInt(i -> i)
+    );
+
+    int expectedValue = 0;
+    while (iterator.hasNext()) {
+      Assert.assertEquals(expectedValue++, iterator.next().intValue());
+    }
+    Assert.assertEquals(expectedValue, numVals * 5);
+  }
 }

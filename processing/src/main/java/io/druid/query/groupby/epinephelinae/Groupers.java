@@ -21,8 +21,11 @@ package io.druid.query.groupby.epinephelinae;
 
 import com.google.common.collect.Iterators;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 public class Groupers
 {
@@ -80,17 +83,53 @@ public class Groupers
     if (keyTypeComparator != null) {
       return Iterators.mergeSorted(
           iterators,
-          new Comparator<Grouper.Entry<KeyType>>()
-          {
-            @Override
-            public int compare(Grouper.Entry<KeyType> lhs, Grouper.Entry<KeyType> rhs)
-            {
-              return keyTypeComparator.compare(lhs, rhs);
-            }
-          }
+          keyTypeComparator
       );
     } else {
       return Iterators.concat(iterators.iterator());
+    }
+  }
+
+  public static <T> AsyncMergingIterator<T> asyncMergeSorted(
+      ExecutorService exec,
+      int priority,
+      List<Iterator<T>> sortedIterators,
+      Comparator<T> comparator
+  )
+  {
+    return new AsyncMergingIterator<>(exec, priority, sortedIterators, comparator);
+  }
+
+  private static final int MERGE_TREE_FANOUT = 2;
+
+  public static <T> Iterator<T> parallalMergeIterators(
+      ExecutorService exec,
+      int concurrencyHint, // TODO
+      int priority,
+      List<Iterator<T>> sortedIterators,
+      Comparator<T> comparator
+  )
+  {
+    if (sortedIterators.size() == 1) {
+      return sortedIterators.get(0);
+    } else if (sortedIterators.size() <= MERGE_TREE_FANOUT) {
+      return asyncMergeSorted(exec, priority, sortedIterators, comparator);
+    } else {
+      final int numIteratorsPerGroup = (sortedIterators.size() + MERGE_TREE_FANOUT - 1) / MERGE_TREE_FANOUT; // ceil
+
+      final List<Iterator<T>> childIterators = new ArrayList<>(MERGE_TREE_FANOUT);
+      for (int i = 0; i < sortedIterators.size(); i += numIteratorsPerGroup) {
+        childIterators.add(
+            parallalMergeIterators(
+                exec,
+                concurrencyHint,
+                priority,
+                sortedIterators.subList(i, Math.min(sortedIterators.size(), i + numIteratorsPerGroup)),
+                comparator
+            )
+        );
+      }
+      return asyncMergeSorted(exec, priority, childIterators, comparator);
     }
   }
 }
