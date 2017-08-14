@@ -26,6 +26,7 @@ import io.druid.java.util.common.io.Closer;
 
 import java.io.IOException;
 import java.util.PriorityQueue;
+import java.util.Queue;
 
 /**
  */
@@ -94,8 +95,8 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
     return makeYielder(pQueue, initValue, accumulator);
   }
 
-  private <OutType> Yielder<OutType> makeYielder(
-      final PriorityQueue<Yielder<T>> pQueue,
+  static <T, OutType> Yielder<OutType> makeYielder(
+      final Queue<Yielder<T>> pQueue,
       OutType initVal,
       final YieldingAccumulator<OutType, T> accumulator
   )

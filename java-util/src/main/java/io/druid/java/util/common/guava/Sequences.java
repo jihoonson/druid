@@ -23,6 +23,8 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Ordering;
+import io.druid.java.util.common.guava.nary.BinaryFn;
 
 import java.io.Closeable;
 import java.util.Arrays;
@@ -31,6 +33,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 /**
  */
@@ -78,6 +81,32 @@ public class Sequences
   public static <T> Sequence<T> concat(Sequence<? extends Sequence<T>> sequences)
   {
     return new ConcatSequence<>(sequences);
+  }
+
+  public static <T> Sequence<T> combine(
+      Sequence<T> baseSequence,
+      Ordering<T> ordering,
+      BinaryFn<T, T, T> mergeFn
+  )
+  {
+    return CombiningSequence.create(baseSequence, ordering, mergeFn);
+  }
+
+  public static <T> Sequence<T> merge(
+      Ordering<T> ordering,
+      Sequence<? extends Sequence<T>> sequences
+  )
+  {
+    return new MergeSequence<>(ordering, sequences);
+  }
+
+  public static <T> Sequence<T> parallelMerge(
+      ExecutorService exec,
+      Ordering<T> ordering,
+      Sequence<? extends Sequence<T>> sequences
+  )
+  {
+    return new ParallelMergeSequence<>(exec, ordering, sequences);
   }
 
   public static <From, To> Sequence<To> map(Sequence<From> sequence, Function<? super From, ? extends To> fn)

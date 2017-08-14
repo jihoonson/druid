@@ -17,14 +17,9 @@
  * under the License.
  */
 
-package io.druid.common.guava;
+package io.druid.java.util.common.guava;
 
 import com.google.common.collect.Ordering;
-import io.druid.java.util.common.guava.Accumulator;
-import io.druid.java.util.common.guava.Sequence;
-import io.druid.java.util.common.guava.Yielder;
-import io.druid.java.util.common.guava.Yielders;
-import io.druid.java.util.common.guava.YieldingAccumulator;
 import io.druid.java.util.common.guava.nary.BinaryFn;
 
 import java.io.IOException;
@@ -60,7 +55,7 @@ public class CombiningSequence<T> implements Sequence<T>
   @Override
   public <OutType> OutType accumulate(OutType initValue, final Accumulator<OutType, T> accumulator)
   {
-    final CombiningAccumulator<OutType> combiningAccumulator = new CombiningAccumulator<>(initValue, accumulator);
+    final CombiningAccumulator<OutType, T> combiningAccumulator = new CombiningAccumulator<>(initValue, accumulator, ordering, mergeFn);
     T lastValue = baseSequence.accumulate(null, combiningAccumulator);
     if (combiningAccumulator.accumulatedSomething()) {
       return accumulator.accumulate(combiningAccumulator.retVal, lastValue);
@@ -233,22 +228,36 @@ public class CombiningSequence<T> implements Sequence<T>
     }
   }
 
-  private class CombiningAccumulator<OutType> implements Accumulator<T, T>
+  public static class CombiningAccumulator<OutType, T> implements Accumulator<T, T>
   {
     private OutType retVal;
     private final Accumulator<OutType, T> accumulator;
+    private final Ordering<T> ordering;
+    private final BinaryFn<T, T, T> mergeFn;
 
     private volatile boolean accumulatedSomething = false;
 
-    CombiningAccumulator(OutType retVal, Accumulator<OutType, T> accumulator)
+    CombiningAccumulator(
+        OutType retVal,
+        Accumulator<OutType, T> accumulator,
+        Ordering<T> ordering,
+        BinaryFn<T, T, T> mergeFn
+    )
     {
       this.retVal = retVal;
       this.accumulator = accumulator;
+      this.ordering = ordering;
+      this.mergeFn = mergeFn;
     }
 
     boolean accumulatedSomething()
     {
       return accumulatedSomething;
+    }
+
+    public OutType getRetVal()
+    {
+      return retVal;
     }
 
     @Override

@@ -20,6 +20,7 @@
 package io.druid.java.util.common.guava;
 
 import com.google.common.collect.Ordering;
+import io.druid.java.util.common.guava.nary.BinaryFn;
 
 import java.io.Closeable;
 import java.util.concurrent.Executor;
@@ -82,6 +83,14 @@ public interface Sequence<T>
   )
   {
     return new MergeSequence<>(ordering, this.map(mapper));
+  }
+
+  default Sequence<T> combine(
+      Ordering<T> ordering,
+      BinaryFn<T, T, T> mergeFn
+  )
+  {
+    return CombiningSequence.create(this, ordering, mergeFn);
   }
 
   default Sequence<T> withEffect(Runnable effect, Executor effectExecutor)
