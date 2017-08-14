@@ -160,6 +160,7 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
                 sortHasNonGroupingFields
             );
             grouper.init();
+            grouper.setSpillingAllowed(true);
             groupers.add(grouper);
           }
 
@@ -186,27 +187,30 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       throw new ISE("Grouper is closed");
     }
 
-    if (!spilling) {
-      final SpillingGrouper<KeyType> hashBasedGrouper = groupers.get(grouperNumberForKeyHash(keyHash));
+//    if (!spilling) {
+//      final SpillingGrouper<KeyType> hashBasedGrouper = groupers.get(grouperNumberForKeyHash(keyHash));
+//
+//      synchronized (hashBasedGrouper) {
+//        if (!spilling) {
+//          if (hashBasedGrouper.aggregate(key, keyHash).isOk()) {
+//            return AggregateResult.ok();
+//          } else {
+//            spilling = true;
+//          }
+//        }
+//      }
+//    }
+//
+//    // At this point we know spilling = true
+//    final SpillingGrouper<KeyType> tlGrouper = threadLocalGrouper.get();
+//
+//    synchronized (tlGrouper) {
+//      tlGrouper.setSpillingAllowed(true);
+//      return tlGrouper.aggregate(key, keyHash);
+//    }
 
-      synchronized (hashBasedGrouper) {
-        if (!spilling) {
-          if (hashBasedGrouper.aggregate(key, keyHash).isOk()) {
-            return AggregateResult.ok();
-          } else {
-            spilling = true;
-          }
-        }
-      }
-    }
-
-    // At this point we know spilling = true
     final SpillingGrouper<KeyType> tlGrouper = threadLocalGrouper.get();
-
-    synchronized (tlGrouper) {
-      tlGrouper.setSpillingAllowed(true);
-      return tlGrouper.aggregate(key, keyHash);
-    }
+    return tlGrouper.aggregate(key, keyHash);
   }
 
   @Override

@@ -116,10 +116,10 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 30)
 public class GroupByBenchmark
 {
-  @Param({"4"})
+  @Param({"8"})
   private int numSegments;
 
-  @Param({"2", "4"})
+  @Param({"8"})
   private int numProcessingThreads;
 
   @Param({"-1"})
@@ -128,13 +128,13 @@ public class GroupByBenchmark
   @Param({"100000"})
   private int rowsPerSegment;
 
-  @Param({"basic.A", "basic.nested"})
+  @Param({"basic.A"})
   private String schemaAndQuery;
 
-  @Param({"v1", "v2"})
+  @Param({"v2"})
   private String defaultStrategy;
 
-  @Param({"all", "day"})
+  @Param({"all"})
   private String queryGranularity;
 
   private static final Logger log = new Logger(GroupByBenchmark.class);
@@ -190,8 +190,8 @@ public class GroupByBenchmark
           .setDataSource("blah")
           .setQuerySegmentSpec(intervalSpec)
           .setDimensions(Lists.<DimensionSpec>newArrayList(
-              new DefaultDimensionSpec("dimSequential", null),
-              new DefaultDimensionSpec("dimZipf", null)
+              new DefaultDimensionSpec("dimSequential", null)
+//              new DefaultDimensionSpec("dimZipf", null)
               //new DefaultDimensionSpec("dimUniform", null),
               //new DefaultDimensionSpec("dimSequentialHalfNull", null)
               //new DefaultDimensionSpec("dimMultivalEnumerated", null), //multival dims greatly increase the running time, disable for now
@@ -634,7 +634,7 @@ public class GroupByBenchmark
     }
   }
 
-  @Benchmark
+//  @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void queryMultiQueryableIndexWithSpilling(Blackhole blackhole) throws Exception
@@ -658,7 +658,7 @@ public class GroupByBenchmark
     }
   }
 
-  @Benchmark
+//  @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void queryMultiQueryableIndexWithSerde(Blackhole blackhole) throws Exception

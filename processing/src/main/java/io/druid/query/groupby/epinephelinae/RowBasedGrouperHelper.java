@@ -72,6 +72,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -899,8 +900,8 @@ public class RowBasedGrouperHelper
     private final int dimCount;
     private final int keySize;
     private final ByteBuffer keyBuffer;
-    private final List<String> dictionary = Lists.newArrayList();
-    private final Map<String, Integer> reverseDictionary = Maps.newHashMap();
+    private final List<String> dictionary = new ArrayList<>(10000);
+    private final Map<String, Integer> reverseDictionary = new HashMap<>(10000);
     private final List<RowBasedKeySerdeHelper> serdeHelpers;
     private final DefaultLimitSpec limitSpec;
     private final List<ValueType> valueTypes;
@@ -997,14 +998,25 @@ public class RowBasedGrouperHelper
     public Grouper.BufferComparator bufferComparator()
     {
       if (sortableIds == null) {
-        Map<String, Integer> sortedMap = Maps.newTreeMap();
-        for (int id = 0; id < dictionary.size(); id++) {
-          sortedMap.put(dictionary.get(id), id);
+//        Map<String, Integer> sortedMap = Maps.newTreeMap();
+//        for (int id = 0; id < dictionary.size(); id++) {
+//          sortedMap.put(dictionary.get(id), id);
+//        }
+
+        final Pair<String, Integer>[] clone = new Pair[dictionary.size()];
+        for (int i = 0; i < dictionary.size(); i++) {
+          clone[i] = new Pair<>(dictionary.get(i), i);
         }
+        Arrays.sort(clone, Comparator.comparing(p -> p.lhs));
+
         sortableIds = new int[dictionary.size()];
+//        int index = 0;
+//        for (final Integer id : sortedMap.values()) {
+//          sortableIds[id] = index++;
+//        }
         int index = 0;
-        for (final Integer id : sortedMap.values()) {
-          sortableIds[id] = index++;
+        for (Pair<String, Integer> pair : clone) {
+          sortableIds[pair.rhs] = index++;
         }
       }
 

@@ -19,32 +19,30 @@
 
 package io.druid.java.util.common.guava;
 
-import com.google.common.base.Throwables;
 import com.google.common.collect.Ordering;
+import io.druid.java.util.common.io.Closer;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.PriorityQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
 
 public class ParallelMergeSequence<T> extends YieldingSequenceBase<T>
 {
   private final ExecutorService exec;
   private final Ordering<T> ordering;
-//  private final List<Sequence<T>> baseSequences;
   private final Sequence<? extends Sequence<T>> baseSequences;
 
   public ParallelMergeSequence(
       ExecutorService exec,
       Ordering<T> ordering,
-//      List<Sequence<T>> baseSequences
       Sequence<? extends Sequence<? extends T>> baseSequences
   )
   {
     this.exec = exec;
     this.ordering = ordering;
-//    this.baseSequences = baseSequences;
     this.baseSequences = (Sequence<? extends Sequence<T>>) baseSequences;
   }
 
@@ -58,55 +56,10 @@ public class ParallelMergeSequence<T> extends YieldingSequenceBase<T>
         ordering.onResultOf(Yielder::get)
     );
 
-//    baseSequences.forEach(
-//        sequence -> {
-//          final Yielder<T> yielder = new AsyncYielder<>(
-//              exec,
-//              sequence.toYielder(
-//                  null,
-//                  new YieldingAccumulator<T, T>()
-//                  {
-//                    @Override
-//                    public T accumulate(T accumulated, T in)
-//                    {
-//                      yield();
-//                      return in;
-//                    }
-//                  }
-//              )
-//          );
-//
-//          if (!yielder.isDone()) {
-//            pQueue.add(yielder);
-//          } else {
-//            try {
-//              yielder.close();
-//            }
-//            catch (IOException e) {
-//              throw new RuntimeException(e);
-//            }
-//          }
-//        }
-//    );
-
     baseSequences.accumulate(
         pQueue,
         (queue, in) -> {
-          final Yielder<T> yielder = new AsyncYielder<T>(
-            exec,
-            in.toYielder(
-                null,
-                new YieldingAccumulator<T, T>()
-                {
-                  @Override
-                  public T accumulate(T accumulated, T in)
-                  {
-                    yield();
-                    return in;
-                  }
-                }
-            )
-          );
+          final Yielder<T> yielder = new AsyncYielder<>(exec, in);
 
           if (!yielder.isDone()) {
             queue.add(yielder);
@@ -128,15 +81,18 @@ public class ParallelMergeSequence<T> extends YieldingSequenceBase<T>
 
   private static class AsyncYielder<T> implements Yielder<T>
   {
+    private static final int MAX_BUFFER_SIZE = 1024;
     private final LinkedBlockingDeque<Yielder<T>> buffer;
     private final ExecutorService exec;
     private final Yielder<T> value;
 
-    AsyncYielder(ExecutorService exec, Yielder<T> baseYielder)
+    private final Future<Yielder<T>> fillFuture;
+
+    AsyncYielder(ExecutorService exec, Sequence<T> baseSequence)
     {
-      this.buffer = new LinkedBlockingDeque<>();
+      this.buffer = new LinkedBlockingDeque<>(MAX_BUFFER_SIZE);
       this.exec = exec;
-      fillBuffer(baseYielder);
+      this.fillFuture = fillBuffer(baseSequence);
       try {
         this.value = buffer.take();
       }
@@ -145,10 +101,20 @@ public class ParallelMergeSequence<T> extends YieldingSequenceBase<T>
       }
     }
 
-    AsyncYielder(LinkedBlockingDeque<Yielder<T>> buffer, ExecutorService exec)
+    AsyncYielder(LinkedBlockingDeque<Yielder<T>> buffer, ExecutorService exec, Future<Yielder<T>> fillFuture)
     {
       this.buffer = buffer;
       this.exec = exec;
+      if (fillFuture.isDone() && buffer.size() < MAX_BUFFER_SIZE / 2) {
+        try {
+          this.fillFuture = fillBuffer(fillFuture.get());
+        }
+        catch (InterruptedException | ExecutionException e) {
+          throw new RuntimeException(e);
+        }
+      } else {
+        this.fillFuture = fillFuture;
+      }
       try {
         this.value = this.buffer.take();
       }
@@ -157,34 +123,60 @@ public class ParallelMergeSequence<T> extends YieldingSequenceBase<T>
       }
     }
 
-    private void fillBuffer(Yielder<T> yielder)
+    private Future<Yielder<T>> fillBuffer(Sequence<T> baseSequence)
     {
-      exec.submit(() -> {
-        Yielder<T> baseYielder = yielder;
-        while (!baseYielder.isDone()) {
+      return exec.submit(() -> {
+        Yielder<T> baseYielder = baseSequence.toYielder(
+            null,
+            new YieldingAccumulator<T, T>()
+            {
+              @Override
+              public T accumulate(T accumulated, T in)
+              {
+                yield();
+                return in;
+              }
+            }
+        );
+        final int availableSpace = MAX_BUFFER_SIZE - buffer.size();
+        for (int i = 0; i < availableSpace; i++) {
           try {
-            buffer.put(baseYielder);
-            baseYielder = baseYielder.next(null);
+            if (baseYielder.isDone()) {
+              buffer.put(Yielders.done(null, baseYielder));
+              break;
+            } else {
+              buffer.put(baseYielder);
+              baseYielder = baseYielder.next(null);
+            }
           }
           catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
-          finally {
-            try {
-              baseYielder.close();
-            }
-            catch (IOException e) {
-              throw Throwables.propagate(e);
+        }
+        return baseYielder;
+      });
+    }
+
+    private Future<Yielder<T>> fillBuffer(Yielder<T> yielder)
+    {
+      return exec.submit(() -> {
+        Yielder<T> baseYielder = yielder;
+        final int availableSpace = MAX_BUFFER_SIZE - buffer.size();
+        for (int i = 0; i < availableSpace; i++) {
+          try {
+            if (baseYielder.isDone()) {
+              buffer.put(Yielders.done(null, baseYielder));
+              break;
+            } else {
+              buffer.put(baseYielder);
+              baseYielder = baseYielder.next(null);
             }
           }
+          catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
         }
-
-        try {
-          buffer.put(Yielders.done(null, baseYielder));
-        }
-        catch (InterruptedException e) {
-          throw new RuntimeException(e);
-        }
+        return baseYielder;
       });
     }
 
@@ -197,7 +189,7 @@ public class ParallelMergeSequence<T> extends YieldingSequenceBase<T>
     @Override
     public Yielder<T> next(T initValue)
     {
-      return new AsyncYielder<>(buffer, exec);
+      return new AsyncYielder<>(buffer, exec, fillFuture);
     }
 
     @Override
@@ -209,6 +201,13 @@ public class ParallelMergeSequence<T> extends YieldingSequenceBase<T>
     @Override
     public void close() throws IOException
     {
+      // TODO: check?
+      final Closer closer = Closer.create();
+      closer.register(value);
+      while (!buffer.isEmpty()) {
+        closer.register(buffer.poll());
+      }
+      closer.close();
     }
   }
 }

@@ -54,14 +54,14 @@ import java.util.stream.IntStream;
 public class CombiningSequenceBenchmark
 {
   // Number of Sequences to Merge
-  @Param({"8"})
+  @Param({"64"})
   int count;
 
   // Number of elements in each sequence
   @Param({"1000000"})
   int sequenceLength;
 
-  private List<Sequence<Pair<Integer, Integer>>> sequences;
+  private Sequence<Sequence<Pair<Integer, Integer>>> sequences;
   private ExecutorService exec;
 
   private static final BinaryFn<Pair<Integer, Integer>, Pair<Integer, Integer>, Pair<Integer, Integer>> mergeFn = (pair1, pair2) -> {
@@ -82,10 +82,10 @@ public class CombiningSequenceBenchmark
   public void setup()
   {
     Random rand = new Random(0);
-    sequences = Lists.newArrayList();
+    final List<Sequence<Pair<Integer, Integer>>> sequenceList = Lists.newArrayList();
 
     for (int i = 0; i < count; i++) {
-      sequences.add(
+      sequenceList.add(
           Sequences.simple(
               IntStream.range(0, sequenceLength)
                        .mapToObj(unused -> new Pair<>(rand.nextInt(10000), rand.nextInt()))
@@ -96,6 +96,7 @@ public class CombiningSequenceBenchmark
     }
 
     exec = Executors.newFixedThreadPool(8);
+    sequences = Sequences.simple(sequenceList);
   }
 
   @TearDown
@@ -112,8 +113,8 @@ public class CombiningSequenceBenchmark
   public void combineSequential(final Blackhole blackhole)
   {
     List<Pair<Integer, Integer>> accumulate = Sequences.merge(
-        Sequences.simple(sequences),
-        ordering
+        ordering,
+        sequences
     ).combine(ordering, mergeFn).accumulate(
         new ArrayList<>(),
         Accumulators.list()
@@ -128,8 +129,8 @@ public class CombiningSequenceBenchmark
   {
     List<Pair<Integer, Integer>> accumulate = new ParallelMergeSequence<>(
         exec,
-        sequences,
-        ordering
+        ordering,
+        sequences
     ).combine(ordering, mergeFn).accumulate(
         new ArrayList<>(),
         Accumulators.list()

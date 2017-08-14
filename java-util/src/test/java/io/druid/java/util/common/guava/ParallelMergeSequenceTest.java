@@ -36,7 +36,7 @@ public class ParallelMergeSequenceTest
   @Test
   public void testAccumulate() throws Exception
   {
-    final ExecutorService service = Executors.newFixedThreadPool(4);
+    final ExecutorService service = Executors.newFixedThreadPool(2);
 
     List<Pair<Integer, Integer>> pairs1 = ImmutableList.of(
         Pair.of(0, 1),
