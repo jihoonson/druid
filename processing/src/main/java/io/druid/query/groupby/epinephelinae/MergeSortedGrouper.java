@@ -45,7 +45,6 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
   private final int[] aggregatorOffsets;
   private final int keySize;
   private final int recordSize; // size of key + all aggregated values
-  private final BufferComparator comparator;
 
   private List<AtomicBoolean> validFlags;
   private ByteBuffer buffer;
@@ -73,7 +72,6 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
       offset += aggregatorFactories[i].getMaxIntermediateSize();
     }
     recordSize = keySize + offset;
-    comparator = keySerde.bufferComparator();
   }
 
   @Override
@@ -92,6 +90,16 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
   public boolean isInitialized()
   {
     return initialized;
+  }
+
+  private boolean keyEquals(ByteBuffer curKeyBuffer, ByteBuffer buffer, int bufferOffset)
+  {
+    for (int i = 0; i < keySize; i++) {
+      if (curKeyBuffer.get(i) != buffer.get(bufferOffset + i)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @Override
@@ -113,7 +121,7 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
     }
 
     final int prevRecordOffset = curWriteIndex * recordSize;
-    if (curWriteIndex == -1 || comparator.compare(keyBuffer, buffer, 0, prevRecordOffset) != 0) {
+    if (curWriteIndex == -1 || !keyEquals(keyBuffer, buffer, prevRecordOffset)) {
       initNewSlot(keyBuffer);
     }
 

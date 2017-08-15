@@ -30,14 +30,25 @@ import io.druid.java.util.common.ISE;
 import io.druid.query.AbstractPrioritizedCallable;
 import io.druid.query.QueryInterruptedException;
 import io.druid.query.aggregation.AggregatorFactory;
+import io.druid.query.dimension.DimensionSpec;
 import io.druid.query.groupby.orderby.DefaultLimitSpec;
+import io.druid.query.monomorphicprocessing.RuntimeShapeInspector;
 import io.druid.segment.ColumnSelectorFactory;
+import io.druid.segment.DimensionSelector;
+import io.druid.segment.DoubleColumnSelector;
+import io.druid.segment.FloatColumnSelector;
+import io.druid.segment.LongColumnSelector;
+import io.druid.segment.ObjectColumnSelector;
+import io.druid.segment.column.ColumnCapabilities;
 
+import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -242,10 +253,36 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       throw new ISE("Grouper is closed");
     }
 
-    return Groupers.mergeIterators(
+//    return Groupers.mergeIterators(
+//        sorted && isParallelSortAvailable() ? parallelSortAndGetGroupersIterator() : getGroupersIterator(sorted),
+//        sorted ? keyObjComparator : null
+//    );
+
+    final Iterator<Entry<KeyType>> mergedIterator = Groupers.mergeIterators(
         sorted && isParallelSortAvailable() ? parallelSortAndGetGroupersIterator() : getGroupersIterator(sorted),
         sorted ? keyObjComparator : null
     );
+
+    final SettableColumnSelectorFactory settableColumnSelectorFactory = new SettableColumnSelectorFactory(aggregatorFactories);
+    final MergeSortedGrouper<KeyType> mergeGrouper = new MergeSortedGrouper<>(
+        bufferSupplier,
+        keySerdeFactory.factorize(),
+        settableColumnSelectorFactory,
+        aggregatorFactories
+    );
+    mergeGrouper.init();
+
+    while (mergedIterator.hasNext()) {
+      final Entry<KeyType> next = mergedIterator.next();
+
+      settableColumnSelectorFactory.set(next.values);
+      mergeGrouper.aggregate(next.getKey());
+      settableColumnSelectorFactory.set(null);
+    }
+
+    mergeGrouper.finish();
+
+    return mergeGrouper.iterator(true);
   }
 
   private boolean isParallelSortAvailable()
@@ -310,5 +347,115 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
   private int grouperNumberForKeyHash(int keyHash)
   {
     return keyHash % groupers.size();
+  }
+
+  private static class SettableColumnSelectorFactory implements ColumnSelectorFactory
+  {
+    private final Map<String, Integer> columnIndexMap;
+
+    private Object[] values;
+
+    SettableColumnSelectorFactory(AggregatorFactory[] aggregatorFactories)
+    {
+      columnIndexMap = new HashMap<>(aggregatorFactories.length);
+      for (int i = 0; i < aggregatorFactories.length; i++) {
+        columnIndexMap.put(aggregatorFactories[i].getName(), i);
+      }
+    }
+
+    public void set(Object[] values)
+    {
+      this.values = values;
+    }
+
+    @Override
+    public DimensionSelector makeDimensionSelector(DimensionSpec dimensionSpec)
+    {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FloatColumnSelector makeFloatColumnSelector(String columnName)
+    {
+      return new FloatColumnSelector()
+      {
+        @Override
+        public float getFloat()
+        {
+          return ((Number) values[columnIndexMap.get(columnName)]).floatValue();
+        }
+
+        @Override
+        public void inspectRuntimeShape(RuntimeShapeInspector inspector)
+        {
+
+        }
+      };
+    }
+
+    @Override
+    public LongColumnSelector makeLongColumnSelector(String columnName)
+    {
+      return new LongColumnSelector()
+      {
+        @Override
+        public long getLong()
+        {
+          return ((Number) values[columnIndexMap.get(columnName)]).longValue();
+        }
+
+        @Override
+        public void inspectRuntimeShape(RuntimeShapeInspector inspector)
+        {
+
+        }
+      };
+    }
+
+    @Override
+    public DoubleColumnSelector makeDoubleColumnSelector(String columnName)
+    {
+      return new DoubleColumnSelector()
+      {
+        @Override
+        public double getDouble()
+        {
+          return ((Number) values[columnIndexMap.get(columnName)]).doubleValue();
+        }
+
+        @Override
+        public void inspectRuntimeShape(RuntimeShapeInspector inspector)
+        {
+
+        }
+      };
+    }
+
+    @Nullable
+    @Override
+    public ObjectColumnSelector makeObjectColumnSelector(String columnName)
+    {
+      return new ObjectColumnSelector()
+      {
+        @Override
+        public Class classOfObject()
+        {
+          return Object.class;
+        }
+
+        @Override
+        public Object get()
+        {
+          return values[columnIndexMap.get(columnName)];
+        }
+      };
+    }
+
+    @Nullable
+    @Override
+    public ColumnCapabilities getColumnCapabilities(String column)
+    {
+      throw new UnsupportedOperationException();
+    }
   }
 }
