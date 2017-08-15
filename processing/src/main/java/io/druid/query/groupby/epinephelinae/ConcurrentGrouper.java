@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -258,10 +259,55 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
 //        sorted ? keyObjComparator : null
 //    );
 
-    final Iterator<Entry<KeyType>> mergedIterator = Groupers.mergeIterators(
+    return parallelCombine(
         sorted && isParallelSortAvailable() ? parallelSortAndGetGroupersIterator() : getGroupersIterator(sorted),
-        sorted ? keyObjComparator : null
+        sorted
     );
+  }
+
+  private Iterator<Entry<KeyType>> parallelCombine(List<Iterator<Entry<KeyType>>> sortedIterators, boolean sorted)
+  {
+    final List<ListenableFuture<Iterator<Entry<KeyType>>>> mergedIterators = new ArrayList<>();
+
+    for (int i = 0; i < sortedIterators.size(); i += 2) {
+      final Iterator<Entry<KeyType>> subIter = Groupers.mergeIterators(
+          sortedIterators.subList(i, Math.min(i + 2, sortedIterators.size())),
+          sorted ? keyObjComparator : null
+      );
+      mergedIterators.add(
+          grouperSorter.submit(() -> {
+            final SettableColumnSelectorFactory settableColumnSelectorFactory = new SettableColumnSelectorFactory(aggregatorFactories);
+            final MergeSortedGrouper<KeyType> mergeGrouper = new MergeSortedGrouper<>(
+                bufferSupplier,
+                keySerdeFactory.factorize(),
+                settableColumnSelectorFactory,
+                aggregatorFactories
+            );
+            mergeGrouper.init();
+
+            while (subIter.hasNext()) {
+              final Entry<KeyType> next = subIter.next();
+
+              settableColumnSelectorFactory.set(next.values);
+              mergeGrouper.aggregate(next.getKey());
+              settableColumnSelectorFactory.set(null);
+            }
+
+            mergeGrouper.finish();
+
+            return mergeGrouper.iterator(true);
+          })
+      );
+    }
+
+    final Future<List<Iterator<Entry<KeyType>>>> allFuture = Futures.allAsList(mergedIterators);
+    final Iterator<Entry<KeyType>> mergedIterator;
+    try {
+      mergedIterator = Groupers.mergeIterators(allFuture.get(), sorted ? keyObjComparator : null);
+    }
+    catch (InterruptedException | ExecutionException e) {
+      throw new RuntimeException(e);
+    }
 
     final SettableColumnSelectorFactory settableColumnSelectorFactory = new SettableColumnSelectorFactory(aggregatorFactories);
     final MergeSortedGrouper<KeyType> mergeGrouper = new MergeSortedGrouper<>(
