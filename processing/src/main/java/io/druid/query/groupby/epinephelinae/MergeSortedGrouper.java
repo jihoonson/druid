@@ -21,15 +21,24 @@ package io.druid.query.groupby.epinephelinae;
 
 import com.google.common.base.Supplier;
 import io.druid.java.util.common.IAE;
+import io.druid.java.util.common.ISE;
+import io.druid.java.util.common.logger.Logger;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.BufferAggregator;
 import io.druid.segment.ColumnSelectorFactory;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+// TODO: streaming grouper
 public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
 {
+  private static final Logger LOG = new Logger(MergeSortedGrouper.class);
+
   private final Supplier<ByteBuffer> bufferSupplier;
   private final KeySerde<KeyType> keySerde;
   private final BufferAggregator[] aggregators;
@@ -38,10 +47,11 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
   private final int recordSize; // size of key + all aggregated values
   private final BufferComparator comparator;
 
-  private ByteBuffer prevKeyBuffer;
-  private ByteBuffer recordsBuffer;
+  private List<AtomicBoolean> validFlags;
+  private ByteBuffer buffer;
   private boolean initialized;
   private int curWriteIndex;
+  private boolean finished;
 
   public MergeSortedGrouper(
       final Supplier<ByteBuffer> bufferSupplier,
@@ -70,15 +80,8 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
   public void init()
   {
     if (!initialized) {
-      final ByteBuffer buffer = bufferSupplier.get();
-
-      buffer.position(0);
-      buffer.limit(keySize);
-      prevKeyBuffer = buffer.slice();
-
-      buffer.position(keySize);
-      buffer.limit(buffer.capacity());
-      recordsBuffer = buffer.slice();
+      buffer = bufferSupplier.get();
+      validFlags = new ArrayList<>((buffer.capacity() - keySize) / recordSize);
 
       reset();
       initialized = true;
@@ -109,42 +112,118 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
       );
     }
 
-    if (comparator.compare(keyBuffer, prevKeyBuffer, 0, 0) != 0) {
-
+    final int prevRecordOffset = curWriteIndex * recordSize;
+    if (curWriteIndex == -1 || comparator.compare(keyBuffer, buffer, 0, prevRecordOffset) != 0) {
+      initNewSlot(keyBuffer);
     }
 
-    return null;
+    final int baseOffset = curWriteIndex * recordSize + keySize;
+    for (int i = 0; i < aggregatorOffsets.length; i++) {
+      aggregators[i].aggregate(buffer, baseOffset + aggregatorOffsets[i]);
+    }
+
+    return AggregateResult.ok();
   }
 
-
-
-  private void initNewSlot()
+  private void initNewSlot(ByteBuffer newKey)
   {
-    curWriteIndex++;
-    final int baseOffset = curWriteIndex * recordSize + keySize;
+    if (curWriteIndex >= 0) {
+      validFlags.get(curWriteIndex).set(true);
+    }
+    curWriteIndex++; // TODO: circular
+    final int recordOffset = recordSize * curWriteIndex;
+    buffer.position(recordOffset);
+    buffer.put(newKey);
+
+    final int baseOffset = recordOffset + keySize;
     for (int i = 0; i < aggregators.length; i++) {
-      aggregators[i].init(recordsBuffer, baseOffset + aggregatorOffsets[i]);
+      aggregators[i].init(buffer, baseOffset + aggregatorOffsets[i]);
+    }
+    if (validFlags.size() == curWriteIndex) {
+      validFlags.add(new AtomicBoolean(false));
+    } else if (validFlags.size() > curWriteIndex) {
+      validFlags.get(curWriteIndex).set(false);
+    } else {
+      throw new ISE("WTF? validFlags.size[%d] is much smaller than curWriteIndex[%d]?", validFlags.size(), curWriteIndex);
     }
   }
 
   @Override
   public void reset()
   {
-    for (int i = 0; i < prevKeyBuffer.capacity(); i++) {
-      prevKeyBuffer.put(i, (byte) 0);
+    for (AtomicBoolean flag : validFlags) {
+      flag.set(false);
     }
-    curWriteIndex = 0;
+    curWriteIndex = -1;
   }
 
   @Override
   public void close()
   {
+    for (BufferAggregator aggregator : aggregators) {
+      try {
+        aggregator.close();
+      }
+      catch (Exception e) {
+        LOG.warn(e, "Could not close aggregator [%s], skipping.", aggregator);
+      }
+    }
+  }
 
+  public void finish()
+  {
+    finished = true;
+    if (curWriteIndex >= 0) {
+      validFlags.get(curWriteIndex).set(true);
+    }
+    curWriteIndex++;
   }
 
   @Override
   public Iterator<Entry<KeyType>> iterator(boolean sorted)
   {
-    return null;
+    return new Iterator<Entry<KeyType>>()
+    {
+      int curReadIndex = 0;
+
+      {
+        curReadIndex = findNext(0);
+      }
+
+      private int findNext(int curReadIndex)
+      {
+        for (int i = curReadIndex; i < validFlags.size(); i++) {
+          if (validFlags.get(i).get()) {
+            return i;
+          }
+        }
+        return curWriteIndex;
+      }
+
+      @Override
+      public boolean hasNext()
+      {
+        return !finished || (curReadIndex < curWriteIndex);
+      }
+
+      @Override
+      public Entry<KeyType> next()
+      {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+        final int recordOffset = recordSize * curReadIndex;
+        final KeyType key = keySerde.fromByteBuffer(buffer, recordOffset);
+
+        final int baseOffset = recordOffset + keySize;
+        final Object[] values = new Object[aggregators.length];
+        for (int i = 0; i < aggregators.length; i++) {
+          values[i] = aggregators[i].get(buffer, baseOffset + aggregatorOffsets[i]);
+        }
+        curReadIndex = findNext(curReadIndex + 1);
+
+        return new Entry<>(key, values);
+      }
+    };
   }
 }
