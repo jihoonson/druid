@@ -112,7 +112,8 @@ public class RowBasedGrouperHelper
         null,
         UNKNOWN_THREAD_PRIORITY,
         false,
-        UNKNOWN_TIMEOUT
+        UNKNOWN_TIMEOUT,
+        null
     );
   }
 
@@ -134,7 +135,8 @@ public class RowBasedGrouperHelper
       @Nullable final ListeningExecutorService grouperSorter,
       final int priority,
       final boolean hasQueryTimeout,
-      final long queryTimeoutAt
+      final long queryTimeoutAt,
+      final ByteBuffer processingBuffer
   )
   {
     // concurrencyHint >= 1 for concurrent groupers, -1 for single-threaded
@@ -191,6 +193,7 @@ public class RowBasedGrouperHelper
       );
     } else {
       grouper = new ConcurrentGrouper<>(
+          processingBuffer,
           bufferSupplier,
           keySerdeFactory,
           columnSelectorFactory,

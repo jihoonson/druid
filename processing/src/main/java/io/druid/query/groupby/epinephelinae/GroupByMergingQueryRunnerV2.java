@@ -22,21 +22,21 @@ package io.druid.query.groupby.epinephelinae;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Function;
 import com.google.common.base.Predicates;
-import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import io.druid.collections.BlockingPool;
+import io.druid.collections.NonBlockingPool;
 import io.druid.collections.ReferenceCountingResourceHolder;
 import io.druid.collections.Releaser;
+import io.druid.collections.ResourceHolder;
 import io.druid.data.input.Row;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.Pair;
@@ -45,8 +45,6 @@ import io.druid.java.util.common.guava.Accumulator;
 import io.druid.java.util.common.guava.BaseSequence;
 import io.druid.java.util.common.guava.CloseQuietly;
 import io.druid.java.util.common.guava.Sequence;
-import io.druid.java.util.common.guava.Sequences;
-import io.druid.java.util.common.io.Closer;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.query.AbstractPrioritizedCallable;
 import io.druid.query.ChainedExecutionQueryRunner;
@@ -68,17 +66,11 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
 {
@@ -90,6 +82,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
   private final ListeningExecutorService exec;
   private final QueryWatcher queryWatcher;
   private final int concurrencyHint;
+  private final NonBlockingPool<ByteBuffer> processingBufferPool;
   private final BlockingPool<ByteBuffer> mergeBufferPool;
   private final ObjectMapper spillMapper;
   private final String processingTmpDir;
@@ -100,6 +93,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
       QueryWatcher queryWatcher,
       Iterable<QueryRunner<Row>> queryables,
       int concurrencyHint,
+      NonBlockingPool<ByteBuffer> processingBufferPool,
       BlockingPool<ByteBuffer> mergeBufferPool,
       ObjectMapper spillMapper,
       String processingTmpDir
@@ -110,6 +104,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
     this.queryWatcher = queryWatcher;
     this.queryables = Iterables.unmodifiableIterable(Iterables.filter(queryables, Predicates.notNull()));
     this.concurrencyHint = concurrencyHint;
+    this.processingBufferPool = processingBufferPool;
     this.mergeBufferPool = mergeBufferPool;
     this.spillMapper = spillMapper;
     this.processingTmpDir = processingTmpDir;
@@ -167,7 +162,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
           @Override
           public CloseableGrouperIterator<RowBasedKey, Row> make()
           {
-            final List<ReferenceCountingResourceHolder> resources = Lists.newArrayList();
+            final List<Closeable> resources = Lists.newArrayList();
 
             try {
               final LimitedTemporaryStorage temporaryStorage = new LimitedTemporaryStorage(
@@ -195,6 +190,9 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
                 throw new QueryInterruptedException(e);
               }
 
+              final ResourceHolder<ByteBuffer> processingBufferHolder = processingBufferPool.take();
+              resources.add(processingBufferHolder);
+
               Pair<Grouper<RowBasedKey>, Accumulator<AggregateResult, Row>> pair = RowBasedGrouperHelper.createGrouperAccumulatorPair(
                   query,
                   false,
@@ -208,7 +206,8 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
                   exec,
                   priority,
                   hasTimeout,
-                  timeoutAt
+                  timeoutAt,
+                  processingBufferHolder.get()
               );
               final Grouper<RowBasedKey> grouper = pair.lhs;
               final Accumulator<AggregateResult, Row> accumulator = pair.rhs;

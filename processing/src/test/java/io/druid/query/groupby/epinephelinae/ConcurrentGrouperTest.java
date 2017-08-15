@@ -193,6 +193,7 @@ public class ConcurrentGrouperTest
   public void testAggregate() throws InterruptedException, ExecutionException
   {
     final ConcurrentGrouper<Long> grouper = new ConcurrentGrouper<>(
+        null,
         bufferSupplier,
         keySerdeFactory,
         null_factory,
