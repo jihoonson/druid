@@ -45,7 +45,6 @@ import io.druid.java.util.common.guava.Accumulator;
 import io.druid.java.util.common.guava.BaseSequence;
 import io.druid.java.util.common.guava.CloseQuietly;
 import io.druid.java.util.common.guava.Sequence;
-import io.druid.java.util.common.io.Closer;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.query.AbstractPrioritizedCallable;
 import io.druid.query.ChainedExecutionQueryRunner;
@@ -55,7 +54,6 @@ import io.druid.query.QueryPlus;
 import io.druid.query.QueryRunner;
 import io.druid.query.QueryWatcher;
 import io.druid.query.ResourceLimitExceededException;
-import io.druid.query.Splittable;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.groupby.GroupByQuery;
 import io.druid.query.groupby.GroupByQueryConfig;
@@ -68,20 +66,13 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
-public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>, Splittable<Row>
+public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
 {
   private static final Logger log = new Logger(GroupByMergingQueryRunnerV2.class);
   private static final String CTX_KEY_MERGE_RUNNERS_USING_CHAINED_EXECUTION = "mergeRunnersUsingChainedExecution";
@@ -367,178 +358,6 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>, Splittable
     }
   }
 
-  @Override
-  public List<Sequence<Row>> runSplit(
-      QueryPlus<Row> queryPlus, Map<String, Object> responseContext
-  )
-  {
-    final GroupByQuery query = (GroupByQuery) queryPlus.getQuery();
-    final GroupByQueryConfig querySpecificConfig = config.withOverrides(query);
-
-    final QueryPlus<Row> queryPlusForRunners = queryPlus
-        .withQuery(
-            query.withOverriddenContext(ImmutableMap.<String, Object>of(CTX_KEY_MERGE_RUNNERS_USING_CHAINED_EXECUTION, true))
-        )
-        .withoutThreadUnsafeState();
-
-    final AggregatorFactory[] combiningAggregatorFactories = new AggregatorFactory[query.getAggregatorSpecs().size()];
-    for (int i = 0; i < query.getAggregatorSpecs().size(); i++) {
-      combiningAggregatorFactories[i] = query.getAggregatorSpecs().get(i).getCombiningFactory();
-    }
-
-    final File temporaryStorageDirectory = new File(
-        processingTmpDir,
-        StringUtils.format("druid-groupBy-%s_%s", UUID.randomUUID(), query.getId())
-    );
-
-    final int priority = QueryContexts.getPriority(query);
-
-    // Figure out timeoutAt time now, so we can apply the timeout to both the mergeBufferPool.take and the actual
-    // query processing together.
-    final long queryTimeout = QueryContexts.getTimeout(query);
-    final boolean hasTimeout = QueryContexts.hasTimeout(query);
-    final long timeoutAt = System.currentTimeMillis() + queryTimeout;
-
-    final LimitedTemporaryStorage temporaryStorage = new LimitedTemporaryStorage(
-        temporaryStorageDirectory,
-        querySpecificConfig.getMaxOnDiskStorage()
-    );
-    // TODO: close
-    final ReferenceCountingResourceHolder<LimitedTemporaryStorage> temporaryStorageHolder =
-        ReferenceCountingResourceHolder.fromCloseable(temporaryStorage);
-
-    final AtomicReference<ReferenceCountingResourceHolder<ByteBuffer>> bufferReference = new AtomicReference<>();
-
-    // TODO: close
-    final Supplier<ReferenceCountingResourceHolder<ByteBuffer>> mergeBufferHolderSupplier = () -> {
-      if (bufferReference.get() == null) {
-        final ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder;
-        try {
-          // This will potentially block if there are no merge buffers left in the pool.
-          if (hasTimeout) {
-            final long timeout = timeoutAt - System.currentTimeMillis();
-            if (timeout <= 0 || (mergeBufferHolder = mergeBufferPool.take(timeout)) == null) {
-              throw new TimeoutException();
-            }
-          } else {
-            mergeBufferHolder = mergeBufferPool.take();
-          }
-          if (!bufferReference.compareAndSet(null, mergeBufferHolder)) {
-            mergeBufferHolder.close();
-          }
-        }
-        catch (Exception e) {
-          throw new QueryInterruptedException(e);
-        }
-      }
-
-      return bufferReference.get();
-    };
-
-    final Closeable closeable = () -> {
-      temporaryStorageHolder.close();
-      mergeBufferHolderSupplier.get().close();
-    };
-
-    responseContext.put("closeable", closeable);
-
-    final BlockingQueue<ByteBuffer> buffers = new LinkedBlockingDeque<>();
-    AtomicBoolean initFlag = new AtomicBoolean(false);
-
-    final Supplier<ByteBuffer> bufferSupplier = () -> {
-      if (initFlag.compareAndSet(false, true)) {
-        final ByteBuffer buffer = mergeBufferHolderSupplier.get().get();
-        final int sliceSize = (buffer.capacity() / concurrencyHint);
-        for (int i = 0; i < concurrencyHint; i++) {
-          final ByteBuffer slice = buffer.duplicate();
-          slice.position(sliceSize * i);
-          slice.limit(slice.position() + sliceSize);
-          buffers.add(slice.slice());
-        }
-      }
-      try {
-        return buffers.take();
-      }
-      catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-    };
-
-    return StreamSupport
-        .stream(queryables.spliterator(), false)
-        .map(
-            queryRunner -> new BaseSequence<>(
-                new BaseSequence.IteratorMaker<Row, CloseableGrouperIterator<RowBasedKey, Row>>()
-                {
-                  @Override
-                  public CloseableGrouperIterator<RowBasedKey, Row> make()
-                  {
-                    final Closer closer = Closer.create();
-
-                    try {
-                      final ByteBuffer buffer = bufferSupplier.get();
-                      closer.register(() -> {
-                        try {
-                          buffers.put(buffer);
-                        }
-                        catch (InterruptedException e) {
-                          throw new RuntimeException(e);
-                        }
-                      });
-
-                      Pair<Grouper<RowBasedKey>, Accumulator<AggregateResult, Row>> pair = RowBasedGrouperHelper.createGrouperAccumulatorPair(
-                          query,
-                          false,
-                          null,
-                          config,
-                          Suppliers.ofInstance(buffer),
-                          temporaryStorage,
-                          spillMapper,
-                          combiningAggregatorFactories
-                      );
-                      final Grouper<RowBasedKey> grouper = pair.lhs;
-                      final Accumulator<AggregateResult, Row> accumulator = pair.rhs;
-                      grouper.init();
-
-                      final AggregateResult retVal = queryRunner.run(queryPlusForRunners, responseContext)
-                                                                .accumulate(
-                                                                    AggregateResult.ok(),
-                                                                    accumulator
-                                                                );
-
-                      // Return true if OK, false if resources were exhausted.
-                      if (!retVal.isOk()) {
-                        throw new ResourceLimitExceededException(retVal.getReason());
-                      }
-
-                      return RowBasedGrouperHelper.makeGrouperIterator(
-                          grouper,
-                          query,
-                          closer
-                      );
-                    }
-                    catch (Throwable e) {
-                      // Exception caught while setting up the iterator; release resources.
-                      try {
-                        closer.close();
-                      }
-                      catch (IOException e1) {
-                        e.addSuppressed(e1);
-                      }
-                      throw e;
-                    }
-                  }
-
-                  @Override
-                  public void cleanup(CloseableGrouperIterator<RowBasedKey, Row> iterFromMake)
-                  {
-                    iterFromMake.close();
-                  }
-                }
-            )
-        )
-        .collect(Collectors.toList());
-  }
 }
 
 //public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>

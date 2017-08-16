@@ -29,7 +29,6 @@ import io.druid.client.cache.MapCache;
 import io.druid.client.selector.QueryableDruidServer;
 import io.druid.client.selector.ServerSelector;
 import io.druid.client.selector.TierSelectorStrategy;
-import io.druid.concurrent.Execs;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.query.DataSource;
 import io.druid.query.Druids;
@@ -246,7 +245,6 @@ public class CachingClusteredClientFunctionalityTest
         },
         cache,
         CachingClusteredClientTest.jsonMapper,
-        Execs.multiThreaded(4, "caching-clustered-client-functionality-test-%d"),
         backgroundExecutorService,
         new CacheConfig()
         {

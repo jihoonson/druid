@@ -51,7 +51,6 @@ import io.druid.client.selector.HighestPriorityTierSelectorStrategy;
 import io.druid.client.selector.QueryableDruidServer;
 import io.druid.client.selector.RandomServerSelectorStrategy;
 import io.druid.client.selector.ServerSelector;
-import io.druid.concurrent.Execs;
 import io.druid.data.input.MapBasedRow;
 import io.druid.data.input.Row;
 import io.druid.hll.HyperLogLogCollector;
@@ -2740,7 +2739,6 @@ public class CachingClusteredClientTest
         },
         cache,
         jsonMapper,
-        Execs.multiThreaded(4, "caching-clustered-client-test-%d"),
         backgroundExecutorService,
         new CacheConfig()
         {
