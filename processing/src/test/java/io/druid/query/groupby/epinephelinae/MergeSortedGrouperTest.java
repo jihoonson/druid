@@ -52,7 +52,6 @@ public class MergeSortedGrouperTest
     grouper.aggregate(10);
     grouper.aggregate(12);
     grouper.aggregate(12);
-    grouper.finish();
 
     final List<Entry<Integer>> expected = ImmutableList.of(
         new Grouper.Entry<>(6, new Object[]{30L, 3L}),

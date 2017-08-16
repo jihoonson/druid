@@ -190,8 +190,8 @@ public class GroupByBenchmark
           .setDataSource("blah")
           .setQuerySegmentSpec(intervalSpec)
           .setDimensions(Lists.<DimensionSpec>newArrayList(
-              new DefaultDimensionSpec("dimSequential", null)
-//              new DefaultDimensionSpec("dimZipf", null)
+              new DefaultDimensionSpec("dimSequential", null),
+              new DefaultDimensionSpec("dimZipf", null)
               //new DefaultDimensionSpec("dimUniform", null),
               //new DefaultDimensionSpec("dimSequentialHalfNull", null)
               //new DefaultDimensionSpec("dimMultivalEnumerated", null), //multival dims greatly increase the running time, disable for now
@@ -634,7 +634,7 @@ public class GroupByBenchmark
     }
   }
 
-//  @Benchmark
+  @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void queryMultiQueryableIndexWithSpilling(Blackhole blackhole) throws Exception

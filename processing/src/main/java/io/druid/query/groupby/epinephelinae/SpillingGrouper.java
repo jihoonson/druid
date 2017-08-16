@@ -70,6 +70,26 @@ public class SpillingGrouper<KeyType> implements Grouper<KeyType>
   private boolean spillingAllowed = false;
 
   public SpillingGrouper(
+      final KeySerdeFactory<KeyType> keySerdeFactory,
+      final AggregatorFactory[] aggregatorFactories,
+      final LimitedTemporaryStorage temporaryStorage,
+      final ObjectMapper spillMapper,
+      final boolean spillingAllowed,
+      final Grouper<KeyType> baseGrouper
+  )
+  {
+    this.keySerde = keySerdeFactory.factorize();
+    this.keyObjComparator = keySerdeFactory.objectComparator(false);
+    this.defaultOrderKeyObjComparator = keySerdeFactory.objectComparator(true);
+    this.grouper = baseGrouper;
+    this.aggregatorFactories = aggregatorFactories;
+    this.temporaryStorage = temporaryStorage;
+    this.spillMapper = spillMapper;
+    this.spillingAllowed = spillingAllowed;
+    this.sortHasNonGroupingFields = false;
+  }
+
+  public SpillingGrouper(
       final Supplier<ByteBuffer> bufferSupplier,
       final KeySerdeFactory<KeyType> keySerdeFactory,
       final ColumnSelectorFactory columnSelectorFactory,

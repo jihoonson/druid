@@ -50,7 +50,7 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
   private ByteBuffer buffer;
   private boolean initialized;
   private int curWriteIndex;
-  private boolean finished;
+//  private boolean finished;
 
   public MergeSortedGrouper(
       final Supplier<ByteBuffer> bufferSupplier,
@@ -178,14 +178,14 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
     }
   }
 
-  public void finish()
-  {
-    finished = true;
-    if (curWriteIndex >= 0) {
-      validFlags.get(curWriteIndex).set(true);
-    }
-    curWriteIndex++;
-  }
+//  public void finish()
+//  {
+//    finished = true;
+//    if (curWriteIndex >= 0) {
+//      validFlags.get(curWriteIndex).set(true);
+//    }
+//    curWriteIndex++;
+//  }
 
   @Override
   public Iterator<Entry<KeyType>> iterator(boolean sorted)
@@ -195,6 +195,10 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
       int curReadIndex = 0;
 
       {
+        if (curWriteIndex >= 0) {
+          validFlags.get(curWriteIndex).set(true);
+        }
+        curWriteIndex++;
         curReadIndex = findNext(0);
       }
 
@@ -211,7 +215,7 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
       @Override
       public boolean hasNext()
       {
-        return !finished || (curReadIndex < curWriteIndex);
+        return curReadIndex < curWriteIndex;
       }
 
       @Override

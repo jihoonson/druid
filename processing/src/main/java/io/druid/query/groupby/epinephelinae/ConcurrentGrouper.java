@@ -191,7 +191,6 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
                 sortHasNonGroupingFields
             );
             grouper.init();
-            grouper.setSpillingAllowed(false);
             groupers.add(grouper);
           }
 
@@ -277,31 +276,44 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       throw new ISE("Grouper is closed");
     }
 
-    return Groupers.mergeIterators(
-        sorted && isParallelSortAvailable() ? parallelSortAndGetGroupersIterator() : getGroupersIterator(sorted),
-        sorted ? keyObjComparator : null
-    );
-
-//    return parallelCombine(
-//        sorted && isParallelSortAvailable() ? parallelSortAndGetGroupersIterator() : getGroupersIterator(sorted),
-//        sorted
-//    );
+    if (!spilling) {
+      return Groupers.mergeIterators(
+          sorted && isParallelSortAvailable() ? parallelSortAndGetGroupersIterator() : getGroupersIterator(sorted),
+          sorted ? keyObjComparator : null
+      );
+    } else {
+      return parallelCombine(
+          sorted && isParallelSortAvailable() ? parallelSortAndGetGroupersIterator() : getGroupersIterator(sorted),
+          sorted
+      );
+    }
   }
 
   private Iterator<Entry<KeyType>> parallelCombine(List<Iterator<Entry<KeyType>>> sortedIterators, boolean sorted)
   {
     final List<ListenableFuture<Iterator<Entry<KeyType>>>> mergedIterators = new ArrayList<>();
 
-    final int sliceSize = (processingBuffer.capacity() / concurrencyHint);
-    for (int i = 0; i < concurrencyHint; i ++) {
-      final List<Iterator<Entry<KeyType>>> subIters = new ArrayList<>(concurrencyHint);
+    final int mergeDegree = 2;
+    final int mergeThreadNum = concurrencyHint / mergeDegree;
+    final int sliceSize = processingBuffer.capacity() / mergeThreadNum;
 
-      for (int j = 0; j < concurrencyHint; j++) {
-        subIters.add(sortedIterators.get(j * concurrencyHint + i));
-      }
+//    final int sliceSize = (processingBuffer.capacity() / concurrencyHint);
+
+    for (int i = 0; i < mergeThreadNum; i++) {
+//    for (int i = 0; i < concurrencyHint; i ++) {
+//      final List<Iterator<Entry<KeyType>>> subIters = new ArrayList<>(concurrencyHint);
+
+//      for (int j = 0; j < concurrencyHint; j++) {
+//        subIters.add(sortedIterators.get(j * concurrencyHint + i));
+//      }
+
+//      final Iterator<Entry<KeyType>> subIter = Groupers.mergeIterators(
+//          subIters,
+//          sorted ? keyObjComparator : null
+//      );
 
       final Iterator<Entry<KeyType>> subIter = Groupers.mergeIterators(
-          subIters,
+          sortedIterators.subList(i * mergeDegree, Math.min(sortedIterators.size(), (i + 1) * mergeDegree)),
           sorted ? keyObjComparator : null
       );
 
@@ -312,23 +324,29 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       mergedIterators.add(
           grouperSorter.submit(() -> {
             final SettableColumnSelectorFactory settableColumnSelectorFactory = new SettableColumnSelectorFactory(aggregatorFactories);
-            final MergeSortedGrouper<KeyType> mergeGrouper = new MergeSortedGrouper<>(
-                Suppliers.ofInstance(slice.slice()),
-                keySerdeFactory.factorize(),
-                settableColumnSelectorFactory,
-                aggregatorFactories
+            final SpillingGrouper<KeyType> mergeGrouper = new SpillingGrouper<>(
+                keySerdeFactory,
+                aggregatorFactories,
+                temporaryStorage,
+                spillMapper,
+                true,
+                new MergeSortedGrouper<>(
+                    Suppliers.ofInstance(slice.slice()),
+                    keySerdeFactory.factorize(),
+                    settableColumnSelectorFactory,
+                    aggregatorFactories
+                )
             );
+            mergeGrouper.setSpillingAllowed(true);
             mergeGrouper.init();
 
             while (subIter.hasNext()) {
               final Entry<KeyType> next = subIter.next();
 
               settableColumnSelectorFactory.set(next.values);
-              mergeGrouper.aggregate(next.key, 0);
+              mergeGrouper.aggregate(next.key);
               settableColumnSelectorFactory.set(null);
             }
-
-            mergeGrouper.finish();
 
             return mergeGrouper.iterator(true);
           })
@@ -345,12 +363,20 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
     }
 
     final SettableColumnSelectorFactory settableColumnSelectorFactory = new SettableColumnSelectorFactory(aggregatorFactories);
-    final MergeSortedGrouper<KeyType> mergeGrouper = new MergeSortedGrouper<>(
-        bufferSupplier,
-        keySerdeFactory.factorize(),
-        settableColumnSelectorFactory,
-        aggregatorFactories
+    final SpillingGrouper<KeyType> mergeGrouper = new SpillingGrouper<>(
+        keySerdeFactory,
+        aggregatorFactories,
+        temporaryStorage,
+        spillMapper,
+        true,
+        new MergeSortedGrouper<>(
+            bufferSupplier,
+            keySerdeFactory.factorize(),
+            settableColumnSelectorFactory,
+            aggregatorFactories
+        )
     );
+    mergeGrouper.setSpillingAllowed(true);
     mergeGrouper.init();
 
     while (mergedIterator.hasNext()) {
@@ -360,8 +386,6 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       mergeGrouper.aggregate(next.getKey());
       settableColumnSelectorFactory.set(null);
     }
-
-    mergeGrouper.finish();
 
     return mergeGrouper.iterator(true);
   }
