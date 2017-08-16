@@ -69,8 +69,8 @@ import java.util.stream.Collectors;
 public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
 {
   private final List<SpillingGrouper<KeyType>> groupers;
-//  private final ThreadLocal<SpillingGrouper<KeyType>> threadLocalGrouper;
-  private final ThreadLocal<List<SpillingGrouper<KeyType>>> threadLocalGroupers;
+  private final ThreadLocal<SpillingGrouper<KeyType>> threadLocalGrouper;
+//  private final ThreadLocal<List<SpillingGrouper<KeyType>>> threadLocalGroupers;
   private final AtomicInteger threadNumber = new AtomicInteger();
   private volatile boolean spilling = false;
   private volatile boolean closed = false;
@@ -118,27 +118,27 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
   {
     Preconditions.checkArgument(concurrencyHint > 0, "concurrencyHint > 0");
 
-//    this.groupers = new ArrayList<>(concurrencyHint);
-//    this.threadLocalGrouper = new ThreadLocal<SpillingGrouper<KeyType>>()
-//    {
-//      @Override
-//      protected SpillingGrouper<KeyType> initialValue()
-//      {
-//        return groupers.get(threadNumber.getAndIncrement());
-//      }
-//    };
-
-    this.processingBuffer = processingBuffer;
-    this.groupers = new ArrayList<>(concurrencyHint * concurrencyHint);
-    this.threadLocalGroupers = new ThreadLocal<List<SpillingGrouper<KeyType>>>()
+    this.groupers = new ArrayList<>(concurrencyHint);
+    this.threadLocalGrouper = new ThreadLocal<SpillingGrouper<KeyType>>()
     {
       @Override
-      protected List<SpillingGrouper<KeyType>> initialValue()
+      protected SpillingGrouper<KeyType> initialValue()
       {
-        final int start = threadNumber.getAndIncrement() * concurrencyHint;
-        return groupers.subList(start, start + concurrencyHint);
+        return groupers.get(threadNumber.getAndIncrement());
       }
     };
+
+    this.processingBuffer = processingBuffer;
+//    this.groupers = new ArrayList<>(concurrencyHint * concurrencyHint);
+//    this.threadLocalGroupers = new ThreadLocal<List<SpillingGrouper<KeyType>>>()
+//    {
+//      @Override
+//      protected List<SpillingGrouper<KeyType>> initialValue()
+//      {
+//        final int start = threadNumber.getAndIncrement() * concurrencyHint;
+//        return groupers.subList(start, start + concurrencyHint);
+//      }
+//    };
 
     this.bufferSupplier = bufferSupplier;
     this.columnSelectorFactory = columnSelectorFactory;
@@ -166,13 +166,13 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       synchronized (bufferSupplier) {
         if (!initialized) {
           final ByteBuffer buffer = bufferSupplier.get();
-          final int numSlices = concurrencyHint * concurrencyHint;
-//          final int sliceSize = (buffer.capacity() / concurrencyHint);
-//
-//          for (int i = 0; i < concurrencyHint; i++) {
+//          final int numSlices = concurrencyHint * concurrencyHint;
+          final int sliceSize = (buffer.capacity() / concurrencyHint);
 
-          final int sliceSize = (buffer.capacity() / numSlices);
-          for (int i = 0; i < numSlices; i++) {
+          for (int i = 0; i < concurrencyHint; i++) {
+
+//          final int sliceSize = (buffer.capacity() / numSlices);
+//          for (int i = 0; i < numSlices; i++) {
             final ByteBuffer slice = buffer.duplicate();
             slice.position(sliceSize * i);
             slice.limit(slice.position() + sliceSize);
@@ -218,34 +218,34 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       throw new ISE("Grouper is closed");
     }
 
-//    if (!spilling) {
-//      final SpillingGrouper<KeyType> hashBasedGrouper = groupers.get(grouperNumberForKeyHash(keyHash));
-//
-//      synchronized (hashBasedGrouper) {
-//        if (!spilling) {
-//          if (hashBasedGrouper.aggregate(key, keyHash).isOk()) {
-//            return AggregateResult.ok();
-//          } else {
-//            spilling = true;
-//          }
-//        }
-//      }
-//    }
-//
-//    // At this point we know spilling = true
-//    final SpillingGrouper<KeyType> tlGrouper = threadLocalGrouper.get();
-//
-//    synchronized (tlGrouper) {
-//      tlGrouper.setSpillingAllowed(true);
-//      return tlGrouper.aggregate(key, keyHash);
-//    }
+    if (!spilling) {
+      final SpillingGrouper<KeyType> hashBasedGrouper = groupers.get(grouperNumberForKeyHash(keyHash, groupers));
+
+      synchronized (hashBasedGrouper) {
+        if (!spilling) {
+          if (hashBasedGrouper.aggregate(key, keyHash).isOk()) {
+            return AggregateResult.ok();
+          } else {
+            spilling = true;
+          }
+        }
+      }
+    }
+
+    // At this point we know spilling = true
+    final SpillingGrouper<KeyType> tlGrouper = threadLocalGrouper.get();
+
+    synchronized (tlGrouper) {
+      tlGrouper.setSpillingAllowed(true);
+      return tlGrouper.aggregate(key, keyHash);
+    }
 
 //    final SpillingGrouper<KeyType> tlGrouper = threadLocalGrouper.get();
 //    return tlGrouper.aggregate(key, keyHash);
 
-    final List<SpillingGrouper<KeyType>> tlGroupers = threadLocalGroupers.get();
-    final SpillingGrouper<KeyType> hashBasedGrouper = tlGroupers.get(grouperNumberForKeyHash(keyHash, tlGroupers));
-    return hashBasedGrouper.aggregate(key, keyHash);
+//    final List<SpillingGrouper<KeyType>> tlGroupers = threadLocalGroupers.get();
+//    final SpillingGrouper<KeyType> hashBasedGrouper = tlGroupers.get(grouperNumberForKeyHash(keyHash, tlGroupers));
+//    return hashBasedGrouper.aggregate(key, keyHash);
   }
 
   @Override
@@ -277,15 +277,15 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       throw new ISE("Grouper is closed");
     }
 
-//    return Groupers.mergeIterators(
-//        sorted && isParallelSortAvailable() ? parallelSortAndGetGroupersIterator() : getGroupersIterator(sorted),
-//        sorted ? keyObjComparator : null
-//    );
-
-    return parallelCombine(
+    return Groupers.mergeIterators(
         sorted && isParallelSortAvailable() ? parallelSortAndGetGroupersIterator() : getGroupersIterator(sorted),
-        sorted
+        sorted ? keyObjComparator : null
     );
+
+//    return parallelCombine(
+//        sorted && isParallelSortAvailable() ? parallelSortAndGetGroupersIterator() : getGroupersIterator(sorted),
+//        sorted
+//    );
   }
 
   private Iterator<Entry<KeyType>> parallelCombine(List<Iterator<Entry<KeyType>>> sortedIterators, boolean sorted)
