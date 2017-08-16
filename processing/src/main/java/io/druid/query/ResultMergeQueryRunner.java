@@ -25,6 +25,7 @@ import io.druid.java.util.common.guava.Sequence;
 import io.druid.java.util.common.guava.nary.BinaryFn;
 
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 /**
  */
@@ -37,10 +38,42 @@ public abstract class ResultMergeQueryRunner<T> extends BySegmentSkippingQueryRu
     super(baseRunner);
   }
 
+  private ExecutorService exec;
+
+  public void setExec(ExecutorService exec)
+  {
+    this.exec = exec;
+  }
+
   @Override
   public Sequence<T> doRun(QueryRunner<T> baseRunner, QueryPlus<T> queryPlus, Map<String, Object> context)
   {
     Query<T> query = queryPlus.getQuery();
+//    if (baseRunner instanceof Splittable) {
+//      final List<Sequence<T>> sequenceList = ((Splittable<T>) baseRunner).runSplit(queryPlus, context);
+//      final Ordering<T> ordering = makeOrdering(query);
+//      final BinaryFn<T, T, T> mergeFn = createMergeFn(query);
+//
+//      final List<Sequence<T>> combinedSequences = new ArrayList<>(sequenceList.size() / 2);
+//      for (int i = 0; i < sequenceList.size(); i += 2) {
+//        combinedSequences.add(
+//            Sequences.combine(
+//                Sequences.parallelMerge(exec, ordering, Sequences.simple(sequenceList.subList(i, Math.min(sequenceList.size(), i + 2)))),
+//                ordering,
+//                mergeFn
+//            )
+//        );
+//      }
+//
+//      final Closeable closeable = (Closeable) context.get("closeable");
+//
+//      return Sequences.parallelMerge(
+//          exec,
+//          ordering,
+//          Sequences.simple(combinedSequences)
+//      ).withBaggage(closeable).combine(ordering, mergeFn);
+//    } else {
+//    }
     return CombiningSequence.create(baseRunner.run(queryPlus, context), makeOrdering(query), createMergeFn(query));
   }
 

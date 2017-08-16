@@ -91,7 +91,7 @@ public class PrioritizedExecutorService extends AbstractExecutorService implemen
       DruidProcessingConfig config
   )
   {
-    this(threadPoolExecutor, false, 0, config);
+    this(threadPoolExecutor, true, 0, config);
   }
 
   public PrioritizedExecutorService(

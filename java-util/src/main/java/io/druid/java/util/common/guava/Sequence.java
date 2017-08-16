@@ -24,6 +24,7 @@ import io.druid.java.util.common.guava.nary.BinaryFn;
 
 import java.io.Closeable;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 /**
@@ -75,6 +76,15 @@ public interface Sequence<T>
   )
   {
     return new ConcatSequence<>(this.map(mapper));
+  }
+
+  default <R> Sequence<R> flatParallelMerge(
+      ExecutorService exec,
+      Function<? super T, ? extends Sequence<? extends R>> mapper,
+      Ordering<? super R> ordering
+  )
+  {
+    return new ParallelMergeSequence<>(exec, ordering, this.map(mapper));
   }
 
   default <R> Sequence<R> flatMerge(

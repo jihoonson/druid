@@ -47,6 +47,7 @@ import io.druid.client.selector.QueryableDruidServer;
 import io.druid.client.selector.ServerSelector;
 import io.druid.concurrent.Execs;
 import io.druid.guice.annotations.BackgroundCaching;
+import io.druid.guice.annotations.Processing;
 import io.druid.guice.annotations.Smile;
 import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.StringUtils;
@@ -103,6 +104,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
   private final Cache cache;
   private final ObjectMapper objectMapper;
   private final CacheConfig cacheConfig;
+  private final ExecutorService processingExecutorService;
   private final ListeningExecutorService backgroundExecutorService;
 
   @Inject
@@ -111,6 +113,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
       TimelineServerView serverView,
       Cache cache,
       @Smile ObjectMapper objectMapper,
+      @Processing ExecutorService processingExecutorService,
       @BackgroundCaching ExecutorService backgroundExecutorService,
       CacheConfig cacheConfig
   )
@@ -120,6 +123,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
     this.cache = cache;
     this.objectMapper = objectMapper;
     this.cacheConfig = cacheConfig;
+    this.processingExecutorService = processingExecutorService;
     this.backgroundExecutorService = MoreExecutors.listeningDecorator(backgroundExecutorService);
 
     if (cacheConfig.isQueryCacheable(Query.GROUP_BY)) {
@@ -281,7 +285,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
         addSequencesFromServer(sequencesByInterval, segmentsByServer);
         return Sequences
             .simple(sequencesByInterval)
-            .flatMerge(seq -> seq, query.getResultOrdering());
+            .flatParallelMerge(processingExecutorService, seq -> seq, query.getResultOrdering());
       });
     }
 

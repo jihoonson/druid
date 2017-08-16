@@ -32,12 +32,12 @@ import java.util.concurrent.LinkedBlockingDeque;
 public class ParallelMergeSequence<T> extends YieldingSequenceBase<T>
 {
   private final ExecutorService exec;
-  private final Ordering<T> ordering;
+  private final Ordering<? super T> ordering;
   private final Sequence<? extends Sequence<T>> baseSequences;
 
   public ParallelMergeSequence(
       ExecutorService exec,
-      Ordering<T> ordering,
+      Ordering<? super T> ordering,
       Sequence<? extends Sequence<? extends T>> baseSequences
   )
   {

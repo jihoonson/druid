@@ -293,7 +293,7 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
     final List<ListenableFuture<Iterator<Entry<KeyType>>>> mergedIterators = new ArrayList<>();
 
     final int sliceSize = (processingBuffer.capacity() / concurrencyHint);
-    for (int i = 0; i < concurrencyHint; i ++) {
+    for (int i = 0; i < concurrencyHint; i++) {
       final List<Iterator<Entry<KeyType>>> subIters = new ArrayList<>(concurrencyHint);
 
       for (int j = 0; j < concurrencyHint; j++) {
