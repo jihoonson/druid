@@ -615,7 +615,7 @@ public class RowBasedGrouperHelper
     return functions;
   }
 
-  private static class RowBasedKeySerdeFactory implements Grouper.KeySerdeFactory<RowBasedKey>
+  static class RowBasedKeySerdeFactory implements Grouper.KeySerdeFactory<RowBasedKey>
   {
     private final boolean includeTimestamp;
     private final boolean sortByDimsFirst;
@@ -656,6 +656,19 @@ public class RowBasedGrouperHelper
           maxDictionarySize,
           limitSpec,
           valueTypes
+      );
+    }
+
+    public Grouper.KeySerde<RowBasedKey> factorizeImmutable(List<String> dictionary, int keySize)
+    {
+      return new ImmutableRowBasedKeySerde(
+          includeTimestamp,
+          sortByDimsFirst,
+          dimensions,
+          limitSpec,
+          valueTypes,
+          dictionary,
+          ByteBuffer.allocate(keySize)
       );
     }
 
@@ -893,7 +906,7 @@ public class RowBasedGrouperHelper
     }
   }
 
-  private static class RowBasedKeySerde implements Grouper.KeySerde<RowBasedGrouperHelper.RowBasedKey>
+  static class RowBasedKeySerde implements Grouper.KeySerde<RowBasedGrouperHelper.RowBasedKey>
   {
     // Entry in dictionary, node pointer in reverseDictionary, hash + k/v/next pointer in reverseDictionary nodes
     private static final int ROUGH_OVERHEAD_PER_DICTIONARY_ENTRY = Longs.BYTES * 5 + Ints.BYTES;
@@ -903,9 +916,9 @@ public class RowBasedGrouperHelper
     private final List<DimensionSpec> dimensions;
     private final int dimCount;
     private final int keySize;
-    private final ByteBuffer keyBuffer;
-    private final List<String> dictionary = Lists.newArrayList();
-    private final Map<String, Integer> reverseDictionary = Maps.newHashMap();
+    protected ByteBuffer keyBuffer;
+    protected final List<String> dictionary;
+    protected final Map<String, Integer> reverseDictionary = Maps.newHashMap();
     private final List<RowBasedKeySerdeHelper> serdeHelpers;
     private final DefaultLimitSpec limitSpec;
     private final List<ValueType> valueTypes;
@@ -915,7 +928,7 @@ public class RowBasedGrouperHelper
     private long currentEstimatedSize = 0;
 
     // dictionary id -> its position if it were sorted by dictionary value
-    private int[] sortableIds = null;
+    protected int[] sortableIds = null;
 
     RowBasedKeySerde(
         final boolean includeTimestamp,
@@ -924,6 +937,19 @@ public class RowBasedGrouperHelper
         final long maxDictionarySize,
         final DefaultLimitSpec limitSpec,
         final List<ValueType> valueTypes
+    )
+    {
+      this(includeTimestamp, sortByDimsFirst, dimensions, maxDictionarySize, limitSpec, valueTypes, Lists.newArrayList());
+    }
+
+    protected RowBasedKeySerde(
+        final boolean includeTimestamp,
+        final boolean sortByDimsFirst,
+        final List<DimensionSpec> dimensions,
+        final long maxDictionarySize,
+        final DefaultLimitSpec limitSpec,
+        final List<ValueType> valueTypes,
+        final List<String> dictionary
     )
     {
       this.includeTimestamp = includeTimestamp;
@@ -936,6 +962,15 @@ public class RowBasedGrouperHelper
       this.serdeHelpers = makeSerdeHelpers();
       this.keySize = (includeTimestamp ? Longs.BYTES : 0) + getTotalKeySize();
       this.keyBuffer = ByteBuffer.allocate(keySize);
+      this.dictionary = dictionary;
+      for (int i = 0; i < dictionary.size(); i++) {
+        reverseDictionary.put(dictionary.get(i), i);
+      }
+    }
+
+    public List<String> getDictionary()
+    {
+      return dictionary;
     }
 
     @Override
@@ -998,21 +1033,26 @@ public class RowBasedGrouperHelper
       return new RowBasedKey(key);
     }
 
+    protected void initializeSortableIds()
+    {
+      final int dictionarySize = dictionary.size();
+      final Pair<String, Integer>[] dictAndIds = new Pair[dictionarySize];
+      for (int id = 0; id < dictionarySize; id++) {
+        dictAndIds[id] = new Pair<>(dictionary.get(id), id);
+      }
+      Arrays.sort(dictAndIds, Comparator.comparing(pair -> pair.lhs));
+
+      sortableIds = new int[dictionarySize];
+      for (int i = 0; i < dictionarySize; i++) {
+        sortableIds[dictAndIds[i].rhs] = i;
+      }
+    }
+
     @Override
     public Grouper.BufferComparator bufferComparator()
     {
       if (sortableIds == null) {
-        final int dictionarySize = dictionary.size();
-        final Pair<String, Integer>[] dictAndIds = new Pair[dictionarySize];
-        for (int id = 0; id < dictionarySize; id++) {
-          dictAndIds[id] = new Pair<>(dictionary.get(id), id);
-        }
-        Arrays.sort(dictAndIds, Comparator.comparing(pair -> pair.lhs));
-
-        sortableIds = new int[dictionarySize];
-        for (int i = 0; i < dictionarySize; i++) {
-          sortableIds[dictAndIds[i].rhs] = i;
-        }
+        initializeSortableIds();
       }
 
       if (includeTimestamp) {
@@ -1347,6 +1387,11 @@ public class RowBasedGrouperHelper
       return size;
     }
 
+    protected RowBasedKeySerdeHelper makeStringRowBasedKeySerdeHelper(int keyBufferPosition)
+    {
+      return new StringRowBasedKeySerdeHelper(keyBufferPosition);
+    }
+
     private List<RowBasedKeySerdeHelper> makeSerdeHelpers()
     {
       if (limitSpec != null) {
@@ -1359,7 +1404,7 @@ public class RowBasedGrouperHelper
         RowBasedKeySerdeHelper helper;
         switch (valType) {
           case STRING:
-            helper = new StringRowBasedKeySerdeHelper(keyBufferPosition);
+            helper = makeStringRowBasedKeySerdeHelper(keyBufferPosition);
             break;
           case LONG:
             helper = new LongRowBasedKeySerdeHelper(keyBufferPosition);
@@ -1428,7 +1473,7 @@ public class RowBasedGrouperHelper
       return helpers;
     }
 
-    private interface RowBasedKeySerdeHelper
+    interface RowBasedKeySerdeHelper
     {
       /**
        * @return The size in bytes for a value of the column handled by this SerdeHelper.

@@ -30,6 +30,7 @@ import com.google.common.collect.Lists;
 import io.druid.java.util.common.guava.CloseQuietly;
 import io.druid.query.BaseQuery;
 import io.druid.query.aggregation.AggregatorFactory;
+import io.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKeySerde;
 import io.druid.query.groupby.orderby.DefaultLimitSpec;
 import io.druid.segment.ColumnSelectorFactory;
 import net.jpountz.lz4.LZ4BlockInputStream;
@@ -42,8 +43,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Grouper based around a single underlying {@link BufferHashGrouper}. Not thread-safe.
@@ -64,6 +67,7 @@ public class SpillingGrouper<KeyType> implements Grouper<KeyType>
   private final Comparator<Grouper.Entry<KeyType>> defaultOrderKeyObjComparator;
 
   private final List<File> files = Lists.newArrayList();
+  private final List<File> dictionaryFiles = Lists.newArrayList();
   private final List<Closeable> closeables = Lists.newArrayList();
   private final boolean sortHasNonGroupingFields;
 
@@ -167,6 +171,36 @@ public class SpillingGrouper<KeyType> implements Grouper<KeyType>
     deleteFiles();
   }
 
+  @Override
+  public KeySerde<KeyType> getKeySerde()
+  {
+    return grouper.getKeySerde();
+  }
+
+  public List<String> getDictionary()
+  {
+    final Set<String> mergedDictionary = new HashSet<>();
+    mergedDictionary.addAll(((RowBasedKeySerde) grouper.getKeySerde()).getDictionary());
+
+    for (File dictFile : dictionaryFiles) {
+      try {
+        final MappingIterator<String> dictIterator = spillMapper.readValues(
+            spillMapper.getFactory().createParser(new LZ4BlockInputStream(new FileInputStream(dictFile))),
+            spillMapper.getTypeFactory().constructType(String.class)
+        );
+
+        while (dictIterator.hasNext()) {
+          mergedDictionary.add(dictIterator.next());
+        }
+      }
+      catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    return new ArrayList<>(mergedDictionary);
+  }
+
   public void setSpillingAllowed(final boolean spillingAllowed)
   {
     this.spillingAllowed = spillingAllowed;
@@ -231,6 +265,24 @@ public class SpillingGrouper<KeyType> implements Grouper<KeyType>
     }
 
     files.add(outFile);
+
+    final File dictionaryFile;
+    try (
+        final LimitedTemporaryStorage.LimitedOutputStream out = temporaryStorage.createFile();
+        final LZ4BlockOutputStream compressedOut = new LZ4BlockOutputStream(out);
+        final JsonGenerator jsonGenerator = spillMapper.getFactory().createGenerator(compressedOut)
+    ) {
+      dictionaryFile = out.getFile();
+      final List<String> dictionary = ((RowBasedKeySerde) grouper.getKeySerde()).getDictionary();
+      for (String dict : dictionary) {
+        BaseQuery.checkInterrupted();
+
+        jsonGenerator.writeString(dict);
+      }
+    }
+
+    dictionaryFiles.add(dictionaryFile);
+
     grouper.reset();
   }
 

@@ -97,6 +97,8 @@ public interface Grouper<KeyType> extends Closeable
   @Override
   void close();
 
+  KeySerde<KeyType> getKeySerde();
+
   /**
    * Iterate through entries.
    * <p>

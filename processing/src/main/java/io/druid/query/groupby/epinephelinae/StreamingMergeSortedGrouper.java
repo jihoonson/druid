@@ -23,6 +23,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import io.druid.java.util.common.IAE;
+import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.BufferAggregator;
@@ -170,9 +171,12 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
   @Override
   public AggregateResult aggregate(KeyType key)
   {
-    final ByteBuffer keyBuffer = keySerde.toByteBuffer(key);
-    if (keyBuffer == null) {
+    final ByteBuffer keyBuffer;
+    try {
       // This should bubble up to the user, so call finish() here.
+      keyBuffer = keySerde.toByteBuffer(key);
+    }
+    catch (ISE e) {
       finish();
       return DICTIONARY_FULL;
     }
@@ -280,6 +284,12 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
         LOG.warn(e, "Could not close aggregator [%s], skipping.", aggregator);
       }
     }
+  }
+
+  @Override
+  public KeySerde<KeyType> getKeySerde()
+  {
+    return keySerde;
   }
 
   /**
