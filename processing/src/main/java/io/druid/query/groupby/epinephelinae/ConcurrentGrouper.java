@@ -336,7 +336,7 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
   private Iterator<Entry<KeyType>> parallelCombine(List<Iterator<Entry<KeyType>>> sortedIterators)
   {
     // Merge dictionaries in keySerdeFactory
-    // TODO: check dict size and fall back to 
+    // TODO: check dict size and fall back to
     final Set<String> mergedDictionary = new HashSet<>();
     for (SpillingGrouper<KeyType> grouper : groupers) {
       mergedDictionary.addAll(grouper.getDictionary());

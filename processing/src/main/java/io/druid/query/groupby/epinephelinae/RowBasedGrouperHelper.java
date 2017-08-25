@@ -50,6 +50,8 @@ import io.druid.query.dimension.DimensionSpec;
 import io.druid.query.groupby.GroupByQuery;
 import io.druid.query.groupby.GroupByQueryConfig;
 import io.druid.query.groupby.RowBasedColumnSelectorFactory;
+import io.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
+import io.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKeySerde.RowBasedKeySerdeHelper;
 import io.druid.query.groupby.orderby.DefaultLimitSpec;
 import io.druid.query.groupby.orderby.OrderByColumnSpec;
 import io.druid.query.groupby.strategy.GroupByStrategyV2;
@@ -908,27 +910,15 @@ public class RowBasedGrouperHelper
 
   static class RowBasedKeySerde implements Grouper.KeySerde<RowBasedGrouperHelper.RowBasedKey>
   {
-    // Entry in dictionary, node pointer in reverseDictionary, hash + k/v/next pointer in reverseDictionary nodes
-    private static final int ROUGH_OVERHEAD_PER_DICTIONARY_ENTRY = Longs.BYTES * 5 + Ints.BYTES;
-
     private final boolean includeTimestamp;
     private final boolean sortByDimsFirst;
     private final List<DimensionSpec> dimensions;
     private final int dimCount;
     private final int keySize;
     protected ByteBuffer keyBuffer;
-    protected final List<String> dictionary;
-    protected final Map<String, Integer> reverseDictionary = Maps.newHashMap();
     private final List<RowBasedKeySerdeHelper> serdeHelpers;
     private final DefaultLimitSpec limitSpec;
     private final List<ValueType> valueTypes;
-
-    // Size limiting for the dictionary, in (roughly estimated) bytes.
-    private final long maxDictionarySize;
-    private long currentEstimatedSize = 0;
-
-    // dictionary id -> its position if it were sorted by dictionary value
-    protected int[] sortableIds = null;
 
     RowBasedKeySerde(
         final boolean includeTimestamp,
@@ -1064,7 +1054,6 @@ public class RowBasedGrouperHelper
             {
               final int cmp = compareDimsInBuffersForNullFudgeTimestamp(
                   serdeHelpers,
-                  sortableIds,
                   dimCount,
                   lhsBuffer,
                   rhsBuffer,
@@ -1092,7 +1081,6 @@ public class RowBasedGrouperHelper
 
               return compareDimsInBuffersForNullFudgeTimestamp(
                   serdeHelpers,
-                  sortableIds,
                   dimCount,
                   lhsBuffer,
                   rhsBuffer,
@@ -1284,66 +1272,6 @@ public class RowBasedGrouperHelper
       }
     }
 
-    private static int compareDimsInBuffersForNullFudgeTimestamp(
-        List<RowBasedKeySerdeHelper> serdeHelpers,
-        int[] sortableIds,
-        int dimCount,
-        ByteBuffer lhsBuffer,
-        ByteBuffer rhsBuffer,
-        int lhsPosition,
-        int rhsPosition
-    )
-    {
-      for (int i = 0; i < dimCount; i++) {
-        final int cmp = serdeHelpers.get(i).compare(
-            lhsBuffer,
-            rhsBuffer,
-            lhsPosition + Longs.BYTES,
-            rhsPosition + Longs.BYTES
-        );
-        if (cmp != 0) {
-          return cmp;
-        }
-      }
-
-      return 0;
-    }
-
-    private static int compareDimsInBuffersForNullFudgeTimestampForPushDown(
-        List<RowBasedKeySerdeHelper> serdeHelpers,
-        List<Boolean> needsReverses,
-        int dimCount,
-        ByteBuffer lhsBuffer,
-        ByteBuffer rhsBuffer,
-        int lhsPosition,
-        int rhsPosition
-    )
-    {
-      for (int i = 0; i < dimCount; i++) {
-        final int cmp;
-        if (needsReverses.get(i)) {
-          cmp = serdeHelpers.get(i).compare(
-              rhsBuffer,
-              lhsBuffer,
-              rhsPosition + Longs.BYTES,
-              lhsPosition + Longs.BYTES
-          );
-        } else {
-          cmp = serdeHelpers.get(i).compare(
-              lhsBuffer,
-              rhsBuffer,
-              lhsPosition + Longs.BYTES,
-              rhsPosition + Longs.BYTES
-          );
-        }
-        if (cmp != 0) {
-          return cmp;
-        }
-      }
-
-      return 0;
-    }
-
     @Override
     public void reset()
     {
@@ -1351,31 +1279,6 @@ public class RowBasedGrouperHelper
       reverseDictionary.clear();
       sortableIds = null;
       currentEstimatedSize = 0;
-    }
-
-    /**
-     * Adds s to the dictionary. If the dictionary's size limit would be exceeded by adding this key, then
-     * this returns -1.
-     *
-     * @param s a string
-     *
-     * @return id for this string, or -1
-     */
-    private int addToDictionary(final String s)
-    {
-      Integer idx = reverseDictionary.get(s);
-      if (idx == null) {
-        final long additionalEstimatedSize = (long) s.length() * Chars.BYTES + ROUGH_OVERHEAD_PER_DICTIONARY_ENTRY;
-        if (currentEstimatedSize + additionalEstimatedSize > maxDictionarySize) {
-          return -1;
-        }
-
-        idx = dictionary.size();
-        reverseDictionary.put(s, idx);
-        dictionary.add(s);
-        currentEstimatedSize += additionalEstimatedSize;
-      }
-      return idx;
     }
 
     private int getTotalKeySize()
@@ -1473,62 +1376,38 @@ public class RowBasedGrouperHelper
       return helpers;
     }
 
-    interface RowBasedKeySerdeHelper
+    static class StringRowBasedKeySerdeHelper implements RowBasedKeySerdeHelper
     {
-      /**
-       * @return The size in bytes for a value of the column handled by this SerdeHelper.
-       */
-      int getKeyBufferValueSize();
-
-      /**
-       * Read a value from RowBasedKey at `idx` and put the value at the current position of RowBasedKeySerde's keyBuffer.
-       * advancing the position by the size returned by getKeyBufferValueSize().
-       *
-       * If an internal resource limit has been reached and the value could not be added to the keyBuffer,
-       * (e.g., maximum dictionary size exceeded for Strings), this method returns false.
-       *
-       * @param key RowBasedKey containing the grouping key values for a row.
-       * @param idx Index of the grouping key column within that this SerdeHelper handles
-       *
-       * @return true if the value was added to the key, false otherwise
-       */
-      boolean putToKeyBuffer(RowBasedKey key, int idx);
-
-      /**
-       * Read a value from a ByteBuffer containing a grouping key in the same format as RowBasedKeySerde's keyBuffer and
-       * put the value in `dimValues` at `dimValIdx`.
-       *
-       * The value to be read resides in the buffer at position (`initialOffset` + the SerdeHelper's keyBufferPosition).
-       *
-       * @param buffer        ByteBuffer containing an array of grouping keys for a row
-       * @param initialOffset Offset where non-timestamp grouping key columns start, needed because timestamp is not
-       *                      always included in the buffer.
-       * @param dimValIdx     Index within dimValues to store the value read from the buffer
-       * @param dimValues     Output array containing grouping key values for a row
-       */
-      void getFromByteBuffer(ByteBuffer buffer, int initialOffset, int dimValIdx, Comparable[] dimValues);
-
-      /**
-       * Compare the values at lhsBuffer[lhsPosition] and rhsBuffer[rhsPosition] using the natural ordering
-       * for this SerdeHelper's value type.
-       *
-       * @param lhsBuffer   ByteBuffer containing an array of grouping keys for a row
-       * @param rhsBuffer   ByteBuffer containing an array of grouping keys for a row
-       * @param lhsPosition Position of value within lhsBuffer
-       * @param rhsPosition Position of value within rhsBuffer
-       *
-       * @return Negative number if lhs < rhs, positive if lhs > rhs, 0 if lhs == rhs
-       */
-      int compare(ByteBuffer lhsBuffer, ByteBuffer rhsBuffer, int lhsPosition, int rhsPosition);
-    }
-
-    private class StringRowBasedKeySerdeHelper implements RowBasedKeySerdeHelper
-    {
+      final ByteBuffer keyBuffer;
       final int keyBufferPosition;
+      // Entry in dictionary, node pointer in reverseDictionary, hash + k/v/next pointer in reverseDictionary nodes
+      private static final int ROUGH_OVERHEAD_PER_DICTIONARY_ENTRY = Longs.BYTES * 5 + Ints.BYTES;
+      protected final List<String> dictionary;
+      protected final Map<String, Integer> reverseDictionary = Maps.newHashMap();
+      // Size limiting for the dictionary, in (roughly estimated) bytes.
+      private final long maxDictionarySize;
+      private final BufferComparator bufferComparator;
+      private long currentEstimatedSize = 0;
 
-      public StringRowBasedKeySerdeHelper(int keyBufferPosition)
+      // dictionary id -> its position if it were sorted by dictionary value
+      protected int[] sortableIds = null;
+
+      public StringRowBasedKeySerdeHelper(ByteBuffer keyBuffer, int keyBufferPosition, @Nullable StringComparator stringComparator)
       {
+        this.keyBuffer = keyBuffer;
         this.keyBufferPosition = keyBufferPosition;
+        if (stringComparator == null) {
+          bufferComparator = (lhsBuffer, rhsBuffer, lhsPosition, rhsPosition) -> Ints.compare(
+              sortableIds[lhsBuffer.getInt(lhsPosition + keyBufferPosition)],
+              sortableIds[rhsBuffer.getInt(rhsPosition + keyBufferPosition)]
+          );
+        } else {
+          bufferComparator = (lhsBuffer, rhsBuffer, lhsPosition, rhsPosition) -> {
+            String lhsStr = dictionary.get(lhsBuffer.getInt(lhsPosition + keyBufferPosition));
+            String rhsStr = dictionary.get(rhsBuffer.getInt(rhsPosition + keyBufferPosition));
+            return stringComparator.compare(lhsStr, rhsStr);
+          };
+        }
       }
 
       @Override
@@ -1548,6 +1427,31 @@ public class RowBasedGrouperHelper
         return true;
       }
 
+      /**
+       * Adds s to the dictionary. If the dictionary's size limit would be exceeded by adding this key, then
+       * this returns -1.
+       *
+       * @param s a string
+       *
+       * @return id for this string, or -1
+       */
+      private int addToDictionary(final String s)
+      {
+        Integer idx = reverseDictionary.get(s);
+        if (idx == null) {
+          final long additionalEstimatedSize = (long) s.length() * Chars.BYTES + ROUGH_OVERHEAD_PER_DICTIONARY_ENTRY;
+          if (currentEstimatedSize + additionalEstimatedSize > maxDictionarySize) {
+            return -1;
+          }
+
+          idx = dictionary.size();
+          reverseDictionary.put(s, idx);
+          dictionary.add(s);
+          currentEstimatedSize += additionalEstimatedSize;
+        }
+        return idx;
+      }
+
       @Override
       public void getFromByteBuffer(ByteBuffer buffer, int initialOffset, int dimValIdx, Comparable[] dimValues)
       {
@@ -1557,14 +1461,20 @@ public class RowBasedGrouperHelper
       @Override
       public int compare(ByteBuffer lhsBuffer, ByteBuffer rhsBuffer, int lhsPosition, int rhsPosition)
       {
-        return Ints.compare(
-            sortableIds[lhsBuffer.getInt(lhsPosition + keyBufferPosition)],
-            sortableIds[rhsBuffer.getInt(rhsPosition + keyBufferPosition)]
-        );
+        return bufferComparator.compare(lhsBuffer, rhsBuffer, lhsPosition, rhsPosition);
+      }
+
+      @Override
+      public void reset()
+      {
+        dictionary.clear();
+        reverseDictionary.clear();
+        sortableIds = null;
+        currentEstimatedSize = 0;
       }
     }
 
-    private class LimitPushDownStringRowBasedKeySerdeHelper extends StringRowBasedKeySerdeHelper
+    static class LimitPushDownStringRowBasedKeySerdeHelper extends StringRowBasedKeySerdeHelper
     {
       final StringComparator cmp;
 
@@ -1583,12 +1493,14 @@ public class RowBasedGrouperHelper
       }
     }
 
-    private class LongRowBasedKeySerdeHelper implements RowBasedKeySerdeHelper
+    static class LongRowBasedKeySerdeHelper implements RowBasedKeySerdeHelper
     {
+      final ByteBuffer keyBuffer;
       final int keyBufferPosition;
 
-      public LongRowBasedKeySerdeHelper(int keyBufferPosition)
+      public LongRowBasedKeySerdeHelper(ByteBuffer keyBuffer, int keyBufferPosition)
       {
+        this.keyBuffer = keyBuffer;
         this.keyBufferPosition = keyBufferPosition;
       }
 
@@ -1625,9 +1537,9 @@ public class RowBasedGrouperHelper
     {
       final StringComparator cmp;
 
-      public LimitPushDownLongRowBasedKeySerdeHelper(int keyBufferPosition, StringComparator cmp)
+      public LimitPushDownLongRowBasedKeySerdeHelper(ByteBuffer keyBuffer, int keyBufferPosition, StringComparator cmp)
       {
-        super(keyBufferPosition);
+        super(keyBuffer, keyBufferPosition);
         this.cmp = cmp;
       }
 
@@ -1641,12 +1553,14 @@ public class RowBasedGrouperHelper
       }
     }
 
-    private class FloatRowBasedKeySerdeHelper implements RowBasedKeySerdeHelper
+    static class FloatRowBasedKeySerdeHelper implements RowBasedKeySerdeHelper
     {
+      final ByteBuffer keyBuffer;
       final int keyBufferPosition;
 
-      public FloatRowBasedKeySerdeHelper(int keyBufferPosition)
+      public FloatRowBasedKeySerdeHelper(ByteBuffer keyBuffer, int keyBufferPosition)
       {
+        this.keyBuffer = keyBuffer;
         this.keyBufferPosition = keyBufferPosition;
       }
 
@@ -1683,9 +1597,9 @@ public class RowBasedGrouperHelper
     {
       final StringComparator cmp;
 
-      public LimitPushDownFloatRowBasedKeySerdeHelper(int keyBufferPosition, StringComparator cmp)
+      public LimitPushDownFloatRowBasedKeySerdeHelper(ByteBuffer keyBuffer, int keyBufferPosition, StringComparator cmp)
       {
-        super(keyBufferPosition);
+        super(keyBuffer, keyBufferPosition);
         this.cmp = cmp;
       }
 
@@ -1698,12 +1612,14 @@ public class RowBasedGrouperHelper
       }
     }
 
-    private class DoubleRowBasedKeySerdeHelper implements RowBasedKeySerdeHelper
+    static class DoubleRowBasedKeySerdeHelper implements RowBasedKeySerdeHelper
     {
+      final ByteBuffer keyBuffer;
       final int keyBufferPosition;
 
-      public DoubleRowBasedKeySerdeHelper(int keyBufferPosition)
+      public DoubleRowBasedKeySerdeHelper(ByteBuffer keyBuffer, int keyBufferPosition)
       {
+        this.keyBuffer = keyBuffer;
         this.keyBufferPosition = keyBufferPosition;
       }
 
@@ -1736,13 +1652,13 @@ public class RowBasedGrouperHelper
       }
     }
 
-    private class LimitPushDownDoubleRowBasedKeySerdeHelper extends DoubleRowBasedKeySerdeHelper
+    static class LimitPushDownDoubleRowBasedKeySerdeHelper extends DoubleRowBasedKeySerdeHelper
     {
       final StringComparator cmp;
 
-      public LimitPushDownDoubleRowBasedKeySerdeHelper(int keyBufferPosition, StringComparator cmp)
+      public LimitPushDownDoubleRowBasedKeySerdeHelper(ByteBuffer keyBuffer, int keyBufferPosition, StringComparator cmp)
       {
-        super(keyBufferPosition);
+        super(keyBuffer, keyBufferPosition);
         this.cmp = cmp;
       }
 
@@ -1754,5 +1670,64 @@ public class RowBasedGrouperHelper
         return cmp.compare(String.valueOf(lhs), String.valueOf(rhs));
       }
     }
+  }
+
+  static int compareDimsInBuffersForNullFudgeTimestamp(
+      List<RowBasedKeySerdeHelper> serdeHelpers,
+      int dimCount,
+      ByteBuffer lhsBuffer,
+      ByteBuffer rhsBuffer,
+      int lhsPosition,
+      int rhsPosition
+  )
+  {
+    for (int i = 0; i < dimCount; i++) {
+      final int cmp = serdeHelpers.get(i).compare(
+          lhsBuffer,
+          rhsBuffer,
+          lhsPosition + Longs.BYTES,
+          rhsPosition + Longs.BYTES
+      );
+      if (cmp != 0) {
+        return cmp;
+      }
+    }
+
+    return 0;
+  }
+
+  static int compareDimsInBuffersForNullFudgeTimestampForPushDown(
+      List<RowBasedKeySerdeHelper> serdeHelpers,
+      List<Boolean> needsReverses,
+      int dimCount,
+      ByteBuffer lhsBuffer,
+      ByteBuffer rhsBuffer,
+      int lhsPosition,
+      int rhsPosition
+  )
+  {
+    for (int i = 0; i < dimCount; i++) {
+      final int cmp;
+      if (needsReverses.get(i)) {
+        cmp = serdeHelpers.get(i).compare(
+            rhsBuffer,
+            lhsBuffer,
+            rhsPosition + Longs.BYTES,
+            lhsPosition + Longs.BYTES
+        );
+      } else {
+        cmp = serdeHelpers.get(i).compare(
+            lhsBuffer,
+            rhsBuffer,
+            lhsPosition + Longs.BYTES,
+            rhsPosition + Longs.BYTES
+        );
+      }
+      if (cmp != 0) {
+        return cmp;
+      }
+    }
+
+    return 0;
   }
 }
