@@ -30,7 +30,6 @@ import com.google.common.collect.Lists;
 import io.druid.java.util.common.guava.CloseQuietly;
 import io.druid.query.BaseQuery;
 import io.druid.query.aggregation.AggregatorFactory;
-import io.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKeySerde;
 import io.druid.query.groupby.orderby.DefaultLimitSpec;
 import io.druid.segment.ColumnSelectorFactory;
 import net.jpountz.lz4.LZ4BlockInputStream;
@@ -171,16 +170,10 @@ public class SpillingGrouper<KeyType> implements Grouper<KeyType>
     deleteFiles();
   }
 
-  @Override
-  public KeySerde<KeyType> getKeySerde()
-  {
-    return grouper.getKeySerde();
-  }
-
   public List<String> getDictionary()
   {
     final Set<String> mergedDictionary = new HashSet<>();
-    mergedDictionary.addAll(((RowBasedKeySerde) grouper.getKeySerde()).getDictionary());
+    mergedDictionary.addAll(keySerde.getDictionary());
 
     for (File dictFile : dictionaryFiles) {
       try {
@@ -248,42 +241,27 @@ public class SpillingGrouper<KeyType> implements Grouper<KeyType>
 
   private void spill() throws IOException
   {
-    final File outFile;
-
-    try (
-        final LimitedTemporaryStorage.LimitedOutputStream out = temporaryStorage.createFile();
-        final LZ4BlockOutputStream compressedOut = new LZ4BlockOutputStream(out);
-        final JsonGenerator jsonGenerator = spillMapper.getFactory().createGenerator(compressedOut)
-    ) {
-      outFile = out.getFile();
-      final Iterator<Entry<KeyType>> it = grouper.iterator(true);
-      while (it.hasNext()) {
-        BaseQuery.checkInterrupted();
-
-        jsonGenerator.writeObject(it.next());
-      }
-    }
-
-    files.add(outFile);
-
-    final File dictionaryFile;
-    try (
-        final LimitedTemporaryStorage.LimitedOutputStream out = temporaryStorage.createFile();
-        final LZ4BlockOutputStream compressedOut = new LZ4BlockOutputStream(out);
-        final JsonGenerator jsonGenerator = spillMapper.getFactory().createGenerator(compressedOut)
-    ) {
-      dictionaryFile = out.getFile();
-      final List<String> dictionary = ((RowBasedKeySerde) grouper.getKeySerde()).getDictionary();
-      for (String dict : dictionary) {
-        BaseQuery.checkInterrupted();
-
-        jsonGenerator.writeString(dict);
-      }
-    }
-
-    dictionaryFiles.add(dictionaryFile);
+    files.add(spill(grouper.iterator(true)));
+    dictionaryFiles.add(spill(keySerde.getDictionary().iterator()));
 
     grouper.reset();
+  }
+
+  private <T> File spill(Iterator<T> iterator) throws IOException
+  {
+    try (
+        final LimitedTemporaryStorage.LimitedOutputStream out = temporaryStorage.createFile();
+        final LZ4BlockOutputStream compressedOut = new LZ4BlockOutputStream(out);
+        final JsonGenerator jsonGenerator = spillMapper.getFactory().createGenerator(compressedOut)
+    ) {
+      while (iterator.hasNext()) {
+        BaseQuery.checkInterrupted();
+
+        jsonGenerator.writeObject(iterator.next());
+      }
+
+      return out.getFile();
+    }
   }
 
   private MappingIterator<Entry<KeyType>> read(final File file, final Class<KeyType> keyClazz)

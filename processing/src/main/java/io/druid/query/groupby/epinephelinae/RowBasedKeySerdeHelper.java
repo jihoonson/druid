@@ -23,7 +23,7 @@ import io.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKey;
 
 import java.nio.ByteBuffer;
 
-public interface RowBasedKeySerdeHelper
+interface RowBasedKeySerdeHelper
 {
   /**
    * @return The size in bytes for a value of the column handled by this SerdeHelper.
@@ -70,6 +70,4 @@ public interface RowBasedKeySerdeHelper
    * @return Negative number if lhs < rhs, positive if lhs > rhs, 0 if lhs == rhs
    */
   int compare(ByteBuffer lhsBuffer, ByteBuffer rhsBuffer, int lhsPosition, int rhsPosition);
-
-  void reset();
 }

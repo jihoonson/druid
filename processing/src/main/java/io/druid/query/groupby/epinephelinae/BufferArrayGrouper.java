@@ -225,12 +225,6 @@ public class BufferArrayGrouper implements IntGrouper
   }
 
   @Override
-  public KeySerde<Integer> getKeySerde()
-  {
-    return null;
-  }
-
-  @Override
   public Iterator<Entry<Integer>> iterator(boolean sorted)
   {
     if (sorted) {

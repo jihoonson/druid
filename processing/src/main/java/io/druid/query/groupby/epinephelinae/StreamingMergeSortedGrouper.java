@@ -23,7 +23,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import io.druid.java.util.common.IAE;
-import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.BufferAggregator;
@@ -171,35 +170,33 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
   @Override
   public AggregateResult aggregate(KeyType key)
   {
-    final ByteBuffer keyBuffer;
     try {
-      // This should bubble up to the user, so call finish() here.
-      keyBuffer = keySerde.toByteBuffer(key);
+      final ByteBuffer keyBuffer = keySerde.toByteBuffer(key);
+
+      if (keyBuffer.remaining() != keySize) {
+        throw new IAE(
+            "keySerde.toByteBuffer(key).remaining[%s] != keySerde.keySize[%s], buffer was the wrong size?!",
+            keyBuffer.remaining(),
+            keySize
+        );
+      }
+
+      final int prevRecordOffset = curWriteIndex * recordSize;
+      if (curWriteIndex == -1 || !keyEquals(keyBuffer, buffer, prevRecordOffset)) {
+        initNewSlot(keyBuffer);
+      }
+
+      final int curRecordOffset = curWriteIndex * recordSize;
+      for (int i = 0; i < aggregatorOffsets.length; i++) {
+        aggregators[i].aggregate(buffer, curRecordOffset + aggregatorOffsets[i]);
+      }
+
+      return AggregateResult.ok();
     }
-    catch (ISE e) {
+    catch (Throwable t) {
       finish();
-      return DICTIONARY_FULL;
+      throw t;
     }
-
-    if (keyBuffer.remaining() != keySize) {
-      throw new IAE(
-          "keySerde.toByteBuffer(key).remaining[%s] != keySerde.keySize[%s], buffer was the wrong size?!",
-          keyBuffer.remaining(),
-          keySize
-      );
-    }
-
-    final int prevRecordOffset = curWriteIndex * recordSize;
-    if (curWriteIndex == -1 || !keyEquals(keyBuffer, buffer, prevRecordOffset)) {
-      initNewSlot(keyBuffer);
-    }
-
-    final int curRecordOffset = curWriteIndex * recordSize;
-    for (int i = 0; i < aggregatorOffsets.length; i++) {
-      aggregators[i].aggregate(buffer, curRecordOffset + aggregatorOffsets[i]);
-    }
-
-    return AggregateResult.ok();
   }
 
   private boolean keyEquals(ByteBuffer curKeyBuffer, ByteBuffer buffer, int bufferOffset)
@@ -284,12 +281,6 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
         LOG.warn(e, "Could not close aggregator [%s], skipping.", aggregator);
       }
     }
-  }
-
-  @Override
-  public KeySerde<KeyType> getKeySerde()
-  {
-    return keySerde;
   }
 
   /**

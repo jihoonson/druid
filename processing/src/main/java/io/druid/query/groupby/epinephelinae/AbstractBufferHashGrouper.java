@@ -66,12 +66,6 @@ public abstract class AbstractBufferHashGrouper<KeyType> implements Grouper<KeyT
     this.bufferGrouperMaxSize = bufferGrouperMaxSize;
   }
 
-  @Override
-  public KeySerde<KeyType> getKeySerde()
-  {
-    return keySerde;
-  }
-
   /**
    * Called when a new bucket is used for an entry in the hash table. An implementing BufferHashGrouper class
    * can use this to update its own state, e.g. tracking bucket offsets in a structure outside of the hash table.
