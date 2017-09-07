@@ -184,12 +184,14 @@ public class TaskLockbox
   }
 
   /**
-   * Acquires a lock on behalf of a task. Blocks until the lock is acquired.
+   * Acquires a lock on behalf of a task.  Blocks until the lock is acquired.
    *
    * @param lockType lock type
    * @param task     task to acquire lock for
    * @param interval interval to lock
-   * @return acquired TaskLock
+   *
+   * @return {@link LockResult} containing a new or an existing lock if succeeded. Otherwise, {@link LockResult} with a
+   * {@link LockResult#revoked} flag.
    *
    * @throws InterruptedException if the current thread is interrupted
    */
@@ -203,6 +205,9 @@ public class TaskLockbox
     try {
       LockResult lockResult;
       while (!(lockResult = tryLock(lockType, task, interval)).isOk()) {
+        if (lockResult.isRevoked()) {
+          return lockResult;
+        }
         lockReleaseCondition.await();
       }
       return lockResult;
@@ -220,7 +225,8 @@ public class TaskLockbox
    * @param interval  interval to lock
    * @param timeoutMs maximum time to wait
    *
-   * @return acquired lock
+   * @return {@link LockResult} containing a new or an existing lock if succeeded. Otherwise, {@link LockResult} with a
+   * {@link LockResult#revoked} flag.
    *
    * @throws InterruptedException if the current thread is interrupted
    */
@@ -236,7 +242,7 @@ public class TaskLockbox
     try {
       LockResult lockResult;
       while (!(lockResult = tryLock(lockType, task, interval)).isOk()) {
-        if (nanos <= 0) {
+        if (nanos <= 0 || lockResult.isRevoked()) {
           return lockResult;
         }
         nanos = lockReleaseCondition.awaitNanos(nanos);
@@ -256,7 +262,9 @@ public class TaskLockbox
    * @param task     task that wants a lock
    * @param interval interval to lock
    *
-   * @return lock version if lock was acquired, absent otherwise
+   * @return {@link LockResult} containing a new or an existing lock if succeeded. Otherwise, {@link LockResult} with a
+   * {@link LockResult#revoked} flag.
+   *
    * @throws IllegalStateException if the task is not a valid active task
    */
   public LockResult tryLock(
@@ -308,6 +316,10 @@ public class TaskLockbox
     }
   }
 
+  /**
+   * See {@link #createOrFindLockPosse(Task, Interval, String, TaskLockType)}
+   */
+  @Nullable
   private TaskLockPosse createOrFindLockPosse(
       final Task task,
       final Interval interval,
@@ -318,17 +330,19 @@ public class TaskLockbox
   }
 
   /**
-   * Create a new {@link TaskLockPosse} or find an existing one for the given task and interval.
+   * Create a new {@link TaskLockPosse} or find an existing one for the given task and interval.  Note that the returned
+   * {@link TaskLockPosse} can hold a revoked lock.
    *
    * @param task             task acquiring a lock
    * @param interval         interval to be locked
    * @param preferredVersion a preferred version string
    * @param lockType         type of lock to be acquired
    *
-   * @return a lock posse
+   * @return a lock posse or null if any posse is found and a new poss cannot be created
    *
    * @see #createNewTaskLockPosse(TaskLockType, String, String, Interval, String, int)
    */
+  @Nullable
   private TaskLockPosse createOrFindLockPosse(
       final Task task,
       final Interval interval,
@@ -343,17 +357,18 @@ public class TaskLockbox
       final int priority = task.getPriority();
       final List<TaskLockPosse> foundPosses = findLockPossesOverlapsInterval(dataSource, interval);
 
-      // If we have some locks for dataSource and interval, check they can be reused.
-      // If they can't be reused, check lock priority and revoke existing locks if possible.
       if (foundPosses.size() > 0) {
+        // If we have some locks for dataSource and interval, check they can be reused.
+        // If they can't be reused, check lock priority and revoke existing locks if possible.
+        final List<TaskLockPosse> filteredPosses = foundPosses
+            .stream()
+            .filter(posse -> matchGroupIdAndContainInterval(posse.taskLock, task, interval))
+            .collect(Collectors.toList());
 
-        if (lockType.equals(TaskLockType.SHARED) && isAllSharedLocks(foundPosses)) {
-          final List<TaskLockPosse> possesForReusableLocks = foundPosses
-              .stream()
-              .filter(lockPosse -> matchGroupIdAndContainInterval(lockPosse.getTaskLock(), task, interval))
-              .collect(Collectors.toList());
+        if (filteredPosses.size() == 0) {
+          // case 1) this task doesn't have any lock, but others do
 
-          if (possesForReusableLocks.size() == 0) {
+          if (lockType.equals(TaskLockType.SHARED) && isAllSharedLocks(foundPosses)) {
             // Any number of shared locks can be acquired for the same dataSource and interval.
             return createNewTaskLockPosse(
                 lockType,
@@ -363,45 +378,44 @@ public class TaskLockbox
                 preferredVersion,
                 priority
             );
-          } else if (possesForReusableLocks.size() == 1) {
-            return possesForReusableLocks.get(0);
+          } else {
+            if (isAllRevocable(foundPosses, priority)) {
+              // Revoke all existing locks
+              foundPosses.forEach(this::revokeLock);
+
+              return createNewTaskLockPosse(
+                  lockType,
+                  task.getGroupId(),
+                  dataSource,
+                  interval,
+                  preferredVersion,
+                  priority
+              );
+            } else {
+              log.info("Cannot create a new taskLockPosse because some locks of same or higher priorities exist");
+              return null;
+            }
+          }
+        } else if (filteredPosses.size() == 1) {
+          // case 2) we found a lock posse for the given task
+          final TaskLockPosse foundPosse = filteredPosses.get(0);
+          if (lockType.equals(foundPosse.getTaskLock().getType())) {
+            return foundPosse;
           } else {
             throw new ISE(
-                "Task group[%s] has multiple locks for the same interval[%s]?",
-                task.getGroupId(),
-                interval
+                "Task[%s] already acquired a lock for interval[%s] but different type[%s]",
+                task.getId(),
+                interval,
+                foundPosse.getTaskLock().getType()
             );
           }
         } else {
-          if (foundPosses.size() == 1 &&
-              matchGroupIdAndContainInterval(foundPosses.get(0).taskLock, task, interval)) {
-            final TaskLockPosse foundPosse = foundPosses.get(0);
-            if (lockType.equals(foundPosse.getTaskLock().getType())) {
-              return foundPosse;
-            } else {
-              throw new ISE(
-                  "Task[%s] already acquired a lock for interval[%s] but different type[%s]",
-                  task.getId(),
-                  interval,
-                  foundPosse.getTaskLock().getType()
-              );
-            }
-          } else if (isAllRevocable(foundPosses, priority)) {
-            // Revoke all existing locks
-            foundPosses.forEach(this::revokeLock);
-
-            return createNewTaskLockPosse(
-                lockType,
-                task.getGroupId(),
-                dataSource,
-                interval,
-                preferredVersion,
-                priority
-            );
-          } else {
-            log.info("Cannot create a new taskLockPosse because some locks of higher priorities exist");
-            return null;
-          }
+          // case 3) we found multiple lock posses for the given task
+          throw new ISE(
+              "Task group[%s] has multiple locks for the same interval[%s]?",
+              task.getGroupId(),
+              interval
+          );
         }
       } else {
         // We don't have any locks for dataSource and interval.
@@ -479,91 +493,29 @@ public class TaskLockbox
   }
 
   /**
-   * Upgrade a lock for the given task and interval if possible. Shared locks and revoked locks cannot be upgraded.
+   * TODO: work must not take long time
    *
-   * @return a succeeded {@link LockResult} if the lock is upgraded. If an upgrade for a revoked lock is requested, a
-   * failed {@link LockResult} is returned.
-   *
-   * @throws IllegalStateException if an upgrade for a shared lock is requested
+   * @param task
+   * @param intervals
+   * @param work
+   * @param <T>
+   * @return
+   * @throws Exception
    */
-  public LockResult upgrade(Task task, Interval interval)
+  public <T> T doInCriticalSection(Task task, List<Interval> intervals, CriticalWork<T> work) throws Exception
   {
     giant.lock();
 
     try {
-      final TaskLockPosse taskLockPosseToUpdate = getOnlyTaskLockPosseContainingInterval(task, interval);
-      final TaskLock lock = taskLockPosseToUpdate.getTaskLock();
+      final boolean isLocksValid = intervals
+          .stream()
+          .allMatch(interval -> {
+            final TaskLock lock = getOnlyTaskLockPosseContainingInterval(task, interval).getTaskLock();
+            // Tasks cannot enter the critical section with a shared lock
+            return !lock.isRevoked() && lock.getType() != TaskLockType.SHARED;
+          });
 
-      Preconditions.checkState(
-          lock.getType().equals(TaskLockType.EXCLUSIVE),
-          "Shared lock cannot be upgraded"
-      );
-
-      if (lock.isRevoked()) {
-        return LockResult.fail(true);
-      } else {
-        log.info("Upgrading taskLock[%s] for task[%s] and interval[%s]", lock, task.getId(), interval);
-
-        if (lock.isUpgraded()) {
-          log.warn("TaskLock[%s] is already upgraded", lock);
-          return LockResult.ok(lock);
-        } else {
-          final TaskLock upgradedLock = lock.upgrade();
-          taskStorage.replaceLock(task.getId(), lock, upgradedLock);
-
-          // Possible exceptions are already checked above
-          final List<TaskLockPosse> possesHolder = running.get(task.getDataSource()).get(lock.getInterval());
-
-          possesHolder.remove(taskLockPosseToUpdate);
-          possesHolder.add(taskLockPosseToUpdate.withTaskLock(upgradedLock));
-          log.info("Upgraded taskLock[%s]");
-          return LockResult.ok(upgradedLock);
-        }
-      }
-    }
-    finally {
-      giant.unlock();
-    }
-  }
-
-  /**
-   * Downgrade a lock for the given task and interval if possible. Shared locks cannot be downgraded.
-   *
-   * @return a downgraded lock if succeeded.
-   *
-   * @throws IllegalStateException if a downgrade for a shared lock is requested
-   */
-  public TaskLock downgrade(Task task, Interval interval)
-  {
-    giant.lock();
-
-    try {
-      final TaskLockPosse taskLockPosseToUpdate = getOnlyTaskLockPosseContainingInterval(task, interval);
-      final TaskLock lock = taskLockPosseToUpdate.taskLock;
-
-      Preconditions.checkState(
-          lock.getType().equals(TaskLockType.EXCLUSIVE),
-          "Shared lock cannot be downgraded"
-      );
-
-      // Upgraded locks cannot be revoked, so ignore the check to verify the lock is revoked.
-      log.info("Downgrading taskLock[%s] for task[%s] and interval[%s]", lock, task.getId(), interval);
-
-      if (!lock.isUpgraded()) {
-        log.warn("TaskLock[%s] is already downgraded", lock);
-        return lock;
-      } else {
-        final TaskLock downgradedLock = lock.downgrade();
-        taskStorage.replaceLock(task.getId(), lock, downgradedLock);
-
-        // Possible exceptions are already checked above
-        final List<TaskLockPosse> possesHolder = running.get(task.getDataSource()).get(lock.getInterval());
-
-        possesHolder.remove(taskLockPosseToUpdate);
-        possesHolder.add(taskLockPosseToUpdate.withTaskLock(downgradedLock));
-        log.info("Downgraded taskLock[%s]");
-        return downgradedLock;
-      }
+      return work.doWork(isLocksValid);
     }
     finally {
       giant.unlock();
@@ -870,7 +822,7 @@ public class TaskLockbox
   private static boolean isRevocable(TaskLockPosse lockPosse, int tryLockPriority)
   {
     final TaskLock existingLock = lockPosse.getTaskLock();
-    return existingLock.getPriority() < tryLockPriority && !existingLock.isUpgraded();
+    return existingLock.isRevoked() || existingLock.getPriority() < tryLockPriority;
   }
 
   private TaskLockPosse getOnlyTaskLockPosseContainingInterval(Task task, Interval interval)
@@ -887,27 +839,6 @@ public class TaskLockbox
     } else {
       return filteredPosses.get(0);
     }
-  }
-
-  /**
-   * Find a {@link TaskLockPosse} for a task and an exact interval.
-   */
-  private List<TaskLockPosse> findLockPosse(Task task, Interval interval)
-  {
-    final NavigableMap<Interval, List<TaskLockPosse>> dsRunning = running.get(task.getDataSource());
-
-    if (dsRunning == null || dsRunning.isEmpty()) {
-      throw new ISE("Cannot find lock for dataSource[%s]", task.getDataSource());
-    }
-
-    final List<TaskLockPosse> possesHolder = dsRunning.get(interval);
-    if (possesHolder == null || possesHolder.isEmpty()) {
-      throw new ISE("Not found lock for task[%s] and interval[%s]", task.getId(), interval);
-    }
-
-    return possesHolder.stream()
-                       .filter(posse -> posse.containsTask(task))
-                       .collect(Collectors.toList());
   }
 
   @VisibleForTesting
