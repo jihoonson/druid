@@ -74,18 +74,14 @@ public class SegmentNukeAction implements TaskAction<Void>
       toolbox.getTaskLockbox().doInCriticalSection(
           task,
           intervals,
-          isLocksValid -> {
-            if (isLocksValid) {
-              toolbox.getIndexerMetadataStorageCoordinator().deleteSegments(segments);
-            } else {
-              throw new ISE("Some locks for task[%s] are already revoked", task.getId());
-            }
+          () -> {
+            toolbox.getIndexerMetadataStorageCoordinator().deleteSegments(segments);
             return null;
+          },
+          () -> {
+            throw new ISE("Some locks for task[%s] are already revoked", task.getId());
           }
       );
-    }
-    catch (InterruptedException e) { // TODO: handling
-      throw new RuntimeException(e);
     }
     catch (Exception e) {
       throw new RuntimeException(e);

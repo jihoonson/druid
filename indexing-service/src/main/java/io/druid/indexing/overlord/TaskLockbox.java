@@ -69,7 +69,7 @@ public class TaskLockbox
   // Datasource -> Interval -> list of (Tasks + TaskLock)
   // Multiple shared locks can be acquired for the same dataSource and interval.
   // Note that revoked locks are also maintained in this map to notify that those locks are revoked to the callers when
-  // they acquire the same locks again or request lock upgrade/downgrade.
+  // they acquire the same locks again.
   private final Map<String, NavigableMap<Interval, List<TaskLockPosse>>> running = Maps.newHashMap();
   private final TaskStorage taskStorage;
   private final ReentrantLock giant = new ReentrantLock(true);
@@ -493,33 +493,43 @@ public class TaskLockbox
   }
 
   /**
-   * TODO: work must not take long time
+   * Perform the given action with a guarantee that the locks of the task are not revoked in the middle of action.  This
+   * method first checks that all locks for the given task and intervals are valid and perform the right action.
    *
-   * @param task
-   * @param intervals
-   * @param work
-   * @param <T>
-   * @return
-   * @throws Exception
+   * The given action should be finished as soon as possible because all other methods in this class are blocked until
+   * this method is finished.
+   *
+   * @param task                 task performing a critical action
+   * @param intervals            intervals
+   * @param actionOnValidLocks   action to be performed when all locks are valid
+   * @param actionOnInvalidLocks action to be performed when some locks are invalid
    */
-  public <T> T doInCriticalSection(Task task, List<Interval> intervals, CriticalWork<T> work) throws Exception
+  public <T> T doInCriticalSection(
+      Task task,
+      List<Interval> intervals,
+      CriticalAction<T> actionOnValidLocks,
+      CriticalAction<T> actionOnInvalidLocks
+  ) throws Exception
   {
-    giant.lock();
+    giant.lockInterruptibly();
 
     try {
-      final boolean isLocksValid = intervals
-          .stream()
-          .allMatch(interval -> {
-            final TaskLock lock = getOnlyTaskLockPosseContainingInterval(task, interval).getTaskLock();
-            // Tasks cannot enter the critical section with a shared lock
-            return !lock.isRevoked() && lock.getType() != TaskLockType.SHARED;
-          });
-
-      return work.doWork(isLocksValid);
+      return isTaskLocksValid(task, intervals) ? actionOnValidLocks.perform() : actionOnInvalidLocks.perform();
     }
     finally {
       giant.unlock();
     }
+  }
+
+  private boolean isTaskLocksValid(Task task, List<Interval> intervals)
+  {
+    return intervals
+        .stream()
+        .allMatch(interval -> {
+          final TaskLock lock = getOnlyTaskLockPosseContainingInterval(task, interval).getTaskLock();
+          // Tasks cannot enter the critical section with a shared lock
+          return !lock.isRevoked() && lock.getType() != TaskLockType.SHARED;
+        });
   }
 
   private void revokeLock(TaskLockPosse lockPosse)
@@ -537,7 +547,7 @@ public class TaskLockbox
   /**
    * Mark the lock as revoked. Note that revoked locks are NOT removed. Instead, they are maintained in {@link #running}
    * and {@link #taskStorage} as the normal locks do. This is to check locks are revoked when they are requested to be
-   * acquired or upgraded and notify to the callers if revoked. Revoked locks are removed by calling
+   * acquired and notify to the callers if revoked. Revoked locks are removed by calling
    * {@link #unlock(Task, Interval)}.
    *
    * @param taskId an id of the task holding the lock

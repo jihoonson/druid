@@ -97,9 +97,10 @@ public class SegmentInsertActionTest
     actionTestKit.getTaskLockbox().doInCriticalSection(
         task,
         Collections.singletonList(INTERVAL),
-        isLocksValid -> {
-          Assert.assertTrue(isLocksValid);
-          return action.perform(task, actionTestKit.getTaskActionToolbox());
+        () -> action.perform(task, actionTestKit.getTaskActionToolbox()),
+        () -> {
+          Assert.fail();
+          return null;
         }
     );
 
@@ -125,9 +126,10 @@ public class SegmentInsertActionTest
     final Set<DataSegment> segments = actionTestKit.getTaskLockbox().doInCriticalSection(
         task,
         Collections.singletonList(INTERVAL),
-        isLocksValid -> {
-          Assert.assertTrue(isLocksValid);
-          return action.perform(task, actionTestKit.getTaskActionToolbox());
+        () -> action.perform(task, actionTestKit.getTaskActionToolbox()),
+        () -> {
+          Assert.fail();
+          return null;
         }
     );
 

@@ -110,17 +110,13 @@ public class SegmentTransactionalInsertAction implements TaskAction<SegmentPubli
       retVal = toolbox.getTaskLockbox().doInCriticalSection(
           task,
           segments.stream().map(DataSegment::getInterval).collect(Collectors.toList()),
-          isLocksValid -> isLocksValid ?
-                          toolbox.getIndexerMetadataStorageCoordinator().announceHistoricalSegments(
-                              segments,
-                              startMetadata,
-                              endMetadata
-                          ) :
-                          SegmentPublishResult.fail()
+          () -> toolbox.getIndexerMetadataStorageCoordinator().announceHistoricalSegments(
+              segments,
+              startMetadata,
+              endMetadata
+          ),
+          SegmentPublishResult::fail
       );
-    }
-    catch (InterruptedException e) { // TODO: handling
-      throw new RuntimeException(e);
     }
     catch (Exception e) {
       throw new RuntimeException(e);

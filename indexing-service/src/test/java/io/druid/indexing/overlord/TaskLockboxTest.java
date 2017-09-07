@@ -268,7 +268,7 @@ public class TaskLockboxTest
     Assert.assertTrue(lockbox.tryLock(TaskLockType.SHARED, task, interval).isOk());
 
     Assert.assertFalse(
-        lockbox.doInCriticalSection(task, Collections.singletonList(interval), isLocksValid -> isLocksValid)
+        lockbox.doInCriticalSection(task, Collections.singletonList(interval), () -> true, () -> false)
     );
   }
 
@@ -282,7 +282,7 @@ public class TaskLockboxTest
     Assert.assertNotNull(lock);
 
     Assert.assertTrue(
-        lockbox.doInCriticalSection(task, Collections.singletonList(interval), isLocksValid -> isLocksValid)
+        lockbox.doInCriticalSection(task, Collections.singletonList(interval), () -> true, () -> false)
     );
   }
 
@@ -297,7 +297,7 @@ public class TaskLockboxTest
     Assert.assertNotNull(lock);
 
     Assert.assertTrue(
-        lockbox.doInCriticalSection(task, Collections.singletonList(smallInterval), isLocksValid -> isLocksValid)
+        lockbox.doInCriticalSection(task, Collections.singletonList(smallInterval), () -> true, () -> false)
     );
   }
 
@@ -319,7 +319,7 @@ public class TaskLockboxTest
     Assert.assertNotNull(lock);
 
     Assert.assertTrue(
-        lockbox.doInCriticalSection(highPriorityTask, Collections.singletonList(interval), isLocksValid -> isLocksValid)
+        lockbox.doInCriticalSection(highPriorityTask, Collections.singletonList(interval), () -> true, () -> false)
     );
   }
 
@@ -340,7 +340,7 @@ public class TaskLockboxTest
     Assert.assertTrue(Iterables.getOnlyElement(lockbox.findLocksForTask(lowPriorityTask)).isRevoked());
 
     Assert.assertFalse(
-        lockbox.doInCriticalSection(lowPriorityTask, Collections.singletonList(interval), isLocksValid -> isLocksValid)
+        lockbox.doInCriticalSection(lowPriorityTask, Collections.singletonList(interval), () -> true, () -> false)
     );
   }
 
