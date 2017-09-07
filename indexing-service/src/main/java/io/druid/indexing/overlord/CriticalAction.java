@@ -23,8 +23,6 @@ import io.druid.indexing.common.TaskLockType;
 import io.druid.indexing.common.task.Task;
 import org.joda.time.Interval;
 
-import java.util.List;
-
 /**
  * This class represents an action must be done while the task's lock is guaranteed to not be revoked in the middle of
  * action.
