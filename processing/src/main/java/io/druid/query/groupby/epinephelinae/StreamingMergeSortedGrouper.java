@@ -26,6 +26,7 @@ import io.druid.java.util.common.IAE;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.java.util.common.parsers.CloseableIterator;
+import io.druid.query.QueryContexts;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.BufferAggregator;
 import io.druid.segment.ColumnSelectorFactory;
@@ -33,6 +34,7 @@ import io.druid.segment.ColumnSelectorFactory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -49,13 +51,15 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
   // thread from being blocked if the iterator of this grouper is not consumed due to some failures.
   private static final long DEFAULT_TIMEOUT_MS = 5000L;
 
+  private static final long SPIN_FOR_TIMEOUT_THRESHOLD_NS = 1000L;
+
   private final Supplier<ByteBuffer> bufferSupplier;
   private final KeySerde<KeyType> keySerde;
   private final BufferAggregator[] aggregators;
   private final int[] aggregatorOffsets;
   private final int keySize;
   private final int recordSize; // size of (key + all aggregates)
-  private final long timeoutMs;
+  private final long queryTimeAtNs;
 
   // Below variables are initialized when init() is called
   private ByteBuffer buffer;
@@ -99,23 +103,12 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
     return recordSize * 3;
   }
 
-  public StreamingMergeSortedGrouper(
-      final Supplier<ByteBuffer> bufferSupplier,
-      final KeySerde<KeyType> keySerde,
-      final ColumnSelectorFactory columnSelectorFactory,
-      final AggregatorFactory[] aggregatorFactories
-  )
-  {
-    this(bufferSupplier, keySerde, columnSelectorFactory, aggregatorFactories, DEFAULT_TIMEOUT_MS);
-  }
-
-  @VisibleForTesting
   StreamingMergeSortedGrouper(
       final Supplier<ByteBuffer> bufferSupplier,
       final KeySerde<KeyType> keySerde,
       final ColumnSelectorFactory columnSelectorFactory,
       final AggregatorFactory[] aggregatorFactories,
-      final long timeoutMs
+      final long queryTimeoutAtMs
   )
   {
     this.bufferSupplier = bufferSupplier;
@@ -131,7 +124,10 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
       offset += aggregatorFactories[i].getMaxIntermediateSize();
     }
     this.recordSize = offset;
-    this.timeoutMs = timeoutMs;
+    final long realQueryTimeoutAtMs = queryTimeoutAtMs != QueryContexts.NO_TIMEOUT ?
+                                      queryTimeoutAtMs :
+                                      System.currentTimeMillis() + DEFAULT_TIMEOUT_MS;
+    this.queryTimeAtNs = TimeUnit.MILLISECONDS.toNanos(realQueryTimeoutAtMs);
   }
 
   @Override
@@ -241,22 +237,28 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
   private void increaseWriteIndex()
   {
     if (curWriteIndex == maxNumSlots - 1) {
-      final long startLoopAt = System.currentTimeMillis();
+      long nanosTimeout = queryTimeAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
       while ((nextReadIndex == -1 || nextReadIndex == 0) && !Thread.currentThread().isInterrupted()) {
-        if (System.currentTimeMillis() - startLoopAt > timeoutMs) {
+        if (nanosTimeout <= 0L) {
           throw new RuntimeException(new TimeoutException());
         }
-        Thread.yield();
+        if (nanosTimeout >= SPIN_FOR_TIMEOUT_THRESHOLD_NS) {
+          Thread.yield();
+        }
+        nanosTimeout = queryTimeAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
       }
       curWriteIndex = 0;
     } else {
       final int nextWriteIndex = curWriteIndex + 1;
-      final long startLoopAt = System.currentTimeMillis();
+      long nanosTimeout = queryTimeAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
       while ((nextWriteIndex == nextReadIndex) && !Thread.currentThread().isInterrupted()) {
-        if (System.currentTimeMillis() - startLoopAt > timeoutMs) {
+        if (nanosTimeout <= 0L) {
           throw new RuntimeException(new TimeoutException());
         }
-        Thread.yield();
+        if (nanosTimeout >= SPIN_FOR_TIMEOUT_THRESHOLD_NS) {
+          Thread.yield();
+        }
+        nanosTimeout = queryTimeAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
       }
       curWriteIndex = nextWriteIndex;
     }
@@ -350,13 +352,15 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
 
       private void increaseReadIndex(int increaseTo)
       {
-        final long startLoopAt = System.currentTimeMillis();
+        long nanosTimeout = queryTimeAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
         while ((!isReady() || increaseTo == curWriteIndex) && !finished && !Thread.currentThread().isInterrupted()) {
-          if (System.currentTimeMillis() - startLoopAt > timeoutMs) {
+          if (nanosTimeout <= 0L) {
             throw new RuntimeException(new TimeoutException());
           }
-
-          Thread.yield();
+          if (nanosTimeout >= SPIN_FOR_TIMEOUT_THRESHOLD_NS) {
+            Thread.yield();
+          }
+          nanosTimeout = queryTimeAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
         }
 
         nextReadIndex = increaseTo;
