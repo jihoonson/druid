@@ -19,7 +19,6 @@
 
 package io.druid.query.groupby.epinephelinae;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import io.druid.java.util.common.IAE;
@@ -59,7 +58,7 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
   private final int[] aggregatorOffsets;
   private final int keySize;
   private final int recordSize; // size of (key + all aggregates)
-  private final long queryTimeAtNs;
+  private final long queryTimeoutAtNs;
 
   // Below variables are initialized when init() is called
   private ByteBuffer buffer;
@@ -127,7 +126,7 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
     final long realQueryTimeoutAtMs = queryTimeoutAtMs != QueryContexts.NO_TIMEOUT ?
                                       queryTimeoutAtMs :
                                       System.currentTimeMillis() + DEFAULT_TIMEOUT_MS;
-    this.queryTimeAtNs = TimeUnit.MILLISECONDS.toNanos(realQueryTimeoutAtMs);
+    this.queryTimeoutAtNs = TimeUnit.MILLISECONDS.toNanos(realQueryTimeoutAtMs);
   }
 
   @Override
@@ -236,29 +235,32 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
    */
   private void increaseWriteIndex()
   {
+    final long timeoutNs = queryTimeoutAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+    final long startAt = System.nanoTime();
+    final long timeoutAt = startAt + timeoutNs;
+    long now = startAt;
+
     if (curWriteIndex == maxNumSlots - 1) {
-      long nanosTimeout = queryTimeAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
       while ((nextReadIndex == -1 || nextReadIndex == 0) && !Thread.currentThread().isInterrupted()) {
-        if (nanosTimeout <= 0L) {
+        if (timeoutAt - now <= 0L) {
           throw new RuntimeException(new TimeoutException());
         }
-        if (nanosTimeout >= SPIN_FOR_TIMEOUT_THRESHOLD_NS) {
+        if (now - startAt >= SPIN_FOR_TIMEOUT_THRESHOLD_NS) {
           Thread.yield();
         }
-        nanosTimeout = queryTimeAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        now = System.nanoTime();
       }
       curWriteIndex = 0;
     } else {
       final int nextWriteIndex = curWriteIndex + 1;
-      long nanosTimeout = queryTimeAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
       while ((nextWriteIndex == nextReadIndex) && !Thread.currentThread().isInterrupted()) {
-        if (nanosTimeout <= 0L) {
+        if (timeoutAt - now <= 0L) {
           throw new RuntimeException(new TimeoutException());
         }
-        if (nanosTimeout >= SPIN_FOR_TIMEOUT_THRESHOLD_NS) {
+        if (now - startAt >= SPIN_FOR_TIMEOUT_THRESHOLD_NS) {
           Thread.yield();
         }
-        nanosTimeout = queryTimeAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        now = System.nanoTime();
       }
       curWriteIndex = nextWriteIndex;
     }
@@ -352,15 +354,19 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
 
       private void increaseReadIndex(int increaseTo)
       {
-        long nanosTimeout = queryTimeAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        final long timeoutNs = queryTimeoutAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+        final long startAt = System.nanoTime();
+        final long timeoutAt = startAt + timeoutNs;
+
+        long now = startAt;
         while ((!isReady() || increaseTo == curWriteIndex) && !finished && !Thread.currentThread().isInterrupted()) {
-          if (nanosTimeout <= 0L) {
+          if (timeoutAt - now <= 0L) {
             throw new RuntimeException(new TimeoutException());
           }
-          if (nanosTimeout >= SPIN_FOR_TIMEOUT_THRESHOLD_NS) {
+          if (now - startAt >= SPIN_FOR_TIMEOUT_THRESHOLD_NS) {
             Thread.yield();
           }
-          nanosTimeout = queryTimeAtNs - TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis());
+          now = System.nanoTime();
         }
 
         nextReadIndex = increaseTo;
