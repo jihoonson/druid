@@ -56,6 +56,7 @@ public abstract class AbstractTextFilesFirehoseFactory<ObjectType>
     if (objects == null) {
       objects = ImmutableList.copyOf(Preconditions.checkNotNull(initObjects(), "initObjects"));
     }
+    LOG.info("Initializing a firehose with [%d] objects", objects.size());
     final Iterator<ObjectType> iterator = objects.iterator();
     return new FileIteratingFirehose(
         new Iterator<LineIterator>()

@@ -57,20 +57,20 @@ import java.util.concurrent.atomic.AtomicLong;
  * by this class provides three key functionalities.
  *
  * <ul>
- *   <li>
- *     Caching: for the first call of {@link #connect(StringInputRowParser, File)}, it caches objects in a local disk
- *     up to {@link #maxCacheCapacityBytes}.  These caches are NOT deleted until the process terminates,
- *     and thus can be used for future reads.
- *   </li>
- *   <li>
- *     Fetching: when it reads all cached data, it fetches remaining objects into a local disk and reads data from
- *     them.  For the performance reason, prefetch technique is used, that is, when the size of remaining cached or
- *     fetched data is smaller than {@link #prefetchTriggerBytes}, a background prefetch thread automatically starts to
- *     fetch remaining objects.
- *   </li>
- *   <li>
- *     Retry: if an exception occurs while downloading an object, it retries again up to {@link #maxFetchRetry}.
- *   </li>
+ * <li>
+ * Caching: for the first call of {@link #connect(StringInputRowParser, File)}, it caches objects in a local disk
+ * up to {@link #maxCacheCapacityBytes}.  These caches are NOT deleted until the process terminates,
+ * and thus can be used for future reads.
+ * </li>
+ * <li>
+ * Fetching: when it reads all cached data, it fetches remaining objects into a local disk and reads data from
+ * them.  For the performance reason, prefetch technique is used, that is, when the size of remaining cached or
+ * fetched data is smaller than {@link #prefetchTriggerBytes}, a background prefetch thread automatically starts to
+ * fetch remaining objects.
+ * </li>
+ * <li>
+ * Retry: if an exception occurs while downloading an object, it retries again up to {@link #maxFetchRetry}.
+ * </li>
  * </ul>
  *
  * This implementation can be useful when the cost for reading input objects is large as reading from AWS S3 because
@@ -81,26 +81,26 @@ import java.util.concurrent.atomic.AtomicLong;
  * disabled, the behavior of the firehose is different like below.
  *
  * <ol>
- *   <li>
- *     If prefetch is enabled, PrefetchableTextFilesFirehose can fetch input objects in background.
- *   </li>
- *   <li> When next() is called, it first checks that there are already fetched files in local storage.
- *     <ol>
- *       <li>
- *         If exists, it simply chooses a fetched file and returns a {@link LineIterator} reading that file.
- *       </li>
- *       <li>
- *         If there is no fetched files in local storage but some objects are still remained to be read, the firehose
- *         fetches one of input objects in background immediately. If an IOException occurs while downloading the object,
- *         it retries up to the maximum retry count. Finally, the firehose returns a {@link LineIterator} only when the
- *         download operation is successfully finished.
- *         </li>
- *     </ol>
- *   </li>
- *   <li>
- *     If prefetch is disabled, the firehose returns a {@link LineIterator} which directly reads the stream opened by
- *     {@link #openObjectStream}. If there is an IOException, it will throw it and the read will fail.
- *   </li>
+ * <li>
+ * If prefetch is enabled, PrefetchableTextFilesFirehose can fetch input objects in background.
+ * </li>
+ * <li> When next() is called, it first checks that there are already fetched files in local storage.
+ * <ol>
+ * <li>
+ * If exists, it simply chooses a fetched file and returns a {@link LineIterator} reading that file.
+ * </li>
+ * <li>
+ * If there is no fetched files in local storage but some objects are still remained to be read, the firehose
+ * fetches one of input objects in background immediately. If an IOException occurs while downloading the object,
+ * it retries up to the maximum retry count. Finally, the firehose returns a {@link LineIterator} only when the
+ * download operation is successfully finished.
+ * </li>
+ * </ol>
+ * </li>
+ * <li>
+ * If prefetch is disabled, the firehose returns a {@link LineIterator} which directly reads the stream opened by
+ * {@link #openObjectStream}. If there is an IOException, it will throw it and the read will fail.
+ * </li>
  * </ol>
  */
 public abstract class PrefetchableTextFilesFirehoseFactory<ObjectType>
@@ -130,6 +130,7 @@ public abstract class PrefetchableTextFilesFirehoseFactory<ObjectType>
   private final int maxFetchRetry;
 
   private final List<FetchedFile> cacheFiles = new ArrayList<>();
+
   private long totalCachedBytes;
 
   private List<ObjectType> objects;
@@ -175,6 +176,7 @@ public abstract class PrefetchableTextFilesFirehoseFactory<ObjectType>
       objects = ImmutableList.copyOf(Preconditions.checkNotNull(initObjects(), "objects"));
     }
 
+    LOG.info("Initializing a firehose with [%d] objects", objects.size());
     Preconditions.checkState(temporaryDirectory.exists(), "temporaryDirectory[%s] does not exist", temporaryDirectory);
     Preconditions.checkState(
         temporaryDirectory.isDirectory(),
@@ -240,13 +242,16 @@ public abstract class PrefetchableTextFilesFirehoseFactory<ObjectType>
           {
             for (int i = nextFetchIndex; i < objects.size() && fetchedBytes.get() <= maxFetchCapacityBytes; i++) {
               final ObjectType object = objects.get(i);
-              LOG.info("Fetching object[%s], fetchedBytes[%d]", object, fetchedBytes.get());
+              LOG.info("Fetching [%d]th object[%s], fetchedBytes[%d]", nextFetchIndex, object, fetchedBytes.get());
               final File outFile = File.createTempFile(FETCH_FILE_PREFIX, null, temporaryDirectory);
               fetchedBytes.addAndGet(download(object, outFile, 0));
-              synchronized (fetchLock) {
-                fetchFiles.put(new FetchedFile(object, outFile));
-                nextFetchIndex++;
-              }
+//              synchronized (fetchLock) {
+//                fetchFiles.put(new FetchedFile(object, outFile));
+//                Thread.sleep(400);
+//                nextFetchIndex++;
+//              }
+
+              throw new ISE("test");
             }
           }
 
@@ -302,7 +307,7 @@ public abstract class PrefetchableTextFilesFirehoseFactory<ObjectType>
             // If fetch() fails, hasNext() always returns true because nextFetchIndex must be smaller than the number
             // of objects, which means next() is always called. The below method checks that fetch() threw an exception
             // and propagates it if exists.
-            checkFetchException();
+            checkFetchException(false);
 
             final OpenedObject openedObject;
 
@@ -332,14 +337,17 @@ public abstract class PrefetchableTextFilesFirehoseFactory<ObjectType>
             }
           }
 
-          private void checkFetchException()
+          private void checkFetchException(boolean waitForFutureDone)
           {
-            if (fetchFuture != null && fetchFuture.isDone()) {
+            System.err.println(fetchFuture == null || fetchFuture.isDone());
+            if (waitForFutureDone || (fetchFuture != null && fetchFuture.isDone())) {
               try {
-                fetchFuture.get();
+                System.err.println("wait for fetch future");
+                fetchFuture.get(fetchTimeout, TimeUnit.MILLISECONDS);
                 fetchFuture = null;
               }
-              catch (InterruptedException | ExecutionException e) {
+              catch (InterruptedException | ExecutionException | TimeoutException e) {
+                System.err.println("throwing exception");
                 throw Throwables.propagate(e);
               }
             }
@@ -362,7 +370,8 @@ public abstract class PrefetchableTextFilesFirehoseFactory<ObjectType>
                 fetchedFile = fetchFiles.poll(fetchTimeout, TimeUnit.MILLISECONDS);
                 if (fetchedFile == null) {
                   // Check the latest fetch is failed
-                  checkFetchException();
+                  checkFetchException(true);
+                  System.err.println("timeout exception");
                   // Or throw a timeout exception
                   throw new RuntimeException(new TimeoutException());
                 }
