@@ -19,7 +19,7 @@
 
 package io.druid.server.coordinator;
 
-import io.druid.client.ImmutableDruidServer;
+import io.druid.client.ServerInfo;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.timeline.DataSegment;
 
@@ -27,14 +27,14 @@ import java.util.Objects;
 
 /**
  */
-public class ServerHolder implements Comparable<ServerHolder>
+public class ServerHolder<T extends ServerInfo> implements Comparable<ServerHolder<T>>
 {
   private static final Logger log = new Logger(ServerHolder.class);
-  private final ImmutableDruidServer server;
+  private final T server;
   private final LoadQueuePeon peon;
 
   public ServerHolder(
-      ImmutableDruidServer server,
+      T server,
       LoadQueuePeon peon
   )
   {
@@ -42,7 +42,7 @@ public class ServerHolder implements Comparable<ServerHolder>
     this.peon = peon;
   }
 
-  public ImmutableDruidServer getServer()
+  public T getServer()
   {
     return server;
   }

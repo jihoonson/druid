@@ -26,7 +26,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.metamx.emitter.EmittingLogger;
-
+import io.druid.client.ServerInfo;
 import io.druid.java.util.common.Pair;
 import io.druid.timeline.DataSegment;
 import org.apache.commons.math3.util.FastMath;
@@ -34,10 +34,11 @@ import org.joda.time.Interval;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class CostBalancerStrategy implements BalancerStrategy
+public class CostBalancerStrategy<T extends ServerInfo> implements BalancerStrategy<T>
 {
   private static final EmittingLogger log = new EmittingLogger(CostBalancerStrategy.class);
 
@@ -183,11 +184,11 @@ public class CostBalancerStrategy implements BalancerStrategy
   }
 
   @Override
-  public ServerHolder findNewSegmentHomeReplicator(
-      DataSegment proposalSegment, List<ServerHolder> serverHolders
+  public ServerHolder<T> findNewSegmentHomeReplicator(
+      DataSegment proposalSegment, List<ServerHolder<T>> serverHolders
   )
   {
-    ServerHolder holder = chooseBestServer(proposalSegment, serverHolders, false).rhs;
+    ServerHolder<T> holder = chooseBestServer(proposalSegment, serverHolders, false).rhs;
     if (holder != null && !holder.isServingSegment(proposalSegment)) {
       return holder;
     }
@@ -196,8 +197,8 @@ public class CostBalancerStrategy implements BalancerStrategy
 
 
   @Override
-  public ServerHolder findNewSegmentHomeBalancer(
-      DataSegment proposalSegment, List<ServerHolder> serverHolders
+  public ServerHolder<T> findNewSegmentHomeBalancer(
+      DataSegment proposalSegment, List<ServerHolder<T>> serverHolders
   )
   {
     return chooseBestServer(proposalSegment, serverHolders, true).rhs;
@@ -214,7 +215,7 @@ public class CostBalancerStrategy implements BalancerStrategy
 
 
   @Override
-  public BalancerSegmentHolder pickSegmentToMove(final List<ServerHolder> serverHolders)
+  public BalancerSegmentHolder pickSegmentToMove(final List<ServerHolder<T>> serverHolders)
   {
     ReservoirSegmentSampler sampler = new ReservoirSegmentSampler();
     return sampler.getRandomBalancerSegmentHolder(serverHolders);
@@ -227,7 +228,7 @@ public class CostBalancerStrategy implements BalancerStrategy
    *
    * @return The initial cost of the Druid tier.
    */
-  public double calculateInitialTotalCost(final List<ServerHolder> serverHolders)
+  public double calculateInitialTotalCost(final List<ServerHolder<T>> serverHolders)
   {
     double cost = 0;
     for (ServerHolder server : serverHolders) {
@@ -249,11 +250,12 @@ public class CostBalancerStrategy implements BalancerStrategy
    * pairwise cost matrix).  This is the cost of a cluster if each
    * segment were to get its own historical node.
    */
-  public double calculateNormalization(final List<ServerHolder> serverHolders)
+  public double calculateNormalization(final List<ServerHolder<T>> serverHolders)
   {
     double cost = 0;
-    for (ServerHolder server : serverHolders) {
-      for (DataSegment segment : server.getServer().getSegments().values()) {
+    for (ServerHolder<T> server : serverHolders) {
+      final Map<String, DataSegment> segments = server.getServer().getSegments();
+      for (DataSegment segment : segments.values()) {
         cost += computeJointSegmentsCost(segment, segment);
       }
     }
@@ -263,7 +265,7 @@ public class CostBalancerStrategy implements BalancerStrategy
   @Override
   public void emitStats(
       String tier,
-      CoordinatorStats stats, List<ServerHolder> serverHolderList
+      CoordinatorStats stats, List<ServerHolder<T>> serverHolderList
   )
   {
     final double initialTotalCost = calculateInitialTotalCost(serverHolderList);
@@ -326,23 +328,23 @@ public class CostBalancerStrategy implements BalancerStrategy
    * @return A ServerHolder with the new home for a segment.
    */
 
-  protected Pair<Double, ServerHolder> chooseBestServer(
+  protected Pair<Double, ServerHolder<T>> chooseBestServer(
       final DataSegment proposalSegment,
-      final Iterable<ServerHolder> serverHolders,
+      final Iterable<ServerHolder<T>> serverHolders,
       final boolean includeCurrentServer
   )
   {
-    Pair<Double, ServerHolder> bestServer = Pair.of(Double.POSITIVE_INFINITY, null);
+    Pair<Double, ServerHolder<T>> bestServer = Pair.of(Double.POSITIVE_INFINITY, null);
 
-    List<ListenableFuture<Pair<Double, ServerHolder>>> futures = Lists.newArrayList();
+    List<ListenableFuture<Pair<Double, ServerHolder<T>>>> futures = Lists.newArrayList();
 
-    for (final ServerHolder server : serverHolders) {
+    for (final ServerHolder<T> server : serverHolders) {
       futures.add(
           exec.submit(
-              new Callable<Pair<Double, ServerHolder>>()
+              new Callable<Pair<Double, ServerHolder<T>>>()
               {
                 @Override
-                public Pair<Double, ServerHolder> call() throws Exception
+                public Pair<Double, ServerHolder<T>> call() throws Exception
                 {
                   return Pair.of(computeCost(proposalSegment, server, includeCurrentServer), server);
                 }
@@ -351,11 +353,11 @@ public class CostBalancerStrategy implements BalancerStrategy
       );
     }
 
-    final ListenableFuture<List<Pair<Double, ServerHolder>>> resultsFuture = Futures.allAsList(futures);
-    final List<Pair<Double, ServerHolder>> bestServers = new ArrayList<>();
+    final ListenableFuture<List<Pair<Double, ServerHolder<T>>>> resultsFuture = Futures.allAsList(futures);
+    final List<Pair<Double, ServerHolder<T>>> bestServers = new ArrayList<>();
     bestServers.add(bestServer);
     try {
-      for (Pair<Double, ServerHolder> server : resultsFuture.get()) {
+      for (Pair<Double, ServerHolder<T>> server : resultsFuture.get()) {
         if (server.lhs <= bestServers.get(0).lhs) {
           if (server.lhs < bestServers.get(0).lhs) {
             bestServers.clear();

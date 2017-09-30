@@ -83,7 +83,7 @@ public class DruidCluster
     realtimes.add(serverHolder);
   }
 
-  private void addHistorical(ServerHolder serverHolder)
+  private void addHistorical(ServerHolder<ImmutableDruidServer> serverHolder)
   {
     final ImmutableDruidServer server = serverHolder.getServer();
     final MinMaxPriorityQueue<ServerHolder> tierServers = historicals.computeIfAbsent(

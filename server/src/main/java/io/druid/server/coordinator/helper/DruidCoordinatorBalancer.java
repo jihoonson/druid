@@ -35,6 +35,8 @@ import io.druid.server.coordinator.LoadQueuePeon;
 import io.druid.server.coordinator.ServerHolder;
 import io.druid.timeline.DataSegment;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -84,7 +86,7 @@ public class DruidCoordinatorBalancer implements DruidCoordinatorHelper
   public DruidCoordinatorRuntimeParams run(DruidCoordinatorRuntimeParams params)
   {
     final CoordinatorStats stats = new CoordinatorStats();
-    final BalancerStrategy strategy = params.getBalancerStrategy();
+    final BalancerStrategy<ImmutableDruidServer> strategy = params.getBalancerStrategy();
     final int maxSegmentsToMove = params.getCoordinatorDynamicConfig().getMaxSegmentsToMove();
 
     for (Map.Entry<String, MinMaxPriorityQueue<ServerHolder>> entry :
@@ -101,7 +103,11 @@ public class DruidCoordinatorBalancer implements DruidCoordinatorHelper
         continue;
       }
 
-      final List<ServerHolder> serverHolderList = Lists.newArrayList(entry.getValue());
+      final MinMaxPriorityQueue<ServerHolder> queue = entry.getValue();
+      final List<ServerHolder<ImmutableDruidServer>> serverHolderList = new ArrayList<>(queue.size());
+      for (ServerHolder holder : queue) {
+        serverHolderList.add(holder);
+      }
 
       if (serverHolderList.size() <= 1) {
         log.info("[%s]: One or fewer servers found.  Cannot balance.", tier);
@@ -122,7 +128,7 @@ public class DruidCoordinatorBalancer implements DruidCoordinatorHelper
         final BalancerSegmentHolder segmentToMove = strategy.pickSegmentToMove(serverHolderList);
 
         if (segmentToMove != null && params.getAvailableSegments().contains(segmentToMove.getSegment())) {
-          final ServerHolder holder = strategy.findNewSegmentHomeBalancer(segmentToMove.getSegment(), serverHolderList);
+          final ServerHolder<ImmutableDruidServer> holder = strategy.findNewSegmentHomeBalancer(segmentToMove.getSegment(), serverHolderList);
 
           if (holder != null) {
             moveSegment(segmentToMove, holder.getServer(), params);
@@ -155,7 +161,7 @@ public class DruidCoordinatorBalancer implements DruidCoordinatorHelper
   }
 
   protected void moveSegment(
-      final BalancerSegmentHolder segment,
+      final BalancerSegmentHolder<ImmutableDruidServer> segment,
       final ImmutableDruidServer toServer,
       final DruidCoordinatorRuntimeParams params
   )

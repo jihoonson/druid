@@ -31,6 +31,7 @@ import io.druid.server.coordination.DruidServerMetadata;
 import io.druid.server.coordination.ServerType;
 import io.druid.timeline.DataSegment;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,7 +39,7 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  */
-public class DruidServer implements Comparable
+public class DruidServer implements Comparable, ServerInfo<DruidDataSource>
 {
   public static final int DEFAULT_PRIORITY = 0;
   public static final int DEFAULT_NUM_REPLICANTS = 2;
@@ -228,7 +229,7 @@ public class DruidServer implements Comparable
     return dataSources.get(dataSource);
   }
 
-  public Iterable<DruidDataSource> getDataSources()
+  public Collection<DruidDataSource> getDataSources()
   {
     return dataSources.values();
   }

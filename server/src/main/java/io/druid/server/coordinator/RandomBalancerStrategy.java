@@ -19,18 +19,19 @@
 
 package io.druid.server.coordinator;
 
+import io.druid.client.ImmutableDruidServer;
 import io.druid.timeline.DataSegment;
 
 import java.util.List;
 import java.util.Random;
 
-public class RandomBalancerStrategy implements BalancerStrategy
+public class RandomBalancerStrategy implements BalancerStrategy<ImmutableDruidServer>
 {
   private final ReservoirSegmentSampler sampler = new ReservoirSegmentSampler();
 
   @Override
-  public ServerHolder findNewSegmentHomeReplicator(
-      DataSegment proposalSegment, List<ServerHolder> serverHolders
+  public ServerHolder<ImmutableDruidServer> findNewSegmentHomeReplicator(
+      DataSegment proposalSegment, List<ServerHolder<ImmutableDruidServer>> serverHolders
   )
   {
     if (serverHolders.size()==1)
@@ -49,22 +50,22 @@ public class RandomBalancerStrategy implements BalancerStrategy
   }
 
   @Override
-  public ServerHolder findNewSegmentHomeBalancer(
-      DataSegment proposalSegment, List<ServerHolder> serverHolders
+  public ServerHolder<ImmutableDruidServer> findNewSegmentHomeBalancer(
+      DataSegment proposalSegment, List<ServerHolder<ImmutableDruidServer>> serverHolders
   )
   {
     return null;  //To change body of implemented methods use File | Settings | File Templates.
   }
 
   @Override
-  public BalancerSegmentHolder pickSegmentToMove(List<ServerHolder> serverHolders)
+  public BalancerSegmentHolder<ImmutableDruidServer> pickSegmentToMove(List<ServerHolder<ImmutableDruidServer>> serverHolders)
   {
     return sampler.getRandomBalancerSegmentHolder(serverHolders);
   }
 
   @Override
   public void emitStats(
-      String tier, CoordinatorStats stats, List<ServerHolder> serverHolderList
+      String tier, CoordinatorStats stats, List<ServerHolder<ImmutableDruidServer>> serverHolderList
   )
   {
   }

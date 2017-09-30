@@ -19,17 +19,18 @@
 
 package io.druid.server.coordinator;
 
+import io.druid.client.ServerInfo;
 import io.druid.timeline.DataSegment;
 
 import java.util.List;
 
-public interface BalancerStrategy
+public interface BalancerStrategy<T extends ServerInfo>
 {
-  public ServerHolder findNewSegmentHomeBalancer(final DataSegment proposalSegment, final List<ServerHolder> serverHolders);
+  public ServerHolder<T> findNewSegmentHomeBalancer(final DataSegment proposalSegment, final List<ServerHolder<T>> ServerHolders);
 
-  public ServerHolder findNewSegmentHomeReplicator(final DataSegment proposalSegment, final List<ServerHolder> serverHolders);
+  public ServerHolder<T> findNewSegmentHomeReplicator(final DataSegment proposalSegment, final List<ServerHolder<T>> ServerHolders);
 
-  public BalancerSegmentHolder pickSegmentToMove(final List<ServerHolder> serverHolders);
+  public BalancerSegmentHolder pickSegmentToMove(final List<ServerHolder<T>> ServerHolders);
 
-  public void emitStats(String tier, CoordinatorStats stats, List<ServerHolder> serverHolderList);
+  public void emitStats(String tier, CoordinatorStats stats, List<ServerHolder<T>> ServerHolderList);
 }

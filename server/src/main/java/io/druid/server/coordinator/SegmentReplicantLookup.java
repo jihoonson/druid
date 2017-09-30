@@ -40,7 +40,7 @@ public class SegmentReplicantLookup
 
     for (MinMaxPriorityQueue<ServerHolder> serversByType : cluster.getSortedHistoricalsByTier()) {
       for (ServerHolder serverHolder : serversByType) {
-        ImmutableDruidServer server = serverHolder.getServer();
+        ImmutableDruidServer server = (ImmutableDruidServer) serverHolder.getServer();
 
         for (DataSegment segment : server.getSegments().values()) {
           Integer numReplicants = segmentsInCluster.get(segment.getIdentifier(), server.getTier());

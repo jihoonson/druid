@@ -19,23 +19,26 @@
 
 package io.druid.server.coordinator;
 
+import io.druid.client.ServerInfo;
 import io.druid.timeline.DataSegment;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 public class ReservoirSegmentSampler
 {
 
-  public BalancerSegmentHolder getRandomBalancerSegmentHolder(final List<ServerHolder> serverHolders)
+  public <T extends ServerInfo> BalancerSegmentHolder getRandomBalancerSegmentHolder(final List<ServerHolder<T>> serverHolders)
   {
     final Random rand = new Random();
-    ServerHolder fromServerHolder = null;
+    ServerHolder<T> fromServerHolder = null;
     DataSegment proposalSegment = null;
     int numSoFar = 0;
 
-    for (ServerHolder server : serverHolders) {
-      for (DataSegment segment : server.getServer().getSegments().values()) {
+    for (ServerHolder<T> server : serverHolders) {
+      final Map<String, DataSegment> segments = server.getServer().getSegments();
+      for (DataSegment segment : segments.values()) {
         int randNum = rand.nextInt(numSoFar + 1);
         // w.p. 1 / (numSoFar+1), swap out the server and segment
         if (randNum == numSoFar) {
@@ -46,7 +49,7 @@ public class ReservoirSegmentSampler
       }
     }
     if (fromServerHolder != null) {
-      return new BalancerSegmentHolder(fromServerHolder.getServer(), proposalSegment);
+      return new BalancerSegmentHolder<>(fromServerHolder.getServer(), proposalSegment);
     } else {
       return null;
     }

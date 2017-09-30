@@ -57,7 +57,7 @@ public class DruidCoordinatorCleanupOvershadowed implements DruidCoordinatorHelp
 
       for (MinMaxPriorityQueue<ServerHolder> serverHolders : cluster.getSortedHistoricalsByTier()) {
         for (ServerHolder serverHolder : serverHolders) {
-          ImmutableDruidServer server = serverHolder.getServer();
+          ImmutableDruidServer server = (ImmutableDruidServer) serverHolder.getServer();
 
           for (ImmutableDruidDataSource dataSource : server.getDataSources()) {
             VersionedIntervalTimeline<String, DataSegment> timeline = timelines.get(dataSource.getName());

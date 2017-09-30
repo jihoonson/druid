@@ -47,15 +47,11 @@ public class ReservoirSegmentSamplerTest
   private ServerHolder holder3;
   private ServerHolder holder4;
 
-  private DataSegment segment1;
-  private DataSegment segment2;
-  private DataSegment segment3;
-  private DataSegment segment4;
-  Map<String, DataSegment> segmentsMap1;
-  Map<String, DataSegment> segmentsMap2;
-  Map<String, DataSegment> segmentsMap3;
-  Map<String, DataSegment> segmentsMap4;
-  List<DataSegment> segments;
+  private Map<String, DataSegment> segmentsMap1;
+  private Map<String, DataSegment> segmentsMap2;
+  private Map<String, DataSegment> segmentsMap3;
+  private Map<String, DataSegment> segmentsMap4;
+  private List<DataSegment> segments;
 
   @Before
   public void setUp() throws Exception
@@ -68,15 +64,11 @@ public class ReservoirSegmentSamplerTest
     holder2 = EasyMock.createMock(ServerHolder.class);
     holder3 = EasyMock.createMock(ServerHolder.class);
     holder4 = EasyMock.createMock(ServerHolder.class);
-    segment1 = EasyMock.createMock(DataSegment.class);
-    segment2 = EasyMock.createMock(DataSegment.class);
-    segment3 = EasyMock.createMock(DataSegment.class);
-    segment4 = EasyMock.createMock(DataSegment.class);
 
     DateTime start1 = new DateTime("2012-01-01");
     DateTime start2 = new DateTime("2012-02-01");
     DateTime version = new DateTime("2012-03-01");
-    segment1 = new DataSegment(
+    DataSegment segment1 = new DataSegment(
         "datasource1",
         new Interval(start1, start1.plusHours(1)),
         version.toString(),
@@ -87,7 +79,7 @@ public class ReservoirSegmentSamplerTest
         0,
         11L
     );
-    segment2 = new DataSegment(
+    DataSegment segment2 = new DataSegment(
         "datasource1",
         new Interval(start2, start2.plusHours(1)),
         version.toString(),
@@ -98,7 +90,7 @@ public class ReservoirSegmentSamplerTest
         0,
         7L
     );
-    segment3 = new DataSegment(
+    DataSegment segment3 = new DataSegment(
         "datasource2",
         new Interval(start1, start1.plusHours(1)),
         version.toString(),
@@ -109,7 +101,7 @@ public class ReservoirSegmentSamplerTest
         0,
         4L
     );
-    segment4 = new DataSegment(
+    DataSegment segment4 = new DataSegment(
         "datasource2",
         new Interval(start2, start2.plusHours(1)),
         version.toString(),
@@ -187,7 +179,7 @@ public class ReservoirSegmentSamplerTest
     EasyMock.expect(holder4.getServer()).andReturn(druidServer4).anyTimes();
     EasyMock.replay(holder4);
 
-    List<ServerHolder> holderList = Lists.newArrayList();
+    List<ServerHolder<ImmutableDruidServer>> holderList = Lists.newArrayList();
     holderList.add(holder1);
     holderList.add(holder2);
     holderList.add(holder3);

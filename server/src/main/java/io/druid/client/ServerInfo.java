@@ -17,48 +17,59 @@
  * under the License.
  */
 
-package io.druid.server.coordinator;
+package io.druid.client;
 
-import io.druid.client.ImmutableDruidServer;
-import io.druid.client.ServerInfo;
+import io.druid.server.coordination.DruidServerMetadata;
+import io.druid.server.coordination.ServerType;
 import io.druid.timeline.DataSegment;
 
-/**
- */
-public class BalancerSegmentHolder<T extends ServerInfo>
+import java.util.Collection;
+import java.util.Map;
+
+public interface ServerInfo<T>
 {
-  private final T fromServer;
-  private final DataSegment segment;
-
-  // This is a pretty fugly hard coding of the maximum lifetime
-  private int lifetime = 15;
-
-  public BalancerSegmentHolder(
-      T fromServer,
-      DataSegment segment
-  )
+  default String getName()
   {
-    this.fromServer = fromServer;
-    this.segment = segment;
+    return getMetadata().getName();
   }
 
-  public T getFromServer()
+  DruidServerMetadata getMetadata();
+
+  default String getHost()
   {
-    return fromServer;
+    return getMetadata().getHost();
   }
 
-  public DataSegment getSegment()
+  long getCurrSize();
+
+  default long getMaxSize()
   {
-    return segment;
+    return getMetadata().getMaxSize();
   }
 
-  public int getLifetime()
+  default ServerType getType()
   {
-    return lifetime;
+    return getMetadata().getType();
   }
 
-  public void reduceLifetime()
+  default String getTier()
   {
-    lifetime--;
+    return getMetadata().getTier();
   }
+
+  default int getPriority()
+  {
+    return getMetadata().getPriority();
+  }
+
+  default DataSegment getSegment(String segmentName)
+  {
+    return getSegments().get(segmentName);
+  }
+
+  Collection<T> getDataSources();
+
+  T getDataSource(String name);
+
+  Map<String, DataSegment> getSegments();
 }

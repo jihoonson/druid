@@ -24,11 +24,12 @@ import io.druid.server.coordination.DruidServerMetadata;
 import io.druid.server.coordination.ServerType;
 import io.druid.timeline.DataSegment;
 
+import java.util.Collection;
 import java.util.Map;
 
 /**
  */
-public class ImmutableDruidServer
+public class ImmutableDruidServer implements ServerInfo<ImmutableDruidDataSource>
 {
   private final DruidServerMetadata metadata;
   private final long currSize;
@@ -93,7 +94,7 @@ public class ImmutableDruidServer
     return segments.get(segmentName);
   }
 
-  public Iterable<ImmutableDruidDataSource> getDataSources()
+  public Collection<ImmutableDruidDataSource> getDataSources()
   {
     return dataSources.values();
   }

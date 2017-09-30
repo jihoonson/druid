@@ -173,7 +173,7 @@ public class DruidCoordinatorLogger implements DruidCoordinatorHelper
     log.info("Load Queues:");
     for (MinMaxPriorityQueue<ServerHolder> serverHolders : cluster.getSortedHistoricalsByTier()) {
       for (ServerHolder serverHolder : serverHolders) {
-        ImmutableDruidServer server = serverHolder.getServer();
+        ImmutableDruidServer server = (ImmutableDruidServer) serverHolder.getServer();
         LoadQueuePeon queuePeon = serverHolder.getPeon();
         log.info(
             "Server[%s, %s, %s] has %,d left to load, %,d left to drop, %,d bytes queued, %,d bytes served.",
