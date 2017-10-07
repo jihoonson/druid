@@ -61,7 +61,7 @@ public class CostBalancerStrategyDistributionBenchmark
   public static void setup()
   {
     balancerExec = MoreExecutors.listeningDecorator(Execs.multiThreaded(
-        1,
+        8,
         "coordinator-cost-balancer-%s"
     ));
     balancerStrategy = new CostBalancerStrategy<>(balancerExec);
