@@ -48,7 +48,6 @@ public class JavaScriptParseSpec extends ParseSpec
   )
   {
     super(timestampSpec, dimensionsSpec);
-    Preconditions.checkState(config.isEnabled(), "JavaScript is disabled");
 
     this.function = function;
     this.config = config;
@@ -68,6 +67,7 @@ public class JavaScriptParseSpec extends ParseSpec
   @Override
   public Parser<String, Object> makeParser()
   {
+    Preconditions.checkState(config.isEnabled(), "JavaScript is disabled");
     parser = parser == null ? new JavaScriptParser(function) : parser;
     return parser;
   }
