@@ -53,7 +53,7 @@ public class CostBalancerStrategyDistributionBenchmark
   private static final long unitInterval = TimeUnit.DAYS.toMillis(1);
   private static final int numServers = 20;
   private static final int numDataSources = 1000;
-  private static final int numSegments = 100000;
+  private static final int numSegments = 100019;
 
   private static final Map<Integer, Long> nextIntervals = new HashMap<>();
 
@@ -142,7 +142,7 @@ public class CostBalancerStrategyDistributionBenchmark
   public void test()
   {
     final int checkPeriod = 100;
-    final int maxSegmentsToMove = 1000;
+    final int maxSegmentsToMove = 5;
     final int iteration = 10000;
 
     printDistribution(0);
@@ -223,7 +223,7 @@ public class CostBalancerStrategyDistributionBenchmark
 
       sumSegNum = 0;
       sumSquareSegNum = 0;
-      double min = Double.MAX_VALUE, max = 0;
+      double min = Double.POSITIVE_INFINITY, max = 0;
 
       for (DruidServer server : servers) {
         final Map<String, List<DataSegment>> segmentMap = map.get(server);

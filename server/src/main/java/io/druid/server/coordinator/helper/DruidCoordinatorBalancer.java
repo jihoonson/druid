@@ -19,7 +19,6 @@
 
 package io.druid.server.coordinator.helper;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.MinMaxPriorityQueue;
 import com.metamx.emitter.EmittingLogger;
@@ -36,7 +35,6 @@ import io.druid.server.coordinator.ServerHolder;
 import io.druid.timeline.DataSegment;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
