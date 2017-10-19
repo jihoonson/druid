@@ -72,7 +72,7 @@ public class CompactionTask extends AbstractTask
   private final IndexIO indexIO;
   private final ObjectMapper jsonMapper;
 
-  @JsonIgnore // TODO: make sure what this means
+  @JsonIgnore
   private IndexTask indexTaskSpec;
 
   @JsonCreator

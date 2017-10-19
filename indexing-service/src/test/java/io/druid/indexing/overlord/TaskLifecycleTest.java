@@ -540,7 +540,7 @@ public class TaskLifecycleTest
         tac,
         emitter,
         dataSegmentPusher,
-        new LocalDataSegmentKiller(new LocalDataSegmentPusherConfig()),
+        new LocalDataSegmentKiller(new LocalDataSegmentPusherConfig(null)),
         new DataSegmentMover()
         {
           @Override

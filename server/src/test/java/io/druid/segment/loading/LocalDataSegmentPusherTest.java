@@ -46,6 +46,7 @@ public class LocalDataSegmentPusherTest
   @Rule
   public ExpectedException exception = ExpectedException.none();
 
+  File storageDirectory;
   LocalDataSegmentPusher localDataSegmentPusher;
   LocalDataSegmentPusherConfig config;
   File dataSegmentFiles;
@@ -64,8 +65,8 @@ public class LocalDataSegmentPusherTest
   @Before
   public void setUp() throws IOException
   {
-    config = new LocalDataSegmentPusherConfig();
-    config.storageDirectory = temporaryFolder.newFolder();
+    storageDirectory = temporaryFolder.newFolder();
+    config = new LocalDataSegmentPusherConfig(storageDirectory);
     localDataSegmentPusher = new LocalDataSegmentPusher(config, new DefaultObjectMapper());
     dataSegmentFiles = temporaryFolder.newFolder();
     Files.asByteSink(new File(dataSegmentFiles, "version.bin")).write(Ints.toByteArray(0x9));
@@ -121,7 +122,10 @@ public class LocalDataSegmentPusherTest
   {
     exception.expect(IOException.class);
     exception.expectMessage("Unable to create directory");
-    config.storageDirectory = new File(config.storageDirectory, "xxx");
+    final LocalDataSegmentPusherConfig config = new LocalDataSegmentPusherConfig(
+        new File(storageDirectory, "xxx")
+    );
+    final LocalDataSegmentPusher localDataSegmentPusher = new LocalDataSegmentPusher(config, new DefaultObjectMapper());
     Assert.assertTrue(config.storageDirectory.mkdir());
     config.storageDirectory.setWritable(false);
     localDataSegmentPusher.push(dataSegmentFiles, dataSegment);
@@ -130,7 +134,7 @@ public class LocalDataSegmentPusherTest
   @Test
   public void testPathForHadoopAbsolute()
   {
-    config.storageDirectory = new File("/druid");
+    final LocalDataSegmentPusherConfig config = new LocalDataSegmentPusherConfig(new File("/druid"));
 
     Assert.assertEquals(
         "file:/druid",
@@ -141,7 +145,7 @@ public class LocalDataSegmentPusherTest
   @Test
   public void testPathForHadoopRelative()
   {
-    config.storageDirectory = new File("druid");
+    final LocalDataSegmentPusherConfig config = new LocalDataSegmentPusherConfig(new File("druid"));
 
     Assert.assertEquals(
         StringUtils.format("file:%s/druid", System.getProperty("user.dir")),

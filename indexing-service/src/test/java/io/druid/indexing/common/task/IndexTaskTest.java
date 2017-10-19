@@ -29,7 +29,6 @@ import io.druid.data.input.impl.ParseSpec;
 import io.druid.data.input.impl.SpatialDimensionSchema;
 import io.druid.data.input.impl.StringInputRowParser;
 import io.druid.data.input.impl.TimestampSpec;
-import io.druid.guice.GuiceInjectors;
 import io.druid.indexing.common.TaskLock;
 import io.druid.indexing.common.TaskLockType;
 import io.druid.indexing.common.TaskToolbox;
@@ -44,7 +43,6 @@ import io.druid.indexing.common.actions.TaskActionClient;
 import io.druid.indexing.common.task.IndexTask.IndexIngestionSpec;
 import io.druid.indexing.common.task.IndexTask.IndexTuningConfig;
 import io.druid.indexing.overlord.SegmentPublishResult;
-import io.druid.jackson.DefaultObjectMapper;
 import io.druid.java.util.common.DateTimes;
 import io.druid.java.util.common.Intervals;
 import io.druid.java.util.common.StringUtils;
@@ -55,7 +53,6 @@ import io.druid.query.aggregation.LongSumAggregatorFactory;
 import io.druid.segment.IndexIO;
 import io.druid.segment.IndexMergerV9;
 import io.druid.segment.IndexSpec;
-import io.druid.segment.column.ColumnConfig;
 import io.druid.segment.indexing.DataSchema;
 import io.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
 import io.druid.segment.indexing.granularity.GranularitySpec;
@@ -884,82 +881,7 @@ public class IndexTaskTest
     runTask(indexTask);
   }
 
-  @Test
-  public void testCompactionTask() throws Exception
-  {
-    final File tmpDir = temporaryFolder.newFolder();
-
-    final File tmpFile = File.createTempFile("druid", "index", tmpDir);
-
-    try (BufferedWriter writer = Files.newWriter(tmpFile, StandardCharsets.UTF_8)) {
-      writer.write("time,d,val\n");
-      writer.write("unparseable,a,1\n");
-      writer.write("2014-01-01T00:00:10Z,a,1\n");
-      writer.write("2014-01-02T00:00:10Z,a,1\n");
-      writer.write("2014-01-03T00:00:10Z,a,1\n");
-    }
-
-    // GranularitySpec.intervals and numShards must be null to verify reportParseException=false is respected both in
-    // IndexTask.determineShardSpecs() and IndexTask.generateAndPublishSegments()
-    final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
-        tmpDir,
-        new CSVParseSpec(
-            new TimestampSpec(
-                "time",
-                "auto",
-                null
-            ),
-            new DimensionsSpec(
-                null,
-                Lists.<String>newArrayList(),
-                Lists.<SpatialDimensionSchema>newArrayList()
-            ),
-            null,
-            Arrays.asList("time", "dim", "val"),
-            true,
-            0
-        ),
-        null,
-        createTuningConfig(2, null, null, null, false, false, false), // ignore parse exception,
-        false
-    );
-
-    IndexTask indexTask = new IndexTask(
-        null,
-        null,
-        parseExceptionIgnoreSpec,
-        null
-    );
-
-    final List<DataSegment> segments = runTask(indexTask);
-
-    Assert.assertEquals(Arrays.asList("d"), segments.get(0).getDimensions());
-    Assert.assertEquals(Arrays.asList("val"), segments.get(0).getMetrics());
-    Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
-
-    CompactionTask compactionTask = new CompactionTask(
-        null,
-        null,
-        "test",
-        new Interval("2014-01-01/2014-02-01"),
-        null,
-        null,
-        GuiceInjectors.makeStartupInjector(),
-        new IndexIO(new DefaultObjectMapper(), new ColumnConfig()
-        {
-          @Override
-          public int columnCacheSizeBytes()
-          {
-            return 0;
-          }
-        }),
-        new DefaultObjectMapper()
-    );
-
-    runTask(compactionTask);
-  }
-
-  private List<DataSegment> runTask(Task task) throws Exception
+  private List<DataSegment> runTask(IndexTask task) throws Exception
   {
     final List<DataSegment> segments = Lists.newArrayList();
 

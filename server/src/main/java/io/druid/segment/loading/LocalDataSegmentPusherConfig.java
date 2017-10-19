@@ -19,7 +19,9 @@
 
 package io.druid.segment.loading;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.annotations.VisibleForTesting;
 
 import java.io.File;
 
@@ -27,8 +29,24 @@ import java.io.File;
  */
 public class LocalDataSegmentPusherConfig
 {
+  private static final String DEFAULT_STORAGE_DIR = "/tmp/druid/localStorage";
+
   @JsonProperty
-  public File storageDirectory = new File("/tmp/druid/localStorage");
+  public final File storageDirectory;
+
+  @JsonCreator
+  public LocalDataSegmentPusherConfig(
+      @JsonProperty File storageDirectory
+  )
+  {
+    this.storageDirectory = storageDirectory == null ? new File(DEFAULT_STORAGE_DIR) : storageDirectory;
+  }
+
+  @VisibleForTesting
+  public LocalDataSegmentPusherConfig()
+  {
+    this(null);
+  }
 
   public File getStorageDirectory()
   {
