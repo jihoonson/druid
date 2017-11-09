@@ -27,6 +27,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.CuratorEvent;
 import org.apache.curator.framework.api.CuratorEventType;
 import org.apache.curator.framework.api.CuratorListener;
+import org.apache.curator.framework.api.transaction.CuratorTransactionResult;
 import org.apache.curator.test.KillSession;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.data.Stat;
@@ -35,6 +36,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -98,7 +100,10 @@ public class AnnouncerTest extends CuratorTestBase
             }
           }
       );
-      curator.inTransaction().delete().forPath(testPath1).and().commit();
+      Collection<CuratorTransactionResult> results = curator.inTransaction().delete().forPath(testPath1).and().commit();
+      Assert.assertEquals(1, results.size());
+      CuratorTransactionResult result = results.iterator().next();
+      Assert.assertEquals(0, result.getError());
       Assert.assertTrue("Wait for /test1 to be created", timing.forWaiting().awaitLatch(latch));
 
       Assert.assertArrayEquals(
