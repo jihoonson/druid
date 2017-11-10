@@ -27,6 +27,7 @@ import io.druid.server.initialization.ZkPathsConfig;
 import io.druid.timeline.DataSegment;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryNTimes;
 import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.apache.curator.test.Timing;
@@ -53,7 +54,7 @@ public class CuratorTestBase
         .connectString(server.getConnectString())
         .sessionTimeoutMs(timing.session())
         .connectionTimeoutMs(timing.connection())
-        .retryPolicy(new RetryOneTime(1))
+        .retryPolicy(new RetryNTimes(3, 100))
         .compressionProvider(new PotentiallyGzippedCompressionProvider(true))
         .build();
 

@@ -27,6 +27,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.CuratorEvent;
 import org.apache.curator.framework.api.CuratorEventType;
 import org.apache.curator.framework.api.CuratorListener;
+import org.apache.curator.framework.api.transaction.CuratorOp;
 import org.apache.curator.framework.api.transaction.CuratorTransactionResult;
 import org.apache.curator.test.KillSession;
 import org.apache.curator.utils.ZKPaths;
@@ -100,10 +101,11 @@ public class AnnouncerTest extends CuratorTestBase
             }
           }
       );
-      Collection<CuratorTransactionResult> results = curator.inTransaction().delete().forPath(testPath1).and().commit();
+      final CuratorOp deleteOp = curator.transactionOp().delete().forPath(testPath1);
+      final Collection<CuratorTransactionResult> results = curator.transaction().forOperations(deleteOp);
       Assert.assertEquals(1, results.size());
-      CuratorTransactionResult result = results.iterator().next();
-      Assert.assertEquals(0, result.getError());
+      final CuratorTransactionResult result = results.iterator().next();
+      Assert.assertEquals(0, result.getError()); // assert success
       Assert.assertTrue("Wait for /test1 to be created", timing.forWaiting().awaitLatch(latch));
 
       Assert.assertArrayEquals(
