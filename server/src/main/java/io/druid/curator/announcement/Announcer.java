@@ -226,6 +226,8 @@ public class Announcer
                       if (value != null) {
                         log.info("Node[%s] dropped, reinstating.", child.getPath());
                         createAnnouncement(child.getPath(), value);
+                      } else {
+                        throw new ISE("value is null!!!");
                       }
                       break;
                     case CONNECTION_LOST:
