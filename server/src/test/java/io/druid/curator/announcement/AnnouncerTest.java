@@ -39,15 +39,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  */
@@ -61,114 +55,114 @@ public class AnnouncerTest extends CuratorTestBase
   {
     setupServerAndCurator();
     exec = Execs.singleThreaded("test-announcer-sanity-%s");
-//    ExecutorService baseExec = Execs.singleThreaded("test-announcer-sanity-%s");
-//    exec = new ExecutorService()
-//    {
-//      @Override
-//      public void shutdown()
-//      {
-//        baseExec.shutdown();
-//      }
-//
-//      @Override
-//      public List<Runnable> shutdownNow()
-//      {
-//        return baseExec.shutdownNow();
-//      }
-//
-//      @Override
-//      public boolean isShutdown()
-//      {
-//        return baseExec.isShutdown();
-//      }
-//
-//      @Override
-//      public boolean isTerminated()
-//      {
-//        return baseExec.isTerminated();
-//      }
-//
-//      @Override
-//      public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException
-//      {
-//        return baseExec.awaitTermination(timeout, unit);
-//      }
-//
-//      @Override
-//      public <T> Future<T> submit(Callable<T> task)
-//      {
-////        sleep();
-//        return baseExec.submit(task);
-//      }
-//
-//      @Override
-//      public <T> Future<T> submit(Runnable task, T result)
-//      {
-////        sleep();
-//        return baseExec.submit(task, result);
-//      }
-//
-//      @Override
-//      public Future<?> submit(Runnable task)
-//      {
-////        sleep();
-//        return baseExec.submit(task);
-//      }
-//
-//      @Override
-//      public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptedException
-//      {
-////        sleep();
-//        return baseExec.invokeAll(tasks);
-//      }
-//
-//      @Override
-//      public <T> List<Future<T>> invokeAll(
-//          Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit
-//      ) throws InterruptedException
-//      {
-////        sleep();
-//        return baseExec.invokeAll(tasks, timeout, unit);
-//      }
-//
-//      @Override
-//      public <T> T invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException
-//      {
-////        sleep();
-//        return baseExec.invokeAny(tasks);
-//      }
-//
-//      @Override
-//      public <T> T invokeAny(
-//          Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit
-//      ) throws InterruptedException, ExecutionException, TimeoutException
-//      {
-////        sleep();
-//        return baseExec.invokeAny(tasks, timeout, unit);
-//      }
-//
-//      @Override
-//      public void execute(Runnable command)
-//      {
-//        sleep();
-//        baseExec.execute(command);
-//      }
-//
-//      private void sleep()
-//      {
-////        try {
-////          Thread.sleep(1000);
-////        }
-////        catch (InterruptedException e) {
-////          throw new RuntimeException(e);
-////        }
-//        int sum = 0;
-//        for (int i = 0; i < 100000000; i++) {
-//          sum += i;
-//        }
-//        System.out.println(sum);
-//      }
-//    };
+  //    ExecutorService baseExec = Execs.singleThreaded("test-announcer-sanity-%s");
+  //    exec = new ExecutorService()
+  //    {
+  //      @Override
+  //      public void shutdown()
+  //      {
+  //        baseExec.shutdown();
+  //      }
+  //
+  //      @Override
+  //      public List<Runnable> shutdownNow()
+  //      {
+  //        return baseExec.shutdownNow();
+  //      }
+  //
+  //      @Override
+  //      public boolean isShutdown()
+  //      {
+  //        return baseExec.isShutdown();
+  //      }
+  //
+  //      @Override
+  //      public boolean isTerminated()
+  //      {
+  //        return baseExec.isTerminated();
+  //      }
+  //
+  //      @Override
+  //      public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException
+  //      {
+  //        return baseExec.awaitTermination(timeout, unit);
+  //      }
+  //
+  //      @Override
+  //      public <T> Future<T> submit(Callable<T> task)
+  //      {
+  ////        sleep();
+  //        return baseExec.submit(task);
+  //      }
+  //
+  //      @Override
+  //      public <T> Future<T> submit(Runnable task, T result)
+  //      {
+  ////        sleep();
+  //        return baseExec.submit(task, result);
+  //      }
+  //
+  //      @Override
+  //      public Future<?> submit(Runnable task)
+  //      {
+  ////        sleep();
+  //        return baseExec.submit(task);
+  //      }
+  //
+  //      @Override
+  //      public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptedException
+  //      {
+  ////        sleep();
+  //        return baseExec.invokeAll(tasks);
+  //      }
+  //
+  //      @Override
+  //      public <T> List<Future<T>> invokeAll(
+  //          Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit
+  //      ) throws InterruptedException
+  //      {
+  ////        sleep();
+  //        return baseExec.invokeAll(tasks, timeout, unit);
+  //      }
+  //
+  //      @Override
+  //      public <T> T invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException
+  //      {
+  ////        sleep();
+  //        return baseExec.invokeAny(tasks);
+  //      }
+  //
+  //      @Override
+  //      public <T> T invokeAny(
+  //          Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit
+  //      ) throws InterruptedException, ExecutionException, TimeoutException
+  //      {
+  ////        sleep();
+  //        return baseExec.invokeAny(tasks, timeout, unit);
+  //      }
+  //
+  //      @Override
+  //      public void execute(Runnable command)
+  //      {
+  //        sleep();
+  //        baseExec.execute(command);
+  //      }
+  //
+  //      private void sleep()
+  //      {
+  ////        try {
+  ////          Thread.sleep(1000);
+  ////        }
+  ////        catch (InterruptedException e) {
+  ////          throw new RuntimeException(e);
+  ////        }
+  //        int sum = 0;
+  //        for (int i = 0; i < 100000000; i++) {
+  //          sum += i;
+  //        }
+  //        System.out.println(sum);
+  //      }
+  //    };
   }
 
   @After
@@ -236,8 +230,6 @@ public class AnnouncerTest extends CuratorTestBase
             }
           }
       );
-
-//      Thread.sleep(1000);
 
       System.err.println("deleting test1");
 
