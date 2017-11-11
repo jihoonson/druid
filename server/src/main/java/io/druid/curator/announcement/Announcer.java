@@ -19,6 +19,7 @@
 
 package io.druid.curator.announcement;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -33,6 +34,7 @@ import io.druid.java.util.common.logger.Logger;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.transaction.CuratorTransaction;
 import org.apache.curator.framework.api.transaction.CuratorTransactionFinal;
+import org.apache.curator.framework.api.transaction.CuratorTransactionResult;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent;
@@ -40,9 +42,11 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.KeeperException.Code;
 import org.apache.zookeeper.data.Stat;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -217,17 +221,18 @@ public class Announcer
                 @Override
                 public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception
                 {
-                  log.debug("Path[%s] got event[%s]", parentPath, event);
+                  log.info("Path[%s] got event[%s]", parentPath, event);
                   switch (event.getType()) {
                     case CHILD_REMOVED:
                       final ChildData child = event.getData();
                       final ZKPaths.PathAndNode childPath = ZKPaths.getPathAndNode(child.getPath());
+                      log.info("child " + childPath.getNode() + " removed for path " + parentPath);
                       final byte[] value = finalSubPaths.get(childPath.getNode());
                       if (value != null) {
                         log.info("Node[%s] dropped, reinstating.", child.getPath());
                         createAnnouncement(child.getPath(), value);
                       } else {
-                        throw new ISE("value is null!!!");
+                        log.error("value is null!!!");
                       }
                       break;
                     case CONNECTION_LOST:
@@ -347,6 +352,7 @@ public class Announcer
 
   private String createAnnouncement(final String path, byte[] value) throws Exception
   {
+//    return curator.inTransaction().create().compressed().withMode(CreateMode.EPHEMERAL).forPath(path, value).and().commit().iterator().next().getResultPath();
     return curator.create().compressed().withMode(CreateMode.EPHEMERAL).inBackground().forPath(path, value);
   }
 
