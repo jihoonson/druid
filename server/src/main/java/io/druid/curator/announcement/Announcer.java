@@ -89,6 +89,7 @@ public class Announcer
   @LifecycleStart
   public void start()
   {
+    log.info("Starting announcer");
     synchronized (toAnnounce) {
       if (started) {
         return;
@@ -111,6 +112,7 @@ public class Announcer
   @LifecycleStop
   public void stop()
   {
+    log.info("Stopping announcer");
     synchronized (toAnnounce) {
       if (!started) {
         return;

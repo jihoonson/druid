@@ -47,7 +47,6 @@ import java.util.concurrent.ExecutorService;
  */
 public class AnnouncerTest extends CuratorTestBase
 {
-
   private ExecutorService exec;
 
   @Before
