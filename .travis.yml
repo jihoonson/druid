@@ -37,6 +37,7 @@ matrix:
         - unset _JAVA_OPTIONS
       # Server module test is run without the parallel-test option because it's memory sensitive and often fails with that option.
       script: echo "MAVEN_OPTS='-Xmx512m'" > ~/.mavenrc && mvn test -B -pl server
+      after_script: cat server/target/surefire-reports/io.druid.curator.announcement.AnnouncerTest-output.txt
 
       # other modules test
     - sudo: false
