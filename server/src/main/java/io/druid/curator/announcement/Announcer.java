@@ -217,7 +217,7 @@ public class Announcer
                 @Override
                 public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception
                 {
-                  log.debug("Path[%s] got event[%s]", parentPath, event);
+                  log.info("Path[%s] got event[%s]", parentPath, event);
                   switch (event.getType()) {
                     case CHILD_REMOVED:
                       final ChildData child = event.getData();
