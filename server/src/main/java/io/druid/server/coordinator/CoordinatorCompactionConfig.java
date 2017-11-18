@@ -34,12 +34,12 @@ public class CoordinatorCompactionConfig
   // should be synchronized with Tasks.DEFAULT_MERGE_TASK_PRIORITY
   private static final int DEFAULT_COMPACTION_TASK_PRIORITY = 25;
   private static final long DEFAULT_TARGET_COMPACTION_SIZE_BYTES = 800 * 1024 * 1024; // 800MB
-  private static final Period DEFAULT_OFFSET_FROM_LATEST = new Period("P1D");
+  private static final Period DEFAULT_SKIP_OFFSET_FROM_LATEST = new Period("P1D");
 
   private final String dataSource;
   private final int taskPriority;
   private final long targetCompactionSizeBytes;
-  private final Period offsetFromLatest;
+  private final Period skipOffsetFromLatest;
   private final ClientCompactQueryTuningConfig tuningConfig;
   private final Map<String, Object> taskContext;
 
@@ -48,7 +48,7 @@ public class CoordinatorCompactionConfig
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("taskPriority") Integer taskPriority,
       @JsonProperty("targetCompactionSizeBytes") Long targetCompactionSizeBytes,
-      @JsonProperty("offsetFromLatest") Period offsetFromLatest,
+      @JsonProperty("skipOffsetFromLatest") Period skipOffsetFromLatest,
       @JsonProperty("tuningConfig") ClientCompactQueryTuningConfig tuningConfig,
       @JsonProperty("taskContext") Map<String, Object> taskContext
   )
@@ -60,7 +60,7 @@ public class CoordinatorCompactionConfig
     this.targetCompactionSizeBytes = targetCompactionSizeBytes == null ?
                                      DEFAULT_TARGET_COMPACTION_SIZE_BYTES :
                                      targetCompactionSizeBytes;
-    this.offsetFromLatest = offsetFromLatest == null ? DEFAULT_OFFSET_FROM_LATEST : offsetFromLatest;
+    this.skipOffsetFromLatest = skipOffsetFromLatest == null ? DEFAULT_SKIP_OFFSET_FROM_LATEST : skipOffsetFromLatest;
     this.tuningConfig = tuningConfig;
     this.taskContext = taskContext;
   }
@@ -84,9 +84,9 @@ public class CoordinatorCompactionConfig
   }
 
   @JsonProperty
-  public Period getOffsetFromLatest()
+  public Period getSkipOffsetFromLatest()
   {
-    return offsetFromLatest;
+    return skipOffsetFromLatest;
   }
 
   @JsonProperty
@@ -128,7 +128,7 @@ public class CoordinatorCompactionConfig
       return false;
     }
 
-    if (!offsetFromLatest.equals(that.offsetFromLatest)) {
+    if (!skipOffsetFromLatest.equals(that.skipOffsetFromLatest)) {
       return false;
     }
 
@@ -146,7 +146,7 @@ public class CoordinatorCompactionConfig
         dataSource,
         taskPriority,
         targetCompactionSizeBytes,
-        offsetFromLatest,
+        skipOffsetFromLatest,
         tuningConfig,
         taskContext
     );

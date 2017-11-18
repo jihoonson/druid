@@ -41,6 +41,7 @@ import io.druid.timeline.partition.NumberedShardSpec;
 import io.druid.timeline.partition.PartitionChunk;
 import io.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
+import org.joda.time.Period;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -129,7 +130,7 @@ public class DruidCoordinatorSegmentCompactorTest
               dataSource,
               0,
               50L,
-              null,
+              new Period("PT1H"), // smaller than segment interval
               null,
               null
           )

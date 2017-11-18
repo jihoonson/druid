@@ -111,7 +111,6 @@ public class DruidCoordinatorSegmentCompactor implements DruidCoordinatorHelper
       int numAvailableCompactionTaskSlots
   )
   {
-    LOG.info("numAvailableCompactionTaskSlots: %d", numAvailableCompactionTaskSlots);
     int numSubmittedCompactionTasks = 0;
 
     List<DataSegment> segmentsToCompact;
@@ -134,19 +133,19 @@ public class DruidCoordinatorSegmentCompactor implements DruidCoordinatorHelper
         if (!queryIds.add(queryId)) {
           throw new ISE("Duplicated queryId[%s]", queryId);
         }
-        LOG.info("Submit a compact task[%s] for segments[%s]", queryId, segmentsToCompact);
+        LOG.info("Submit a compactTask[%s] for segments[%s]", queryId, segmentsToCompact);
 
         if (++numSubmittedCompactionTasks == numAvailableCompactionTaskSlots) {
           break;
         }
-
-        LOG.info("Running tasks [%d/%d]", numSubmittedCompactionTasks, numAvailableCompactionTaskSlots);
       } else if (segmentsToCompact.size() == 1) {
         throw new ISE("Found one segments[%s] to compact", segmentsToCompact);
       } else {
-        throw new ISE("Segments to compact are not found for dataSource[%s]", dataSourceName);
+        throw new ISE("Failed to find segments for dataSource[%s]", dataSourceName);
       }
     }
+
+    LOG.info("Running tasks [%d/%d]", numSubmittedCompactionTasks, numAvailableCompactionTaskSlots);
 
     return makeStats(numSubmittedCompactionTasks);
   }

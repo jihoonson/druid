@@ -59,7 +59,12 @@ class SegmentCompactorUtil
    */
   static Interval removeIntervalFromEnd(Interval largeInterval, Interval smallInterval)
   {
-    Preconditions.checkArgument(largeInterval.getEnd().equals(smallInterval.getEnd()), "end should be same");
+    Preconditions.checkArgument(
+        largeInterval.getEnd().equals(smallInterval.getEnd()),
+        "end should be same. largeInterval[%s] smallInterval[%s]",
+        largeInterval,
+        smallInterval
+    );
     return new Interval(largeInterval.getStart(), smallInterval.getStart());
   }
 

@@ -254,7 +254,7 @@ public class CoordinatorDynamicConfig
     if (maxSegmentsInNodeLoadingQueue != that.maxSegmentsInNodeLoadingQueue) {
       return false;
     }
-    if (Objects.equals(killDataSourceWhitelist, that.killDataSourceWhitelist)) {
+    if (!Objects.equals(killDataSourceWhitelist, that.killDataSourceWhitelist)) {
       return false;
     }
     if (!Objects.equals(compactionConfigs, that.compactionConfigs)) {

@@ -35,6 +35,7 @@ import io.druid.timeline.VersionedIntervalTimeline;
 import io.druid.timeline.partition.PartitionChunk;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import org.joda.time.Interval;
+import org.joda.time.Period;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -77,13 +78,11 @@ public class NewestSegmentFirstPolicy implements CompactionSegmentSearchPolicy
       final VersionedIntervalTimeline<String, DataSegment> timeline = entry.getValue();
       final CoordinatorCompactionConfig config = compactionConfigs.get(dataSource);
 
-      intervalsToFind.put(
-          dataSource,
-          new Interval(
-              timeline.first().getInterval().getStart(),
-              timeline.last().getInterval().getEnd().minus(config.getOffsetFromLatest())
-          )
-      );
+      log.info("Resetting dataSource[%s]", dataSource);
+
+      if (config != null && !timeline.isEmpty()) {
+        intervalsToFind.put(dataSource, findInitialSearchInterval(timeline, config.getSkipOffsetFromLatest()));
+      }
     }
 
     for (Entry<String, CoordinatorCompactionConfig> entry : compactionConfigs.entrySet()) {
@@ -96,6 +95,34 @@ public class NewestSegmentFirstPolicy implements CompactionSegmentSearchPolicy
 
       updateQueue(dataSourceName, config);
     }
+  }
+
+  private static Interval findInitialSearchInterval(
+      VersionedIntervalTimeline<String, DataSegment> timeline,
+      Period skipOffset
+  )
+  {
+    Preconditions.checkArgument(timeline != null && !timeline.isEmpty(), "timeline should not be null or empty");
+    Preconditions.checkNotNull(skipOffset, "skipOffset");
+    final TimelineObjectHolder<String, DataSegment> first = Preconditions.checkNotNull(timeline.first(), "first");
+    final TimelineObjectHolder<String, DataSegment> last = Preconditions.checkNotNull(timeline.last(), "last");
+    final List<TimelineObjectHolder<String, DataSegment>> holdersInSkipOffset = timeline.lookup(
+        new Interval(skipOffset, last.getInterval().getEnd())
+    );
+    if (holdersInSkipOffset.size() > 0) {
+      final List<PartitionChunk<DataSegment>> chunks = Lists.newArrayList(holdersInSkipOffset.get(0).getObject());
+      if (chunks.size() > 0) {
+        return new Interval(
+            first.getInterval().getStart(),
+            last.getInterval().getEnd().minus(chunks.get(0).getObject().getInterval().toDuration())
+        );
+      }
+    }
+
+    return new Interval(
+        first.getInterval().getStart(),
+        last.getInterval().getEnd().minus(skipOffset)
+    );
   }
 
   @Nullable
