@@ -82,7 +82,21 @@ public class AnnouncerTest extends CuratorTestBase
       Assert.assertNull("/test1 does not exists", curator.checkExists().forPath(testPath1));
       Assert.assertNull("/somewhere/test2 does not exists", curator.checkExists().forPath(testPath2));
 
+      final CountDownLatch announceLatch = new CountDownLatch(1);
+      curator.getCuratorListenable().addListener(
+          new CuratorListener()
+          {
+            @Override
+            public void eventReceived(CuratorFramework client, CuratorEvent event) throws Exception
+            {
+              if (event.getType() == CuratorEventType.CREATE && event.getPath().equals(testPath1)) {
+                announceLatch.countDown();
+              }
+            }
+          }
+      );
       announcer.start();
+      Assert.assertTrue("Wait for /test1 to be created", timing.forWaiting().awaitLatch(announceLatch));
 
       try {
         Assert.assertArrayEquals("/test1 has data", billy, curator.getData().decompressed().forPath(testPath1));
@@ -141,6 +155,7 @@ public class AnnouncerTest extends CuratorTestBase
   @Test(timeout = 60_000L)
   public void testSessionKilled() throws Exception
   {
+    log.info("begin testSessionKilled");
     curator.start();
     curator.blockUntilConnected();
     Announcer announcer = new Announcer(curator, exec);
@@ -192,6 +207,7 @@ public class AnnouncerTest extends CuratorTestBase
     }
     finally {
       announcer.stop();
+      log.info("end testSessionKilled");
     }
   }
 
