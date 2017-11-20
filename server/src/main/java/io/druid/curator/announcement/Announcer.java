@@ -19,6 +19,7 @@
 
 package io.druid.curator.announcement;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -43,6 +44,7 @@ import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,6 +71,9 @@ public class Announcer
   private final ConcurrentMap<String, ConcurrentMap<String, byte[]>> announcements = new ConcurrentHashMap<>();
   private final List<String> parentsIBuilt = new CopyOnWriteArrayList<String>();
 
+  // Used for testing
+  private Set<String> addedChildren;
+
   private boolean started = false;
 
   public Announcer(
@@ -84,6 +89,18 @@ public class Announcer
         .withExecutorService(exec)
         .withShutdownExecutorOnClose(false)
         .build();
+  }
+
+  @VisibleForTesting
+  void initializeAddedChildren()
+  {
+    addedChildren = new HashSet<>();
+  }
+
+  @VisibleForTesting
+  Set<String> getAddedChildren()
+  {
+    return addedChildren;
   }
 
   @LifecycleStart
@@ -261,8 +278,11 @@ public class Announcer
                         }
                       }
                       break;
-                    case INITIALIZED:
                     case CHILD_ADDED:
+                      if (addedChildren != null) {
+                        addedChildren.add(event.getData().getPath());
+                      }
+                    case INITIALIZED:
                     case CHILD_UPDATED:
                     case CONNECTION_SUSPENDED:
                       // do nothing
