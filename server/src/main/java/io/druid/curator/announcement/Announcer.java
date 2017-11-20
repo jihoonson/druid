@@ -282,6 +282,7 @@ public class Announcer
                       if (addedChildren != null) {
                         addedChildren.add(event.getData().getPath());
                       }
+                      // fall through
                     case INITIALIZED:
                     case CHILD_UPDATED:
                     case CONNECTION_SUSPENDED:
