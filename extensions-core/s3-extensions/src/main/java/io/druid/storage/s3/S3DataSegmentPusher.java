@@ -22,7 +22,6 @@ package io.druid.storage.s3;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.amazonaws.services.s3.transfer.model.UploadResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,19 +41,16 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class S3DataSegmentPusher implements DataSegmentPusher
 {
   private static final EmittingLogger log = new EmittingLogger(S3DataSegmentPusher.class);
 
   private final AmazonS3Client s3Client;
-  private final TransferManager transferManager;
   private final S3DataSegmentPusherConfig config;
   private final ObjectMapper jsonMapper;
 
@@ -66,8 +62,6 @@ public class S3DataSegmentPusher implements DataSegmentPusher
   )
   {
     this.s3Client = s3Client;
-    // TODO: config for thread pool size
-    this.transferManager = new TransferManager(s3Client);
     this.config = config;
     this.jsonMapper = jsonMapper;
 
@@ -96,6 +90,23 @@ public class S3DataSegmentPusher implements DataSegmentPusher
     return ImmutableList.of("druid.s3");
   }
 
+  private void uploadFileAndClear(AmazonS3Client s3Client, String bucket, String key, File file)
+  {
+    final PutObjectRequest indexFilePutRequest = new PutObjectRequest(bucket, key, file);
+
+    if (!config.getDisableAcl()) {
+      indexFilePutRequest.setAccessControlList(
+          S3Utils.grantFullControlToBucketOwver(s3Client, bucket)
+      );
+    }
+
+    log.info("Pushing [%s] to bucket[%s] and key[%s].", file, bucket, key);
+    s3Client.putObject(indexFilePutRequest);
+
+    log.info("Deleting file [%s]", file.getAbsolutePath());
+    file.delete();
+  }
+
   @Override
   public DataSegment push(final File indexFilesDir, final DataSegment inSegment) throws IOException
   {
@@ -115,81 +126,21 @@ public class S3DataSegmentPusher implements DataSegmentPusher
             {
               final String outputBucket = config.getBucket();
               final String s3DescriptorPath = S3Utils.descriptorPathForSegmentPath(s3Path);
+
+              uploadFileAndClear(s3Client, outputBucket, s3Path, zipOutFile);
+
               final DataSegment outSegment = inSegment
                   .withSize(indexSize)
                   .withLoadSpec(makeLoadSpec(outputBucket, s3Path))
                   .withBinaryVersion(SegmentUtils.getVersionFromDir(indexFilesDir));
 
-              // prepare uploads
-              final List<ToUpload> toUploads = new ArrayList<>(2);
-              toUploads.add(new ToUpload(() -> zipOutFile, outputBucket, s3Path));
-              toUploads.add(
-                  new ToUpload(
-                      () -> {
-                        try {
-                          File descriptorFile = File.createTempFile("druid", "descriptor.json");
-                          // Avoid using Guava in DataSegmentPushers because they might be used with very diverse Guava
-                          // versions in runtime, and because Guava deletes methods over time, that causes
-                          // incompatibilities.
-                          Files.write(descriptorFile.toPath(), jsonMapper.writeValueAsBytes(outSegment));
-                          return descriptorFile;
-                        }
-                        catch (IOException e) {
-                          throw new RuntimeException(e);
-                        }
-                      },
-                      outputBucket,
-                      s3DescriptorPath
-                  )
-              );
+              File descriptorFile = File.createTempFile("druid", "descriptor.json");
+              // Avoid using Guava in DataSegmentPushers because they might be used with very diverse Guava
+              // versions in runtime, and because Guava deletes methods over time, that causes
+              // incompatibilities.
+              Files.write(descriptorFile.toPath(), jsonMapper.writeValueAsBytes(outSegment));
 
-              // upload files
-              final List<Uploading> uploadings = toUploads
-                  .stream()
-                  .map(
-                      toUpload -> {
-                        final File file = toUpload.getFile();
-                        final PutObjectRequest request = new PutObjectRequest(
-                            toUpload.bucket,
-                            toUpload.key,
-                            file
-                        );
-
-                        if (!config.getDisableAcl()) {
-                          request.setAccessControlList(
-                              S3Utils.grantFullControlToBucketOwver(s3Client, toUpload.bucket)
-                          );
-                        }
-
-                        log.info(
-                            "Schedule to push [%s] to bucket[%s] and key[%s].",
-                            file.getName(),
-                            toUpload.bucket,
-                            toUpload.key
-                        );
-                        return new Uploading(toUpload, transferManager.upload(request));
-                      }
-                  )
-                  .collect(Collectors.toList());
-
-              for (Uploading uploading : uploadings) {
-                log.info(
-                    "Wait for [%s] to be pushed to bucket[%s] and key[%s]",
-                    uploading.toUpload.getFile().getName(),
-                    uploading.toUpload.bucket,
-                    uploading.toUpload.key
-                );
-                uploading.waitForCompletion();
-                log.info(
-                    "[%s] is pushed to bucket[%s] and key[%s]",
-                    uploading.toUpload.getFile().getName(),
-                    uploading.toUpload.bucket,
-                    uploading.toUpload.key
-                );
-              }
-
-              // clean up
-              uploadings.forEach(Uploading::close);
+              uploadFileAndClear(s3Client, outputBucket, s3DescriptorPath, descriptorFile);
 
               return outSegment;
             }

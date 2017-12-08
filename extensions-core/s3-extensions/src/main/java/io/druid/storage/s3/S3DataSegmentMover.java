@@ -26,7 +26,6 @@ import com.amazonaws.services.s3.model.ListObjectsV2Request;
 import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
-import com.amazonaws.services.s3.transfer.TransferManager;
 import com.google.common.base.Predicate;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
@@ -52,7 +51,6 @@ public class S3DataSegmentMover implements DataSegmentMover
   private static final Logger log = new Logger(S3DataSegmentMover.class);
 
   private final AmazonS3Client s3Client;
-  private final TransferManager transferManager;
   private final S3DataSegmentPusherConfig config;
 
   @Inject
@@ -62,8 +60,6 @@ public class S3DataSegmentMover implements DataSegmentMover
   )
   {
     this.s3Client = s3Client;
-    // TODO: thread pool size
-    this.transferManager = new TransferManager(s3Client);
     this.config = config;
   }
 
@@ -182,7 +178,7 @@ public class S3DataSegmentMover implements DataSegmentMover
       }
       final S3ObjectSummary objectSummary = listResult.getObjectSummaries().get(0);
       if (objectSummary.getStorageClass() != null &&
-          StorageClass.fromValue(objectSummary.getStorageClass().toUpperCase()).equals(StorageClass.Glacier)) {
+          StorageClass.fromValue(StringUtils.toUpperCase(objectSummary.getStorageClass())).equals(StorageClass.Glacier)) {
         throw new ISE(
             "Cannot move file[s3://%s/%s] of storage class glacier, skipping.",
             s3Bucket,
@@ -194,12 +190,7 @@ public class S3DataSegmentMover implements DataSegmentMover
         if (!config.getDisableAcl()) {
           copyRequest.setAccessControlList(S3Utils.grantFullControlToBucketOwver(s3Client, targetS3Bucket));
         }
-        try {
-          transferManager.copy(copyRequest).waitForCopyResult();
-        }
-        catch (InterruptedException e) {
-          throw new IOException(e);
-        }
+        s3Client.copyObject(copyRequest);
         if (!s3Client.doesObjectExist(targetS3Bucket, targetS3Path)) {
           throw new IOE(
               "After copy was reported as successful the file doesn't exist in the target location [%s]",
