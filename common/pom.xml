@@ -167,10 +167,14 @@
             properly
             Future releases which include HTTPCLIENT-1727 should probably set the context loader whenever jets3t calls are used
         -->
+        <!--<dependency>-->
+            <!--<groupId>net.java.dev.jets3t</groupId>-->
+            <!--<artifactId>jets3t</artifactId>-->
+            <!--<version>0.9.4</version>-->
+        <!--</dependency>-->
         <dependency>
-            <groupId>net.java.dev.jets3t</groupId>
-            <artifactId>jets3t</artifactId>
-            <version>0.9.4</version>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-s3</artifactId>
         </dependency>
         <dependency>
             <groupId>org.antlr</groupId>

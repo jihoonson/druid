@@ -19,6 +19,12 @@
 
 package io.druid.storage.s3;
 
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.transfer.TransferManager;
+import com.amazonaws.services.s3.transfer.Upload;
+import com.amazonaws.services.s3.transfer.model.UploadResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
@@ -30,35 +36,38 @@ import io.druid.java.util.common.StringUtils;
 import io.druid.segment.SegmentUtils;
 import io.druid.segment.loading.DataSegmentPusher;
 import io.druid.timeline.DataSegment;
-import org.jets3t.service.ServiceException;
-import org.jets3t.service.acl.gs.GSAccessControlList;
-import org.jets3t.service.impl.rest.httpclient.RestS3Service;
-import org.jets3t.service.model.S3Object;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class S3DataSegmentPusher implements DataSegmentPusher
 {
   private static final EmittingLogger log = new EmittingLogger(S3DataSegmentPusher.class);
 
-  private final RestS3Service s3Client;
+  private final AmazonS3Client s3Client;
+  private final TransferManager transferManager;
   private final S3DataSegmentPusherConfig config;
   private final ObjectMapper jsonMapper;
 
   @Inject
   public S3DataSegmentPusher(
-      RestS3Service s3Client,
+      AmazonS3Client s3Client,
       S3DataSegmentPusherConfig config,
       ObjectMapper jsonMapper
   )
   {
     this.s3Client = s3Client;
+    // TODO: config for thread pool size
+    this.transferManager = new TransferManager(s3Client);
     this.config = config;
     this.jsonMapper = jsonMapper;
 
@@ -104,50 +113,90 @@ public class S3DataSegmentPusher implements DataSegmentPusher
             @Override
             public DataSegment call() throws Exception
             {
-              S3Object toPush = new S3Object(zipOutFile);
-
               final String outputBucket = config.getBucket();
               final String s3DescriptorPath = S3Utils.descriptorPathForSegmentPath(s3Path);
+              final DataSegment outSegment = inSegment
+                  .withSize(indexSize)
+                  .withLoadSpec(makeLoadSpec(outputBucket, s3Path))
+                  .withBinaryVersion(SegmentUtils.getVersionFromDir(indexFilesDir));
 
-              toPush.setBucketName(outputBucket);
-              toPush.setKey(s3Path);
-              if (!config.getDisableAcl()) {
-                toPush.setAcl(GSAccessControlList.REST_CANNED_BUCKET_OWNER_FULL_CONTROL);
+              // prepare uploads
+              final List<ToUpload> toUploads = new ArrayList<>(2);
+              toUploads.add(new ToUpload(() -> zipOutFile, outputBucket, s3Path));
+              toUploads.add(
+                  new ToUpload(
+                      () -> {
+                        try {
+                          File descriptorFile = File.createTempFile("druid", "descriptor.json");
+                          // Avoid using Guava in DataSegmentPushers because they might be used with very diverse Guava
+                          // versions in runtime, and because Guava deletes methods over time, that causes
+                          // incompatibilities.
+                          Files.write(descriptorFile.toPath(), jsonMapper.writeValueAsBytes(outSegment));
+                          return descriptorFile;
+                        }
+                        catch (IOException e) {
+                          throw new RuntimeException(e);
+                        }
+                      },
+                      outputBucket,
+                      s3DescriptorPath
+                  )
+              );
+
+              // upload files
+              final List<Uploading> uploadings = toUploads
+                  .stream()
+                  .map(
+                      toUpload -> {
+                        final File file = toUpload.getFile();
+                        final PutObjectRequest request = new PutObjectRequest(
+                            toUpload.bucket,
+                            toUpload.key,
+                            file
+                        );
+
+                        if (!config.getDisableAcl()) {
+                          request.setAccessControlList(
+                              S3Utils.grantFullControlToBucketOwver(s3Client, toUpload.bucket)
+                          );
+                        }
+
+                        log.info(
+                            "Schedule to push [%s] to bucket[%s] and key[%s].",
+                            file.getName(),
+                            toUpload.bucket,
+                            toUpload.key
+                        );
+                        return new Uploading(toUpload, transferManager.upload(request));
+                      }
+                  )
+                  .collect(Collectors.toList());
+
+              for (Uploading uploading : uploadings) {
+                log.info(
+                    "Wait for [%s] to be pushed to bucket[%s] and key[%s]",
+                    uploading.toUpload.getFile().getName(),
+                    uploading.toUpload.bucket,
+                    uploading.toUpload.key
+                );
+                uploading.waitForCompletion();
+                log.info(
+                    "[%s] is pushed to bucket[%s] and key[%s]",
+                    uploading.toUpload.getFile().getName(),
+                    uploading.toUpload.bucket,
+                    uploading.toUpload.key
+                );
               }
 
-              log.info("Pushing %s.", toPush);
-              s3Client.putObject(outputBucket, toPush);
-
-              final DataSegment outSegment = inSegment.withSize(indexSize)
-                                                      .withLoadSpec(makeLoadSpec(outputBucket, toPush.getKey()))
-                                                      .withBinaryVersion(SegmentUtils.getVersionFromDir(indexFilesDir));
-
-              File descriptorFile = File.createTempFile("druid", "descriptor.json");
-              // Avoid using Guava in DataSegmentPushers because they might be used with very diverse Guava versions in
-              // runtime, and because Guava deletes methods over time, that causes incompatibilities.
-              Files.write(descriptorFile.toPath(), jsonMapper.writeValueAsBytes(outSegment));
-              S3Object descriptorObject = new S3Object(descriptorFile);
-              descriptorObject.setBucketName(outputBucket);
-              descriptorObject.setKey(s3DescriptorPath);
-              if (!config.getDisableAcl()) {
-                descriptorObject.setAcl(GSAccessControlList.REST_CANNED_BUCKET_OWNER_FULL_CONTROL);
-              }
-
-              log.info("Pushing %s", descriptorObject);
-              s3Client.putObject(outputBucket, descriptorObject);
-
-              log.info("Deleting zipped index File[%s]", zipOutFile);
-              zipOutFile.delete();
-
-              log.info("Deleting descriptor file[%s]", descriptorFile);
-              descriptorFile.delete();
+              // clean up
+              uploadings.forEach(Uploading::close);
 
               return outSegment;
             }
           }
       );
     }
-    catch (ServiceException e) {
+    catch (AmazonServiceException e) {
       throw new IOException(e);
     }
     catch (Exception e) {
@@ -179,5 +228,60 @@ public class S3DataSegmentPusher implements DataSegmentPusher
         "S3Schema",
         config.isUseS3aSchema() ? "s3a" : "s3n"
     );
+  }
+
+  private static class ToUpload implements Closeable
+  {
+    private final Supplier<File> fileSupplier;
+    private final String bucket;
+    private final String key;
+
+    private File file;
+
+    ToUpload(Supplier<File> fileSupplier, String bucket, String key)
+    {
+      this.fileSupplier = fileSupplier;
+      this.bucket = bucket;
+      this.key = key;
+    }
+
+    File getFile()
+    {
+      if (file == null) {
+        file = fileSupplier.get();
+      }
+      return file;
+    }
+
+    @Override
+    public void close()
+    {
+      if (file != null) {
+        file.delete();
+      }
+    }
+  }
+
+  private static class Uploading implements Closeable
+  {
+    private final ToUpload toUpload;
+    private final Upload upload;
+
+    Uploading(ToUpload toUpload, Upload upload)
+    {
+      this.toUpload = toUpload;
+      this.upload = upload;
+    }
+
+    UploadResult waitForCompletion() throws InterruptedException
+    {
+      return upload.waitForUploadResult();
+    }
+
+    @Override
+    public void close()
+    {
+      toUpload.close();
+    }
   }
 }

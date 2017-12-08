@@ -46,9 +46,14 @@
             <scope>provided</scope>
         </dependency>
 
+        <!--<dependency>-->
+            <!--<groupId>net.java.dev.jets3t</groupId>-->
+            <!--<artifactId>jets3t</artifactId>-->
+            <!--<scope>provided</scope>-->
+        <!--</dependency>-->
         <dependency>
-            <groupId>net.java.dev.jets3t</groupId>
-            <artifactId>jets3t</artifactId>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-s3</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>

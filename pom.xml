@@ -196,6 +196,10 @@
                         <artifactId>jackson-annotations</artifactId>
                     </exclusion>
                     <exclusion>
+                        <groupId>com.fasterxml.jackson.dataformat</groupId>
+                        <artifactId>jackson-dataformat-cbor</artifactId>
+                    </exclusion>
+                    <exclusion>
                         <groupId>commons-codec</groupId>
                         <artifactId>commons-codec</artifactId>
                     </exclusion>
@@ -217,6 +221,10 @@
                     <exclusion>
                         <groupId>com.fasterxml.jackson.core</groupId>
                         <artifactId>jackson-annotations</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.fasterxml.jackson.dataformat</groupId>
+                        <artifactId>jackson-dataformat-cbor</artifactId>
                     </exclusion>
                     <exclusion>
                         <groupId>commons-codec</groupId>
@@ -593,37 +601,37 @@
                 <artifactId>aether-api</artifactId>
                 <version>0.9.0.M2</version>
             </dependency>
-            <dependency>
-                <groupId>net.java.dev.jets3t</groupId>
-                <artifactId>jets3t</artifactId>
-                <version>0.9.4</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>commons-codec</groupId>
-                        <artifactId>commons-codec</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>commons-logging</groupId>
-                        <artifactId>commons-logging</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.apache.httpcomponents</groupId>
-                        <artifactId>httpclient</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.apache.httpcomponents</groupId>
-                        <artifactId>httpcore</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.codehaus.jackson</groupId>
-                        <artifactId>jackson-core-asl</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.codehaus.jackson</groupId>
-                        <artifactId>jackson-mapper-asl</artifactId>
-                    </exclusion>
-                </exclusions>
-            </dependency>
+            <!--<dependency>-->
+                <!--<groupId>net.java.dev.jets3t</groupId>-->
+                <!--<artifactId>jets3t</artifactId>-->
+                <!--<version>0.9.4</version>-->
+                <!--<exclusions>-->
+                    <!--<exclusion>-->
+                        <!--<groupId>commons-codec</groupId>-->
+                        <!--<artifactId>commons-codec</artifactId>-->
+                    <!--</exclusion>-->
+                    <!--<exclusion>-->
+                        <!--<groupId>commons-logging</groupId>-->
+                        <!--<artifactId>commons-logging</artifactId>-->
+                    <!--</exclusion>-->
+                    <!--<exclusion>-->
+                        <!--<groupId>org.apache.httpcomponents</groupId>-->
+                        <!--<artifactId>httpclient</artifactId>-->
+                    <!--</exclusion>-->
+                    <!--<exclusion>-->
+                        <!--<groupId>org.apache.httpcomponents</groupId>-->
+                        <!--<artifactId>httpcore</artifactId>-->
+                    <!--</exclusion>-->
+                    <!--<exclusion>-->
+                        <!--<groupId>org.codehaus.jackson</groupId>-->
+                        <!--<artifactId>jackson-core-asl</artifactId>-->
+                    <!--</exclusion>-->
+                    <!--<exclusion>-->
+                        <!--<groupId>org.codehaus.jackson</groupId>-->
+                        <!--<artifactId>jackson-mapper-asl</artifactId>-->
+                    <!--</exclusion>-->
+                <!--</exclusions>-->
+            <!--</dependency>-->
             <!-- The htttpcomponents artifacts have non-matching release cadence -->
             <!-- Watch out for compatibility issues between aws-java-sdk 1.10.x and httpclient > 4.5.1 and
                  httpcore > 4.4.3; see https://github.com/druid-io/druid/issues/4456 -->
