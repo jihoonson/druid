@@ -118,10 +118,10 @@ public class S3Utils
       private Iterator<S3ObjectSummary> objectSummaryIterator;
 
       {
-        updateResult();
+        fetchNextBatch();
       }
 
-      private void updateResult()
+      private void fetchNextBatch()
       {
         result = s3Client.listObjectsV2(request);
         objectSummaryIterator = result.getObjectSummaries().iterator();
@@ -131,7 +131,7 @@ public class S3Utils
       @Override
       public boolean hasNext()
       {
-        return objectSummaryIterator.hasNext() || !result.isTruncated();
+        return objectSummaryIterator.hasNext() || result.isTruncated();
       }
 
       @Override
@@ -145,8 +145,8 @@ public class S3Utils
           return objectSummaryIterator.next();
         }
 
-        if (!result.isTruncated()) {
-          updateResult();
+        if (result.isTruncated()) {
+          fetchNextBatch();
         }
 
         if (!objectSummaryIterator.hasNext()) {

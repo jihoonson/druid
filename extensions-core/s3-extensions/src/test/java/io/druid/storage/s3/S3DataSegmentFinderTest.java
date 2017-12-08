@@ -132,8 +132,6 @@ public class S3DataSegmentFinderTest
   private String indexZip4_0;
   private String indexZip4_1;
 
-
-
   @BeforeClass
   public static void setUpStatic()
   {
@@ -390,7 +388,7 @@ public class S3DataSegmentFinderTest
       result.setKeyCount(objects.size());
       result.getObjectSummaries().addAll(objects);
       result.setContinuationToken(newPriorLastkey);
-      result.setTruncated(newPriorLastkey == null);
+      result.setTruncated(newPriorLastkey != null);
 
       return result;
     }

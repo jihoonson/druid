@@ -56,7 +56,7 @@ public class S3TimestampVersionedDataFinderTest
     result.getObjectSummaries().add(object0);
     result.getObjectSummaries().add(object1);
     result.setKeyCount(2);
-    result.setTruncated(true);
+    result.setTruncated(false);
 
     EasyMock.expect(s3Client.listObjectsV2(EasyMock.anyObject(ListObjectsV2Request.class)))
             .andReturn(result)
@@ -86,7 +86,7 @@ public class S3TimestampVersionedDataFinderTest
 
     final ListObjectsV2Result result = new ListObjectsV2Result();
     result.setKeyCount(0);
-    result.setTruncated(true);
+    result.setTruncated(false);
 
     EasyMock.expect(s3Client.listObjectsV2(EasyMock.anyObject(ListObjectsV2Request.class)))
             .andReturn(result)
@@ -121,7 +121,7 @@ public class S3TimestampVersionedDataFinderTest
     final ListObjectsV2Result result = new ListObjectsV2Result();
     result.getObjectSummaries().add(object0);
     result.setKeyCount(1);
-    result.setTruncated(true);
+    result.setTruncated(false);
 
     EasyMock.expect(s3Client.listObjectsV2(EasyMock.anyObject(ListObjectsV2Request.class)))
             .andReturn(result)
@@ -158,7 +158,7 @@ public class S3TimestampVersionedDataFinderTest
     final ListObjectsV2Result result = new ListObjectsV2Result();
     result.getObjectSummaries().add(object0);
     result.setKeyCount(1);
-    result.setTruncated(true);
+    result.setTruncated(false);
 
     EasyMock.expect(s3Client.listObjectsV2(EasyMock.anyObject(ListObjectsV2Request.class)))
             .andReturn(result)
