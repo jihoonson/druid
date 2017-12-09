@@ -23,6 +23,7 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.base.Predicate;
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
@@ -61,17 +62,16 @@ public class S3DataSegmentPuller implements DataSegmentPuller, URIDataPuller
 {
   public static final int DEFAULT_RETRY_COUNT = 3;
 
-  public static FileObject buildFileObject(final URI uri, final AmazonS3Client s3Client) throws AmazonServiceException
+  private static FileObject buildFileObject(final URI uri, final AmazonS3Client s3Client) throws AmazonServiceException
   {
     final S3Coords coords = new S3Coords(checkURI(uri));
-    final S3Object s3Object = s3Client.getObject(coords.bucket, coords.path);
+    final S3ObjectSummary objectSummary = S3Utils.getSingleObjectSummary(s3Client, coords.bucket, coords.path);
     final String path = uri.getPath();
 
     return new FileObject()
     {
       final Object inputStreamOpener = new Object();
-      volatile boolean streamAcquired = false;
-      volatile S3Object storageObject = s3Object;
+      S3Object s3Object = null;
 
       @Override
       public URI toUri()
@@ -90,16 +90,68 @@ public class S3DataSegmentPuller implements DataSegmentPuller, URIDataPuller
       public InputStream openInputStream() throws IOException
       {
         try {
-          synchronized (inputStreamOpener) {
-            if (streamAcquired) {
-              return storageObject.getObjectContent();
+          if (s3Object == null) {
+            synchronized (inputStreamOpener) {
+              if (s3Object == null) {
+                // lazily promote to full GET
+                s3Object = s3Client.getObject(objectSummary.getBucketName(), objectSummary.getKey());
+              }
             }
-            // lazily promote to full GET
-            storageObject = s3Client.getObject(s3Object.getBucketName(), s3Object.getKey());
-            final InputStream stream = storageObject.getObjectContent();
-            streamAcquired = true;
-            return stream;
           }
+
+          return new InputStream()
+          {
+            final InputStream delegate = s3Object.getObjectContent();
+
+            @Override
+            public int read() throws IOException
+            {
+              return delegate.read();
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException
+            {
+              return delegate.read(b, off, len);
+            }
+
+            @Override
+            public long skip(long n) throws IOException
+            {
+              return delegate.skip(n);
+            }
+
+            @Override
+            public int available() throws IOException
+            {
+              return delegate.available();
+            }
+
+            @Override
+            public void reset() throws IOException
+            {
+              delegate.reset();
+            }
+
+            @Override
+            public void close() throws IOException
+            {
+              delegate.close();
+              s3Object.close();
+            }
+
+            @Override
+            public boolean markSupported()
+            {
+              return delegate.markSupported();
+            }
+
+            @Override
+            public void mark(int readlimit)
+            {
+              delegate.mark(readlimit);
+            }
+          };
         }
         catch (AmazonServiceException e) {
           throw new IOE(e, "Could not load S3 URI [%s]", uri);
@@ -133,7 +185,7 @@ public class S3DataSegmentPuller implements DataSegmentPuller, URIDataPuller
       @Override
       public long getLastModified()
       {
-        return s3Object.getObjectMetadata().getLastModified().getTime();
+        return objectSummary.getLastModified().getTime();
       }
 
       @Override
@@ -293,8 +345,9 @@ public class S3DataSegmentPuller implements DataSegmentPuller, URIDataPuller
   public String getVersion(URI uri) throws IOException
   {
     try {
-      final FileObject object = buildFileObject(uri, s3Client);
-      return StringUtils.format("%d", object.getLastModified());
+      final S3Coords coords = new S3Coords(checkURI(uri));
+      final S3ObjectSummary objectSummary = S3Utils.getSingleObjectSummary(s3Client, coords.bucket, coords.path);
+      return StringUtils.format("%d", objectSummary.getLastModified().getTime());
     }
     catch (AmazonServiceException e) {
       if (S3Utils.isServiceExceptionRecoverable(e)) {

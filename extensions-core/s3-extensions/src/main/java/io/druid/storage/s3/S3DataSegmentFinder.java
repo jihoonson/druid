@@ -82,10 +82,9 @@ public class S3DataSegmentFinder implements DataSegmentFinder
           String indexZip = S3Utils.indexZipForSegmentPath(descriptorJson);
 
           if (S3Utils.isObjectInBucketIgnoringPermission(s3Client, config.getBucket(), indexZip)) {
-            final S3Object indexObject = s3Client.getObject(config.getBucket(), descriptorJson);
-            final ObjectMetadata objectMetadata = indexObject.getObjectMetadata();
-
-            try (S3ObjectInputStream is = indexObject.getObjectContent()) {
+            try (S3Object indexObject = s3Client.getObject(config.getBucket(), descriptorJson);
+                 S3ObjectInputStream is = indexObject.getObjectContent()) {
+              final ObjectMetadata objectMetadata = indexObject.getObjectMetadata();
               final DataSegment dataSegment = jsonMapper.readValue(is, DataSegment.class);
               log.info("Found segment [%s] located at [%s]", dataSegment.getIdentifier(), indexZip);
 
