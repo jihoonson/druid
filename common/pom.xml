@@ -157,6 +157,7 @@
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
         </dependency>
+
         <!--
             Druid doesn't ACTUALLY depend on jets3t in its core, but quite a few of the extensions do. This leads to a nasty ClassLoader problem
             There's a bug in
@@ -167,15 +168,16 @@
             properly
             Future releases which include HTTPCLIENT-1727 should probably set the context loader whenever jets3t calls are used
         -->
-        <!--<dependency>-->
-            <!--<groupId>net.java.dev.jets3t</groupId>-->
-            <!--<artifactId>jets3t</artifactId>-->
-            <!--<version>0.9.4</version>-->
-        <!--</dependency>-->
-        <!--<dependency>-->
-            <!--<groupId>com.amazonaws</groupId>-->
-            <!--<artifactId>aws-java-sdk-s3</artifactId>-->
-        <!--</dependency>-->
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-s3</artifactId>
+            <exclusions>
+                <exclusion>
+                    <artifactId>aws-java-sdk-core</artifactId>
+                    <groupId>com.amazonaws</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
         <dependency>
             <groupId>org.antlr</groupId>
             <artifactId>antlr4-runtime</artifactId>

@@ -56,12 +56,6 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
         </dependency>
-        <!-- override jets3t from hadoop-core -->
-        <!--<dependency>-->
-            <!--<groupId>net.java.dev.jets3t</groupId>-->
-            <!--<artifactId>jets3t</artifactId>-->
-            <!--<scope>test</scope>-->
-        <!--</dependency>-->
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk-s3</artifactId>
