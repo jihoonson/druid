@@ -272,7 +272,7 @@ public class S3DataSegmentMoverTest
 
     public PutObjectResult putObject(String bucketName, String key)
     {
-      return putObject(bucketName, key, null);
+      return putObject(bucketName, key, (File) null);
     }
 
     @Override
