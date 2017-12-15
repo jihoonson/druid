@@ -81,6 +81,7 @@
         <!-- Cannot update to AWS SDK 1.11+ because of Jackson incompatibility.
         Need to update Druid to use Jackson 2.6+ -->
         <aws.sdk.version>1.11.29</aws.sdk.version>
+        <aws.sdk.bundle.version>1.11.199</aws.sdk.bundle.version>
         <caffeine.version>2.5.5</caffeine.version>
 
         <!-- When upgrading ZK, edit docs and integration tests as well (integration-tests/docker-base/setup.sh) -->
@@ -203,7 +204,38 @@
                         <groupId>commons-codec</groupId>
                         <artifactId>commons-codec</artifactId>
                     </exclusion>
+                    <exclusion>
+                        <artifactId>aws-java-sdk-core</artifactId>
+                        <groupId>com.amazonaws</groupId>
+                    </exclusion>
                 </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>com.amazonaws</groupId>
+                <artifactId>aws-java-sdk-bundle</artifactId>
+                <version>${aws.sdk.bundle.version}</version>
+                <!--<exclusions>-->
+                    <!--<exclusion>-->
+                        <!--<groupId>javax.mail</groupId>-->
+                        <!--<artifactId>mail</artifactId>-->
+                    <!--</exclusion>-->
+                    <!--<exclusion>-->
+                        <!--<groupId>com.fasterxml.jackson.core</groupId>-->
+                        <!--<artifactId>jackson-databind</artifactId>-->
+                    <!--</exclusion>-->
+                    <!--<exclusion>-->
+                        <!--<groupId>com.fasterxml.jackson.core</groupId>-->
+                        <!--<artifactId>jackson-annotations</artifactId>-->
+                    <!--</exclusion>-->
+                    <!--<exclusion>-->
+                        <!--<groupId>com.fasterxml.jackson.dataformat</groupId>-->
+                        <!--<artifactId>jackson-dataformat-cbor</artifactId>-->
+                    <!--</exclusion>-->
+                    <!--<exclusion>-->
+                        <!--<groupId>commons-codec</groupId>-->
+                        <!--<artifactId>commons-codec</artifactId>-->
+                    <!--</exclusion>-->
+                <!--</exclusions>-->
             </dependency>
             <dependency>
                 <groupId>com.amazonaws</groupId>
@@ -229,6 +261,10 @@
                     <exclusion>
                         <groupId>commons-codec</groupId>
                         <artifactId>commons-codec</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <artifactId>aws-java-sdk-core</artifactId>
+                        <groupId>com.amazonaws</groupId>
                     </exclusion>
                 </exclusions>
             </dependency>
