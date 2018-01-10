@@ -23,6 +23,8 @@ import com.google.common.collect.Ordering;
 import io.druid.java.util.common.guava.nary.BinaryFn;
 
 import java.io.Closeable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 
@@ -68,6 +70,16 @@ public interface Sequence<T>
   default <U> Sequence<U> map(Function<? super T, ? extends U> mapper)
   {
     return new MappedSequence<>(this, mapper);
+  }
+
+  default List<T> toList()
+  {
+    return accumulate(new ArrayList<>(), Accumulators.list());
+  }
+
+  default Sequence<T> limit(int limit)
+  {
+    return new LimitedSequence<>(this, limit);
   }
 
   default <R> Sequence<R> flatMap(

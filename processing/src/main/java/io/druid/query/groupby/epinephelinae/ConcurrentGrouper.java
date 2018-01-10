@@ -23,35 +23,31 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
+import io.druid.collections.ResourceHolder;
+import io.druid.java.util.common.CloseableIterators;
 import io.druid.java.util.common.ISE;
+import io.druid.java.util.common.parsers.CloseableIterator;
 import io.druid.query.AbstractPrioritizedCallable;
 import io.druid.query.QueryInterruptedException;
 import io.druid.query.aggregation.AggregatorFactory;
-import io.druid.query.dimension.DimensionSpec;
+import io.druid.query.groupby.GroupByQueryConfig;
 import io.druid.query.groupby.orderby.DefaultLimitSpec;
-import io.druid.query.monomorphicprocessing.RuntimeShapeInspector;
 import io.druid.segment.ColumnSelectorFactory;
-import io.druid.segment.DimensionSelector;
-import io.druid.segment.DoubleColumnSelector;
-import io.druid.segment.FloatColumnSelector;
-import io.druid.segment.LongColumnSelector;
-import io.druid.segment.ObjectColumnSelector;
-import io.druid.segment.column.ColumnCapabilities;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -75,7 +71,6 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
   private volatile boolean spilling = false;
   private volatile boolean closed = false;
 
-  private final ByteBuffer processingBuffer;
   private final Supplier<ByteBuffer> bufferSupplier;
   private final ColumnSelectorFactory columnSelectorFactory;
   private final AggregatorFactory[] aggregatorFactories;
@@ -89,17 +84,64 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
   private final DefaultLimitSpec limitSpec;
   private final boolean sortHasNonGroupingFields;
   private final Comparator<Grouper.Entry<KeyType>> keyObjComparator;
-  private final ListeningExecutorService grouperSorter;
+  private final ListeningExecutorService executor;
   private final int priority;
   private final boolean hasQueryTimeout;
   private final long queryTimeoutAt;
+  private final long maxDictionarySizeForCombiner;
+  @Nullable
+  private final ParallelCombiner<KeyType> parallelCombiner;
 
   private volatile boolean initialized = false;
 
   public ConcurrentGrouper(
-      final ByteBuffer processingBuffer,
+      final GroupByQueryConfig groupByQueryConfig,
       final Supplier<ByteBuffer> bufferSupplier,
+      final Supplier<ResourceHolder<ByteBuffer>> combineBufferSupplier,
       final KeySerdeFactory<KeyType> keySerdeFactory,
+      final KeySerdeFactory<KeyType> combineKeySerdeFactory,
+      final ColumnSelectorFactory columnSelectorFactory,
+      final AggregatorFactory[] aggregatorFactories,
+      final LimitedTemporaryStorage temporaryStorage,
+      final ObjectMapper spillMapper,
+      final int concurrencyHint,
+      final DefaultLimitSpec limitSpec,
+      final boolean sortHasNonGroupingFields,
+      final ListeningExecutorService executor,
+      final int priority,
+      final boolean hasQueryTimeout,
+      final long queryTimeoutAt
+  )
+  {
+    this(
+        bufferSupplier,
+        combineBufferSupplier,
+        keySerdeFactory,
+        combineKeySerdeFactory,
+        columnSelectorFactory,
+        aggregatorFactories,
+        groupByQueryConfig.getBufferGrouperMaxSize(),
+        groupByQueryConfig.getBufferGrouperMaxLoadFactor(),
+        groupByQueryConfig.getBufferGrouperInitialBuckets(),
+        temporaryStorage,
+        spillMapper,
+        concurrencyHint,
+        limitSpec,
+        sortHasNonGroupingFields,
+        executor,
+        priority,
+        hasQueryTimeout,
+        queryTimeoutAt,
+        groupByQueryConfig.getIntermediateCombineDegree(),
+        groupByQueryConfig.getNumParallelCombineThreads()
+    );
+  }
+
+  ConcurrentGrouper(
+      final Supplier<ByteBuffer> bufferSupplier,
+      final Supplier<ResourceHolder<ByteBuffer>> combineBufferSupplier,
+      final KeySerdeFactory<KeyType> keySerdeFactory,
+      final KeySerdeFactory<KeyType> combineKeySerdeFactory,
       final ColumnSelectorFactory columnSelectorFactory,
       final AggregatorFactory[] aggregatorFactories,
       final int bufferGrouperMaxSize,
@@ -110,25 +152,25 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       final int concurrencyHint,
       final DefaultLimitSpec limitSpec,
       final boolean sortHasNonGroupingFields,
-      final ListeningExecutorService grouperSorter,
+      final ListeningExecutorService executor,
       final int priority,
       final boolean hasQueryTimeout,
-      final long queryTimeoutAt
+      final long queryTimeoutAt,
+      final int intermediateCombineDegree,
+      final int numParallelCombineThreads
   )
   {
     Preconditions.checkArgument(concurrencyHint > 0, "concurrencyHint > 0");
+    Preconditions.checkArgument(
+        concurrencyHint >= numParallelCombineThreads,
+        "numParallelCombineThreads[%s] cannot larger than concurrencyHint[%s]",
+        numParallelCombineThreads,
+        concurrencyHint
+    );
 
     this.groupers = new ArrayList<>(concurrencyHint);
-    this.threadLocalGrouper = new ThreadLocal<SpillingGrouper<KeyType>>()
-    {
-      @Override
-      protected SpillingGrouper<KeyType> initialValue()
-      {
-        return groupers.get(threadNumber.getAndIncrement());
-      }
-    };
+    this.threadLocalGrouper = ThreadLocal.withInitial(() -> groupers.get(threadNumber.getAndIncrement()));
 
-    this.processingBuffer = processingBuffer;
 //    this.groupers = new ArrayList<>(concurrencyHint * concurrencyHint);
 //    this.threadLocalGroupers = new ThreadLocal<List<SpillingGrouper<KeyType>>>()
 //    {
@@ -153,10 +195,27 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
     this.limitSpec = limitSpec;
     this.sortHasNonGroupingFields = sortHasNonGroupingFields;
     this.keyObjComparator = keySerdeFactory.objectComparator(sortHasNonGroupingFields);
-    this.grouperSorter = Preconditions.checkNotNull(grouperSorter);
+    this.executor = Preconditions.checkNotNull(executor);
     this.priority = priority;
     this.hasQueryTimeout = hasQueryTimeout;
     this.queryTimeoutAt = queryTimeoutAt;
+    this.maxDictionarySizeForCombiner = combineKeySerdeFactory.getMaxDictionarySize();
+
+    if (numParallelCombineThreads > 1) {
+      this.parallelCombiner = new ParallelCombiner<>(
+          combineBufferSupplier,
+          getCombiningFactories(aggregatorFactories),
+          combineKeySerdeFactory,
+          executor,
+          sortHasNonGroupingFields,
+          Math.min(numParallelCombineThreads, concurrencyHint),
+          priority,
+          queryTimeoutAt,
+          intermediateCombineDegree
+      );
+    } else {
+      this.parallelCombiner = null;
+    }
   }
 
   @Override
@@ -173,11 +232,9 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
 
 //          final int sliceSize = (buffer.capacity() / numSlices);
 //          for (int i = 0; i < numSlices; i++) {
-            final ByteBuffer slice = buffer.duplicate();
-            slice.position(sliceSize * i);
-            slice.limit(slice.position() + sliceSize);
+            final ByteBuffer slice = Groupers.getSlice(buffer, sliceSize, i);
             final SpillingGrouper<KeyType> grouper = new SpillingGrouper<>(
-                Suppliers.ofInstance(slice.slice()),
+                Suppliers.ofInstance(slice),
                 keySerdeFactory,
                 columnSelectorFactory,
                 aggregatorFactories,
@@ -188,7 +245,8 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
                 spillMapper,
                 false,
                 limitSpec,
-                sortHasNonGroupingFields
+                sortHasNonGroupingFields,
+                sliceSize
             );
             grouper.init();
             groupers.add(grouper);
@@ -258,15 +316,11 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       throw new ISE("Grouper is closed");
     }
 
-    for (Grouper<KeyType> grouper : groupers) {
-      synchronized (grouper) {
-        grouper.reset();
-      }
-    }
+    groupers.forEach(Grouper::reset);
   }
 
   @Override
-  public Iterator<Entry<KeyType>> iterator(final boolean sorted)
+  public CloseableIterator<Entry<KeyType>> iterator(final boolean sorted)
   {
     if (!initialized) {
       throw new ISE("Grouper is not initialized");
@@ -276,136 +330,43 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       throw new ISE("Grouper is closed");
     }
 
-    if (!spilling) {
-      return Groupers.mergeIterators(
-          sorted && isParallelSortAvailable() ? parallelSortAndGetGroupersIterator() : getGroupersIterator(sorted),
-          sorted ? keyObjComparator : null
-      );
-    } else {
-      return parallelCombine(
-          sorted && isParallelSortAvailable() ? parallelSortAndGetGroupersIterator() : getGroupersIterator(sorted),
-          sorted
-      );
+    final List<CloseableIterator<Entry<KeyType>>> sortedIterators = sorted && isParallelizable() ?
+                                                                    parallelSortAndGetGroupersIterator() :
+                                                                    getGroupersIterator(sorted);
+
+    // Parallel combine is used only when data is spilled. This is because ConcurrentGrouper uses two different modes
+    // depending on data is spilled or not. If data is not spilled, all inputs are completely aggregated and no more
+    // aggregation is required.
+    if (sorted && spilling && parallelCombiner != null) {
+      // First try to merge dictionaries generated by all underlying groupers. If it is merged successfully, the same
+      // merged dictionary is used for all combining threads
+      final List<String> dictionary = tryMergeDictionary();
+      if (dictionary != null) {
+        return parallelCombiner.combine(sortedIterators, dictionary);
+      }
     }
+
+    return sorted ?
+           CloseableIterators.mergeSorted(sortedIterators, keyObjComparator) :
+           CloseableIterators.concat(sortedIterators);
   }
 
-  private Iterator<Entry<KeyType>> parallelCombine(List<Iterator<Entry<KeyType>>> sortedIterators, boolean sorted)
-  {
-    final List<ListenableFuture<Iterator<Entry<KeyType>>>> mergedIterators = new ArrayList<>();
-
-    final int mergeDegree = 2;
-    final int mergeThreadNum = concurrencyHint / mergeDegree;
-    final int sliceSize = processingBuffer.capacity() / mergeThreadNum;
-
-//    final int sliceSize = (processingBuffer.capacity() / concurrencyHint);
-
-    for (int i = 0; i < mergeThreadNum; i++) {
-//    for (int i = 0; i < concurrencyHint; i ++) {
-//      final List<Iterator<Entry<KeyType>>> subIters = new ArrayList<>(concurrencyHint);
-
-//      for (int j = 0; j < concurrencyHint; j++) {
-//        subIters.add(sortedIterators.get(j * concurrencyHint + i));
-//      }
-
-//      final Iterator<Entry<KeyType>> subIter = Groupers.mergeIterators(
-//          subIters,
-//          sorted ? keyObjComparator : null
-//      );
-
-      final Iterator<Entry<KeyType>> subIter = Groupers.mergeIterators(
-          sortedIterators.subList(i * mergeDegree, Math.min(sortedIterators.size(), (i + 1) * mergeDegree)),
-          sorted ? keyObjComparator : null
-      );
-
-      final ByteBuffer slice = processingBuffer.duplicate();
-      slice.position(sliceSize * i);
-      slice.limit(slice.position() + sliceSize);
-
-      mergedIterators.add(
-          grouperSorter.submit(() -> {
-            final SettableColumnSelectorFactory settableColumnSelectorFactory = new SettableColumnSelectorFactory(aggregatorFactories);
-            final SpillingGrouper<KeyType> mergeGrouper = new SpillingGrouper<>(
-                keySerdeFactory,
-                aggregatorFactories,
-                temporaryStorage,
-                spillMapper,
-                true,
-                new MergeSortedGrouper<>(
-                    Suppliers.ofInstance(slice.slice()),
-                    keySerdeFactory.factorize(),
-                    settableColumnSelectorFactory,
-                    aggregatorFactories
-                )
-            );
-            mergeGrouper.setSpillingAllowed(true);
-            mergeGrouper.init();
-
-            while (subIter.hasNext()) {
-              final Entry<KeyType> next = subIter.next();
-
-              settableColumnSelectorFactory.set(next.values);
-              mergeGrouper.aggregate(next.key);
-              settableColumnSelectorFactory.set(null);
-            }
-
-            return mergeGrouper.iterator(true);
-          })
-      );
-    }
-
-    final Future<List<Iterator<Entry<KeyType>>>> allFuture = Futures.allAsList(mergedIterators);
-    final Iterator<Entry<KeyType>> mergedIterator;
-    try {
-      mergedIterator = Groupers.mergeIterators(allFuture.get(), sorted ? keyObjComparator : null);
-    }
-    catch (InterruptedException | ExecutionException e) {
-      throw new RuntimeException(e);
-    }
-
-    final SettableColumnSelectorFactory settableColumnSelectorFactory = new SettableColumnSelectorFactory(aggregatorFactories);
-    final SpillingGrouper<KeyType> mergeGrouper = new SpillingGrouper<>(
-        keySerdeFactory,
-        aggregatorFactories,
-        temporaryStorage,
-        spillMapper,
-        true,
-        new MergeSortedGrouper<>(
-            bufferSupplier,
-            keySerdeFactory.factorize(),
-            settableColumnSelectorFactory,
-            aggregatorFactories
-        )
-    );
-    mergeGrouper.setSpillingAllowed(true);
-    mergeGrouper.init();
-
-    while (mergedIterator.hasNext()) {
-      final Entry<KeyType> next = mergedIterator.next();
-
-      settableColumnSelectorFactory.set(next.values);
-      mergeGrouper.aggregate(next.getKey());
-      settableColumnSelectorFactory.set(null);
-    }
-
-    return mergeGrouper.iterator(true);
-  }
-
-  private boolean isParallelSortAvailable()
+  private boolean isParallelizable()
   {
     return concurrencyHint > 1;
   }
 
-  private List<Iterator<Entry<KeyType>>> parallelSortAndGetGroupersIterator()
+  private List<CloseableIterator<Entry<KeyType>>> parallelSortAndGetGroupersIterator()
   {
-    // The number of groupers is same with the number of processing threads in grouperSorter =? TODO wrong
-    final ListenableFuture<List<Iterator<Entry<KeyType>>>> future = Futures.allAsList(
+    // The number of groupers is same with the number of processing threads in the executor
+    final ListenableFuture<List<CloseableIterator<Entry<KeyType>>>> future = Futures.allAsList(
         groupers.stream()
                 .map(grouper ->
-                         grouperSorter.submit(
-                             new AbstractPrioritizedCallable<Iterator<Entry<KeyType>>>(priority)
+                         executor.submit(
+                             new AbstractPrioritizedCallable<CloseableIterator<Entry<KeyType>>>(priority)
                              {
                                @Override
-                               public Iterator<Entry<KeyType>> call() throws Exception
+                               public CloseableIterator<Entry<KeyType>> call() throws Exception
                                {
                                  return grouper.iterator(true);
                                }
@@ -431,21 +392,47 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
     }
   }
 
-  private List<Iterator<Entry<KeyType>>> getGroupersIterator(boolean sorted)
+  private List<CloseableIterator<Entry<KeyType>>> getGroupersIterator(boolean sorted)
   {
     return groupers.stream()
                    .map(grouper -> grouper.iterator(sorted))
                    .collect(Collectors.toList());
   }
 
+  /**
+   * Merge dictionaries of {@link Grouper.KeySerde}s of {@link Grouper}s.  The result dictionary contains unique string
+   * keys.
+   *
+   * @return merged dictionary if its size does not exceed max dictionary size.  Otherwise null.
+   */
+  @Nullable
+  private List<String> tryMergeDictionary()
+  {
+    final Set<String> mergedDictionary = new HashSet<>();
+    long totalDictionarySize = 0L;
+
+    for (SpillingGrouper<KeyType> grouper : groupers) {
+      final List<String> dictionary = grouper.mergeAndGetDictionary();
+
+      for (String key : dictionary) {
+        if (mergedDictionary.add(key)) {
+          totalDictionarySize += RowBasedGrouperHelper.estimateStringKeySize(key);
+          if (totalDictionarySize > maxDictionarySizeForCombiner) {
+            return null;
+          }
+        }
+      }
+    }
+
+    return ImmutableList.copyOf(mergedDictionary);
+  }
+
   @Override
   public void close()
   {
-    closed = true;
-    for (Grouper<KeyType> grouper : groupers) {
-      synchronized (grouper) {
-        grouper.close();
-      }
+    if (!closed) {
+      closed = true;
+      groupers.forEach(Grouper::close);
     }
   }
 
@@ -454,113 +441,10 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
     return keyHash % groupers.size();
   }
 
-  private static class SettableColumnSelectorFactory implements ColumnSelectorFactory
+  private AggregatorFactory[] getCombiningFactories(AggregatorFactory[] aggregatorFactories)
   {
-    private final Map<String, Integer> columnIndexMap;
-
-    private Object[] values;
-
-    SettableColumnSelectorFactory(AggregatorFactory[] aggregatorFactories)
-    {
-      columnIndexMap = new HashMap<>(aggregatorFactories.length);
-      for (int i = 0; i < aggregatorFactories.length; i++) {
-        columnIndexMap.put(aggregatorFactories[i].getName(), i);
-      }
-    }
-
-    public void set(Object[] values)
-    {
-      this.values = values;
-    }
-
-    @Override
-    public DimensionSelector makeDimensionSelector(DimensionSpec dimensionSpec)
-    {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public FloatColumnSelector makeFloatColumnSelector(String columnName)
-    {
-      return new FloatColumnSelector()
-      {
-        @Override
-        public float getFloat()
-        {
-          return ((Number) values[columnIndexMap.get(columnName)]).floatValue();
-        }
-
-        @Override
-        public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-        {
-
-        }
-      };
-    }
-
-    @Override
-    public LongColumnSelector makeLongColumnSelector(String columnName)
-    {
-      return new LongColumnSelector()
-      {
-        @Override
-        public long getLong()
-        {
-          return ((Number) values[columnIndexMap.get(columnName)]).longValue();
-        }
-
-        @Override
-        public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-        {
-
-        }
-      };
-    }
-
-    @Override
-    public DoubleColumnSelector makeDoubleColumnSelector(String columnName)
-    {
-      return new DoubleColumnSelector()
-      {
-        @Override
-        public double getDouble()
-        {
-          return ((Number) values[columnIndexMap.get(columnName)]).doubleValue();
-        }
-
-        @Override
-        public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-        {
-
-        }
-      };
-    }
-
-    @Nullable
-    @Override
-    public ObjectColumnSelector makeObjectColumnSelector(String columnName)
-    {
-      return new ObjectColumnSelector()
-      {
-        @Override
-        public Class classOfObject()
-        {
-          return Object.class;
-        }
-
-        @Override
-        public Object get()
-        {
-          return values[columnIndexMap.get(columnName)];
-        }
-      };
-    }
-
-    @Nullable
-    @Override
-    public ColumnCapabilities getColumnCapabilities(String column)
-    {
-      throw new UnsupportedOperationException();
-    }
+    final AggregatorFactory[] combiningFactories = new AggregatorFactory[aggregatorFactories.length];
+    Arrays.setAll(combiningFactories, i -> aggregatorFactories[i].getCombiningFactory());
+    return combiningFactories;
   }
 }

@@ -23,13 +23,14 @@ import com.google.common.base.Supplier;
 import io.druid.java.util.common.IAE;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.logger.Logger;
+import io.druid.java.util.common.parsers.CloseableIterator;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.BufferAggregator;
 import io.druid.segment.ColumnSelectorFactory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -188,9 +189,9 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
 //  }
 
   @Override
-  public Iterator<Entry<KeyType>> iterator(boolean sorted)
+  public CloseableIterator<Entry<KeyType>> iterator(boolean sorted)
   {
-    return new Iterator<Entry<KeyType>>()
+    return new CloseableIterator<Entry<KeyType>>()
     {
       int curReadIndex = 0;
 
@@ -235,6 +236,12 @@ public class MergeSortedGrouper<KeyType> implements Grouper<KeyType>
         curReadIndex = findNext(curReadIndex + 1);
 
         return new Entry<>(key, values);
+      }
+
+      @Override
+      public void close() throws IOException
+      {
+
       }
     };
   }

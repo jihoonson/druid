@@ -53,19 +53,25 @@ public class FloatSumAggregatorFactory extends SimpleFloatAggregatorFactory
   @Override
   public Aggregator factorize(ColumnSelectorFactory metricFactory)
   {
-    return new FloatSumAggregator(getFloatColumnSelector(metricFactory, 0.0f));
+    return new FloatSumAggregator(makeColumnValueSelectorWithFloatDefault(metricFactory, 0.0f));
   }
 
   @Override
   public BufferAggregator factorizeBuffered(ColumnSelectorFactory metricFactory)
   {
-    return new FloatSumBufferAggregator(getFloatColumnSelector(metricFactory, 0.0f));
+    return new FloatSumBufferAggregator(makeColumnValueSelectorWithFloatDefault(metricFactory, 0.0f));
   }
 
   @Override
   public Object combine(Object lhs, Object rhs)
   {
     return FloatSumAggregator.combineValues(lhs, rhs);
+  }
+
+  @Override
+  public AggregateCombiner makeAggregateCombiner()
+  {
+    return new DoubleSumAggregateCombiner();
   }
 
   @Override

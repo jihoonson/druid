@@ -32,12 +32,13 @@ import com.google.common.collect.Sets;
 import com.google.common.hash.Hashing;
 import com.google.common.io.BaseEncoding;
 import com.google.inject.Inject;
-import io.druid.common.utils.JodaUtils;
 import io.druid.indexing.overlord.DataSourceMetadata;
 import io.druid.indexing.overlord.IndexerMetadataStorageCoordinator;
 import io.druid.indexing.overlord.SegmentPublishResult;
+import io.druid.java.util.common.DateTimes;
 import io.druid.java.util.common.IAE;
 import io.druid.java.util.common.ISE;
+import io.druid.java.util.common.Intervals;
 import io.druid.java.util.common.StringUtils;
 import io.druid.java.util.common.lifecycle.LifecycleStart;
 import io.druid.java.util.common.logger.Logger;
@@ -49,7 +50,6 @@ import io.druid.timeline.partition.LinearShardSpec;
 import io.druid.timeline.partition.NoneShardSpec;
 import io.druid.timeline.partition.NumberedShardSpec;
 import io.druid.timeline.partition.PartitionChunk;
-import org.joda.time.DateTime;
 import org.joda.time.Interval;
 import org.skife.jdbi.v2.FoldController;
 import org.skife.jdbi.v2.Folder3;
@@ -315,8 +315,9 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
 
     // Find which segments are used (i.e. not overshadowed).
     final Set<DataSegment> usedSegments = Sets.newHashSet();
-    for (TimelineObjectHolder<String, DataSegment> holder : VersionedIntervalTimeline.forSegments(segments)
-                                                                                     .lookupWithIncompletePartitions(JodaUtils.ETERNITY)) {
+    List<TimelineObjectHolder<String, DataSegment>> segmentHolders =
+        VersionedIntervalTimeline.forSegments(segments).lookupWithIncompletePartitions(Intervals.ETERNITY);
+    for (TimelineObjectHolder<String, DataSegment> holder : segmentHolders) {
       for (PartitionChunk<DataSegment> chunk : holder.getObject()) {
         usedSegments.add(chunk.getObject());
       }
@@ -384,8 +385,9 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String sequenceName,
       final String previousSegmentId,
       final Interval interval,
-      final String maxVersion
-  ) throws IOException
+      final String maxVersion,
+      final boolean skipSegmentLineageCheck
+  )
   {
     Preconditions.checkNotNull(dataSource, "dataSource");
     Preconditions.checkNotNull(sequenceName, "sequenceName");
@@ -400,20 +402,40 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
           @Override
           public SegmentIdentifier inTransaction(Handle handle, TransactionStatus transactionStatus) throws Exception
           {
-            final List<byte[]> existingBytes = handle
-                .createQuery(
-                    StringUtils.format(
-                        "SELECT payload FROM %s WHERE "
-                        + "dataSource = :dataSource AND "
-                        + "sequence_name = :sequence_name AND "
-                        + "sequence_prev_id = :sequence_prev_id",
-                        dbTables.getPendingSegmentsTable()
-                    )
-                ).bind("dataSource", dataSource)
-                .bind("sequence_name", sequenceName)
-                .bind("sequence_prev_id", previousSegmentIdNotNull)
-                .map(ByteArrayMapper.FIRST)
-                .list();
+            final List<byte[]> existingBytes;
+            if (!skipSegmentLineageCheck) {
+              existingBytes = handle
+                  .createQuery(
+                      StringUtils.format(
+                          "SELECT payload FROM %s WHERE "
+                          + "dataSource = :dataSource AND "
+                          + "sequence_name = :sequence_name AND "
+                          + "sequence_prev_id = :sequence_prev_id",
+                          dbTables.getPendingSegmentsTable()
+                      )
+                  ).bind("dataSource", dataSource)
+                  .bind("sequence_name", sequenceName)
+                  .bind("sequence_prev_id", previousSegmentIdNotNull)
+                  .map(ByteArrayMapper.FIRST)
+                  .list();
+            } else {
+              existingBytes = handle
+                  .createQuery(
+                      StringUtils.format(
+                          "SELECT payload FROM %s WHERE "
+                          + "dataSource = :dataSource AND "
+                          + "sequence_name = :sequence_name AND "
+                          + "start = :start AND "
+                          + "%2$send%2$s = :end",
+                          dbTables.getPendingSegmentsTable(), connector.getQuoteString()
+                      )
+                  ).bind("dataSource", dataSource)
+                  .bind("sequence_name", sequenceName)
+                  .bind("start", interval.getStart().toString())
+                  .bind("end", interval.getEnd().toString())
+                  .map(ByteArrayMapper.FIRST)
+                  .list();
+            }
 
             if (!existingBytes.isEmpty()) {
               final SegmentIdentifier existingIdentifier = jsonMapper.readValue(
@@ -568,7 +590,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             )
                   .bind("id", newIdentifier.getIdentifierAsString())
                   .bind("dataSource", dataSource)
-                  .bind("created_date", new DateTime().toString())
+                  .bind("created_date", DateTimes.nowUtc().toString())
                   .bind("start", interval.getStart().toString())
                   .bind("end", interval.getEnd().toString())
                   .bind("sequence_name", sequenceName)
@@ -589,6 +611,24 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         },
         ALLOCATE_SEGMENT_QUIET_TRIES,
         SQLMetadataConnector.DEFAULT_MAX_TRIES
+    );
+  }
+
+  @Override
+  public int deletePendingSegments(String dataSource, Interval deleteInterval)
+  {
+    return connector.getDBI().inTransaction(
+        (handle, status) -> handle
+            .createStatement(
+                StringUtils.format(
+                    "delete from %s where datasource = :dataSource and created_date >= :start and created_date < :end",
+                    dbTables.getPendingSegmentsTable()
+                )
+            )
+            .bind("dataSource", dataSource)
+            .bind("start", deleteInterval.getStart().toString())
+            .bind("end", deleteInterval.getEnd().toString())
+            .execute()
     );
   }
 
@@ -622,7 +662,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       )
             .bind("id", segment.getIdentifier())
             .bind("dataSource", segment.getDataSource())
-            .bind("created_date", new DateTime().toString())
+            .bind("created_date", DateTimes.nowUtc().toString())
             .bind("start", segment.getInterval().getStart().toString())
             .bind("end", segment.getInterval().getEnd().toString())
             .bind("partitioned", (segment.getShardSpec() instanceof NoneShardSpec) ? false : true)
@@ -743,6 +783,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
     if (!startMetadataMatchesExisting) {
       // Not in the desired start state.
       log.info("Not updating metadata, existing state is not the expected start state.");
+      log.debug("Existing database state [%s], request's start metadata [%s]", oldCommitMetadataFromDb, startMetadata);
       return DataSourceMetadataUpdateResult.FAILURE;
     }
 
@@ -765,7 +806,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
           )
       )
                                 .bind("dataSource", dataSource)
-                                .bind("created_date", new DateTime().toString())
+                                .bind("created_date", DateTimes.nowUtc().toString())
                                 .bind("commit_metadata_payload", newCommitMetadataBytes)
                                 .bind("commit_metadata_sha1", newCommitMetadataSha1)
                                 .execute();

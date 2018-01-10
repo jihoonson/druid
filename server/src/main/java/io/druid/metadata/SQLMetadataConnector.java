@@ -44,6 +44,8 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLRecoverableException;
 import java.sql.SQLTransientException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -52,7 +54,7 @@ public abstract class SQLMetadataConnector implements MetadataStorageConnector
   private static final Logger log = new Logger(SQLMetadataConnector.class);
   private static final String PAYLOAD_TYPE = "BLOB";
 
-  public static final int DEFAULT_MAX_TRIES = 10;
+  static final int DEFAULT_MAX_TRIES = 10;
 
   private final Supplier<MetadataStorageConnectorConfig> config;
   private final Supplier<MetadataStorageTablesConfig> tablesConfigSupplier;
@@ -118,7 +120,7 @@ public abstract class SQLMetadataConnector implements MetadataStorageConnector
     return "SELECT 1";
   }
 
-  public abstract boolean tableExists(Handle handle, final String tableName);
+  public abstract boolean tableExists(Handle handle, String tableName);
 
   public <T> T retryWithHandle(
       final HandleCallback<T> callback,
@@ -441,6 +443,78 @@ public abstract class SQLMetadataConnector implements MetadataStorageConnector
                     .execute();
             }
             return null;
+          }
+        }
+    );
+  }
+
+  @Override
+  public boolean compareAndSwap(
+      List<MetadataCASUpdate> updates
+  ) throws Exception
+  {
+    return getDBI().inTransaction(
+        new TransactionCallback<Boolean>()
+        {
+          @Override
+          public Boolean inTransaction(Handle handle, TransactionStatus transactionStatus) throws Exception
+          {
+            List<byte[]> currentValues = new ArrayList<byte[]>();
+
+            // Compare
+            for (MetadataCASUpdate update : updates) {
+              byte[] currentValue = handle
+                  .createQuery(
+                      StringUtils.format(
+                          "SELECT %1$s FROM %2$s WHERE %3$s = :key",
+                          update.getValueColumn(),
+                          update.getTableName(),
+                          update.getKeyColumn()
+                      )
+                  )
+                  .bind("key", update.getKey())
+                  .map(ByteArrayMapper.FIRST)
+                  .first();
+
+              if (!Arrays.equals(currentValue, update.getOldValue())) {
+                return false;
+              }
+              currentValues.add(currentValue);
+            }
+
+            // Swap
+            for (int i = 0; i < updates.size(); i++) {
+              MetadataCASUpdate update = updates.get(i);
+              byte[] currentValue = currentValues.get(i);
+
+              if (currentValue == null) {
+                handle.createStatement(
+                    StringUtils.format(
+                        "INSERT INTO %1$s (%2$s, %3$s) VALUES (:key, :value)",
+                        update.getTableName(),
+                        update.getKeyColumn(),
+                        update.getValueColumn()
+                    )
+                )
+                      .bind("key", update.getKey())
+                      .bind("value", update.getNewValue())
+                      .execute();
+              } else {
+                handle.createStatement(
+                    StringUtils.format(
+                        "UPDATE %1$s SET %3$s=:value WHERE %2$s=:key",
+                        update.getTableName(),
+                        update.getKeyColumn(),
+                        update.getValueColumn()
+                    )
+                )
+                      .bind("key", update.getKey())
+                      .bind("value", update.getNewValue())
+                      .execute();
+              }
+            }
+
+            return true;
           }
         }
     );

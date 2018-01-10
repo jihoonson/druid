@@ -22,9 +22,12 @@ package io.druid.segment;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import io.druid.java.util.common.DateTimes;
+import io.druid.java.util.common.Intervals;
 import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.granularity.Granularities;
 import io.druid.java.util.common.granularity.Granularity;
+import io.druid.segment.writeout.OffHeapMemorySegmentWriteOutMediumFactory;
 import io.druid.query.Druids;
 import io.druid.query.QueryPlus;
 import io.druid.query.QueryRunner;
@@ -41,10 +44,13 @@ import io.druid.query.aggregation.hyperloglog.HyperUniquesAggregatorFactory;
 import io.druid.query.aggregation.post.ArithmeticPostAggregator;
 import io.druid.query.aggregation.post.ConstantPostAggregator;
 import io.druid.query.aggregation.post.FieldAccessPostAggregator;
-import io.druid.query.filter.DimFilter;
+import io.druid.query.filter.AndDimFilter;
+import io.druid.query.filter.NotDimFilter;
+import io.druid.query.filter.OrDimFilter;
+import io.druid.query.filter.SelectorDimFilter;
+import io.druid.query.search.SearchHit;
+import io.druid.query.search.SearchQuery;
 import io.druid.query.search.SearchResultValue;
-import io.druid.query.search.search.SearchHit;
-import io.druid.query.search.search.SearchQuery;
 import io.druid.query.spec.MultipleIntervalSegmentSpec;
 import io.druid.query.spec.QuerySegmentSpec;
 import io.druid.query.timeboundary.TimeBoundaryQuery;
@@ -54,8 +60,6 @@ import io.druid.query.timeseries.TimeseriesResultValue;
 import io.druid.query.topn.TopNQuery;
 import io.druid.query.topn.TopNQueryBuilder;
 import io.druid.query.topn.TopNResultValue;
-import org.joda.time.DateTime;
-import org.joda.time.Interval;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -82,8 +86,6 @@ public class AppendTest
 
   final String dataSource = "testing";
   final Granularity allGran = Granularities.ALL;
-  final String dimensionValue = "dimension";
-  final String valueValue = "value";
   final String marketDimension = "market";
   final String qualityDimension = "quality";
   final String placementDimension = "placement";
@@ -102,7 +104,7 @@ public class AppendTest
   final List<AggregatorFactory> commonAggregators = Arrays.asList(rowsCount, indexDoubleSum, uniques);
 
   final QuerySegmentSpec fullOnInterval = new MultipleIntervalSegmentSpec(
-      Arrays.asList(new Interval("1970-01-01T00:00:00.000Z/2020-01-01T00:00:00.000Z"))
+      Arrays.asList(Intervals.of("1970-01-01T00:00:00.000Z/2020-01-01T00:00:00.000Z"))
   );
 
   private Segment segment;
@@ -112,17 +114,18 @@ public class AppendTest
   @Before
   public void setUp() throws Exception
   {
+    SchemalessIndexTest schemalessIndexTest = new SchemalessIndexTest(OffHeapMemorySegmentWriteOutMediumFactory.instance());
     // (1, 2) cover overlapping segments of the form
     // |------|
     //     |--------|
-    QueryableIndex appendedIndex = SchemalessIndexTest.getAppendedIncrementalIndex(
+    QueryableIndex appendedIndex = schemalessIndexTest.getAppendedIncrementalIndex(
         Arrays.asList(
             new Pair<String, AggregatorFactory[]>("append.json.1", METRIC_AGGS_NO_UNIQ),
             new Pair<String, AggregatorFactory[]>("append.json.2", METRIC_AGGS)
         ),
         Arrays.asList(
-            new Interval("2011-01-12T00:00:00.000Z/2011-01-16T00:00:00.000Z"),
-            new Interval("2011-01-14T22:00:00.000Z/2011-01-16T00:00:00.000Z")
+            Intervals.of("2011-01-12T00:00:00.000Z/2011-01-16T00:00:00.000Z"),
+            Intervals.of("2011-01-14T22:00:00.000Z/2011-01-16T00:00:00.000Z")
         )
     );
     segment = new QueryableIndexSegment(null, appendedIndex);
@@ -130,14 +133,14 @@ public class AppendTest
     // (3, 4) cover overlapping segments of the form
     // |------------|
     //     |-----|
-    QueryableIndex append2 = SchemalessIndexTest.getAppendedIncrementalIndex(
+    QueryableIndex append2 = schemalessIndexTest.getAppendedIncrementalIndex(
         Arrays.asList(
             new Pair<String, AggregatorFactory[]>("append.json.3", METRIC_AGGS_NO_UNIQ),
             new Pair<String, AggregatorFactory[]>("append.json.4", METRIC_AGGS)
         ),
         Arrays.asList(
-            new Interval("2011-01-12T00:00:00.000Z/2011-01-16T00:00:00.000Z"),
-            new Interval("2011-01-13T00:00:00.000Z/2011-01-14T00:00:00.000Z")
+            Intervals.of("2011-01-12T00:00:00.000Z/2011-01-16T00:00:00.000Z"),
+            Intervals.of("2011-01-13T00:00:00.000Z/2011-01-14T00:00:00.000Z")
         )
     );
     segment2 = new QueryableIndexSegment(null, append2);
@@ -146,16 +149,16 @@ public class AppendTest
     // |-------------|
     //   |---|
     //          |---|
-    QueryableIndex append3 = SchemalessIndexTest.getAppendedIncrementalIndex(
+    QueryableIndex append3 = schemalessIndexTest.getAppendedIncrementalIndex(
         Arrays.asList(
             new Pair<String, AggregatorFactory[]>("append.json.5", METRIC_AGGS),
             new Pair<String, AggregatorFactory[]>("append.json.6", METRIC_AGGS),
             new Pair<String, AggregatorFactory[]>("append.json.7", METRIC_AGGS)
         ),
         Arrays.asList(
-            new Interval("2011-01-12T00:00:00.000Z/2011-01-22T00:00:00.000Z"),
-            new Interval("2011-01-13T00:00:00.000Z/2011-01-16T00:00:00.000Z"),
-            new Interval("2011-01-18T00:00:00.000Z/2011-01-21T00:00:00.000Z")
+            Intervals.of("2011-01-12T00:00:00.000Z/2011-01-22T00:00:00.000Z"),
+            Intervals.of("2011-01-13T00:00:00.000Z/2011-01-16T00:00:00.000Z"),
+            Intervals.of("2011-01-18T00:00:00.000Z/2011-01-21T00:00:00.000Z")
         )
     );
     segment3 = new QueryableIndexSegment(null, append3);
@@ -166,13 +169,13 @@ public class AppendTest
   {
     List<Result<TimeBoundaryResultValue>> expectedResults = Arrays.asList(
         new Result<TimeBoundaryResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new TimeBoundaryResultValue(
                 ImmutableMap.of(
                     TimeBoundaryQuery.MIN_TIME,
-                    new DateTime("2011-01-12T00:00:00.000Z"),
+                    DateTimes.of("2011-01-12T00:00:00.000Z"),
                     TimeBoundaryQuery.MAX_TIME,
-                    new DateTime("2011-01-15T02:00:00.000Z")
+                    DateTimes.of("2011-01-15T02:00:00.000Z")
                 )
             )
         )
@@ -191,13 +194,13 @@ public class AppendTest
   {
     List<Result<TimeBoundaryResultValue>> expectedResults = Arrays.asList(
         new Result<TimeBoundaryResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new TimeBoundaryResultValue(
                 ImmutableMap.of(
                     TimeBoundaryQuery.MIN_TIME,
-                    new DateTime("2011-01-12T00:00:00.000Z"),
+                    DateTimes.of("2011-01-12T00:00:00.000Z"),
                     TimeBoundaryQuery.MAX_TIME,
-                    new DateTime("2011-01-15T00:00:00.000Z")
+                    DateTimes.of("2011-01-15T00:00:00.000Z")
                 )
             )
         )
@@ -216,7 +219,7 @@ public class AppendTest
   {
     List<Result<TimeseriesResultValue>> expectedResults = Arrays.asList(
         new Result<TimeseriesResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new TimeseriesResultValue(
                 ImmutableMap.<String, Object>builder()
                             .put("rows", 8L)
@@ -241,7 +244,7 @@ public class AppendTest
   {
     List<Result<TimeseriesResultValue>> expectedResults = Arrays.asList(
         new Result<TimeseriesResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new TimeseriesResultValue(
                 ImmutableMap.<String, Object>builder()
                             .put("rows", 7L)
@@ -266,7 +269,7 @@ public class AppendTest
   {
     List<Result<TimeseriesResultValue>> expectedResults = Arrays.asList(
         new Result<TimeseriesResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new TimeseriesResultValue(
                 ImmutableMap.<String, Object>builder()
                             .put("rows", 5L)
@@ -291,7 +294,7 @@ public class AppendTest
   {
     List<Result<TimeseriesResultValue>> expectedResults = Arrays.asList(
         new Result<TimeseriesResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new TimeseriesResultValue(
                 ImmutableMap.<String, Object>builder()
                             .put("rows", 4L)
@@ -316,7 +319,7 @@ public class AppendTest
   {
     List<Result<TopNResultValue>> expectedResults = Arrays.asList(
         new Result<TopNResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new TopNResultValue(
                 Arrays.<Map<String, Object>>asList(
                     ImmutableMap.<String, Object>builder()
@@ -362,7 +365,7 @@ public class AppendTest
   {
     List<Result<TopNResultValue>> expectedResults = Arrays.asList(
         new Result<TopNResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new TopNResultValue(
                 Arrays.<Map<String, Object>>asList(
                     ImmutableMap.<String, Object>builder()
@@ -408,7 +411,7 @@ public class AppendTest
   {
     List<Result<TopNResultValue>> expectedResults = Arrays.asList(
         new Result<TopNResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new TopNResultValue(
                 Arrays.<Map<String, Object>>asList(
                     ImmutableMap.<String, Object>builder()
@@ -436,7 +439,7 @@ public class AppendTest
   {
     List<Result<TopNResultValue>> expectedResults = Arrays.asList(
         new Result<TopNResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new TopNResultValue(
                 Lists.<Map<String, Object>>newArrayList()
             )
@@ -454,7 +457,7 @@ public class AppendTest
   {
     List<Result<SearchResultValue>> expectedResults = Arrays.asList(
         new Result<SearchResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new SearchResultValue(
                 Arrays.<SearchHit>asList(
                     new SearchHit(placementishDimension, "a"),
@@ -477,7 +480,7 @@ public class AppendTest
   {
     List<Result<SearchResultValue>> expectedResults = Arrays.asList(
         new Result<SearchResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new SearchResultValue(
                 Arrays.<SearchHit>asList(
                     new SearchHit(placementishDimension, "a"),
@@ -499,7 +502,7 @@ public class AppendTest
   {
     List<Result<SearchResultValue>> expectedResults = Arrays.asList(
         new Result<SearchResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new SearchResultValue(
                 Arrays.<SearchHit>asList(
                     new SearchHit(placementDimension, "mezzanine"),
@@ -520,7 +523,7 @@ public class AppendTest
   {
     List<Result<SearchResultValue>> expectedResults = Arrays.asList(
         new Result<SearchResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new SearchResultValue(
                 Arrays.<SearchHit>asList(
                     new SearchHit(placementishDimension, "a"),
@@ -542,7 +545,7 @@ public class AppendTest
   {
     List<Result<TimeseriesResultValue>> expectedResults = Arrays.asList(
         new Result<TimeseriesResultValue>(
-            new DateTime("2011-01-12T00:00:00.000Z"),
+            DateTimes.of("2011-01-12T00:00:00.000Z"),
             new TimeseriesResultValue(
                 ImmutableMap.<String, Object>builder()
                             .put("rows", 5L)
@@ -572,7 +575,7 @@ public class AppendTest
                                           )
                                       )
                                   )
-                                  .postAggregators(Arrays.<PostAggregator>asList(addRowsIndexConstant))
+                                  .postAggregators(addRowsIndexConstant)
                                   .build();
     QueryRunner runner = TestQueryRunners.makeTimeSeriesQueryRunner(segment3);
     HashMap<String, Object> context = new HashMap<String, Object>();
@@ -596,7 +599,7 @@ public class AppendTest
                          )
                      )
                  )
-                 .postAggregators(Arrays.<PostAggregator>asList(addRowsIndexConstant))
+                 .postAggregators(addRowsIndexConstant)
                  .build();
   }
 
@@ -607,19 +610,10 @@ public class AppendTest
                  .granularity(allGran)
                  .intervals(fullOnInterval)
                  .filters(
-                     Druids.newOrDimFilterBuilder()
-                           .fields(
-                               Arrays.<DimFilter>asList(
-                                   Druids.newSelectorDimFilterBuilder()
-                                         .dimension(marketDimension)
-                                         .value("spot")
-                                         .build(),
-                                   Druids.newSelectorDimFilterBuilder()
-                                         .dimension(marketDimension)
-                                         .value("total_market")
-                                         .build()
-                               )
-                           ).build()
+                     new OrDimFilter(
+                         new SelectorDimFilter(marketDimension, "spot", null),
+                         new SelectorDimFilter(marketDimension, "total_market", null)
+                     )
                  )
                  .aggregators(
                      Lists.<AggregatorFactory>newArrayList(
@@ -632,7 +626,7 @@ public class AppendTest
                          )
                      )
                  )
-                 .postAggregators(Arrays.<PostAggregator>asList(addRowsIndexConstant))
+                 .postAggregators(addRowsIndexConstant)
                  .build();
   }
 
@@ -669,19 +663,10 @@ public class AppendTest
         .metric(indexMetric)
         .threshold(3)
         .filters(
-            Druids.newAndDimFilterBuilder()
-                  .fields(
-                      Arrays.<DimFilter>asList(
-                          Druids.newSelectorDimFilterBuilder()
-                                .dimension(marketDimension)
-                                .value("spot")
-                                .build(),
-                          Druids.newSelectorDimFilterBuilder()
-                                .dimension(placementDimension)
-                                .value("preferred")
-                                .build()
-                      )
-                  ).build()
+            new AndDimFilter(
+                new SelectorDimFilter(marketDimension, "spot", null),
+                new SelectorDimFilter(placementDimension, "preferred", null)
+            )
         )
         .intervals(fullOnInterval)
         .aggregators(
@@ -713,15 +698,7 @@ public class AppendTest
   {
     return Druids.newSearchQueryBuilder()
                  .dataSource(dataSource)
-                 .filters(
-                     Druids.newNotDimFilterBuilder()
-                           .field(
-                               Druids.newSelectorDimFilterBuilder()
-                                     .dimension(marketDimension)
-                                     .value("spot")
-                                     .build()
-                           ).build()
-                 )
+                 .filters(new NotDimFilter(new SelectorDimFilter(marketDimension, "spot", null)))
                  .granularity(allGran)
                  .intervals(fullOnInterval)
                  .query("a")

@@ -21,7 +21,7 @@ package io.druid.query.timeseries;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import io.druid.java.util.common.DateTimes;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.java.util.common.guava.Sequences;
 import io.druid.query.Druids;
@@ -36,7 +36,6 @@ import io.druid.query.UnionQueryRunner;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.LongSumAggregatorFactory;
 import io.druid.segment.TestHelper;
-import org.joda.time.DateTime;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -70,8 +69,7 @@ public class TimeSeriesUnionQueryRunnerTest
                 new TimeseriesQueryQueryToolChest(QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator()),
                 new TimeseriesQueryEngine(),
                 QueryRunnerTestHelper.NOOP_QUERYWATCHER
-            ),
-            QueryRunnerTestHelper.unionDataSource
+            )
         ),
         // descending?
         Arrays.asList(false, true)
@@ -108,23 +106,20 @@ public class TimeSeriesUnionQueryRunnerTest
 
     List<Result<TimeseriesResultValue>> expectedResults = Arrays.asList(
         new Result<>(
-            new DateTime("2011-04-01"),
+            DateTimes.of("2011-04-01"),
             new TimeseriesResultValue(
                 ImmutableMap.<String, Object>of("rows", 52L, "idx", 26476L, "uniques", QueryRunnerTestHelper.UNIQUES_9)
             )
         ),
         new Result<>(
-            new DateTime("2011-04-02"),
+            DateTimes.of("2011-04-02"),
             new TimeseriesResultValue(
                 ImmutableMap.<String, Object>of("rows", 52L, "idx", 23308L, "uniques", QueryRunnerTestHelper.UNIQUES_9)
             )
         )
     );
     HashMap<String, Object> context = new HashMap<>();
-    Iterable<Result<TimeseriesResultValue>> results = Sequences.toList(
-        runner.run(QueryPlus.wrap(query), context),
-        Lists.<Result<TimeseriesResultValue>>newArrayList()
-    );
+    Iterable<Result<TimeseriesResultValue>> results = runner.run(QueryPlus.wrap(query), context).toList();
 
     assertExpectedResults(expectedResults, results);
   }
@@ -157,25 +152,25 @@ public class TimeSeriesUnionQueryRunnerTest
     QueryToolChest toolChest = new TimeseriesQueryQueryToolChest(QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator());
     final List<Result<TimeseriesResultValue>> ds1 = Lists.newArrayList(
         new Result<>(
-            new DateTime("2011-04-02"),
+            DateTimes.of("2011-04-02"),
             new TimeseriesResultValue(ImmutableMap.<String, Object>of("rows", 1L, "idx", 2L))
         ),
         new Result<>(
-            new DateTime("2011-04-03"),
+            DateTimes.of("2011-04-03"),
             new TimeseriesResultValue(ImmutableMap.<String, Object>of("rows", 3L, "idx", 4L))
         )
     );
     final List<Result<TimeseriesResultValue>> ds2 = Lists.newArrayList(
         new Result<>(
-            new DateTime("2011-04-01"),
+            DateTimes.of("2011-04-01"),
             new TimeseriesResultValue(ImmutableMap.<String, Object>of("rows", 5L, "idx", 6L))
         ),
         new Result<>(
-            new DateTime("2011-04-02"),
+            DateTimes.of("2011-04-02"),
             new TimeseriesResultValue(ImmutableMap.<String, Object>of("rows", 7L, "idx", 8L))
         ),
         new Result<>(
-            new DateTime("2011-04-04"),
+            DateTimes.of("2011-04-04"),
             new TimeseriesResultValue(ImmutableMap.<String, Object>of("rows", 9L, "idx", 10L))
         )
     );
@@ -202,35 +197,33 @@ public class TimeSeriesUnionQueryRunnerTest
 
     List<Result<TimeseriesResultValue>> expectedResults = Arrays.asList(
         new Result<>(
-            new DateTime("2011-04-01"),
+            DateTimes.of("2011-04-01"),
             new TimeseriesResultValue(
                 ImmutableMap.<String, Object>of("rows", 5L, "idx", 6L)
             )
         ),
         new Result<>(
-            new DateTime("2011-04-02"),
+            DateTimes.of("2011-04-02"),
             new TimeseriesResultValue(
                 ImmutableMap.<String, Object>of("rows", 8L, "idx", 10L)
             )
         ),
         new Result<>(
-            new DateTime("2011-04-03"),
+            DateTimes.of("2011-04-03"),
             new TimeseriesResultValue(
                 ImmutableMap.<String, Object>of("rows", 3L, "idx", 4L)
             )
         ),
         new Result<>(
-            new DateTime("2011-04-04"),
+            DateTimes.of("2011-04-04"),
             new TimeseriesResultValue(
                 ImmutableMap.<String, Object>of("rows", 9L, "idx", 10L)
             )
         )
     );
 
-    Iterable<Result<TimeseriesResultValue>> results = Sequences.toList(
-        mergingrunner.run(QueryPlus.wrap(query), Maps.<String, Object>newHashMap()),
-        Lists.<Result<TimeseriesResultValue>>newArrayList()
-    );
+    Iterable<Result<TimeseriesResultValue>> results =
+        mergingrunner.run(QueryPlus.wrap(query), new HashMap<>()).toList();
 
     assertExpectedResults(expectedResults, results);
 

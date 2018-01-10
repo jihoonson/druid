@@ -23,21 +23,15 @@ import io.druid.collections.bitmap.BitmapFactory;
 import io.druid.collections.bitmap.MutableBitmap;
 import io.druid.query.dimension.DimensionSpec;
 import io.druid.query.monomorphicprocessing.RuntimeShapeInspector;
-import io.druid.segment.column.ValueType;
 import io.druid.segment.data.Indexed;
 import io.druid.segment.incremental.IncrementalIndex;
-import io.druid.segment.incremental.IncrementalIndexStorageAdapter;
+import io.druid.segment.incremental.TimeAndDimsHolder;
 
 import javax.annotation.Nullable;
 import java.util.List;
 
 public class DoubleDimensionIndexer implements DimensionIndexer<Double, Double, Double>
 {
-  @Override
-  public ValueType getValueType()
-  {
-    return ValueType.DOUBLE;
-  }
 
   @Override
   public Double processRowValsToUnsortedEncodedKeyComponent(Object dimValues)
@@ -46,12 +40,6 @@ public class DoubleDimensionIndexer implements DimensionIndexer<Double, Double, 
       throw new UnsupportedOperationException("Numeric columns do not support multivalue rows.");
     }
     return DimensionHandlerUtils.convertObjectToDouble(dimValues);
-  }
-
-  @Override
-  public Double getSortedEncodedValueFromUnsorted(Double unsortedIntermediateValue)
-  {
-    return unsortedIntermediateValue;
   }
 
   @Override
@@ -86,80 +74,18 @@ public class DoubleDimensionIndexer implements DimensionIndexer<Double, Double, 
 
   @Override
   public DimensionSelector makeDimensionSelector(
-      DimensionSpec spec, IncrementalIndexStorageAdapter.EntryHolder currEntry, IncrementalIndex.DimensionDesc desc
+      DimensionSpec spec,
+      TimeAndDimsHolder currEntry,
+      IncrementalIndex.DimensionDesc desc
   )
   {
-    return new DoubleWrappingDimensionSelector(
-        makeDoubleColumnSelector(currEntry, desc),
-        spec.getExtractionFn()
-    );
+    return new DoubleWrappingDimensionSelector(makeColumnValueSelector(currEntry, desc), spec.getExtractionFn());
   }
 
   @Override
-  public LongColumnSelector makeLongColumnSelector(
-      IncrementalIndexStorageAdapter.EntryHolder currEntry, IncrementalIndex.DimensionDesc desc
-  )
-  {
-    final int dimIndex = desc.getIndex();
-    class IndexerLongColumnSelector implements LongColumnSelector
-    {
-      @Override
-      public long getLong()
-      {
-        final Object[] dims = currEntry.getKey().getDims();
-
-        if (dimIndex >= dims.length) {
-          return 0L;
-        }
-
-        double doubleValue = (Double) dims[dimIndex];
-        return (long) doubleValue;
-      }
-
-      @Override
-      public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-      {
-        // nothing to inspect
-      }
-    }
-
-    return new IndexerLongColumnSelector();
-  }
-
-  @Override
-  public FloatColumnSelector makeFloatColumnSelector(
-      IncrementalIndexStorageAdapter.EntryHolder currEntry, IncrementalIndex.DimensionDesc desc
-  )
-  {
-    final int dimIndex = desc.getIndex();
-    class IndexerFloatColumnSelector implements FloatColumnSelector
-    {
-      @Override
-      public float getFloat()
-      {
-        final Object[] dims = currEntry.getKey().getDims();
-
-        if (dimIndex >= dims.length) {
-          return 0.0f;
-        }
-
-        double doubleValue = (Double) dims[dimIndex];
-        return (float) doubleValue;
-      }
-
-      @Override
-      public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-      {
-        // nothing to inspect
-      }
-    }
-
-    return new IndexerFloatColumnSelector();
-  }
-
-  @Override
-  public DoubleColumnSelector makeDoubleColumnSelector(
-      IncrementalIndexStorageAdapter.EntryHolder currEntry, IncrementalIndex.DimensionDesc desc
+  public ColumnValueSelector<?> makeColumnValueSelector(
+      TimeAndDimsHolder currEntry,
+      IncrementalIndex.DimensionDesc desc
   )
   {
     final int dimIndex = desc.getIndex();
@@ -168,10 +94,23 @@ public class DoubleDimensionIndexer implements DimensionIndexer<Double, Double, 
       @Override
       public double getDouble()
       {
-        final Object[] dims = currEntry.getKey().getDims();
+        final Object[] dims = currEntry.get().getDims();
 
         if (dimIndex >= dims.length) {
           return 0.0;
+        }
+        return (Double) dims[dimIndex];
+      }
+
+      @SuppressWarnings("deprecation")
+      @Nullable
+      @Override
+      public Double getObject()
+      {
+        final Object[] dims = currEntry.get().getDims();
+
+        if (dimIndex >= dims.length) {
+          return null;
         }
         return (Double) dims[dimIndex];
       }

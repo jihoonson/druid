@@ -172,11 +172,6 @@ public class CombiningSequence<T> implements Sequence<T>
       this.retVal = retVal;
     }
 
-    public YieldingAccumulator<OutType, T> getAccumulator()
-    {
-      return accumulator;
-    }
-
     @Override
     public void reset()
     {

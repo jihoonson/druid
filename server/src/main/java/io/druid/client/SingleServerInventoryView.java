@@ -24,7 +24,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
-import com.google.common.collect.MapMaker;
 import com.google.inject.Inject;
 import com.metamx.emitter.EmittingLogger;
 import io.druid.guice.ManageLifecycle;
@@ -34,18 +33,21 @@ import io.druid.server.initialization.ZkPathsConfig;
 import io.druid.timeline.DataSegment;
 import org.apache.curator.framework.CuratorFramework;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 
 /**
+ * This class is deprecated. Use {@link HttpServerInventoryView} instead.
  */
+@Deprecated
 @ManageLifecycle
 public class SingleServerInventoryView extends AbstractCuratorServerInventoryView<DataSegment> implements FilteredServerInventoryView
 {
   private static final EmittingLogger log = new EmittingLogger(SingleServerInventoryView.class);
 
-  final private ConcurrentMap<SegmentCallback, Predicate<Pair<DruidServerMetadata, DataSegment>>> segmentPredicates = new MapMaker()
-      .makeMap();
+  final private ConcurrentMap<SegmentCallback, Predicate<Pair<DruidServerMetadata, DataSegment>>> segmentPredicates =
+      new ConcurrentHashMap<>();
   private final Predicate<Pair<DruidServerMetadata, DataSegment>> defaultFilter;
 
   @Inject

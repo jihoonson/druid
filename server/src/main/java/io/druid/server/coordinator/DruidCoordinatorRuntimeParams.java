@@ -22,15 +22,18 @@ package io.druid.server.coordinator;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.metamx.emitter.service.ServiceEmitter;
-import io.druid.client.DruidDataSource;
+import io.druid.client.ImmutableDruidDataSource;
+import io.druid.java.util.common.DateTimes;
 import io.druid.metadata.MetadataRuleManager;
 import io.druid.timeline.DataSegment;
 import org.joda.time.DateTime;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  */
@@ -40,7 +43,7 @@ public class DruidCoordinatorRuntimeParams
   private final DruidCluster druidCluster;
   private final MetadataRuleManager databaseRuleManager;
   private final SegmentReplicantLookup segmentReplicantLookup;
-  private final Set<DruidDataSource> dataSources;
+  private final Set<ImmutableDruidDataSource> dataSources;
   private final Set<DataSegment> availableSegments;
   private final Map<String, LoadQueuePeon> loadManagementPeons;
   private final ReplicationThrottler replicationManager;
@@ -55,7 +58,7 @@ public class DruidCoordinatorRuntimeParams
       DruidCluster druidCluster,
       MetadataRuleManager databaseRuleManager,
       SegmentReplicantLookup segmentReplicantLookup,
-      Set<DruidDataSource> dataSources,
+      Set<ImmutableDruidDataSource> dataSources,
       Set<DataSegment> availableSegments,
       Map<String, LoadQueuePeon> loadManagementPeons,
       ReplicationThrottler replicationManager,
@@ -101,7 +104,7 @@ public class DruidCoordinatorRuntimeParams
     return segmentReplicantLookup;
   }
 
-  public Set<DruidDataSource> getDataSources()
+  public Set<ImmutableDruidDataSource> getDataSources()
   {
     return dataSources;
   }
@@ -200,7 +203,7 @@ public class DruidCoordinatorRuntimeParams
     private DruidCluster druidCluster;
     private MetadataRuleManager databaseRuleManager;
     private SegmentReplicantLookup segmentReplicantLookup;
-    private final Set<DruidDataSource> dataSources;
+    private final Set<ImmutableDruidDataSource> dataSources;
     private final Set<DataSegment> availableSegments;
     private final Map<String, LoadQueuePeon> loadManagementPeons;
     private ReplicationThrottler replicationManager;
@@ -216,14 +219,14 @@ public class DruidCoordinatorRuntimeParams
       this.druidCluster = null;
       this.databaseRuleManager = null;
       this.segmentReplicantLookup = null;
-      this.dataSources = Sets.newHashSet();
-      this.availableSegments = Sets.newTreeSet(DruidCoordinator.SEGMENT_COMPARATOR);
+      this.dataSources = new HashSet<>();
+      this.availableSegments = new TreeSet<>(DruidCoordinator.SEGMENT_COMPARATOR);
       this.loadManagementPeons = Maps.newHashMap();
       this.replicationManager = null;
       this.emitter = null;
       this.stats = new CoordinatorStats();
       this.coordinatorDynamicConfig = new CoordinatorDynamicConfig.Builder().build();
-      this.balancerReferenceTimestamp = DateTime.now();
+      this.balancerReferenceTimestamp = DateTimes.nowUtc();
     }
 
     Builder(
@@ -231,7 +234,7 @@ public class DruidCoordinatorRuntimeParams
         DruidCluster cluster,
         MetadataRuleManager databaseRuleManager,
         SegmentReplicantLookup segmentReplicantLookup,
-        Set<DruidDataSource> dataSources,
+        Set<ImmutableDruidDataSource> dataSources,
         Set<DataSegment> availableSegments,
         Map<String, LoadQueuePeon> loadManagementPeons,
         ReplicationThrottler replicationManager,
@@ -300,7 +303,7 @@ public class DruidCoordinatorRuntimeParams
       return this;
     }
 
-    public Builder withDatasources(Collection<DruidDataSource> dataSourcesCollection)
+    public Builder withDatasources(Collection<ImmutableDruidDataSource> dataSourcesCollection)
     {
       dataSources.addAll(Collections.unmodifiableCollection(dataSourcesCollection));
       return this;

@@ -29,11 +29,11 @@ import com.metamx.http.client.HttpClient;
 import com.metamx.http.client.Request;
 import com.metamx.http.client.response.StatusResponseHandler;
 import com.metamx.http.client.response.StatusResponseHolder;
-import io.druid.indexing.common.TaskStatus;
-import io.druid.indexing.common.task.Task;
+import io.druid.indexer.TaskState;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.RetryUtils;
 import io.druid.java.util.common.StringUtils;
+import io.druid.java.util.common.jackson.JacksonUtils;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.testing.IntegrationTestingConfig;
 import io.druid.testing.guice.TestClient;
@@ -57,9 +57,9 @@ public class OverlordResourceTestClient
 
   @Inject
   OverlordResourceTestClient(
-    ObjectMapper jsonMapper,
-    @TestClient HttpClient httpClient,
-    IntegrationTestingConfig config
+      ObjectMapper jsonMapper,
+      @TestClient HttpClient httpClient,
+      IntegrationTestingConfig config
   )
   {
     this.jsonMapper = jsonMapper;
@@ -74,16 +74,6 @@ public class OverlordResourceTestClient
         "%s/druid/indexer/v1/",
         indexer
     );
-  }
-
-  public String submitTask(Task task)
-  {
-    try {
-      return submitTask(this.jsonMapper.writeValueAsString(task));
-    }
-    catch (Exception e) {
-      throw Throwables.propagate(e);
-    }
   }
 
   public String submitTask(final String task)
@@ -111,9 +101,7 @@ public class OverlordResourceTestClient
                 );
               }
               Map<String, String> responseData = jsonMapper.readValue(
-                  response.getContent(), new TypeReference<Map<String, String>>()
-                  {
-                  }
+                  response.getContent(), JacksonUtils.TYPE_REFERENCE_MAP_STRING_STRING
               );
               String taskID = responseData.get("task");
               LOG.info("Submitted task with TaskID[%s]", taskID);
@@ -129,7 +117,7 @@ public class OverlordResourceTestClient
     }
   }
 
-  public TaskStatus.Status getTaskStatus(String taskID)
+  public TaskState getTaskStatus(String taskID)
   {
     try {
       StatusResponseHolder response = makeRequest(
@@ -143,13 +131,11 @@ public class OverlordResourceTestClient
 
       LOG.info("Index status response" + response.getContent());
       Map<String, Object> responseData = jsonMapper.readValue(
-          response.getContent(), new TypeReference<Map<String, Object>>()
-          {
-          }
+          response.getContent(), JacksonUtils.TYPE_REFERENCE_MAP_STRING_OBJECT
       );
       //TODO: figure out a better way to parse the response...
       String status = (String) ((Map) responseData.get("status")).get("status");
-      return TaskStatus.Status.valueOf(status);
+      return TaskState.valueOf(status);
     }
     catch (Exception e) {
       throw Throwables.propagate(e);
@@ -190,28 +176,6 @@ public class OverlordResourceTestClient
     }
   }
 
-  public Map<String, String> shutDownTask(String taskID)
-  {
-    try {
-      StatusResponseHolder response = makeRequest(
-          HttpMethod.POST,
-          StringUtils.format(
-              "%stask/%s/shutdown", getIndexerURL(),
-              URLEncoder.encode(taskID, "UTF-8")
-          )
-      );
-      LOG.info("Shutdown Task %s response %s", taskID, response.getContent());
-      return jsonMapper.readValue(
-          response.getContent(), new TypeReference<Map<String, String>>()
-          {
-          }
-      );
-    }
-    catch (Exception e) {
-      throw Throwables.propagate(e);
-    }
-  }
-
   public void waitUntilTaskCompletes(final String taskID)
   {
     waitUntilTaskCompletes(taskID, 60000, 10);
@@ -225,11 +189,11 @@ public class OverlordResourceTestClient
           @Override
           public Boolean call() throws Exception
           {
-            TaskStatus.Status status = getTaskStatus(taskID);
-            if (status == TaskStatus.Status.FAILED) {
+            TaskState status = getTaskStatus(taskID);
+            if (status == TaskState.FAILED) {
               throw new ISE("Indexer task FAILED");
             }
-            return status == TaskStatus.Status.SUCCESS;
+            return status == TaskState.SUCCESS;
           }
         },
         true,
@@ -258,9 +222,7 @@ public class OverlordResourceTestClient
         );
       }
       Map<String, String> responseData = jsonMapper.readValue(
-          response.getContent(), new TypeReference<Map<String, String>>()
-          {
-          }
+          response.getContent(), JacksonUtils.TYPE_REFERENCE_MAP_STRING_STRING
       );
       String id = responseData.get("id");
       LOG.info("Submitted supervisor with id[%s]", id);

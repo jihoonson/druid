@@ -211,11 +211,6 @@ public class ApproximateHistogram
     return binCount;
   }
 
-  public int capacity()
-  {
-    return size;
-  }
-
   public float[] positions()
   {
     return Arrays.copyOfRange(positions, 0, binCount);
@@ -405,16 +400,6 @@ public class ApproximateHistogram
   }
 
   /**
-   * Merges the bin in the given position with the next bin
-   *
-   * @param index index of the bin to merge, index must satisfy 0 &lt;= index &lt; binCount - 1
-   */
-  protected void merge(final int index)
-  {
-    mergeInsert(index, -1, 0, 0);
-  }
-
-  /**
    * Merges the bin in the mergeAt position with the bin in position mergeAt+1
    * and simultaneously inserts the given bin (v,c) as a new bin at position insertAt
    *
@@ -511,8 +496,8 @@ public class ApproximateHistogram
 
   /**
    * @param h               histogram to be merged into the current histogram
-   * @param mergedPositions temporary buffer of size greater or equal to this.capacity()
-   * @param mergedBins      temporary buffer of size greater or equal to this.capacity()
+   * @param mergedPositions temporary buffer of size greater or equal to {@link #size}
+   * @param mergedBins      temporary buffer of size greater or equal to {@link #size}
    *
    * @return returns this histogram with h folded into it
    */
@@ -534,9 +519,11 @@ public class ApproximateHistogram
    */
   public ApproximateHistogram copy(ApproximateHistogram h)
   {
-    this.size = h.size;
-    this.positions = new float[size];
-    this.bins = new long[size];
+    if (h.size > this.size) {
+      this.size = h.size;
+      this.positions = new float[size];
+      this.bins = new long[size];
+    }
 
     System.arraycopy(h.positions, 0, this.positions, 0, h.binCount);
     System.arraycopy(h.bins, 0, this.bins, 0, h.binCount);
@@ -1048,20 +1035,6 @@ public class ApproximateHistogram
     return count - 1;
   }
 
-  private static int minIndex(float[] deltas, int lastValidIndex)
-  {
-    int minIndex = -1;
-    float min = Float.POSITIVE_INFINITY;
-    for (int k = 0; k < lastValidIndex; ++k) {
-      float value = deltas[k];
-      if (value < min) {
-        minIndex = k;
-        min = value;
-      }
-    }
-    return minIndex;
-  }
-
   /**
    * Combines two sets of histogram bins using merge-sort and computes the delta between consecutive bin positions.
    * Duplicate bins are merged together.
@@ -1181,11 +1154,7 @@ public class ApproximateHistogram
   public boolean canStoreCompact()
   {
     final long exactCount = getExactCount();
-    return (
-        size <= Short.MAX_VALUE
-        && exactCount <= Byte.MAX_VALUE
-        && (count - exactCount) <= Byte.MAX_VALUE
-    );
+    return (size <= Short.MAX_VALUE && exactCount <= Byte.MAX_VALUE && (count - exactCount) <= Byte.MAX_VALUE);
   }
 
   /**
@@ -1548,6 +1517,20 @@ public class ApproximateHistogram
     final long[] bins = this.bins();
 
     for (int j = 0; j < probabilities.length; ++j) {
+      // Adapted from Ben-Haiv/Tom-Tov (Algorithm 4: Uniform Procedure)
+      // Our histogram has a set of bins {(p1, m1), (p2, m2), ... (pB, mB)}
+      // and properties of min and max saved during construction, such
+      // that min <= p1 and pB <= max.
+      //
+      // When min < p1 or pB < max, these are special cases of using the
+      // dummy bins (p0, 0) or (pB+1, 0) respectively, where p0 == min
+      // and pB+1 == max.
+      //
+      // This histogram gives an ordered set of numbers {pi, pi+1, ..., pn},
+      // such that min <= pi < pn <= max, and n is the sum({m1, ..., mB}).
+      // We use s to determine which pairs of (pi, mi), (pi+1, mi+1) to
+      // calculate our quantile from by computing sum([pi,mi]) < s < sum
+      // ([pi+1, mi+1])
       final double s = probabilities[j] * this.count();
 
       int i = 0;
@@ -1566,6 +1549,7 @@ public class ApproximateHistogram
       }
 
       if (i == 0) {
+        // At the first bin, there are no points to the left of p (min)
         quantiles[j] = this.min();
       } else {
         final double d = s - sum;
@@ -1579,7 +1563,11 @@ public class ApproximateHistogram
           z = (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
         }
         final double uj = this.positions[i - 1] + (this.positions[i] - this.positions[i - 1]) * z;
-        quantiles[j] = (float) uj;
+        // A given bin (p, m) has m/2 points to the left and right of p, and
+        // uj could be one of those points. However, uj is still subject to:
+        // [min] (p0, 0) < uj < (p, m) or
+        //                      (p, m) < uj < (pB+1, 0) [max]
+        quantiles[j] = ((float) uj < this.max()) ? (float) uj : this.max();
       }
     }
 

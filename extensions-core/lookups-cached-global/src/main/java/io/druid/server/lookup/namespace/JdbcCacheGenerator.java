@@ -19,7 +19,7 @@
 
 package io.druid.server.lookup.namespace;
 
-import io.druid.common.utils.JodaUtils;
+import io.druid.java.util.common.JodaUtils;
 import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.StringUtils;
 import io.druid.java.util.common.logger.Logger;
@@ -131,19 +131,21 @@ public final class JdbcCacheGenerator implements CacheGenerator<JdbcExtractionNa
   {
     if (Strings.isNullOrEmpty(filter)) {
       return StringUtils.format(
-          "SELECT %s, %s FROM %s",
+          "SELECT %s, %s FROM %s WHERE %s IS NOT NULL",
           keyColumn,
           valueColumn,
-          table
+          table,
+          valueColumn
       );
     }
 
     return StringUtils.format(
-        "SELECT %s, %s FROM %s WHERE %s",
+        "SELECT %s, %s FROM %s WHERE %s AND %s IS NOT NULL",
         keyColumn,
         valueColumn,
         table,
-        filter
+        filter,
+        valueColumn
     );
   }
 

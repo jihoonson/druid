@@ -34,9 +34,10 @@ import io.druid.client.selector.HighestPriorityTierSelectorStrategy;
 import io.druid.client.selector.QueryableDruidServer;
 import io.druid.client.selector.ServerSelector;
 import io.druid.jackson.DefaultObjectMapper;
+import io.druid.java.util.common.DateTimes;
+import io.druid.java.util.common.Intervals;
 import io.druid.java.util.common.StringUtils;
 import io.druid.java.util.common.guava.Sequence;
-import io.druid.java.util.common.guava.Sequences;
 import io.druid.query.Druids;
 import io.druid.query.QueryInterruptedException;
 import io.druid.query.QueryPlus;
@@ -53,9 +54,7 @@ import org.easymock.EasyMock;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
-import org.joda.time.DateTime;
 import org.joda.time.Duration;
-import org.joda.time.Interval;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -122,8 +121,8 @@ public class DirectDruidClientTest
     final ServerSelector serverSelector = new ServerSelector(
         new DataSegment(
             "test",
-            new Interval("2013-01-01/2013-01-02"),
-            new DateTime("2013-01-01").toString(),
+            Intervals.of("2013-01-01/2013-01-02"),
+            DateTimes.of("2013-01-01").toString(),
             Maps.<String, Object>newHashMap(),
             Lists.<String>newArrayList(),
             Lists.<String>newArrayList(),
@@ -191,9 +190,9 @@ public class DirectDruidClientTest
             StringUtils.toUtf8("[{\"timestamp\":\"2014-01-01T01:02:03Z\", \"result\": 42.0}]")
         )
     );
-    List<Result> results = Sequences.toList(s1, Lists.<Result>newArrayList());
+    List<Result> results = s1.toList();
     Assert.assertEquals(1, results.size());
-    Assert.assertEquals(new DateTime("2014-01-01T01:02:03Z"), results.get(0).getTimestamp());
+    Assert.assertEquals(DateTimes.of("2014-01-01T01:02:03Z"), results.get(0).getTimestamp());
     Assert.assertEquals(3, client1.getNumOpenConnections());
 
     client2.run(QueryPlus.wrap(query), defaultContext);
@@ -240,8 +239,8 @@ public class DirectDruidClientTest
     final ServerSelector serverSelector = new ServerSelector(
         new DataSegment(
             "test",
-            new Interval("2013-01-01/2013-01-02"),
-            new DateTime("2013-01-01").toString(),
+            Intervals.of("2013-01-01/2013-01-02"),
+            DateTimes.of("2013-01-01").toString(),
             Maps.<String, Object>newHashMap(),
             Lists.<String>newArrayList(),
             Lists.<String>newArrayList(),
@@ -277,7 +276,7 @@ public class DirectDruidClientTest
 
     QueryInterruptedException exception = null;
     try {
-      Sequences.toList(results, Lists.newArrayList());
+      results.toList();
     }
     catch (QueryInterruptedException e) {
       exception = e;
@@ -308,8 +307,8 @@ public class DirectDruidClientTest
 
     DataSegment dataSegment = new DataSegment(
         "test",
-        new Interval("2013-01-01/2013-01-02"),
-        new DateTime("2013-01-01").toString(),
+        Intervals.of("2013-01-01/2013-01-02"),
+        DateTimes.of("2013-01-01").toString(),
         Maps.<String, Object>newHashMap(),
         Lists.<String>newArrayList(),
         Lists.<String>newArrayList(),
@@ -349,7 +348,7 @@ public class DirectDruidClientTest
 
     QueryInterruptedException actualException = null;
     try {
-      Sequences.toList(results, Lists.newArrayList());
+      results.toList();
     }
     catch (QueryInterruptedException e) {
       actualException = e;

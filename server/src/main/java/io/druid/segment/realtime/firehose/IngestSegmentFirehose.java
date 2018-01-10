@@ -26,6 +26,7 @@ import com.google.common.collect.Maps;
 import io.druid.data.input.Firehose;
 import io.druid.data.input.InputRow;
 import io.druid.data.input.MapBasedInputRow;
+import io.druid.java.util.common.DateTimes;
 import io.druid.java.util.common.granularity.Granularities;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.java.util.common.guava.Sequences;
@@ -34,16 +35,17 @@ import io.druid.java.util.common.guava.Yielders;
 import io.druid.query.dimension.DefaultDimensionSpec;
 import io.druid.query.filter.DimFilter;
 import io.druid.query.select.EventHolder;
+import io.druid.segment.BaseLongColumnValueSelector;
+import io.druid.segment.BaseObjectColumnValueSelector;
 import io.druid.segment.Cursor;
 import io.druid.segment.DimensionSelector;
-import io.druid.segment.LongColumnSelector;
-import io.druid.segment.ObjectColumnSelector;
 import io.druid.segment.VirtualColumns;
 import io.druid.segment.column.Column;
 import io.druid.segment.data.IndexedInts;
 import io.druid.segment.filter.Filters;
+import io.druid.segment.transform.TransformSpec;
+import io.druid.segment.transform.Transformer;
 import io.druid.utils.Runnables;
-import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -53,15 +55,19 @@ import java.util.Map;
 
 public class IngestSegmentFirehose implements Firehose
 {
+  private final Transformer transformer;
   private Yielder<InputRow> rowYielder;
 
   public IngestSegmentFirehose(
       final List<WindowedStorageAdapter> adapters,
+      final TransformSpec transformSpec,
       final List<String> dims,
       final List<String> metrics,
       final DimFilter dimFilter
   )
   {
+    this.transformer = transformSpec.toTransformer();
+
     Sequence<InputRow> rows = Sequences.concat(
         Iterables.transform(
             adapters, new Function<WindowedStorageAdapter, Sequence<InputRow>>()
@@ -85,25 +91,25 @@ public class IngestSegmentFirehose implements Firehose
                           @Override
                           public Sequence<InputRow> apply(final Cursor cursor)
                           {
-                            final LongColumnSelector timestampColumnSelector = cursor.makeLongColumnSelector(Column.TIME_COLUMN_NAME);
+                            final BaseLongColumnValueSelector timestampColumnSelector =
+                                cursor.getColumnSelectorFactory().makeColumnValueSelector(Column.TIME_COLUMN_NAME);
 
                             final Map<String, DimensionSelector> dimSelectors = Maps.newHashMap();
                             for (String dim : dims) {
-                              final DimensionSelector dimSelector = cursor.makeDimensionSelector(
-                                  new DefaultDimensionSpec(dim, dim)
-                              );
+                              final DimensionSelector dimSelector = cursor
+                                  .getColumnSelectorFactory()
+                                  .makeDimensionSelector(new DefaultDimensionSpec(dim, dim));
                               // dimSelector is null if the dimension is not present
                               if (dimSelector != null) {
                                 dimSelectors.put(dim, dimSelector);
                               }
                             }
 
-                            final Map<String, ObjectColumnSelector> metSelectors = Maps.newHashMap();
+                            final Map<String, BaseObjectColumnValueSelector> metSelectors = Maps.newHashMap();
                             for (String metric : metrics) {
-                              final ObjectColumnSelector metricSelector = cursor.makeObjectColumnSelector(metric);
-                              if (metricSelector != null) {
-                                metSelectors.put(metric, metricSelector);
-                              }
+                              final BaseObjectColumnValueSelector metricSelector =
+                                  cursor.getColumnSelectorFactory().makeColumnValueSelector(metric);
+                              metSelectors.put(metric, metricSelector);
                             }
 
                             return Sequences.simple(
@@ -125,9 +131,10 @@ public class IngestSegmentFirehose implements Firehose
                                       {
                                         final Map<String, Object> theEvent = Maps.newLinkedHashMap();
                                         final long timestamp = timestampColumnSelector.getLong();
-                                        theEvent.put(EventHolder.timestampKey, new DateTime(timestamp));
+                                        theEvent.put(EventHolder.timestampKey, DateTimes.utc(timestamp));
 
-                                        for (Map.Entry<String, DimensionSelector> dimSelector : dimSelectors.entrySet()) {
+                                        for (Map.Entry<String, DimensionSelector> dimSelector :
+                                            dimSelectors.entrySet()) {
                                           final String dim = dimSelector.getKey();
                                           final DimensionSelector selector = dimSelector.getValue();
                                           final IndexedInts vals = selector.getRow();
@@ -144,10 +151,14 @@ public class IngestSegmentFirehose implements Firehose
                                           }
                                         }
 
-                                        for (Map.Entry<String, ObjectColumnSelector> metSelector : metSelectors.entrySet()) {
+                                        for (Map.Entry<String, BaseObjectColumnValueSelector> metSelector :
+                                            metSelectors.entrySet()) {
                                           final String metric = metSelector.getKey();
-                                          final ObjectColumnSelector selector = metSelector.getValue();
-                                          theEvent.put(metric, selector.get());
+                                          final BaseObjectColumnValueSelector selector = metSelector.getValue();
+                                          Object value = selector.getObject();
+                                          if (value != null) {
+                                            theEvent.put(metric, value);
+                                          }
                                         }
                                         cursor.advance();
                                         return new MapBasedInputRow(timestamp, dims, theEvent);
@@ -179,12 +190,13 @@ public class IngestSegmentFirehose implements Firehose
     return !rowYielder.isDone();
   }
 
+  @Nullable
   @Override
   public InputRow nextRow()
   {
     final InputRow inputRow = rowYielder.get();
     rowYielder = rowYielder.next(null);
-    return inputRow;
+    return transformer.transform(inputRow);
   }
 
   @Override

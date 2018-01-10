@@ -20,18 +20,32 @@
 package io.druid.segment.data;
 
 import io.druid.query.monomorphicprocessing.RuntimeShapeInspector;
-import it.unimi.dsi.fastutil.ints.IntIterator;
-import it.unimi.dsi.fastutil.ints.IntIterators;
-
-import java.io.IOException;
 
 public final class SingleIndexedInt implements IndexedInts
 {
+  private static final int CACHE_SIZE = 128;
+  private static final SingleIndexedInt[] CACHE = new SingleIndexedInt[CACHE_SIZE];
+
+  static {
+    for (int i = 0; i < CACHE_SIZE; i++) {
+      CACHE[i] = new SingleIndexedInt(i);
+    }
+  }
+
   private final int value;
 
-  public SingleIndexedInt(int value)
+  private SingleIndexedInt(int value)
   {
     this.value = value;
+  }
+
+  public static SingleIndexedInt of(int value)
+  {
+    if (value >= 0 && value < CACHE_SIZE) {
+      return CACHE[value];
+    } else {
+      return new SingleIndexedInt(value);
+    }
   }
 
   @Override
@@ -47,23 +61,6 @@ public final class SingleIndexedInt implements IndexedInts
       throw new IllegalArgumentException(i + " != 0");
     }
     return value;
-  }
-
-  @Override
-  public IntIterator iterator()
-  {
-    return IntIterators.singleton(value);
-  }
-
-  @Override
-  public void fill(int index, int[] toFill)
-  {
-    throw new UnsupportedOperationException("fill not supported");
-  }
-
-  @Override
-  public void close() throws IOException
-  {
   }
 
   @Override

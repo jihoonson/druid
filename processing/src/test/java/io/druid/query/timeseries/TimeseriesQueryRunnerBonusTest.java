@@ -21,10 +21,10 @@ package io.druid.query.timeseries;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import io.druid.data.input.MapBasedInputRow;
+import io.druid.java.util.common.DateTimes;
+import io.druid.java.util.common.Intervals;
 import io.druid.java.util.common.granularity.Granularities;
-import io.druid.java.util.common.guava.Sequences;
 import io.druid.query.Druids;
 import io.druid.query.FinalizeResultsQueryRunner;
 import io.druid.query.Query;
@@ -33,14 +33,11 @@ import io.druid.query.QueryRunner;
 import io.druid.query.QueryRunnerFactory;
 import io.druid.query.QueryRunnerTestHelper;
 import io.druid.query.Result;
-import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.query.aggregation.CountAggregatorFactory;
 import io.druid.segment.IncrementalIndexSegment;
 import io.druid.segment.Segment;
 import io.druid.segment.incremental.IncrementalIndex;
 import io.druid.segment.incremental.IncrementalIndexSchema;
-import org.joda.time.DateTime;
-import org.joda.time.Interval;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -73,7 +70,7 @@ public class TimeseriesQueryRunnerBonusTest
     final IncrementalIndex oneRowIndex = new IncrementalIndex.Builder()
         .setIndexSchema(
             new IncrementalIndexSchema.Builder()
-                .withMinTimestamp(new DateTime("2012-01-01T00:00:00Z").getMillis())
+                .withMinTimestamp(DateTimes.of("2012-01-01T00:00:00Z").getMillis())
                 .build()
         )
         .setMaxRowCount(1000)
@@ -83,7 +80,7 @@ public class TimeseriesQueryRunnerBonusTest
 
     oneRowIndex.add(
         new MapBasedInputRow(
-            new DateTime("2012-01-01T00:00:00Z").getMillis(),
+            DateTimes.of("2012-01-01T00:00:00Z").getMillis(),
             ImmutableList.of("dim1"),
             ImmutableMap.<String, Object>of("dim1", "x")
         )
@@ -93,12 +90,12 @@ public class TimeseriesQueryRunnerBonusTest
 
     Assert.assertEquals("index size", 1, oneRowIndex.size());
     Assert.assertEquals("result size", 1, results.size());
-    Assert.assertEquals("result timestamp", new DateTime("2012-01-01T00:00:00Z"), results.get(0).getTimestamp());
+    Assert.assertEquals("result timestamp", DateTimes.of("2012-01-01T00:00:00Z"), results.get(0).getTimestamp());
     Assert.assertEquals("result count metric", 1, (long) results.get(0).getValue().getLongMetric("rows"));
 
     oneRowIndex.add(
         new MapBasedInputRow(
-            new DateTime("2012-01-01T00:00:00Z").getMillis(),
+            DateTimes.of("2012-01-01T00:00:00Z").getMillis(),
             ImmutableList.of("dim1"),
             ImmutableMap.<String, Object>of("dim1", "y")
         )
@@ -108,7 +105,7 @@ public class TimeseriesQueryRunnerBonusTest
 
     Assert.assertEquals("index size", 2, oneRowIndex.size());
     Assert.assertEquals("result size", 1, results.size());
-    Assert.assertEquals("result timestamp", new DateTime("2012-01-01T00:00:00Z"), results.get(0).getTimestamp());
+    Assert.assertEquals("result timestamp", DateTimes.of("2012-01-01T00:00:00Z"), results.get(0).getTimestamp());
     Assert.assertEquals("result count metric", 2, (long) results.get(0).getValue().getLongMetric("rows"));
   }
 
@@ -129,19 +126,12 @@ public class TimeseriesQueryRunnerBonusTest
     TimeseriesQuery query = Druids.newTimeseriesQueryBuilder()
                                   .dataSource("xxx")
                                   .granularity(Granularities.ALL)
-                                  .intervals(ImmutableList.of(new Interval("2012-01-01T00:00:00Z/P1D")))
-                                  .aggregators(
-                                      ImmutableList.<AggregatorFactory>of(
-                                          new CountAggregatorFactory("rows")
-                                      )
-                                  )
+                                  .intervals(ImmutableList.of(Intervals.of("2012-01-01T00:00:00Z/P1D")))
+                                  .aggregators(new CountAggregatorFactory("rows"))
                                   .descending(descending)
                                   .build();
     HashMap<String, Object> context = new HashMap<String, Object>();
-    return Sequences.toList(
-        runner.run(QueryPlus.wrap(query), context),
-        Lists.<Result<TimeseriesResultValue>>newArrayList()
-    );
+    return runner.run(QueryPlus.wrap(query), context).toList();
   }
 
   private static <T> QueryRunner<T> makeQueryRunner(

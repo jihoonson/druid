@@ -20,6 +20,7 @@
 package io.druid.segment.data;
 
 import com.google.common.primitives.Longs;
+import io.druid.segment.writeout.WriteOutBytes;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -46,13 +47,13 @@ public class LongsLongEncodingWriter implements CompressionFactory.LongEncodingW
   {
     outStream = null;
     outBuffer = buffer;
-    // this order change is safe as the buffer is passed in and allocated in BlockLayoutLongSupplierSerializer, and
+    // this order change is safe as the buffer is passed in and allocated in BlockLayoutColumnarLongsSerializer, and
     // is used only as a temporary storage to be written
     outBuffer.order(order);
   }
 
   @Override
-  public void setOutputStream(OutputStream output)
+  public void setOutputStream(WriteOutBytes output)
   {
     outBuffer = null;
     outStream = output;
@@ -77,9 +78,15 @@ public class LongsLongEncodingWriter implements CompressionFactory.LongEncodingW
   }
 
   @Override
-  public void putMeta(OutputStream metaOut, CompressedObjectStrategy.CompressionStrategy strategy) throws IOException
+  public void putMeta(ByteBuffer metaOut, CompressionStrategy strategy) throws IOException
   {
-    metaOut.write(strategy.getId());
+    metaOut.put(strategy.getId());
+  }
+
+  @Override
+  public int metaSize()
+  {
+    return 1;
   }
 
   @Override

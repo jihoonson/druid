@@ -123,9 +123,9 @@ public class TimestampMinMaxAggregatorTest
     String json = "{\"type\":\"" + aggType + "\",\"name\":\"" + aggType + "\",\"fieldName\":\"test\"}";
 
     aggregatorFactory = mapper.readValue(json, aggClass);
-    selector = new TestObjectColumnSelector(values);
+    selector = new TestObjectColumnSelector<>(values);
     selectorFactory = EasyMock.createMock(ColumnSelectorFactory.class);
-    EasyMock.expect(selectorFactory.makeObjectColumnSelector("test")).andReturn(selector);
+    EasyMock.expect(selectorFactory.makeColumnValueSelector("test")).andReturn(selector);
     EasyMock.replay(selectorFactory);
   }
 
@@ -134,15 +134,13 @@ public class TimestampMinMaxAggregatorTest
   {
     TimestampAggregator aggregator = (TimestampAggregator) aggregatorFactory.factorize(selectorFactory);
 
-    for (Timestamp value: values) {
+    Assert.assertEquals(initValue, aggregator.get());
+
+    for (Timestamp value : values) {
       aggregate(selector, aggregator);
     }
 
     Assert.assertEquals(expected, new Timestamp(aggregator.getLong()));
-
-    aggregator.reset();
-
-    Assert.assertEquals(initValue, aggregator.get());
   }
 
   @Test

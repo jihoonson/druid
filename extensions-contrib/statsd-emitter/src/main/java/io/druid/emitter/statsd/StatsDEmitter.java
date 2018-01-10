@@ -41,34 +41,34 @@ public class StatsDEmitter implements Emitter
   private final static Logger log = new Logger(StatsDEmitter.class);
   private final static String DRUID_METRIC_SEPARATOR = "\\/";
   private final static String STATSD_SEPARATOR = ":|\\|";
+  private final static String BLANK = "\\s+";
+
+  static final StatsDEmitter of(StatsDEmitterConfig config, ObjectMapper mapper)
+  {
+    NonBlockingStatsDClient client = new NonBlockingStatsDClient(
+        config.getPrefix(),
+        config.getHostname(),
+        config.getPort(),
+        new StatsDClientErrorHandler()
+        {
+          private int exceptionCount = 0;
+
+          @Override
+          public void handle(Exception exception)
+          {
+            if (exceptionCount % 1000 == 0) {
+              log.error(exception, "Error sending metric to StatsD.");
+            }
+            exceptionCount += 1;
+          }
+        }
+    );
+    return new StatsDEmitter(config, mapper, client);
+  }
 
   private final StatsDClient statsd;
   private final StatsDEmitterConfig config;
   private final DimensionConverter converter;
-
-  public StatsDEmitter(StatsDEmitterConfig config, ObjectMapper mapper)
-  {
-    this(config, mapper,
-         new NonBlockingStatsDClient(
-             config.getPrefix(),
-             config.getHostname(),
-             config.getPort(),
-             new StatsDClientErrorHandler()
-             {
-               private int exceptionCount = 0;
-
-               @Override
-               public void handle(Exception exception)
-               {
-                 if (exceptionCount % 1000 == 0) {
-                   log.error(exception, "Error sending metric to StatsD.");
-                 }
-                 exceptionCount += 1;
-               }
-             }
-         )
-    );
-  }
 
   public StatsDEmitter(StatsDEmitterConfig config, ObjectMapper mapper, StatsDClient client)
   {
@@ -105,7 +105,8 @@ public class StatsDEmitter implements Emitter
         String fullName = Joiner.on(config.getSeparator())
                                 .join(nameBuilder.build())
                                 .replaceAll(DRUID_METRIC_SEPARATOR, config.getSeparator())
-                                .replaceAll(STATSD_SEPARATOR, config.getSeparator());
+                                .replaceAll(STATSD_SEPARATOR, config.getSeparator())
+                                .replaceAll(BLANK, config.getBlankHolder());
 
         long val = statsDMetric.convertRange ? Math.round(value.doubleValue() * 100) : value.longValue();
         switch (statsDMetric.type) {

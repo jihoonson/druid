@@ -27,8 +27,9 @@ import com.google.common.primitives.Longs;
 import io.druid.java.util.common.StringUtils;
 import io.druid.math.expr.ExprMacroTable;
 import io.druid.math.expr.Parser;
+import io.druid.segment.BaseLongColumnValueSelector;
 import io.druid.segment.ColumnSelectorFactory;
-import io.druid.segment.LongColumnSelector;
+import io.druid.segment.ColumnValueSelector;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -84,9 +85,15 @@ public class LongMinAggregatorFactory extends AggregatorFactory
     return new LongMinBufferAggregator(getLongColumnSelector(metricFactory));
   }
 
-  private LongColumnSelector getLongColumnSelector(ColumnSelectorFactory metricFactory)
+  private BaseLongColumnValueSelector getLongColumnSelector(ColumnSelectorFactory metricFactory)
   {
-    return AggregatorUtil.getLongColumnSelector(metricFactory, macroTable, fieldName, expression, Long.MAX_VALUE);
+    return AggregatorUtil.makeColumnValueSelectorWithLongDefault(
+        metricFactory,
+        macroTable,
+        fieldName,
+        expression,
+        Long.MAX_VALUE
+    );
   }
 
   @Override
@@ -99,6 +106,33 @@ public class LongMinAggregatorFactory extends AggregatorFactory
   public Object combine(Object lhs, Object rhs)
   {
     return LongMinAggregator.combineValues(lhs, rhs);
+  }
+
+  @Override
+  public AggregateCombiner makeAggregateCombiner()
+  {
+    return new LongAggregateCombiner()
+    {
+      private long min;
+
+      @Override
+      public void reset(ColumnValueSelector selector)
+      {
+        min = selector.getLong();
+      }
+
+      @Override
+      public void fold(ColumnValueSelector selector)
+      {
+        min = Math.min(min, selector.getLong());
+      }
+
+      @Override
+      public long getLong()
+      {
+        return min;
+      }
+    };
   }
 
   @Override

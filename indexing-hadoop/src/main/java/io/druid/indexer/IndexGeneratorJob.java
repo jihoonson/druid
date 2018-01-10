@@ -34,7 +34,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import io.druid.common.guava.ThreadRenamingRunnable;
-import io.druid.concurrent.Execs;
 import io.druid.data.input.InputRow;
 import io.druid.data.input.Row;
 import io.druid.data.input.Rows;
@@ -42,6 +41,7 @@ import io.druid.indexer.hadoop.SegmentInputRow;
 import io.druid.java.util.common.IAE;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.StringUtils;
+import io.druid.java.util.common.concurrent.Execs;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.query.aggregation.AggregatorFactory;
 import io.druid.segment.BaseProgressIndicator;
@@ -101,6 +101,8 @@ public class IndexGeneratorJob implements Jobby
   public static List<DataSegment> getPublishedSegments(HadoopDruidIndexerConfig config)
   {
     final Configuration conf = JobHelper.injectSystemProperties(new Configuration());
+    config.addJobProperties(conf);
+
     final ObjectMapper jsonMapper = HadoopDruidIndexerConfig.JSON_MAPPER;
 
     ImmutableList.Builder<DataSegment> publishedSegmentsBuilder = ImmutableList.builder();
@@ -272,7 +274,6 @@ public class IndexGeneratorJob implements Jobby
     @Override
     protected void innerMap(
         InputRow inputRow,
-        Object value,
         Context context,
         boolean reportParseExceptions
     ) throws IOException, InterruptedException
@@ -424,21 +425,9 @@ public class IndexGeneratorJob implements Jobby
         }
 
         @Override
-        public float getFloatMetric(String metric)
+        public Number getMetric(String metric)
         {
-          return row.getFloatMetric(metric);
-        }
-
-        @Override
-        public long getLongMetric(String metric)
-        {
-          return row.getLongMetric(metric);
-        }
-
-        @Override
-        public double getDoubleMetric(String metric)
-        {
-          return row.getDoubleMetric(metric);
+          return row.getMetric(metric);
         }
 
         @Override
@@ -512,7 +501,7 @@ public class IndexGeneratorJob implements Jobby
     ) throws IOException
     {
       return HadoopDruidIndexerConfig.INDEX_MERGER_V9.persist(
-          index, interval, file, config.getIndexSpec(), progressIndicator
+          index, interval, file, config.getIndexSpec(), progressIndicator, null
       );
     }
 
@@ -525,7 +514,7 @@ public class IndexGeneratorJob implements Jobby
     {
       boolean rollup = config.getSchema().getDataSchema().getGranularitySpec().isRollup();
       return HadoopDruidIndexerConfig.INDEX_MERGER_V9.mergeQueryableIndex(
-          indexes, rollup, aggs, file, config.getIndexSpec(), progressIndicator
+          indexes, rollup, aggs, file, config.getIndexSpec(), progressIndicator, null
       );
     }
 
@@ -595,7 +584,7 @@ public class IndexGeneratorJob implements Jobby
                   }
                   catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    throw new RejectedExecutionException("Got Interrupted while adding to the Queue");
+                    throw new RejectedExecutionException("Got Interrupted while adding to the Queue", e);
                   }
                 }
               }
@@ -804,6 +793,7 @@ public class IndexGeneratorJob implements Jobby
   {
     private long invalidRowCount = 0;
 
+    @SuppressWarnings("unused") // Unused now, but useful in theory, probably needs to be exposed to users.
     public long getInvalidRowCount()
     {
       return invalidRowCount;

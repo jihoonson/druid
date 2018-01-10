@@ -26,12 +26,12 @@ import com.google.common.collect.Maps;
 import com.google.common.io.Files;
 import com.microsoft.azure.storage.StorageException;
 import io.druid.jackson.DefaultObjectMapper;
+import io.druid.java.util.common.Intervals;
 import io.druid.java.util.common.MapUtils;
 import io.druid.java.util.common.StringUtils;
 import io.druid.timeline.DataSegment;
 import io.druid.timeline.partition.NoneShardSpec;
 import org.easymock.EasyMockSupport;
-import org.joda.time.Interval;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -55,7 +55,7 @@ public class AzureDataSegmentPusherTest extends EasyMockSupport
   private static final String blobPath = "test/2015-04-12T00:00:00.000Z_2015-04-13T00:00:00.000Z/1/0/index.zip";
   private static final DataSegment dataSegment = new DataSegment(
       "test",
-      new Interval("2015-04-12/2015-04-13"),
+      Intervals.of("2015-04-12/2015-04-13"),
       "1",
       ImmutableMap.<String, Object>of("containerName", containerName, "blobPath", blobPath),
       null,
@@ -94,7 +94,7 @@ public class AzureDataSegmentPusherTest extends EasyMockSupport
 
     DataSegment segmentToPush = new DataSegment(
         "foo",
-        new Interval("2015/2016"),
+        Intervals.of("2015/2016"),
         "0",
         Maps.<String, Object>newHashMap(),
         Lists.<String>newArrayList(),
@@ -104,7 +104,7 @@ public class AzureDataSegmentPusherTest extends EasyMockSupport
         size
     );
 
-    DataSegment segment = pusher.push(tempFolder.getRoot(), segmentToPush);
+    DataSegment segment = pusher.push(tempFolder.getRoot(), segmentToPush, true);
 
     Assert.assertEquals(segmentToPush.getSize(), segment.getSize());
   }
@@ -133,9 +133,9 @@ public class AzureDataSegmentPusherTest extends EasyMockSupport
     final File descriptorFile = new File("descriptor.json");
     final Map<String, String> azurePaths = pusher.getAzurePaths(dataSegment);
 
-    azureStorage.uploadBlob(compressedSegmentData, containerName, azurePaths.get("index"));
+    azureStorage.uploadBlob(compressedSegmentData, containerName, azurePaths.get("index"), true);
     expectLastCall();
-    azureStorage.uploadBlob(descriptorFile, containerName, azurePaths.get("descriptor"));
+    azureStorage.uploadBlob(descriptorFile, containerName, azurePaths.get("descriptor"), true);
     expectLastCall();
 
     replayAll();
@@ -146,7 +146,8 @@ public class AzureDataSegmentPusherTest extends EasyMockSupport
         0, // empty file
         compressedSegmentData,
         descriptorFile,
-        azurePaths
+        azurePaths,
+        true
     );
 
     assertEquals(compressedSegmentData.length(), pushedDataSegment.getSize());

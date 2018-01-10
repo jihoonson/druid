@@ -21,14 +21,13 @@ package io.druid.server.coordinator;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import io.druid.client.ImmutableDruidDataSource;
 import io.druid.client.ImmutableDruidServer;
+import io.druid.java.util.common.Intervals;
 import io.druid.server.coordination.DruidServerMetadata;
 import io.druid.server.coordination.ServerType;
 import io.druid.timeline.DataSegment;
 import io.druid.timeline.partition.NoneShardSpec;
-import org.joda.time.Interval;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -40,7 +39,7 @@ public class ServerHolderTest
   private static final List<DataSegment> segments = ImmutableList.of(
       new DataSegment(
           "test",
-          new Interval("2015-04-12/2015-04-13"),
+          Intervals.of("2015-04-12/2015-04-13"),
           "1",
           ImmutableMap.of("containerName", "container1", "blobPath", "blobPath1"),
           null,
@@ -51,7 +50,7 @@ public class ServerHolderTest
       ),
       new DataSegment(
           "test",
-          new Interval("2015-04-12/2015-04-13"),
+          Intervals.of("2015-04-12/2015-04-13"),
           "1",
           ImmutableMap.of("containerName", "container2", "blobPath", "blobPath2"),
           null,
@@ -67,15 +66,13 @@ public class ServerHolderTest
       new ImmutableDruidDataSource(
           "src1",
           ImmutableMap.of(),
-          ImmutableMap.of(),
-          ImmutableSet.of()
+          ImmutableMap.of()
       ),
       "src2",
       new ImmutableDruidDataSource(
           "src2",
           ImmutableMap.of(),
-          ImmutableMap.of(),
-          ImmutableSet.of()
+          ImmutableMap.of()
       )
   );
 

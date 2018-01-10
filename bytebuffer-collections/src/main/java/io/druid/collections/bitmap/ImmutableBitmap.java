@@ -30,21 +30,19 @@ public interface ImmutableBitmap
   /**
    * @return an iterator over the set bits of this bitmap
    */
-  public IntIterator iterator();
+  IntIterator iterator();
 
   /**
    * @return The number of bits set to true in this bitmap
    */
-  public int size();
+  int size();
 
-  public byte[] toBytes();
-
-  public int compareTo(ImmutableBitmap other);
+  byte[] toBytes();
 
   /**
    * @return True if this bitmap is empty (contains no set bit)
    */
-  public boolean isEmpty();
+  boolean isEmpty();
 
   /**
    * Returns true if the bit at position value is set
@@ -53,16 +51,7 @@ public interface ImmutableBitmap
    *
    * @return true if bit is set
    */
-  public boolean get(int value);
-
-  /**
-   * Compute the bitwise-or of this bitmap with another bitmap. A new bitmap is generated.
-   *
-   * Note that the other bitmap should be of the same class instance.
-   *
-   * @param otherBitmap other bitmap
-   */
-  public ImmutableBitmap union(ImmutableBitmap otherBitmap);
+  boolean get(int value);
 
   /**
    * Compute the bitwise-and of this bitmap with another bitmap. A new bitmap is generated.
@@ -71,14 +60,6 @@ public interface ImmutableBitmap
    *
    * @param otherBitmap other bitmap
    */
-  public ImmutableBitmap intersection(ImmutableBitmap otherBitmap);
+  ImmutableBitmap intersection(ImmutableBitmap otherBitmap);
 
-  /**
-   * Compute the bitwise-andNot of this bitmap with another bitmap. A new bitmap is generated.
-   *
-   * Note that the other bitmap should be of the same class instance.
-   *
-   * @param otherBitmap other bitmap
-   */
-  public ImmutableBitmap difference(ImmutableBitmap otherBitmap);
 }

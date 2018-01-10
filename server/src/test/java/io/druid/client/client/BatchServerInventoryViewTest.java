@@ -35,10 +35,11 @@ import io.druid.client.DruidServer;
 import io.druid.client.ServerView;
 import io.druid.curator.PotentiallyGzippedCompressionProvider;
 import io.druid.curator.announcement.Announcer;
-import io.druid.jackson.DefaultObjectMapper;
+import io.druid.java.util.common.DateTimes;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.guava.Comparators;
+import io.druid.segment.TestHelper;
 import io.druid.server.coordination.BatchDataSegmentAnnouncer;
 import io.druid.server.coordination.CuratorDataSegmentServerAnnouncer;
 import io.druid.server.coordination.DataSegmentServerAnnouncer;
@@ -80,7 +81,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class BatchServerInventoryViewTest
 {
   private static final String testBasePath = "/test";
-  public static final DateTime SEGMENT_INTERVAL_START = new DateTime("2013-01-01");
+  public static final DateTime SEGMENT_INTERVAL_START = DateTimes.of("2013-01-01");
   public static final int INITIAL_SEGMENTS = 100;
   private static final Timing timing = new Timing();
 
@@ -113,7 +114,7 @@ public class BatchServerInventoryViewTest
     cf.blockUntilConnected();
     cf.create().creatingParentsIfNeeded().forPath(testBasePath);
 
-    jsonMapper = new DefaultObjectMapper();
+    jsonMapper = TestHelper.makeJsonMapper();
 
     announcer = new Announcer(
         cf,
@@ -382,7 +383,7 @@ public class BatchServerInventoryViewTest
                               SEGMENT_INTERVAL_START.plusDays(offset + 1)
                           )
                       )
-                      .version(new DateTime().toString())
+                      .version(DateTimes.nowUtc().toString())
                       .build();
   }
 

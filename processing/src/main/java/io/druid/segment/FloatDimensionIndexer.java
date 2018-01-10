@@ -23,21 +23,15 @@ import io.druid.collections.bitmap.BitmapFactory;
 import io.druid.collections.bitmap.MutableBitmap;
 import io.druid.query.dimension.DimensionSpec;
 import io.druid.query.monomorphicprocessing.RuntimeShapeInspector;
-import io.druid.segment.column.ValueType;
 import io.druid.segment.data.Indexed;
 import io.druid.segment.incremental.IncrementalIndex;
-import io.druid.segment.incremental.IncrementalIndexStorageAdapter;
+import io.druid.segment.incremental.TimeAndDimsHolder;
 
 import javax.annotation.Nullable;
 import java.util.List;
 
 public class FloatDimensionIndexer implements DimensionIndexer<Float, Float, Float>
 {
-  @Override
-  public ValueType getValueType()
-  {
-    return ValueType.FLOAT;
-  }
 
   @Override
   public Float processRowValsToUnsortedEncodedKeyComponent(Object dimValues)
@@ -47,12 +41,6 @@ public class FloatDimensionIndexer implements DimensionIndexer<Float, Float, Flo
     }
 
     return DimensionHandlerUtils.convertObjectToFloat(dimValues);
-  }
-
-  @Override
-  public Float getSortedEncodedValueFromUnsorted(Float unsortedIntermediateValue)
-  {
-    return unsortedIntermediateValue;
   }
 
   @Override
@@ -87,51 +75,18 @@ public class FloatDimensionIndexer implements DimensionIndexer<Float, Float, Flo
 
   @Override
   public DimensionSelector makeDimensionSelector(
-      DimensionSpec spec, IncrementalIndexStorageAdapter.EntryHolder currEntry, IncrementalIndex.DimensionDesc desc
+      DimensionSpec spec,
+      TimeAndDimsHolder currEntry,
+      IncrementalIndex.DimensionDesc desc
   )
   {
-    return new FloatWrappingDimensionSelector(
-        makeFloatColumnSelector(currEntry, desc),
-        spec.getExtractionFn()
-    );
+    return new FloatWrappingDimensionSelector(makeColumnValueSelector(currEntry, desc), spec.getExtractionFn());
   }
 
   @Override
-  public LongColumnSelector makeLongColumnSelector(
-      final IncrementalIndexStorageAdapter.EntryHolder currEntry,
-      final IncrementalIndex.DimensionDesc desc
-  )
-  {
-    final int dimIndex = desc.getIndex();
-    class IndexerLongColumnSelector implements LongColumnSelector
-    {
-      @Override
-      public long getLong()
-      {
-        final Object[] dims = currEntry.getKey().getDims();
-
-        if (dimIndex >= dims.length) {
-          return 0L;
-        }
-
-        float floatVal = (Float) dims[dimIndex];
-        return (long) floatVal;
-      }
-
-      @Override
-      public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-      {
-        // nothing to inspect
-      }
-    }
-
-    return new IndexerLongColumnSelector();
-  }
-
-  @Override
-  public FloatColumnSelector makeFloatColumnSelector(
-      final IncrementalIndexStorageAdapter.EntryHolder currEntry,
-      final IncrementalIndex.DimensionDesc desc
+  public ColumnValueSelector<?> makeColumnValueSelector(
+      TimeAndDimsHolder currEntry,
+      IncrementalIndex.DimensionDesc desc
   )
   {
     final int dimIndex = desc.getIndex();
@@ -140,10 +95,24 @@ public class FloatDimensionIndexer implements DimensionIndexer<Float, Float, Flo
       @Override
       public float getFloat()
       {
-        final Object[] dims = currEntry.getKey().getDims();
+        final Object[] dims = currEntry.get().getDims();
 
         if (dimIndex >= dims.length) {
           return 0.0f;
+        }
+
+        return (Float) dims[dimIndex];
+      }
+
+      @SuppressWarnings("deprecation")
+      @Nullable
+      @Override
+      public Float getObject()
+      {
+        final Object[] dims = currEntry.get().getDims();
+
+        if (dimIndex >= dims.length) {
+          return null;
         }
 
         return (Float) dims[dimIndex];
@@ -157,36 +126,6 @@ public class FloatDimensionIndexer implements DimensionIndexer<Float, Float, Flo
     }
 
     return new IndexerFloatColumnSelector();
-  }
-
-  @Override
-  public DoubleColumnSelector makeDoubleColumnSelector(
-      IncrementalIndexStorageAdapter.EntryHolder currEntry, IncrementalIndex.DimensionDesc desc
-  )
-  {
-    final int dimIndex = desc.getIndex();
-    class IndexerDoubleColumnSelector implements DoubleColumnSelector
-    {
-      @Override
-      public double getDouble()
-      {
-        final Object[] dims = currEntry.getKey().getDims();
-
-        if (dimIndex >= dims.length) {
-          return 0.0;
-        }
-        float floatVal = (Float) dims[dimIndex];
-        return (double) floatVal;
-      }
-
-      @Override
-      public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-      {
-        // nothing to inspect
-      }
-    }
-
-    return new IndexerDoubleColumnSelector();
   }
 
   @Override

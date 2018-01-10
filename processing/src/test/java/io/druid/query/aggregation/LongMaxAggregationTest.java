@@ -42,7 +42,7 @@ public class LongMaxAggregationTest
   public LongMaxAggregationTest() throws Exception
   {
     String aggSpecJson = "{\"type\": \"longMax\", \"name\": \"billy\", \"fieldName\": \"nilly\"}";
-    longMaxAggFactory = TestHelper.getJsonMapper().readValue(aggSpecJson, LongMaxAggregatorFactory.class);
+    longMaxAggFactory = TestHelper.makeJsonMapper().readValue(aggSpecJson, LongMaxAggregatorFactory.class);
   }
 
   @Before
@@ -50,7 +50,7 @@ public class LongMaxAggregationTest
   {
     selector = new TestLongColumnSelector(values);
     colSelectorFactory = EasyMock.createMock(ColumnSelectorFactory.class);
-    EasyMock.expect(colSelectorFactory.makeLongColumnSelector("nilly")).andReturn(selector);
+    EasyMock.expect(colSelectorFactory.makeColumnValueSelector("nilly")).andReturn(selector);
     EasyMock.replay(colSelectorFactory);
   }
 
@@ -67,9 +67,6 @@ public class LongMaxAggregationTest
     Assert.assertEquals(values[2], ((Long) agg.get()).longValue());
     Assert.assertEquals(values[2], agg.getLong());
     Assert.assertEquals((float) values[2], agg.getFloat(), 0.0001);
-
-    agg.reset();
-    Assert.assertEquals(Long.MIN_VALUE, agg.getLong());
   }
 
   @Test

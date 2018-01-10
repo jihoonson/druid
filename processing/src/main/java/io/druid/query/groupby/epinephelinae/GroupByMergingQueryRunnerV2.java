@@ -22,6 +22,7 @@ package io.druid.query.groupby.epinephelinae;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Function;
 import com.google.common.base.Predicates;
+import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
@@ -86,6 +87,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
   private final BlockingPool<ByteBuffer> mergeBufferPool;
   private final ObjectMapper spillMapper;
   private final String processingTmpDir;
+  private final int mergeBufferSize;
 
   public GroupByMergingQueryRunnerV2(
       GroupByQueryConfig config,
@@ -95,6 +97,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
       int concurrencyHint,
       NonBlockingPool<ByteBuffer> processingBufferPool,
       BlockingPool<ByteBuffer> mergeBufferPool,
+      int mergeBufferSize,
       ObjectMapper spillMapper,
       String processingTmpDir
   )
@@ -108,6 +111,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
     this.mergeBufferPool = mergeBufferPool;
     this.spillMapper = spillMapper;
     this.processingTmpDir = processingTmpDir;
+    this.mergeBufferSize = mergeBufferSize;
   }
 
   @Override
@@ -156,6 +160,22 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
     final boolean hasTimeout = QueryContexts.hasTimeout(query);
     final long timeoutAt = System.currentTimeMillis() + queryTimeout;
 
+    final Supplier<ResourceHolder<ByteBuffer>> combineBufferSupplier = new Supplier<ResourceHolder<ByteBuffer>>()
+    {
+      private boolean initialized;
+      private ResourceHolder<ByteBuffer> buffer;
+
+      @Override
+      public ResourceHolder<ByteBuffer> get()
+      {
+        if (!initialized) {
+          buffer = processingBufferPool.take();
+          initialized = true;
+        }
+        return buffer;
+      }
+    };
+
     return new BaseSequence<>(
         new BaseSequence.IteratorMaker<Row, CloseableGrouperIterator<RowBasedKey, Row>>()
         {
@@ -199,6 +219,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
                   null,
                   config,
                   Suppliers.ofInstance(mergeBufferHolder.get()),
+                  combineBufferSupplier,
                   concurrencyHint,
                   temporaryStorage,
                   spillMapper,
@@ -207,7 +228,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
                   priority,
                   hasTimeout,
                   timeoutAt,
-                  processingBufferHolder.get()
+                  mergeBufferSize
               );
               final Grouper<RowBasedKey> grouper = pair.lhs;
               final Accumulator<AggregateResult, Row> accumulator = pair.rhs;

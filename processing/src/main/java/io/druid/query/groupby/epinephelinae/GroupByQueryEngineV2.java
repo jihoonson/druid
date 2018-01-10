@@ -22,11 +22,13 @@ package io.druid.query.groupby.epinephelinae;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.base.Suppliers;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import io.druid.collections.NonBlockingPool;
 import io.druid.collections.ResourceHolder;
 import io.druid.data.input.MapBasedRow;
 import io.druid.data.input.Row;
+import io.druid.java.util.common.DateTimes;
 import io.druid.java.util.common.IAE;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.guava.BaseSequence;
@@ -128,7 +130,7 @@ public class GroupByQueryEngineV2
 
     final DateTime fudgeTimestamp = fudgeTimestampString == null
                                     ? null
-                                    : new DateTime(Long.parseLong(fudgeTimestampString));
+                                    : DateTimes.utc(Long.parseLong(fudgeTimestampString));
 
     return cursors.flatMap(
         cursor -> new BaseSequence<>(
@@ -141,7 +143,7 @@ public class GroupByQueryEngineV2
                     .createColumnSelectorPluses(
                         STRATEGY_FACTORY,
                         query.getDimensions(),
-                        cursor
+                        cursor.getColumnSelectorFactory()
                     );
                 GroupByColumnSelectorPlus[] dims = createGroupBySelectorPlus(selectorPlus);
 
@@ -433,12 +435,13 @@ public class GroupByQueryEngineV2
       return new BufferHashGrouper<>(
           Suppliers.ofInstance(buffer),
           keySerde,
-          cursor,
+          cursor.getColumnSelectorFactory(),
           query.getAggregatorSpecs()
                .toArray(new AggregatorFactory[query.getAggregatorSpecs().size()]),
           querySpecificConfig.getBufferGrouperMaxSize(),
           querySpecificConfig.getBufferGrouperMaxLoadFactor(),
-          querySpecificConfig.getBufferGrouperInitialBuckets()
+          querySpecificConfig.getBufferGrouperInitialBuckets(),
+          true
       );
     }
 
@@ -586,7 +589,7 @@ public class GroupByQueryEngineV2
     {
       return new BufferArrayGrouper(
           Suppliers.ofInstance(buffer),
-          cursor,
+          cursor.getColumnSelectorFactory(),
           query.getAggregatorSpecs()
                .toArray(new AggregatorFactory[query.getAggregatorSpecs().size()]),
           cardinality
@@ -728,6 +731,12 @@ public class GroupByQueryEngineV2
     public Class<ByteBuffer> keyClazz()
     {
       return ByteBuffer.class;
+    }
+
+    @Override
+    public List<String> getDictionary()
+    {
+      return ImmutableList.of();
     }
 
     @Override

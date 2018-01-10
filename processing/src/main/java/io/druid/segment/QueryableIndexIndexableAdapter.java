@@ -35,14 +35,13 @@ import io.druid.segment.column.ColumnCapabilities;
 import io.druid.segment.column.ComplexColumn;
 import io.druid.segment.column.DictionaryEncodedColumn;
 import io.druid.segment.column.GenericColumn;
-import io.druid.segment.column.IndexedDoublesGenericColumn;
-import io.druid.segment.column.IndexedFloatsGenericColumn;
-import io.druid.segment.column.IndexedLongsGenericColumn;
+import io.druid.segment.column.DoublesColumn;
+import io.druid.segment.column.FloatsColumn;
+import io.druid.segment.column.LongsColumn;
 import io.druid.segment.column.ValueType;
-import io.druid.segment.data.BitmapCompressedIndexedInts;
-import io.druid.segment.data.EmptyIndexedInts;
+import io.druid.segment.data.ImmutableBitmapValues;
+import io.druid.segment.data.BitmapValues;
 import io.druid.segment.data.Indexed;
-import io.druid.segment.data.IndexedInts;
 import io.druid.segment.data.IndexedIterable;
 import io.druid.segment.data.ListIndexed;
 import org.joda.time.Interval;
@@ -270,11 +269,11 @@ public class QueryableIndexIndexableAdapter implements IndexableAdapter
 
             Object[] metricArray = new Object[numMetrics];
             for (int i = 0; i < metricArray.length; ++i) {
-              if (metrics[i] instanceof IndexedFloatsGenericColumn) {
+              if (metrics[i] instanceof FloatsColumn) {
                 metricArray[i] = ((GenericColumn) metrics[i]).getFloatSingleValueRow(currRow);
-              } else if (metrics[i] instanceof IndexedDoublesGenericColumn) {
+              } else if (metrics[i] instanceof DoublesColumn) {
                 metricArray[i] = ((GenericColumn) metrics[i]).getDoubleSingleValueRow(currRow);
-              } else if (metrics[i] instanceof IndexedLongsGenericColumn) {
+              } else if (metrics[i] instanceof LongsColumn) {
                 metricArray[i] = ((GenericColumn) metrics[i]).getLongSingleValueRow(currRow);
               } else if (metrics[i] instanceof ComplexColumn) {
                 metricArray[i] = ((ComplexColumn) metrics[i]).getRowValue(currRow);
@@ -298,23 +297,6 @@ public class QueryableIndexIndexableAdapter implements IndexableAdapter
         };
       }
     };
-  }
-
-  @VisibleForTesting
-  IndexedInts getBitmapIndex(String dimension, String value)
-  {
-    final Column column = input.getColumn(dimension);
-
-    if (column == null) {
-      return EmptyIndexedInts.EMPTY_INDEXED_INTS;
-    }
-
-    final BitmapIndex bitmaps = column.getBitmapIndex();
-    if (bitmaps == null) {
-      return EmptyIndexedInts.EMPTY_INDEXED_INTS;
-    }
-
-    return new BitmapCompressedIndexedInts(bitmaps.getBitmap(bitmaps.getIndex(value)));
   }
 
   @Override
@@ -347,23 +329,40 @@ public class QueryableIndexIndexableAdapter implements IndexableAdapter
   }
 
   @Override
-  public IndexedInts getBitmapIndex(String dimension, int dictId)
+  public BitmapValues getBitmapValues(String dimension, int dictId)
   {
     final Column column = input.getColumn(dimension);
     if (column == null) {
-      return EmptyIndexedInts.EMPTY_INDEXED_INTS;
+      return BitmapValues.EMPTY;
     }
 
     final BitmapIndex bitmaps = column.getBitmapIndex();
     if (bitmaps == null) {
-      return EmptyIndexedInts.EMPTY_INDEXED_INTS;
+      return BitmapValues.EMPTY;
     }
 
     if (dictId >= 0) {
-      return new BitmapCompressedIndexedInts(bitmaps.getBitmap(dictId));
+      return new ImmutableBitmapValues(bitmaps.getBitmap(dictId));
     } else {
-      return EmptyIndexedInts.EMPTY_INDEXED_INTS;
+      return BitmapValues.EMPTY;
     }
+  }
+
+  @VisibleForTesting
+  BitmapValues getBitmapIndex(String dimension, String value)
+  {
+    final Column column = input.getColumn(dimension);
+
+    if (column == null) {
+      return BitmapValues.EMPTY;
+    }
+
+    final BitmapIndex bitmaps = column.getBitmapIndex();
+    if (bitmaps == null) {
+      return BitmapValues.EMPTY;
+    }
+
+    return new ImmutableBitmapValues(bitmaps.getBitmap(bitmaps.getIndex(value)));
   }
 
   @Override

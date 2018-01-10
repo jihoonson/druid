@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import io.druid.jackson.DefaultObjectMapper;
+import io.druid.java.util.common.Intervals;
 import io.druid.query.CacheStrategy;
 import io.druid.query.TableDataSource;
 import io.druid.query.aggregation.AggregatorFactory;
@@ -35,9 +36,8 @@ import io.druid.query.aggregation.LongSumAggregatorFactory;
 import io.druid.query.metadata.metadata.ColumnAnalysis;
 import io.druid.query.metadata.metadata.SegmentAnalysis;
 import io.druid.query.metadata.metadata.SegmentMetadataQuery;
-import io.druid.query.spec.QuerySegmentSpecs;
+import io.druid.query.spec.LegacySegmentSpec;
 import io.druid.segment.column.ValueType;
-import org.joda.time.Interval;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -50,7 +50,7 @@ public class SegmentMetadataQueryQueryToolChestTest
   {
     SegmentMetadataQuery query = new SegmentMetadataQuery(
         new TableDataSource("dummy"),
-        QuerySegmentSpecs.create("2015-01-01/2015-01-02"),
+        new LegacySegmentSpec("2015-01-01/2015-01-02"),
         null,
         null,
         null,
@@ -69,9 +69,7 @@ public class SegmentMetadataQueryQueryToolChestTest
 
     SegmentAnalysis result = new SegmentAnalysis(
         "testSegment",
-        ImmutableList.of(
-            new Interval("2011-01-12T00:00:00.000Z/2011-04-15T00:00:00.001Z")
-        ),
+        ImmutableList.of(Intervals.of("2011-01-12T00:00:00.000Z/2011-04-15T00:00:00.001Z")),
         ImmutableMap.of(
             "placement",
             new ColumnAnalysis(

@@ -21,10 +21,10 @@ package io.druid.segment;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
+import io.druid.java.util.common.DateTimes;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntRBTreeSet;
 import it.unimi.dsi.fastutil.ints.IntSortedSet;
-import org.joda.time.DateTime;
 
 import java.util.Arrays;
 
@@ -51,7 +51,7 @@ public class Rowboat implements Comparable<Rowboat>
     this.rowNum = rowNum;
     this.handlers = handlers;
 
-    this.comprisedRows = new Int2ObjectOpenHashMap<>();
+    this.comprisedRows = new Int2ObjectOpenHashMap<>(1);
   }
 
   public long getTimestamp()
@@ -132,7 +132,7 @@ public class Rowboat implements Comparable<Rowboat>
   public String toString()
   {
     return "Rowboat{" +
-           "timestamp=" + new DateTime(timestamp).toString() +
+           "timestamp=" + DateTimes.utc(timestamp) +
            ", dims=" + Arrays.deepToString(dims) +
            ", metrics=" + Arrays.toString(metrics) +
            ", comprisedRows=" + comprisedRows +

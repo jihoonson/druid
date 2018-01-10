@@ -22,9 +22,13 @@ package io.druid.query.expression;
 import io.druid.java.util.common.IAE;
 import io.druid.java.util.common.granularity.PeriodGranularity;
 import io.druid.math.expr.Expr;
+import org.joda.time.Chronology;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.Period;
+import org.joda.time.chrono.ISOChronology;
+
+import javax.annotation.Nullable;
 
 public class ExprUtils
 {
@@ -47,8 +51,8 @@ public class ExprUtils
 
   public static PeriodGranularity toPeriodGranularity(
       final Expr periodArg,
-      final Expr originArg,
-      final Expr timeZoneArg,
+      @Nullable final Expr originArg,
+      @Nullable final Expr timeZoneArg,
       final Expr.ObjectBinding bindings
   )
   {
@@ -56,18 +60,19 @@ public class ExprUtils
     final DateTime origin;
     final DateTimeZone timeZone;
 
-    if (originArg == null) {
-      origin = null;
-    } else {
-      final Object value = originArg.eval(bindings).value();
-      origin = value != null ? new DateTime(value) : null;
-    }
-
     if (timeZoneArg == null) {
       timeZone = null;
     } else {
       final String value = timeZoneArg.eval(bindings).asString();
       timeZone = value != null ? DateTimeZone.forID(value) : null;
+    }
+
+    if (originArg == null) {
+      origin = null;
+    } else {
+      Chronology chronology = timeZone == null ? ISOChronology.getInstanceUTC() : ISOChronology.getInstance(timeZone);
+      final Object value = originArg.eval(bindings).value();
+      origin = value != null ? new DateTime(value, chronology) : null;
     }
 
     return new PeriodGranularity(period, origin, timeZone);

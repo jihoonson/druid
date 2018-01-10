@@ -38,7 +38,7 @@ import java.util.Set;
 public class WrappedBitSetBitmapBitSetTest
 {
 
-  private static final WrappedBitSetBitmap defaultBitSet()
+  private static WrappedBitSetBitmap defaultBitSet()
   {
     return new WrappedBitSetBitmap(IntSetTestUtility.createSimpleBitSet(IntSetTestUtility.getSetBits()));
   }
@@ -166,7 +166,6 @@ public class WrappedBitSetBitmapBitSetTest
   public void testSerialize()
   {
     WrappedBitSetBitmap bitSet = defaultBitSet();
-    Set<Integer> defaultBitSet = IntSetTestUtility.getSetBits();
     byte[] buffer = new byte[bitSet.getSizeInBytes()];
     ByteBuffer byteBuffer = ByteBuffer.wrap(buffer);
     bitSet.serialize(byteBuffer);

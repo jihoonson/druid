@@ -116,8 +116,15 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
       String sequenceName,
       String previousSegmentId,
       Interval interval,
-      String maxVersion
+      String maxVersion,
+      boolean skipSegmentLineageCheck
   ) throws IOException
+  {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public int deletePendingSegments(String dataSource, Interval deleteInterval)
   {
     throw new UnsupportedOperationException();
   }

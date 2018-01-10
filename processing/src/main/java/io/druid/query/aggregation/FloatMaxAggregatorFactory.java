@@ -53,19 +53,25 @@ public class FloatMaxAggregatorFactory extends SimpleFloatAggregatorFactory
   @Override
   public Aggregator factorize(ColumnSelectorFactory metricFactory)
   {
-    return new FloatMaxAggregator(getFloatColumnSelector(metricFactory, Float.NEGATIVE_INFINITY));
+    return new FloatMaxAggregator(makeColumnValueSelectorWithFloatDefault(metricFactory, Float.NEGATIVE_INFINITY));
   }
 
   @Override
   public BufferAggregator factorizeBuffered(ColumnSelectorFactory metricFactory)
   {
-    return new FloatMaxBufferAggregator(getFloatColumnSelector(metricFactory, Float.NEGATIVE_INFINITY));
+    return new FloatMaxBufferAggregator(makeColumnValueSelectorWithFloatDefault(metricFactory, Float.NEGATIVE_INFINITY));
   }
 
   @Override
   public Object combine(Object lhs, Object rhs)
   {
     return FloatMaxAggregator.combineValues(finalizeComputation(lhs), finalizeComputation(rhs));
+  }
+
+  @Override
+  public AggregateCombiner makeAggregateCombiner()
+  {
+    return new DoubleMaxAggregateCombiner();
   }
 
   @Override
