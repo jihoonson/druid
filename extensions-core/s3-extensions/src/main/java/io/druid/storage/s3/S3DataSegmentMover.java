@@ -44,7 +44,6 @@ import io.druid.timeline.DataSegment;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.Callable;
 
 public class S3DataSegmentMover implements DataSegmentMover
 {
@@ -121,7 +120,7 @@ public class S3DataSegmentMover implements DataSegmentMover
   {
     try {
       S3Utils.retryS3Operation(
-          (Callable<Void>) () -> {
+          () -> {
             final String copyMsg = StringUtils.format(
                 "[s3://%s/%s] to [s3://%s/%s]",
                 s3Bucket,
@@ -230,7 +229,7 @@ public class S3DataSegmentMover implements DataSegmentMover
   private void deleteWithRetries(final String s3Bucket, final String s3Path) throws Exception
   {
     RetryUtils.retry(
-        (Callable<Void>) () -> {
+        () -> {
           try {
             s3Client.deleteObject(s3Bucket, s3Path);
             return null;

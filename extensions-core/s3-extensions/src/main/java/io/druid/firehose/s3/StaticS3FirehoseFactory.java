@@ -21,12 +21,14 @@ package io.druid.firehose.s3;
 
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import io.druid.data.input.impl.prefetch.PrefetchableTextFilesFirehoseFactory;
 import io.druid.java.util.common.CompressionUtils;
@@ -180,6 +182,19 @@ public class StaticS3FirehoseFactory extends PrefetchableTextFilesFirehoseFactor
   }
 
   @Override
+  protected InputStream openObjectStream(S3ObjectSummary object, long start) throws IOException
+  {
+    final GetObjectRequest request = new GetObjectRequest(object.getBucketName(), object.getKey());
+    request.setRange(start);
+    try {
+      return s3Client.getObject(request).getObjectContent();
+    }
+    catch (AmazonS3Exception e) {
+      throw new IOException(e);
+    }
+  }
+
+  @Override
   protected InputStream wrapObjectStream(S3ObjectSummary object, InputStream stream) throws IOException
   {
     return object.getKey().endsWith(".gz") ? CompressionUtils.gzipInputStream(stream) : stream;
@@ -218,5 +233,11 @@ public class StaticS3FirehoseFactory extends PrefetchableTextFilesFirehoseFactor
         getFetchTimeout(),
         getMaxFetchRetry()
     );
+  }
+
+  @Override
+  protected Predicate<Throwable> getRetryCondition()
+  {
+    return S3Utils.S3RETRY;
   }
 }

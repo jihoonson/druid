@@ -53,7 +53,6 @@ import java.io.Reader;
 import java.io.Writer;
 import java.net.URI;
 import java.util.Map;
-import java.util.concurrent.Callable;
 
 /**
  * A data segment puller that also hanldes URI data pulls.
@@ -363,14 +362,7 @@ public class S3DataSegmentPuller implements DataSegmentPuller, URIDataPuller
   {
     try {
       return S3Utils.retryS3Operation(
-          new Callable<Boolean>()
-          {
-            @Override
-            public Boolean call() throws Exception
-            {
-              return S3Utils.isObjectInBucketIgnoringPermission(s3Client, coords.bucket, coords.path);
-            }
-          }
+          () -> S3Utils.isObjectInBucketIgnoringPermission(s3Client, coords.bucket, coords.path)
       );
     }
     catch (AmazonS3Exception | IOException e) {

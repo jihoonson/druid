@@ -36,7 +36,6 @@ import io.druid.tasklogs.TaskLogs;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.concurrent.Callable;
 
 /**
  * Provides task logs archived on S3.
@@ -113,14 +112,9 @@ public class S3TaskLogs implements TaskLogs
 
     try {
       S3Utils.retryS3Operation(
-          new Callable<Void>()
-          {
-            @Override
-            public Void call() throws Exception
-            {
-              service.putObject(config.getS3Bucket(), taskKey, logFile);
-              return null;
-            }
+          () -> {
+            service.putObject(config.getS3Bucket(), taskKey, logFile);
+            return null;
           }
       );
     }

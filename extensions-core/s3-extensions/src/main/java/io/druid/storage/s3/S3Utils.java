@@ -34,12 +34,12 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.RetryUtils;
+import io.druid.java.util.common.RetryUtils.Task;
 
 import java.io.IOException;
 import java.net.URI;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.concurrent.Callable;
 
 /**
  *
@@ -57,7 +57,7 @@ public class S3Utils
     return isIOException || isTimeout;
   }
 
-  static final Predicate<Throwable> S3RETRY = new Predicate<Throwable>()
+  public static final Predicate<Throwable> S3RETRY = new Predicate<Throwable>()
   {
     @Override
     public boolean apply(Throwable e)
@@ -78,7 +78,7 @@ public class S3Utils
    * Retries S3 operations that fail due to io-related exceptions. Service-level exceptions (access denied, file not
    * found, etc) are not retried.
    */
-  static <T> T retryS3Operation(Callable<T> f) throws Exception
+  public static <T> T retryS3Operation(Task<T> f) throws Exception
   {
     final int maxTries = 10;
     return RetryUtils.retry(f, S3RETRY, maxTries);

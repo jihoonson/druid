@@ -22,8 +22,6 @@ package io.druid.storage.s3;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.transfer.Upload;
-import com.amazonaws.services.s3.transfer.model.UploadResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
@@ -36,15 +34,12 @@ import io.druid.segment.SegmentUtils;
 import io.druid.segment.loading.DataSegmentPusher;
 import io.druid.timeline.DataSegment;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.function.Supplier;
 
 public class S3DataSegmentPusher implements DataSegmentPusher
 {
@@ -90,25 +85,9 @@ public class S3DataSegmentPusher implements DataSegmentPusher
     return ImmutableList.of("druid.s3");
   }
 
-  private void uploadFileAndClear(AmazonS3Client s3Client, String bucket, String key, File file)
-  {
-    final PutObjectRequest indexFilePutRequest = new PutObjectRequest(bucket, key, file);
-
-    if (!config.getDisableAcl()) {
-      indexFilePutRequest.setAccessControlList(
-          S3Utils.grantFullControlToBucketOwver(s3Client, bucket)
-      );
-    }
-
-    log.info("Pushing [%s] to bucket[%s] and key[%s].", file, bucket, key);
-    s3Client.putObject(indexFilePutRequest);
-
-    log.info("Deleting file [%s]", file.getAbsolutePath());
-    file.delete();
-  }
-
   @Override
-  public DataSegment push(final File indexFilesDir, final DataSegment inSegment) throws IOException
+  public DataSegment push(final File indexFilesDir, final DataSegment inSegment, final boolean replaceExisting)
+      throws IOException
   {
     final String s3Path = S3Utils.constructSegmentPath(config.getBaseKey(), getStorageDir(inSegment));
 
@@ -119,31 +98,27 @@ public class S3DataSegmentPusher implements DataSegmentPusher
 
     try {
       return S3Utils.retryS3Operation(
-          new Callable<DataSegment>()
-          {
-            @Override
-            public DataSegment call() throws Exception
-            {
-              final String outputBucket = config.getBucket();
-              final String s3DescriptorPath = S3Utils.descriptorPathForSegmentPath(s3Path);
+          () -> {
+            uploadFileAndClear(s3Client, config.getBucket(), s3Path, zipOutFile, replaceExisting);
 
-              uploadFileAndClear(s3Client, outputBucket, s3Path, zipOutFile);
+            final DataSegment outSegment = inSegment.withSize(indexSize)
+                                                    .withLoadSpec(makeLoadSpec(config.getBucket(), s3Path))
+                                                    .withBinaryVersion(SegmentUtils.getVersionFromDir(indexFilesDir));
 
-              final DataSegment outSegment = inSegment
-                  .withSize(indexSize)
-                  .withLoadSpec(makeLoadSpec(outputBucket, s3Path))
-                  .withBinaryVersion(SegmentUtils.getVersionFromDir(indexFilesDir));
+            File descriptorFile = File.createTempFile("druid", "descriptor.json");
+            // Avoid using Guava in DataSegmentPushers because they might be used with very diverse Guava versions in
+            // runtime, and because Guava deletes methods over time, that causes incompatibilities.
+            Files.write(descriptorFile.toPath(), jsonMapper.writeValueAsBytes(outSegment));
 
-              File descriptorFile = File.createTempFile("druid", "descriptor.json");
-              // Avoid using Guava in DataSegmentPushers because they might be used with very diverse Guava
-              // versions in runtime, and because Guava deletes methods over time, that causes
-              // incompatibilities.
-              Files.write(descriptorFile.toPath(), jsonMapper.writeValueAsBytes(outSegment));
+            uploadFileAndClear(
+                s3Client,
+                config.getBucket(),
+                S3Utils.descriptorPathForSegmentPath(s3Path),
+                descriptorFile,
+                replaceExisting
+            );
 
-              uploadFileAndClear(s3Client, outputBucket, s3DescriptorPath, descriptorFile);
-
-              return outSegment;
-            }
+            return outSegment;
           }
       );
     }
@@ -164,7 +139,6 @@ public class S3DataSegmentPusher implements DataSegmentPusher
 
   /**
    * Any change in loadSpec need to be reflected {@link io.druid.indexer.JobHelper#getURIFromSegment()}
-   *
    */
   @SuppressWarnings("JavadocReference")
   private Map<String, Object> makeLoadSpec(String bucket, String key)
@@ -181,58 +155,25 @@ public class S3DataSegmentPusher implements DataSegmentPusher
     );
   }
 
-  private static class ToUpload implements Closeable
+  private void uploadFileAndClear(AmazonS3Client s3Client, String bucket, String key, File file, boolean replaceExisting)
   {
-    private final Supplier<File> fileSupplier;
-    private final String bucket;
-    private final String key;
+    final PutObjectRequest indexFilePutRequest = new PutObjectRequest(bucket, key, file);
 
-    private File file;
-
-    ToUpload(Supplier<File> fileSupplier, String bucket, String key)
-    {
-      this.fileSupplier = fileSupplier;
-      this.bucket = bucket;
-      this.key = key;
+    if (!config.getDisableAcl()) {
+      indexFilePutRequest.setAccessControlList(
+          S3Utils.grantFullControlToBucketOwver(s3Client, bucket)
+      );
     }
 
-    File getFile()
-    {
-      if (file == null) {
-        file = fileSupplier.get();
-      }
-      return file;
+    // TODO: maybe the below check can be moved out to the caller
+    if (!replaceExisting && S3Utils.isObjectInBucketIgnoringPermission(s3Client, bucket, key)) {
+      log.info("Skipping push because key [%s] exists && replaceExisting == false", key);
+    } else {
+      log.info("Pushing [%s] to bucket[%s] and key[%s].", file, bucket, key);
+      s3Client.putObject(indexFilePutRequest);
     }
 
-    @Override
-    public void close()
-    {
-      if (file != null) {
-        file.delete();
-      }
-    }
-  }
-
-  private static class Uploading implements Closeable
-  {
-    private final ToUpload toUpload;
-    private final Upload upload;
-
-    Uploading(ToUpload toUpload, Upload upload)
-    {
-      this.toUpload = toUpload;
-      this.upload = upload;
-    }
-
-    UploadResult waitForCompletion() throws InterruptedException
-    {
-      return upload.waitForUploadResult();
-    }
-
-    @Override
-    public void close()
-    {
-      toUpload.close();
-    }
+    log.info("Deleting file [%s]", file.getAbsolutePath());
+    file.delete();
   }
 }

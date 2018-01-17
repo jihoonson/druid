@@ -30,7 +30,6 @@ import io.druid.java.util.common.StringUtils;
 import javax.annotation.Nullable;
 import java.net.URI;
 import java.util.Iterator;
-import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 
 /**
@@ -65,40 +64,35 @@ public class S3TimestampVersionedDataFinder extends S3DataSegmentPuller implemen
   {
     try {
       return RetryUtils.retry(
-          new Callable<URI>()
-          {
-            @Override
-            public URI call() throws Exception
-            {
-              final S3Coords coords = new S3Coords(checkURI(uri));
-              long mostRecent = Long.MIN_VALUE;
-              URI latest = null;
-              final Iterator<S3ObjectSummary> objectSummaryIterator = S3Utils.objectSummaryIterator(
-                  s3Client,
-                  coords.bucket,
-                  coords.path,
-                  MAX_LISTING_KEYS
-              );
-              while (objectSummaryIterator.hasNext()) {
-                final S3ObjectSummary objectSummary = objectSummaryIterator.next();
-                // TODO: what is going on here?
-                String keyString = objectSummary.getKey().substring(coords.path.length());
-                if (keyString.startsWith("/")) {
-                  keyString = keyString.substring(1);
-                }
-                if (pattern != null && !pattern.matcher(keyString).matches()) {
-                  continue;
-                }
-                final long latestModified = objectSummary.getLastModified().getTime();
-                if (latestModified >= mostRecent) {
-                  mostRecent = latestModified;
-                  latest = new URI(
-                      StringUtils.format("s3://%s/%s", objectSummary.getBucketName(), objectSummary.getKey())
-                  );
-                }
+          () -> {
+            final S3Coords coords = new S3Coords(checkURI(uri));
+            long mostRecent = Long.MIN_VALUE;
+            URI latest = null;
+            final Iterator<S3ObjectSummary> objectSummaryIterator = S3Utils.objectSummaryIterator(
+                s3Client,
+                coords.bucket,
+                coords.path,
+                MAX_LISTING_KEYS
+            );
+            while (objectSummaryIterator.hasNext()) {
+              final S3ObjectSummary objectSummary = objectSummaryIterator.next();
+              // TODO: what is going on here?
+              String keyString = objectSummary.getKey().substring(coords.path.length());
+              if (keyString.startsWith("/")) {
+                keyString = keyString.substring(1);
               }
-              return latest;
+              if (pattern != null && !pattern.matcher(keyString).matches()) {
+                continue;
+              }
+              final long latestModified = objectSummary.getLastModified().getTime();
+              if (latestModified >= mostRecent) {
+                mostRecent = latestModified;
+                latest = new URI(
+                    StringUtils.format("s3://%s/%s", objectSummary.getBucketName(), objectSummary.getKey())
+                );
+              }
             }
+            return latest;
           },
           shouldRetryPredicate(),
           DEFAULT_RETRY_COUNT
