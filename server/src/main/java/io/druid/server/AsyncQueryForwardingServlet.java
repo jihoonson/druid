@@ -19,6 +19,7 @@
 
 package io.druid.server;
 
+import com.amazonaws.thirdparty.apache.http.client.utils.URIBuilder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.jaxrs.smile.SmileMediaTypes;
@@ -26,14 +27,14 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
-import com.metamx.emitter.EmittingLogger;
-import com.metamx.emitter.service.ServiceEmitter;
 import io.druid.client.selector.Server;
 import io.druid.guice.annotations.Json;
 import io.druid.guice.annotations.Smile;
 import io.druid.guice.http.DruidHttpClientConfig;
 import io.druid.java.util.common.DateTimes;
 import io.druid.java.util.common.IAE;
+import io.druid.java.util.emitter.EmittingLogger;
+import io.druid.java.util.emitter.service.ServiceEmitter;
 import io.druid.query.DruidMetrics;
 import io.druid.query.GenericQueryMetricsFactory;
 import io.druid.query.Query;
@@ -57,11 +58,10 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response.Status;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URLDecoder;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -200,7 +200,7 @@ public class AsyncQueryForwardingServlet extends AsyncProxyServlet implements Qu
       request.setAttribute(AVATICA_QUERY_ATTRIBUTE, requestBytes);
     } else if (isQueryEndpoint && HttpMethod.DELETE.is(request.getMethod())) {
       // query cancellation request
-      for (final Server server: hostFinder.getAllServers()) {
+      for (final Server server : hostFinder.getAllServers()) {
         // send query cancellation to all brokers this query may have gone to
         // to keep the code simple, the proxy servlet will also send a request to one of the default brokers
         if (!server.getHost().equals(defaultServer.getHost())) {
@@ -331,15 +331,15 @@ public class AsyncQueryForwardingServlet extends AsyncProxyServlet implements Qu
   protected static URI makeURI(String scheme, String host, String requestURI, String rawQueryString)
   {
     try {
-      return new URI(
-          scheme,
-          host,
-          requestURI,
-          rawQueryString == null ? null : URLDecoder.decode(rawQueryString, "UTF-8"),
-          null
-      );
+      return new URIBuilder()
+          .setScheme(scheme)
+          .setHost(host)
+          .setPath(requestURI)
+          // No need to encode-decode queryString, it is already encoded
+          .setQuery(rawQueryString)
+          .build();
     }
-    catch (UnsupportedEncodingException | URISyntaxException e) {
+    catch (URISyntaxException e) {
       log.error(e, "Unable to rewrite URI [%s]", e.getMessage());
       throw Throwables.propagate(e);
     }
@@ -446,13 +446,11 @@ public class AsyncQueryForwardingServlet extends AsyncProxyServlet implements Qu
                         TimeUnit.NANOSECONDS.toMillis(requestTimeNs),
                         "success",
                         success
-                        && result.getResponse().getStatus() == javax.ws.rs.core.Response.Status.OK.getStatusCode()
+                        && result.getResponse().getStatus() == Status.OK.getStatusCode()
                     )
                 )
             )
         );
-
-
       }
       catch (Exception e) {
         log.error(e, "Unable to log query [%s]!", query);

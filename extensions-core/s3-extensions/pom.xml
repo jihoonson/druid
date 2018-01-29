@@ -45,7 +45,6 @@
             <version>${project.parent.version}</version>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk-s3</artifactId>
@@ -57,11 +56,12 @@
                 <!--</exclusion>-->
             <!--</exclusions>-->
         </dependency>
-        <dependency>
-            <groupId>com.metamx</groupId>
-            <artifactId>java-util</artifactId>
-            <scope>provided</scope>
-        </dependency>
+      <dependency>
+        <groupId>io.druid</groupId>
+        <artifactId>java-util</artifactId>
+        <version>${project.parent.version}</version>
+        <scope>provided</scope>
+      </dependency>
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
