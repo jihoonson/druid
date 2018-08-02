@@ -31,7 +31,7 @@ matrix:
       install: echo "MAVEN_OPTS='-Xmx3000m'" > ~/.mavenrc && mvn install -q -ff -DskipTests -B
       before_script:
         - unset _JAVA_OPTIONS
-      script: echo "MAVEN_OPTS='-Xmx1024m'" > ~/.mavenrc && mvn test -B -pl processing
+      script: echo "MAVEN_OPTS='-Xmx2048m'" > ~/.mavenrc && mvn test -B -pl processing
 
       # processing module tests with SQL Compatibility enabled
     - sudo: false
@@ -40,7 +40,7 @@ matrix:
       install: echo "MAVEN_OPTS='-Xmx3000m'" > ~/.mavenrc && mvn install -q -ff -DskipTests -B
       before_script:
         - unset _JAVA_OPTIONS
-      script: echo "MAVEN_OPTS='-Xmx1024m'" > ~/.mavenrc && mvn test -B -Ddruid.generic.useDefaultValueForNull=false -pl processing
+      script: echo "MAVEN_OPTS='-Xmx2048m'" > ~/.mavenrc && mvn test -B -Ddruid.generic.useDefaultValueForNull=false -pl processing
 
       # server module test
     - sudo: false
