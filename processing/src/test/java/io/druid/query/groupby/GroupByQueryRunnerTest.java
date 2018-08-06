@@ -31,8 +31,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.MoreExecutors;
-import io.druid.collections.BlockingPool;
-import io.druid.collections.DefaultBlockingPool;
+import io.druid.collections.CloseableBlockingPool;
 import io.druid.collections.NonBlockingPool;
 import io.druid.collections.StupidPool;
 import io.druid.common.config.NullHandling;
@@ -41,6 +40,7 @@ import io.druid.java.util.common.DateTimes;
 import io.druid.java.util.common.IAE;
 import io.druid.java.util.common.ISE;
 import io.druid.java.util.common.Intervals;
+import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.StringUtils;
 import io.druid.java.util.common.granularity.DurationGranularity;
 import io.druid.java.util.common.granularity.Granularities;
@@ -48,6 +48,7 @@ import io.druid.java.util.common.granularity.PeriodGranularity;
 import io.druid.java.util.common.guava.MergeSequence;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.java.util.common.guava.Sequences;
+import io.druid.java.util.common.io.Closer;
 import io.druid.js.JavaScriptConfig;
 import io.druid.query.BySegmentResultValue;
 import io.druid.query.BySegmentResultValueClass;
@@ -127,6 +128,7 @@ import io.druid.segment.virtual.ExpressionVirtualColumn;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.Period;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -135,6 +137,7 @@ import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -182,8 +185,9 @@ public class GroupByQueryRunnerTest
   };
 
   private final QueryRunner<Row> runner;
-  private GroupByQueryRunnerFactory factory;
-  private GroupByQueryConfig config;
+  private final GroupByQueryRunnerFactory factory;
+  private final GroupByQueryConfig config;
+  private final Closer resourceCloser;
 
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
@@ -324,14 +328,14 @@ public class GroupByQueryRunnerTest
     );
   }
 
-  public static GroupByQueryRunnerFactory makeQueryRunnerFactory(
+  public static Pair<GroupByQueryRunnerFactory, Closer> makeQueryRunnerFactory(
       final GroupByQueryConfig config
   )
   {
     return makeQueryRunnerFactory(DEFAULT_MAPPER, config, DEFAULT_PROCESSING_CONFIG);
   }
 
-  public static GroupByQueryRunnerFactory makeQueryRunnerFactory(
+  public static Pair<GroupByQueryRunnerFactory, Closer> makeQueryRunnerFactory(
       final ObjectMapper mapper,
       final GroupByQueryConfig config
   )
@@ -339,7 +343,7 @@ public class GroupByQueryRunnerTest
     return makeQueryRunnerFactory(mapper, config, DEFAULT_PROCESSING_CONFIG);
   }
 
-  public static GroupByQueryRunnerFactory makeQueryRunnerFactory(
+  public static Pair<GroupByQueryRunnerFactory, Closer> makeQueryRunnerFactory(
       final ObjectMapper mapper,
       final GroupByQueryConfig config,
       final DruidProcessingConfig processingConfig
@@ -357,7 +361,7 @@ public class GroupByQueryRunnerTest
           }
         }
     );
-    final BlockingPool<ByteBuffer> mergeBufferPool = new DefaultBlockingPool<>(
+    final CloseableBlockingPool<ByteBuffer> mergeBufferPool = new CloseableBlockingPool<>(
         new Supplier<ByteBuffer>()
         {
           @Override
@@ -389,9 +393,14 @@ public class GroupByQueryRunnerTest
         strategySelector,
         QueryRunnerTestHelper.sameThreadIntervalChunkingQueryRunnerDecorator()
     );
-    return new GroupByQueryRunnerFactory(
-        strategySelector,
-        toolChest
+    final Closer closer = Closer.create();
+    closer.register(mergeBufferPool);
+    return Pair.of(
+        new GroupByQueryRunnerFactory(
+            strategySelector,
+            toolChest
+        ),
+        closer
     );
   }
 
@@ -400,14 +409,16 @@ public class GroupByQueryRunnerTest
   {
     final List<Object[]> constructors = Lists.newArrayList();
     for (GroupByQueryConfig config : testConfigs()) {
-      final GroupByQueryRunnerFactory factory = makeQueryRunnerFactory(config);
+      final Pair<GroupByQueryRunnerFactory, Closer> factoryAndCloser = makeQueryRunnerFactory(config);
+      final GroupByQueryRunnerFactory factory = factoryAndCloser.lhs;
+      final Closer resourceCloser = factoryAndCloser.rhs;
       for (QueryRunner<Row> runner : QueryRunnerTestHelper.makeQueryRunners(factory)) {
         final String testName = StringUtils.format(
             "config=%s, runner=%s",
             config.toString(),
             runner.toString()
         );
-        constructors.add(new Object[]{testName, config, factory, runner});
+        constructors.add(new Object[]{testName, config, factory, runner, resourceCloser});
       }
     }
 
@@ -415,12 +426,23 @@ public class GroupByQueryRunnerTest
   }
 
   public GroupByQueryRunnerTest(
-      String testName, GroupByQueryConfig config, GroupByQueryRunnerFactory factory, QueryRunner runner
+      String testName,
+      GroupByQueryConfig config,
+      GroupByQueryRunnerFactory factory,
+      QueryRunner runner,
+      Closer resourceCloser
   )
   {
     this.config = config;
     this.factory = factory;
     this.runner = factory.mergeRunners(MoreExecutors.sameThreadExecutor(), ImmutableList.of(runner));
+    this.resourceCloser = resourceCloser;
+  }
+
+  @After
+  public void teardown() throws IOException
+  {
+    resourceCloser.close();
   }
 
   @Test

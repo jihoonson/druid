@@ -41,6 +41,8 @@ import io.druid.data.input.impl.TimeAndDimsParseSpec;
 import io.druid.data.input.impl.TimestampSpec;
 import io.druid.guice.ExpressionModule;
 import io.druid.guice.annotations.Json;
+import io.druid.java.util.common.Pair;
+import io.druid.java.util.common.io.Closer;
 import io.druid.java.util.emitter.core.NoopEmitter;
 import io.druid.java.util.emitter.service.ServiceEmitter;
 import io.druid.math.expr.ExprMacroTable;
@@ -62,6 +64,7 @@ import io.druid.query.expression.LookupEnabledTestExprMacroTable;
 import io.druid.query.expression.LookupExprMacro;
 import io.druid.query.groupby.GroupByQuery;
 import io.druid.query.groupby.GroupByQueryConfig;
+import io.druid.query.groupby.GroupByQueryRunnerFactory;
 import io.druid.query.groupby.GroupByQueryRunnerTest;
 import io.druid.query.groupby.strategy.GroupByStrategySelector;
 import io.druid.query.lookup.LookupReferencesManager;
@@ -118,8 +121,10 @@ import io.druid.timeline.DataSegment;
 import io.druid.timeline.partition.LinearShardSpec;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
+import org.junit.AfterClass;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -234,6 +239,43 @@ public class CalciteTests
       }
   );
 
+  private static final Pair<GroupByQueryRunnerFactory, Closer> FACTORY_CLOSER_PAIR = GroupByQueryRunnerTest
+      .makeQueryRunnerFactory(
+          GroupByQueryRunnerTest.DEFAULT_MAPPER,
+          new GroupByQueryConfig()
+          {
+            @Override
+            public String getDefaultStrategy()
+            {
+              return GroupByStrategySelector.STRATEGY_V2;
+            }
+          },
+          new DruidProcessingConfig()
+          {
+            @Override
+            public String getFormatString()
+            {
+              return null;
+            }
+
+            @Override
+            public int intermediateComputeSizeBytes()
+            {
+              return 10 * 1024 * 1024;
+            }
+
+            @Override
+            public int getNumMergeBuffers()
+            {
+              // Need 3 buffers for CalciteQueryTest.testDoubleNestedGroupby.
+              // Two buffers for the broker and one for the queryable
+              return 3;
+            }
+          }
+      );
+  private static final GroupByQueryRunnerFactory FACTORY = FACTORY_CLOSER_PAIR.lhs;
+  private static final Closer RESOURCE_CLOSER = FACTORY_CLOSER_PAIR.rhs;
+
   private static final QueryRunnerFactoryConglomerate CONGLOMERATE = new DefaultQueryRunnerFactoryConglomerate(
       ImmutableMap.<Class<? extends Query>, QueryRunnerFactory>builder()
           .put(
@@ -298,42 +340,7 @@ public class CalciteTests
                   QueryRunnerTestHelper.NOOP_QUERYWATCHER
               )
           )
-          .put(
-              GroupByQuery.class,
-              GroupByQueryRunnerTest.makeQueryRunnerFactory(
-                  GroupByQueryRunnerTest.DEFAULT_MAPPER,
-                  new GroupByQueryConfig()
-                  {
-                    @Override
-                    public String getDefaultStrategy()
-                    {
-                      return GroupByStrategySelector.STRATEGY_V2;
-                    }
-                  },
-                  new DruidProcessingConfig()
-                  {
-                    @Override
-                    public String getFormatString()
-                    {
-                      return null;
-                    }
-
-                    @Override
-                    public int intermediateComputeSizeBytes()
-                    {
-                      return 10 * 1024 * 1024;
-                    }
-
-                    @Override
-                    public int getNumMergeBuffers()
-                    {
-                      // Need 3 buffers for CalciteQueryTest.testDoubleNestedGroupby.
-                      // Two buffers for the broker and one for the queryable
-                      return 3;
-                    }
-                  }
-              )
-          )
+          .put(GroupByQuery.class, FACTORY)
           .build()
   );
 
@@ -388,6 +395,12 @@ public class CalciteTests
   public static final List<InputRow> FORBIDDEN_ROWS = ImmutableList.of(
       createRow("2000-01-01", "forbidden", "abcd", 9999.0)
   );
+
+  @AfterClass
+  public static void teardown() throws IOException
+  {
+    RESOURCE_CLOSER.close();
+  }
 
   private CalciteTests()
   {

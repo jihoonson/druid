@@ -22,7 +22,9 @@ package io.druid.query.aggregation.histogram;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import io.druid.data.input.Row;
+import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.StringUtils;
+import io.druid.java.util.common.io.Closer;
 import io.druid.query.QueryRunner;
 import io.druid.query.QueryRunnerTestHelper;
 import io.druid.query.dimension.DefaultDimensionSpec;
@@ -35,10 +37,12 @@ import io.druid.query.groupby.orderby.DefaultLimitSpec;
 import io.druid.query.groupby.orderby.OrderByColumnSpec;
 import io.druid.query.groupby.strategy.GroupByStrategySelector;
 import io.druid.segment.TestHelper;
+import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -48,7 +52,8 @@ import java.util.List;
 public class ApproximateHistogramGroupByQueryTest
 {
   private final QueryRunner<Row> runner;
-  private GroupByQueryRunnerFactory factory;
+  private final GroupByQueryRunnerFactory factory;
+  private final Closer resourceCloser;
 
   @Parameterized.Parameters(name = "{0}")
   public static Iterable<Object[]> constructorFeeder()
@@ -113,7 +118,11 @@ public class ApproximateHistogramGroupByQueryTest
     );
 
     for (GroupByQueryConfig config : configs) {
-      final GroupByQueryRunnerFactory factory = GroupByQueryRunnerTest.makeQueryRunnerFactory(config);
+      final Pair<GroupByQueryRunnerFactory, Closer> factoryAndCloser = GroupByQueryRunnerTest.makeQueryRunnerFactory(
+          config
+      );
+      final GroupByQueryRunnerFactory factory = factoryAndCloser.lhs;
+      final Closer closer = factoryAndCloser.rhs;
       for (QueryRunner<Row> runner : QueryRunnerTestHelper.makeQueryRunners(factory)) {
         final String testName = StringUtils.format(
             "config=%s, runner=%s",
@@ -127,13 +136,25 @@ public class ApproximateHistogramGroupByQueryTest
     return constructors;
   }
 
-  public ApproximateHistogramGroupByQueryTest(String testName, GroupByQueryRunnerFactory factory, QueryRunner runner)
+  public ApproximateHistogramGroupByQueryTest(
+      String testName,
+      GroupByQueryRunnerFactory factory,
+      QueryRunner runner,
+      Closer resourceCloser
+  )
   {
     this.factory = factory;
     this.runner = runner;
+    this.resourceCloser = resourceCloser;
 
     //Note: this is needed in order to properly register the serde for Histogram.
     new ApproximateHistogramDruidModule().configure(null);
+  }
+
+  @After
+  public void teardown() throws IOException
+  {
+    resourceCloser.close();
   }
 
   @Test

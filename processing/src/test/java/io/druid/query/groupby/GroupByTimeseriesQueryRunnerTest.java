@@ -26,10 +26,12 @@ import com.google.common.util.concurrent.MoreExecutors;
 import io.druid.data.input.MapBasedRow;
 import io.druid.data.input.Row;
 import io.druid.java.util.common.DateTimes;
+import io.druid.java.util.common.Pair;
 import io.druid.java.util.common.StringUtils;
 import io.druid.java.util.common.granularity.Granularities;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.java.util.common.guava.Sequences;
+import io.druid.java.util.common.io.Closer;
 import io.druid.query.Druids;
 import io.druid.query.FinalizeResultsQueryRunner;
 import io.druid.query.QueryPlus;
@@ -43,12 +45,14 @@ import io.druid.query.timeseries.TimeseriesQuery;
 import io.druid.query.timeseries.TimeseriesQueryRunnerTest;
 import io.druid.query.timeseries.TimeseriesResultValue;
 import org.joda.time.DateTime;
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -56,20 +60,36 @@ import java.util.Map;
 @RunWith(Parameterized.class)
 public class GroupByTimeseriesQueryRunnerTest extends TimeseriesQueryRunnerTest
 {
+  private static GroupByQueryRunnerFactory factory;
+  private static Closer resourceCloser;
+
+  @BeforeClass
+  public void setup()
+  {
+    GroupByQueryConfig config = new GroupByQueryConfig();
+    config.setMaxIntermediateRows(10000);
+    final Pair<GroupByQueryRunnerFactory, Closer> factoryAndCloser = GroupByQueryRunnerTest.makeQueryRunnerFactory(
+        config
+    );
+    factory = factoryAndCloser.lhs;
+    resourceCloser = factoryAndCloser.rhs;
+  }
+
+  @AfterClass
+  public void teardown() throws IOException
+  {
+    resourceCloser.close();
+  }
+
   @SuppressWarnings("unchecked")
   @Parameterized.Parameters(name = "{0}")
   public static Iterable<Object[]> constructorFeeder()
   {
-    GroupByQueryConfig config = new GroupByQueryConfig();
-    config.setMaxIntermediateRows(10000);
-
-    final GroupByQueryRunnerFactory factory = GroupByQueryRunnerTest.makeQueryRunnerFactory(config);
     return QueryRunnerTestHelper.transformToConstructionFeeder(
         Lists.transform(
             QueryRunnerTestHelper.makeQueryRunners(factory),
             new Function<QueryRunner<Row>, Object>()
             {
-              @Nullable
               @Override
               public Object apply(final QueryRunner<Row> input)
               {
@@ -110,7 +130,7 @@ public class GroupByTimeseriesQueryRunnerTest extends TimeseriesQueryRunnerTest
                           {
                             MapBasedRow row = (MapBasedRow) input;
 
-                            return new Result<TimeseriesResultValue>(
+                            return new Result<>(
                                 row.getTimestamp(), new TimeseriesResultValue(row.getEvent())
                             );
                           }
