@@ -147,7 +147,7 @@ public class IncrementalIndexTest
                       .buildOffheap(stupidPool);
                 }
               },
-              stupidPool
+              poolCloser
           }
       );
     }
