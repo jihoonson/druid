@@ -64,7 +64,7 @@ public class GroupByTimeseriesQueryRunnerTest extends TimeseriesQueryRunnerTest
   private static Closer resourceCloser;
 
   @BeforeClass
-  public void setup()
+  public static void setup()
   {
     GroupByQueryConfig config = new GroupByQueryConfig();
     config.setMaxIntermediateRows(10000);
@@ -76,7 +76,7 @@ public class GroupByTimeseriesQueryRunnerTest extends TimeseriesQueryRunnerTest
   }
 
   @AfterClass
-  public void teardown() throws IOException
+  public static void teardown() throws IOException
   {
     resourceCloser.close();
   }
