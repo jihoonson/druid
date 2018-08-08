@@ -26,7 +26,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
-import io.druid.collections.CloseableBlockingPool;
+import io.druid.collections.CloseableDefaultBlockingPool;
 import io.druid.collections.NonBlockingPool;
 import io.druid.collections.ReferenceCountingResourceHolder;
 import io.druid.collections.StupidPool;
@@ -139,7 +139,7 @@ public class GroupByQueryRunnerFailureTest
     );
   }
 
-  private static CloseableBlockingPool<ByteBuffer> mergeBufferPool;
+  private static CloseableDefaultBlockingPool<ByteBuffer> mergeBufferPool;
 
   private static final GroupByQueryRunnerFactory factory = makeQueryRunnerFactory(
       GroupByQueryRunnerTest.DEFAULT_MAPPER,
@@ -158,7 +158,7 @@ public class GroupByQueryRunnerFailureTest
   @BeforeClass
   public static void setupClass()
   {
-    mergeBufferPool = new CloseableBlockingPool<>(
+    mergeBufferPool = new CloseableDefaultBlockingPool<>(
         new Supplier<ByteBuffer>()
         {
           @Override

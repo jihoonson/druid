@@ -28,9 +28,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.io.Files;
 import com.google.common.util.concurrent.ListenableFuture;
-import io.druid.collections.CloseableBlockingPool;
-import io.druid.collections.NonBlockingPool;
-import io.druid.collections.StupidPool;
+import io.druid.collections.CloseableDefaultBlockingPool;
+import io.druid.collections.CloseableStupidPool;
 import io.druid.data.input.InputRow;
 import io.druid.data.input.MapBasedInputRow;
 import io.druid.data.input.Row;
@@ -211,7 +210,7 @@ public class GroupByMultiSegmentTest
   {
     executorService = Execs.multiThreaded(2, "GroupByThreadPool[%d]");
 
-    NonBlockingPool<ByteBuffer> bufferPool = new StupidPool<>(
+    final CloseableStupidPool<ByteBuffer> bufferPool = new CloseableStupidPool<>(
         "GroupByBenchmark-computeBufferPool",
         new OffheapBufferGenerator("compute", 10_000_000),
         0,
@@ -219,10 +218,12 @@ public class GroupByMultiSegmentTest
     );
 
     // limit of 2 is required since we simulate both historical merge and broker merge in the same process
-    final CloseableBlockingPool<ByteBuffer> mergePool = new CloseableBlockingPool<>(
+    final CloseableDefaultBlockingPool<ByteBuffer> mergePool = new CloseableDefaultBlockingPool<>(
         new OffheapBufferGenerator("merge", 10_000_000),
         2
     );
+
+    resourceCloser.register(bufferPool);
     resourceCloser.register(mergePool);
     final GroupByQueryConfig config = new GroupByQueryConfig()
     {

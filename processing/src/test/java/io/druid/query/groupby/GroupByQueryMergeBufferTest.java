@@ -26,7 +26,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
-import io.druid.collections.CloseableBlockingPool;
+import io.druid.collections.CloseableDefaultBlockingPool;
 import io.druid.collections.NonBlockingPool;
 import io.druid.collections.ReferenceCountingResourceHolder;
 import io.druid.collections.StupidPool;
@@ -61,7 +61,7 @@ import static org.junit.Assert.assertEquals;
 public class GroupByQueryMergeBufferTest
 {
   private static final long TIMEOUT = 5000;
-  private static class TestBlockingPool extends CloseableBlockingPool<ByteBuffer>
+  private static class TestBlockingPool extends CloseableDefaultBlockingPool<ByteBuffer>
   {
     private int minRemainBufferNum;
 

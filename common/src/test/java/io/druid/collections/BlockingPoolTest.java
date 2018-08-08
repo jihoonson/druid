@@ -43,8 +43,8 @@ public class BlockingPoolTest
 {
   private ExecutorService service;
 
-  private CloseableBlockingPool<Integer> pool;
-  private CloseableBlockingPool<Integer> emptyPool;
+  private CloseableDefaultBlockingPool<Integer> pool;
+  private CloseableDefaultBlockingPool<Integer> emptyPool;
 
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
@@ -53,8 +53,8 @@ public class BlockingPoolTest
   public void setup()
   {
     service = Execs.multiThreaded(2, "blocking-pool-test");
-    pool = new CloseableBlockingPool<>(Suppliers.ofInstance(1), 10);
-    emptyPool = new CloseableBlockingPool<>(Suppliers.ofInstance(1), 0);
+    pool = new CloseableDefaultBlockingPool<>(Suppliers.ofInstance(1), 10);
+    emptyPool = new CloseableDefaultBlockingPool<>(Suppliers.ofInstance(1), 0);
   }
 
   @After

@@ -22,9 +22,9 @@ import com.google.common.base.Supplier;
 
 import java.io.Closeable;
 
-public class CloseableBlockingPool<T> extends DefaultBlockingPool<T> implements Closeable
+public class CloseableDefaultBlockingPool<T> extends DefaultBlockingPool<T> implements Closeable
 {
-  public CloseableBlockingPool(Supplier<T> generator, int limit)
+  public CloseableDefaultBlockingPool(Supplier<T> generator, int limit)
   {
     super(generator, limit);
   }

@@ -31,7 +31,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.MoreExecutors;
-import io.druid.collections.CloseableBlockingPool;
+import io.druid.collections.CloseableDefaultBlockingPool;
 import io.druid.collections.NonBlockingPool;
 import io.druid.collections.StupidPool;
 import io.druid.common.config.NullHandling;
@@ -362,7 +362,7 @@ public class GroupByQueryRunnerTest
           }
         }
     );
-    final CloseableBlockingPool<ByteBuffer> mergeBufferPool = new CloseableBlockingPool<>(
+    final CloseableDefaultBlockingPool<ByteBuffer> mergeBufferPool = new CloseableDefaultBlockingPool<>(
         new Supplier<ByteBuffer>()
         {
           @Override
