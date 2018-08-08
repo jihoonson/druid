@@ -30,8 +30,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.io.Files;
 import com.google.common.util.concurrent.ListenableFuture;
-import io.druid.collections.BlockingPool;
-import io.druid.collections.DefaultBlockingPool;
+import io.druid.collections.CloseableBlockingPool;
 import io.druid.collections.NonBlockingPool;
 import io.druid.collections.StupidPool;
 import io.druid.data.input.InputRow;
@@ -47,6 +46,7 @@ import io.druid.java.util.common.granularity.Granularities;
 import io.druid.java.util.common.granularity.PeriodGranularity;
 import io.druid.java.util.common.guava.Sequence;
 import io.druid.java.util.common.guava.Sequences;
+import io.druid.java.util.common.io.Closer;
 import io.druid.java.util.common.logger.Logger;
 import io.druid.math.expr.ExprMacroTable;
 import io.druid.query.BySegmentQueryRunner;
@@ -107,15 +107,18 @@ import java.util.function.Function;
 
 public class GroupByLimitPushDownMultiNodeMergeTest
 {
+  public static final ObjectMapper JSON_MAPPER;
+
   private static final IndexMergerV9 INDEX_MERGER_V9;
   private static final IndexIO INDEX_IO;
-  public static final ObjectMapper JSON_MAPPER;
+
   private File tmpDir;
   private QueryRunnerFactory<Row, GroupByQuery> groupByFactory;
   private QueryRunnerFactory<Row, GroupByQuery> groupByFactory2;
   private List<IncrementalIndex> incrementalIndices = Lists.newArrayList();
   private List<QueryableIndex> groupByIndices = Lists.newArrayList();
   private ExecutorService executorService;
+  private Closer resourceCloser;
 
   static {
     JSON_MAPPER = new DefaultObjectMapper();
@@ -314,6 +317,7 @@ public class GroupByLimitPushDownMultiNodeMergeTest
     QueryableIndex qindexD = INDEX_IO.loadIndex(fileD);
 
     groupByIndices = Arrays.asList(qindexA, qindexB, qindexC, qindexD);
+    resourceCloser = Closer.create();
     setupGroupByFactory();
   }
 
@@ -329,15 +333,17 @@ public class GroupByLimitPushDownMultiNodeMergeTest
     );
 
     // limit of 2 is required since we simulate both historical merge and broker merge in the same process
-    BlockingPool<ByteBuffer> mergePool = new DefaultBlockingPool<>(
+    final CloseableBlockingPool<ByteBuffer> mergePool = new CloseableBlockingPool<>(
         new OffheapBufferGenerator("merge", 10_000_000),
         2
     );
     // limit of 2 is required since we simulate both historical merge and broker merge in the same process
-    BlockingPool<ByteBuffer> mergePool2 = new DefaultBlockingPool<>(
+    final CloseableBlockingPool<ByteBuffer> mergePool2 = new CloseableBlockingPool<>(
         new OffheapBufferGenerator("merge", 10_000_000),
         2
     );
+    resourceCloser.register(mergePool);
+    resourceCloser.register(mergePool2);
 
     final GroupByQueryConfig config = new GroupByQueryConfig()
     {
@@ -443,6 +449,8 @@ public class GroupByLimitPushDownMultiNodeMergeTest
     for (QueryableIndex queryableIndex : groupByIndices) {
       queryableIndex.close();
     }
+
+    resourceCloser.close();
 
     if (tmpDir != null) {
       FileUtils.deleteDirectory(tmpDir);

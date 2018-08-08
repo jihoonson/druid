@@ -26,8 +26,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
-import io.druid.collections.BlockingPool;
-import io.druid.collections.DefaultBlockingPool;
+import io.druid.collections.CloseableBlockingPool;
 import io.druid.collections.NonBlockingPool;
 import io.druid.collections.ReferenceCountingResourceHolder;
 import io.druid.collections.StupidPool;
@@ -47,6 +46,8 @@ import io.druid.query.groupby.strategy.GroupByStrategySelector;
 import io.druid.query.groupby.strategy.GroupByStrategyV1;
 import io.druid.query.groupby.strategy.GroupByStrategyV2;
 import org.hamcrest.CoreMatchers;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -138,17 +139,7 @@ public class GroupByQueryRunnerFailureTest
     );
   }
 
-  private static final BlockingPool<ByteBuffer> mergeBufferPool = new DefaultBlockingPool<>(
-      new Supplier<ByteBuffer>()
-      {
-        @Override
-        public ByteBuffer get()
-        {
-          return ByteBuffer.allocateDirect(DEFAULT_PROCESSING_CONFIG.intermediateComputeSizeBytes());
-        }
-      },
-      DEFAULT_PROCESSING_CONFIG.getNumMergeBuffers()
-  );
+  private static CloseableBlockingPool<ByteBuffer> mergeBufferPool;
 
   private static final GroupByQueryRunnerFactory factory = makeQueryRunnerFactory(
       GroupByQueryRunnerTest.DEFAULT_MAPPER,
@@ -163,6 +154,28 @@ public class GroupByQueryRunnerFailureTest
   );
 
   private QueryRunner<Row> runner;
+
+  @BeforeClass
+  public static void setupClass()
+  {
+    mergeBufferPool = new CloseableBlockingPool<>(
+        new Supplier<ByteBuffer>()
+        {
+          @Override
+          public ByteBuffer get()
+          {
+            return ByteBuffer.allocateDirect(DEFAULT_PROCESSING_CONFIG.intermediateComputeSizeBytes());
+          }
+        },
+        DEFAULT_PROCESSING_CONFIG.getNumMergeBuffers()
+    );
+  }
+
+  @AfterClass
+  public static void teardownClass()
+  {
+    mergeBufferPool.close();
+  }
 
   @Parameters(name = "{0}")
   public static Collection<Object[]> constructorFeeder()

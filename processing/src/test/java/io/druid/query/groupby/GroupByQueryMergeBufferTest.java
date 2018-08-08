@@ -26,7 +26,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
-import io.druid.collections.DefaultBlockingPool;
+import io.druid.collections.CloseableBlockingPool;
 import io.druid.collections.NonBlockingPool;
 import io.druid.collections.ReferenceCountingResourceHolder;
 import io.druid.collections.StupidPool;
@@ -42,7 +42,9 @@ import io.druid.query.dimension.DefaultDimensionSpec;
 import io.druid.query.groupby.strategy.GroupByStrategySelector;
 import io.druid.query.groupby.strategy.GroupByStrategyV1;
 import io.druid.query.groupby.strategy.GroupByStrategyV2;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -59,7 +61,7 @@ import static org.junit.Assert.assertEquals;
 public class GroupByQueryMergeBufferTest
 {
   private static final long TIMEOUT = 5000;
-  private static class TestBlockingPool extends DefaultBlockingPool<ByteBuffer>
+  private static class TestBlockingPool extends CloseableBlockingPool<ByteBuffer>
   {
     private int minRemainBufferNum;
 
@@ -174,17 +176,7 @@ public class GroupByQueryMergeBufferTest
     );
   }
 
-  private static final TestBlockingPool mergeBufferPool = new TestBlockingPool(
-      new Supplier<ByteBuffer>()
-      {
-        @Override
-        public ByteBuffer get()
-        {
-          return ByteBuffer.allocateDirect(PROCESSING_CONFIG.intermediateComputeSizeBytes());
-        }
-      },
-      PROCESSING_CONFIG.getNumMergeBuffers()
-  );
+  private static TestBlockingPool mergeBufferPool;
 
   private static final GroupByQueryRunnerFactory factory = makeQueryRunnerFactory(
       GroupByQueryRunnerTest.DEFAULT_MAPPER,
@@ -199,6 +191,28 @@ public class GroupByQueryMergeBufferTest
   );
 
   private QueryRunner<Row> runner;
+
+  @BeforeClass
+  public static void setupClass()
+  {
+    mergeBufferPool = new TestBlockingPool(
+        new Supplier<ByteBuffer>()
+        {
+          @Override
+          public ByteBuffer get()
+          {
+            return ByteBuffer.allocateDirect(PROCESSING_CONFIG.intermediateComputeSizeBytes());
+          }
+        },
+        PROCESSING_CONFIG.getNumMergeBuffers()
+    );
+  }
+
+  @AfterClass
+  public static void teardownClass()
+  {
+    mergeBufferPool.close();
+  }
 
   @Parameters(name = "{0}")
   public static Collection<Object[]> constructorFeeder()

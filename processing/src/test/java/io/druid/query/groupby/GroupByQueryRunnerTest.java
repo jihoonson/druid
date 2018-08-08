@@ -128,7 +128,7 @@ import io.druid.segment.virtual.ExpressionVirtualColumn;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.Period;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -184,10 +184,11 @@ public class GroupByQueryRunnerTest
     }
   };
 
+  private static final Closer resourceCloser = Closer.create();
+
   private final QueryRunner<Row> runner;
   private final GroupByQueryRunnerFactory factory;
   private final GroupByQueryConfig config;
-  private final Closer resourceCloser;
 
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
@@ -404,6 +405,12 @@ public class GroupByQueryRunnerTest
     );
   }
 
+  @AfterClass
+  public static void teardown() throws IOException
+  {
+    resourceCloser.close();
+  }
+
   @Parameterized.Parameters(name = "{0}")
   public static Collection<?> constructorFeeder()
   {
@@ -411,14 +418,14 @@ public class GroupByQueryRunnerTest
     for (GroupByQueryConfig config : testConfigs()) {
       final Pair<GroupByQueryRunnerFactory, Closer> factoryAndCloser = makeQueryRunnerFactory(config);
       final GroupByQueryRunnerFactory factory = factoryAndCloser.lhs;
-      final Closer resourceCloser = factoryAndCloser.rhs;
+      resourceCloser.register(factoryAndCloser.rhs);
       for (QueryRunner<Row> runner : QueryRunnerTestHelper.makeQueryRunners(factory)) {
         final String testName = StringUtils.format(
             "config=%s, runner=%s",
             config.toString(),
             runner.toString()
         );
-        constructors.add(new Object[]{testName, config, factory, runner, resourceCloser});
+        constructors.add(new Object[]{testName, config, factory, runner});
       }
     }
 
@@ -429,20 +436,12 @@ public class GroupByQueryRunnerTest
       String testName,
       GroupByQueryConfig config,
       GroupByQueryRunnerFactory factory,
-      QueryRunner runner,
-      Closer resourceCloser
+      QueryRunner runner
   )
   {
     this.config = config;
     this.factory = factory;
     this.runner = factory.mergeRunners(MoreExecutors.sameThreadExecutor(), ImmutableList.of(runner));
-    this.resourceCloser = resourceCloser;
-  }
-
-  @After
-  public void teardown() throws IOException
-  {
-    resourceCloser.close();
   }
 
   @Test

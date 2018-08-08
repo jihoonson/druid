@@ -67,6 +67,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -143,6 +144,12 @@ public class MultiValuedDimensionTest
               .persist(incrementalIndex, persistedSegmentDir, new IndexSpec(), null);
 
     queryableIndex = TestHelper.getTestIndexIO(segmentWriteOutMediumFactory).loadIndex(persistedSegmentDir);
+  }
+
+  @After
+  public void teardown() throws IOException
+  {
+    helper.close();
   }
 
   @Test

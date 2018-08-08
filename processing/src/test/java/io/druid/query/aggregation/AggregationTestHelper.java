@@ -139,7 +139,7 @@ public class AggregationTestHelper implements Closeable
     }
   }
 
-  public static final AggregationTestHelper createGroupByQueryAggregationTestHelper(
+  public static AggregationTestHelper createGroupByQueryAggregationTestHelper(
       List<? extends Module> jsonModulesToRegister,
       GroupByQueryConfig config,
       TemporaryFolder tempFolder
@@ -178,7 +178,7 @@ public class AggregationTestHelper implements Closeable
     );
   }
 
-  public static final AggregationTestHelper createSelectQueryAggregationTestHelper(
+  public static AggregationTestHelper createSelectQueryAggregationTestHelper(
       List<? extends Module> jsonModulesToRegister,
       TemporaryFolder tempFolder
   )
@@ -235,7 +235,7 @@ public class AggregationTestHelper implements Closeable
     );
   }
 
-  public static final AggregationTestHelper createTimeseriesQueryAggregationTestHelper(
+  public static AggregationTestHelper createTimeseriesQueryAggregationTestHelper(
       List<? extends Module> jsonModulesToRegister,
       TemporaryFolder tempFolder
   )
@@ -277,7 +277,7 @@ public class AggregationTestHelper implements Closeable
     );
   }
 
-  public static final AggregationTestHelper createTopNQueryAggregationTestHelper(
+  public static AggregationTestHelper createTopNQueryAggregationTestHelper(
       List<? extends Module> jsonModulesToRegister,
       TemporaryFolder tempFolder
   )

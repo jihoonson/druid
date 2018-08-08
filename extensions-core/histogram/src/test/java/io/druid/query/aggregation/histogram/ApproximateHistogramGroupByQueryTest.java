@@ -51,9 +51,10 @@ import java.util.List;
 @RunWith(Parameterized.class)
 public class ApproximateHistogramGroupByQueryTest
 {
+  private static final Closer resourceCloser = Closer.create();
+
   private final QueryRunner<Row> runner;
   private final GroupByQueryRunnerFactory factory;
-  private final Closer resourceCloser;
 
   @Parameterized.Parameters(name = "{0}")
   public static Iterable<Object[]> constructorFeeder()
@@ -122,7 +123,7 @@ public class ApproximateHistogramGroupByQueryTest
           config
       );
       final GroupByQueryRunnerFactory factory = factoryAndCloser.lhs;
-      final Closer closer = factoryAndCloser.rhs;
+      resourceCloser.register(factoryAndCloser.rhs);
       for (QueryRunner<Row> runner : QueryRunnerTestHelper.makeQueryRunners(factory)) {
         final String testName = StringUtils.format(
             "config=%s, runner=%s",
@@ -139,13 +140,11 @@ public class ApproximateHistogramGroupByQueryTest
   public ApproximateHistogramGroupByQueryTest(
       String testName,
       GroupByQueryRunnerFactory factory,
-      QueryRunner runner,
-      Closer resourceCloser
+      QueryRunner runner
   )
   {
     this.factory = factory;
     this.runner = runner;
-    this.resourceCloser = resourceCloser;
 
     //Note: this is needed in order to properly register the serde for Histogram.
     new ApproximateHistogramDruidModule().configure(null);
