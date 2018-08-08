@@ -32,7 +32,7 @@ import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Key;
 import com.google.inject.Module;
-import io.druid.collections.StupidPool;
+import io.druid.collections.CloseableStupidPool;
 import io.druid.data.input.InputRow;
 import io.druid.data.input.impl.DimensionsSpec;
 import io.druid.data.input.impl.InputRowParser;
@@ -121,10 +121,8 @@ import io.druid.timeline.DataSegment;
 import io.druid.timeline.partition.LinearShardSpec;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
-import org.junit.AfterClass;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -239,111 +237,6 @@ public class CalciteTests
       }
   );
 
-  private static final Pair<GroupByQueryRunnerFactory, Closer> FACTORY_CLOSER_PAIR = GroupByQueryRunnerTest
-      .makeQueryRunnerFactory(
-          GroupByQueryRunnerTest.DEFAULT_MAPPER,
-          new GroupByQueryConfig()
-          {
-            @Override
-            public String getDefaultStrategy()
-            {
-              return GroupByStrategySelector.STRATEGY_V2;
-            }
-          },
-          new DruidProcessingConfig()
-          {
-            @Override
-            public String getFormatString()
-            {
-              return null;
-            }
-
-            @Override
-            public int intermediateComputeSizeBytes()
-            {
-              return 10 * 1024 * 1024;
-            }
-
-            @Override
-            public int getNumMergeBuffers()
-            {
-              // Need 3 buffers for CalciteQueryTest.testDoubleNestedGroupby.
-              // Two buffers for the broker and one for the queryable
-              return 3;
-            }
-          }
-      );
-  private static final GroupByQueryRunnerFactory FACTORY = FACTORY_CLOSER_PAIR.lhs;
-  private static final Closer RESOURCE_CLOSER = FACTORY_CLOSER_PAIR.rhs;
-
-  private static final QueryRunnerFactoryConglomerate CONGLOMERATE = new DefaultQueryRunnerFactoryConglomerate(
-      ImmutableMap.<Class<? extends Query>, QueryRunnerFactory>builder()
-          .put(
-              SegmentMetadataQuery.class,
-              new SegmentMetadataQueryRunnerFactory(
-                  new SegmentMetadataQueryQueryToolChest(
-                      new SegmentMetadataQueryConfig("P1W")
-                  ),
-                  QueryRunnerTestHelper.NOOP_QUERYWATCHER
-              )
-          )
-          .put(
-              ScanQuery.class,
-              new ScanQueryRunnerFactory(
-                  new ScanQueryQueryToolChest(
-                      new ScanQueryConfig(),
-                      new DefaultGenericQueryMetricsFactory(TestHelper.makeJsonMapper())
-                  ),
-                  new ScanQueryEngine()
-              )
-          )
-          .put(
-              SelectQuery.class,
-              new SelectQueryRunnerFactory(
-                  new SelectQueryQueryToolChest(
-                      TestHelper.makeJsonMapper(),
-                      QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator(),
-                      SELECT_CONFIG_SUPPLIER
-                  ),
-                  new SelectQueryEngine(),
-                  QueryRunnerTestHelper.NOOP_QUERYWATCHER
-              )
-          )
-          .put(
-              TimeseriesQuery.class,
-              new TimeseriesQueryRunnerFactory(
-                  new TimeseriesQueryQueryToolChest(
-                      QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator()
-                  ),
-                  new TimeseriesQueryEngine(),
-                  QueryRunnerTestHelper.NOOP_QUERYWATCHER
-              )
-          )
-          .put(
-              TopNQuery.class,
-              new TopNQueryRunnerFactory(
-                  new StupidPool<>(
-                      "TopNQueryRunnerFactory-bufferPool",
-                      new Supplier<ByteBuffer>()
-                      {
-                        @Override
-                        public ByteBuffer get()
-                        {
-                          return ByteBuffer.allocate(10 * 1024 * 1024);
-                        }
-                      }
-                  ),
-                  new TopNQueryQueryToolChest(
-                      new TopNQueryConfig(),
-                      QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator()
-                  ),
-                  QueryRunnerTestHelper.NOOP_QUERYWATCHER
-              )
-          )
-          .put(GroupByQuery.class, FACTORY)
-          .build()
-  );
-
   private static final InputRowParser<Map<String, Object>> PARSER = new MapInputRowParser(
       new TimeAndDimsParseSpec(
           new TimestampSpec(TIMESTAMP_COLUMN, "iso", null),
@@ -396,23 +289,131 @@ public class CalciteTests
       createRow("2000-01-01", "forbidden", "abcd", 9999.0)
   );
 
-  @AfterClass
-  public static void teardown() throws IOException
-  {
-    RESOURCE_CLOSER.close();
-  }
-
   private CalciteTests()
   {
     // No instantiation.
   }
 
-  public static QueryRunnerFactoryConglomerate queryRunnerFactoryConglomerate()
+  /**
+   * Returns a new {@link QueryRunnerFactoryConglomerate} and a {@link Closer} which should be closed at the end of the
+   * test.
+   */
+  public static Pair<QueryRunnerFactoryConglomerate, Closer> createQueryRunnerFactoryConglomerate()
   {
-    return CONGLOMERATE;
+    final Closer resourceCloser = Closer.create();
+    final CloseableStupidPool<ByteBuffer> stupidPool = new CloseableStupidPool<>(
+        "TopNQueryRunnerFactory-bufferPool",
+        new Supplier<ByteBuffer>()
+        {
+          @Override
+          public ByteBuffer get()
+          {
+            return ByteBuffer.allocate(10 * 1024 * 1024);
+          }
+        }
+    );
+    resourceCloser.register(stupidPool);
+    final Pair<GroupByQueryRunnerFactory, Closer> factoryCloserPair = GroupByQueryRunnerTest
+        .makeQueryRunnerFactory(
+            GroupByQueryRunnerTest.DEFAULT_MAPPER,
+            new GroupByQueryConfig()
+            {
+              @Override
+              public String getDefaultStrategy()
+              {
+                return GroupByStrategySelector.STRATEGY_V2;
+              }
+            },
+            new DruidProcessingConfig()
+            {
+              @Override
+              public String getFormatString()
+              {
+                return null;
+              }
+
+              @Override
+              public int intermediateComputeSizeBytes()
+              {
+                return 10 * 1024 * 1024;
+              }
+
+              @Override
+              public int getNumMergeBuffers()
+              {
+                // Need 3 buffers for CalciteQueryTest.testDoubleNestedGroupby.
+                // Two buffers for the broker and one for the queryable
+                return 3;
+              }
+            }
+        );
+    final GroupByQueryRunnerFactory factory = factoryCloserPair.lhs;
+    resourceCloser.register(factoryCloserPair.rhs);
+
+    final QueryRunnerFactoryConglomerate conglomerate = new DefaultQueryRunnerFactoryConglomerate(
+        ImmutableMap.<Class<? extends Query>, QueryRunnerFactory>builder()
+            .put(
+                SegmentMetadataQuery.class,
+                new SegmentMetadataQueryRunnerFactory(
+                    new SegmentMetadataQueryQueryToolChest(
+                        new SegmentMetadataQueryConfig("P1W")
+                    ),
+                    QueryRunnerTestHelper.NOOP_QUERYWATCHER
+                )
+            )
+            .put(
+                ScanQuery.class,
+                new ScanQueryRunnerFactory(
+                    new ScanQueryQueryToolChest(
+                        new ScanQueryConfig(),
+                        new DefaultGenericQueryMetricsFactory(TestHelper.makeJsonMapper())
+                    ),
+                    new ScanQueryEngine()
+                )
+            )
+            .put(
+                SelectQuery.class,
+                new SelectQueryRunnerFactory(
+                    new SelectQueryQueryToolChest(
+                        TestHelper.makeJsonMapper(),
+                        QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator(),
+                        SELECT_CONFIG_SUPPLIER
+                    ),
+                    new SelectQueryEngine(),
+                    QueryRunnerTestHelper.NOOP_QUERYWATCHER
+                )
+            )
+            .put(
+                TimeseriesQuery.class,
+                new TimeseriesQueryRunnerFactory(
+                    new TimeseriesQueryQueryToolChest(
+                        QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator()
+                    ),
+                    new TimeseriesQueryEngine(),
+                    QueryRunnerTestHelper.NOOP_QUERYWATCHER
+                )
+            )
+            .put(
+                TopNQuery.class,
+                new TopNQueryRunnerFactory(
+                    stupidPool,
+                    new TopNQueryQueryToolChest(
+                        new TopNQueryConfig(),
+                        QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator()
+                    ),
+                    QueryRunnerTestHelper.NOOP_QUERYWATCHER
+                )
+            )
+            .put(GroupByQuery.class, factory)
+            .build()
+    );
+    return Pair.of(conglomerate, resourceCloser);
   }
 
-  public static QueryLifecycleFactory createMockQueryLifecycleFactory(final QuerySegmentWalker walker)
+  public static QueryLifecycleFactory createMockQueryLifecycleFactory(
+      final QuerySegmentWalker walker,
+      final QueryRunnerFactoryConglomerate conglomerate
+  )
   {
     return new QueryLifecycleFactory(
         new QueryToolChestWarehouse()
@@ -420,7 +421,7 @@ public class CalciteTests
           @Override
           public <T, QueryType extends Query<T>> QueryToolChest<T, QueryType> getToolChest(final QueryType query)
           {
-            return CONGLOMERATE.findFactory(query).getToolchest();
+            return conglomerate.findFactory(query).getToolchest();
           }
         },
         walker,
@@ -437,7 +438,10 @@ public class CalciteTests
     return INJECTOR.getInstance(Key.get(ObjectMapper.class, Json.class));
   }
 
-  public static SpecificSegmentsQuerySegmentWalker createMockWalker(final File tmpDir)
+  public static SpecificSegmentsQuerySegmentWalker createMockWalker(
+      final QueryRunnerFactoryConglomerate conglomerate,
+      final File tmpDir
+  )
   {
     final QueryableIndex index1 = IndexBuilder
         .create()
@@ -463,7 +467,7 @@ public class CalciteTests
         .rows(FORBIDDEN_ROWS)
         .buildMMappedIndex();
 
-    return new SpecificSegmentsQuerySegmentWalker(queryRunnerFactoryConglomerate()).add(
+    return new SpecificSegmentsQuerySegmentWalker(conglomerate).add(
         DataSegment.builder()
                    .dataSource(DATASOURCE1)
                    .interval(index1.getDataInterval())
@@ -513,21 +517,23 @@ public class CalciteTests
   }
 
   public static DruidSchema createMockSchema(
+      final QueryRunnerFactoryConglomerate conglomerate,
       final SpecificSegmentsQuerySegmentWalker walker,
       final PlannerConfig plannerConfig
   )
   {
-    return createMockSchema(walker, plannerConfig, new NoopViewManager());
+    return createMockSchema(conglomerate, walker, plannerConfig, new NoopViewManager());
   }
 
   public static DruidSchema createMockSchema(
+      final QueryRunnerFactoryConglomerate conglomerate,
       final SpecificSegmentsQuerySegmentWalker walker,
       final PlannerConfig plannerConfig,
       final ViewManager viewManager
   )
   {
     final DruidSchema schema = new DruidSchema(
-        CalciteTests.createMockQueryLifecycleFactory(walker),
+        CalciteTests.createMockQueryLifecycleFactory(walker, conglomerate),
         new TestServerInventoryView(walker.getSegments()),
         plannerConfig,
         viewManager,

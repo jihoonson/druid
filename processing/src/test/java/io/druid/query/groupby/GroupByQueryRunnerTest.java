@@ -32,8 +32,7 @@ import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.MoreExecutors;
 import io.druid.collections.CloseableDefaultBlockingPool;
-import io.druid.collections.NonBlockingPool;
-import io.druid.collections.StupidPool;
+import io.druid.collections.CloseableStupidPool;
 import io.druid.common.config.NullHandling;
 import io.druid.data.input.Row;
 import io.druid.java.util.common.DateTimes;
@@ -351,7 +350,7 @@ public class GroupByQueryRunnerTest
   )
   {
     final Supplier<GroupByQueryConfig> configSupplier = Suppliers.ofInstance(config);
-    final NonBlockingPool<ByteBuffer> bufferPool = new StupidPool<>(
+    final CloseableStupidPool<ByteBuffer> bufferPool = new CloseableStupidPool<>(
         "GroupByQueryEngine-bufferPool",
         new Supplier<ByteBuffer>()
         {
@@ -395,6 +394,7 @@ public class GroupByQueryRunnerTest
         QueryRunnerTestHelper.sameThreadIntervalChunkingQueryRunnerDecorator()
     );
     final Closer closer = Closer.create();
+    closer.register(bufferPool);
     closer.register(mergeBufferPool);
     return Pair.of(
         new GroupByQueryRunnerFactory(

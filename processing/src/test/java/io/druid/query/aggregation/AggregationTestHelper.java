@@ -34,7 +34,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.io.Closeables;
 import com.google.common.util.concurrent.MoreExecutors;
-import io.druid.collections.StupidPool;
+import io.druid.collections.CloseableStupidPool;
 import io.druid.data.input.InputRow;
 import io.druid.data.input.Row;
 import io.druid.data.input.impl.InputRowParser;
@@ -289,18 +289,20 @@ public class AggregationTestHelper implements Closeable
         QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator()
     );
 
+    final CloseableStupidPool<ByteBuffer> pool = new CloseableStupidPool<>(
+        "TopNQueryRunnerFactory-bufferPool",
+        new Supplier<ByteBuffer>()
+        {
+          @Override
+          public ByteBuffer get()
+          {
+            return ByteBuffer.allocate(10 * 1024 * 1024);
+          }
+        }
+    );
+    final Closer resourceCloser = Closer.create();
     TopNQueryRunnerFactory factory = new TopNQueryRunnerFactory(
-        new StupidPool<>(
-            "TopNQueryRunnerFactory-bufferPool",
-            new Supplier<ByteBuffer>()
-            {
-              @Override
-              public ByteBuffer get()
-              {
-                return ByteBuffer.allocate(10 * 1024 * 1024);
-              }
-            }
-        ),
+        pool,
         toolchest,
         QueryRunnerTestHelper.NOOP_QUERYWATCHER
     );
@@ -326,7 +328,7 @@ public class AggregationTestHelper implements Closeable
         factory,
         tempFolder,
         jsonModulesToRegister,
-        Closer.create()
+        resourceCloser
     );
   }
 
