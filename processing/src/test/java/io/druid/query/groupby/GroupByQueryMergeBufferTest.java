@@ -44,7 +44,6 @@ import io.druid.query.groupby.strategy.GroupByStrategyV1;
 import io.druid.query.groupby.strategy.GroupByStrategyV2;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -176,7 +175,17 @@ public class GroupByQueryMergeBufferTest
     );
   }
 
-  private static TestBlockingPool mergeBufferPool;
+  private static final TestBlockingPool mergeBufferPool = new TestBlockingPool(
+      new Supplier<ByteBuffer>()
+      {
+        @Override
+        public ByteBuffer get()
+        {
+          return ByteBuffer.allocateDirect(PROCESSING_CONFIG.intermediateComputeSizeBytes());
+        }
+      },
+      PROCESSING_CONFIG.getNumMergeBuffers()
+  );
 
   private static final GroupByQueryRunnerFactory factory = makeQueryRunnerFactory(
       GroupByQueryRunnerTest.DEFAULT_MAPPER,
@@ -191,22 +200,6 @@ public class GroupByQueryMergeBufferTest
   );
 
   private QueryRunner<Row> runner;
-
-  @BeforeClass
-  public static void setupClass()
-  {
-    mergeBufferPool = new TestBlockingPool(
-        new Supplier<ByteBuffer>()
-        {
-          @Override
-          public ByteBuffer get()
-          {
-            return ByteBuffer.allocateDirect(PROCESSING_CONFIG.intermediateComputeSizeBytes());
-          }
-        },
-        PROCESSING_CONFIG.getNumMergeBuffers()
-    );
-  }
 
   @AfterClass
   public static void teardownClass()

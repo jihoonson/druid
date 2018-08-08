@@ -47,7 +47,6 @@ import io.druid.query.groupby.strategy.GroupByStrategyV1;
 import io.druid.query.groupby.strategy.GroupByStrategyV2;
 import org.hamcrest.CoreMatchers;
 import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -139,7 +138,17 @@ public class GroupByQueryRunnerFailureTest
     );
   }
 
-  private static CloseableDefaultBlockingPool<ByteBuffer> mergeBufferPool;
+  private static final CloseableDefaultBlockingPool<ByteBuffer> mergeBufferPool = new CloseableDefaultBlockingPool<>(
+      new Supplier<ByteBuffer>()
+      {
+        @Override
+        public ByteBuffer get()
+        {
+          return ByteBuffer.allocateDirect(DEFAULT_PROCESSING_CONFIG.intermediateComputeSizeBytes());
+        }
+      },
+      DEFAULT_PROCESSING_CONFIG.getNumMergeBuffers()
+  );
 
   private static final GroupByQueryRunnerFactory factory = makeQueryRunnerFactory(
       GroupByQueryRunnerTest.DEFAULT_MAPPER,
@@ -154,22 +163,6 @@ public class GroupByQueryRunnerFailureTest
   );
 
   private QueryRunner<Row> runner;
-
-  @BeforeClass
-  public static void setupClass()
-  {
-    mergeBufferPool = new CloseableDefaultBlockingPool<>(
-        new Supplier<ByteBuffer>()
-        {
-          @Override
-          public ByteBuffer get()
-          {
-            return ByteBuffer.allocateDirect(DEFAULT_PROCESSING_CONFIG.intermediateComputeSizeBytes());
-          }
-        },
-        DEFAULT_PROCESSING_CONFIG.getNumMergeBuffers()
-    );
-  }
 
   @AfterClass
   public static void teardownClass()
