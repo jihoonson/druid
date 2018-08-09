@@ -55,7 +55,6 @@ matrix:
       install: echo "MAVEN_OPTS='-Xmx3000m'" > ~/.mavenrc && mvn install -q -ff -DskipTests -B
       before_script:
         - unset _JAVA_OPTIONS
-      # Server module test is run without the parallel-test option because it's memory sensitive and often fails with that option.
       script: echo "MAVEN_OPTS='-Xmx512m'" > ~/.mavenrc && mvn test -B -pl server
 
       # server module test with SQL Compatibility enabled
@@ -65,7 +64,6 @@ matrix:
       install: echo "MAVEN_OPTS='-Xmx3000m'" > ~/.mavenrc && mvn install -q -ff -DskipTests -B
       before_script:
         - unset _JAVA_OPTIONS
-      # Server module test is run without the parallel-test option because it's memory sensitive and often fails with that option.
       script: echo "MAVEN_OPTS='-Xmx512m'" > ~/.mavenrc && mvn test -B -pl server -Ddruid.generic.useDefaultValueForNull=false
 
 
