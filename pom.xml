@@ -1016,7 +1016,7 @@
                     <configuration>
                         <!-- locale settings must be set on the command line before startup -->
                         <!-- set heap size to work around https://github.com/travis-ci/travis-ci/issues/3396 -->
-                        <argLine>-Xmx2048m -Duser.language=en -Duser.GroupByQueryRunnerTest.javacountry=US -Dfile.encoding=UTF-8
+                        <argLine>-Xmx1024m -Duser.language=en -Duser.GroupByQueryRunnerTest.javacountry=US -Dfile.encoding=UTF-8
                             -Duser.timezone=UTC -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
                             <!--@TODO After fixing https://github.com/druid-io/druid/issues/4964 remove this parameter-->
                             -Ddruid.indexing.doubleStorage=double
