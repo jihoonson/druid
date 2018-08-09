@@ -154,7 +154,7 @@ import java.util.concurrent.Executors;
 public class GroupByQueryRunnerTest
 {
   public static final ObjectMapper DEFAULT_MAPPER = TestHelper.makeSmileMapper();
-  public static final DruidProcessingConfig DEFAULT_PROCESSING_CONFIG = new DruidProcessingConfig()
+  private static final DruidProcessingConfig DEFAULT_PROCESSING_CONFIG = new DruidProcessingConfig()
   {
     @Override
     public String getFormatString()
