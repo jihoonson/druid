@@ -117,7 +117,7 @@ public class TopNQueryRunnerTest
   private static final Closer resourceCloser = Closer.create();
 
   @AfterClass
-  public void teardown() throws IOException
+  public static void teardown() throws IOException
   {
     resourceCloser.close();
   }

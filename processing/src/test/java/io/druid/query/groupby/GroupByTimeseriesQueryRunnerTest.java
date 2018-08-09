@@ -47,7 +47,6 @@ import io.druid.query.timeseries.TimeseriesResultValue;
 import org.joda.time.DateTime;
 import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -60,20 +59,7 @@ import java.util.Map;
 @RunWith(Parameterized.class)
 public class GroupByTimeseriesQueryRunnerTest extends TimeseriesQueryRunnerTest
 {
-  private static GroupByQueryRunnerFactory factory;
-  private static Closer resourceCloser;
-
-  @BeforeClass
-  public static void setup()
-  {
-    GroupByQueryConfig config = new GroupByQueryConfig();
-    config.setMaxIntermediateRows(10000);
-    final Pair<GroupByQueryRunnerFactory, Closer> factoryAndCloser = GroupByQueryRunnerTest.makeQueryRunnerFactory(
-        config
-    );
-    factory = factoryAndCloser.lhs;
-    resourceCloser = factoryAndCloser.rhs;
-  }
+  private static final Closer resourceCloser = Closer.create();
 
   @AfterClass
   public static void teardown() throws IOException
@@ -85,6 +71,13 @@ public class GroupByTimeseriesQueryRunnerTest extends TimeseriesQueryRunnerTest
   @Parameterized.Parameters(name = "{0}")
   public static Iterable<Object[]> constructorFeeder()
   {
+    GroupByQueryConfig config = new GroupByQueryConfig();
+    config.setMaxIntermediateRows(10000);
+    final Pair<GroupByQueryRunnerFactory, Closer> factoryAndCloser = GroupByQueryRunnerTest.makeQueryRunnerFactory(
+        config
+    );
+    final GroupByQueryRunnerFactory factory = factoryAndCloser.lhs;
+    resourceCloser.register(factoryAndCloser.rhs);
     return QueryRunnerTestHelper.transformToConstructionFeeder(
         Lists.transform(
             QueryRunnerTestHelper.makeQueryRunners(factory),
