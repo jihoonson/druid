@@ -127,7 +127,7 @@ import io.druid.segment.virtual.ExpressionVirtualColumn;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.Period;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -136,7 +136,6 @@ import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -184,10 +183,11 @@ public class GroupByQueryRunnerTest
     }
   };
 
+  private static final Closer resourceCloser = Closer.create();
+
   private final QueryRunner<Row> runner;
   private final GroupByQueryRunnerFactory factory;
   private final GroupByQueryConfig config;
-  private final Closeable resourceCloser;
 
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
@@ -412,35 +412,22 @@ public class GroupByQueryRunnerTest
     for (GroupByQueryConfig config : testConfigs()) {
       final Pair<GroupByQueryRunnerFactory, Closer> factoryAndCloser = makeQueryRunnerFactory(config);
       final GroupByQueryRunnerFactory factory = factoryAndCloser.lhs;
-      final Closer resourceCloser = factoryAndCloser.rhs;
-      final List<QueryRunner<Row>> queryRunners = QueryRunnerTestHelper.makeQueryRunners(factory);
-      final Closeable closer = new Closeable()
-      {
-        private int i = queryRunners.size();
-
-        @Override
-        public void close() throws IOException
-        {
-          if (--i == 0) {
-            resourceCloser.close();
-          }
-        }
-      };
-      for (QueryRunner<Row> runner : queryRunners) {
+      resourceCloser.register(factoryAndCloser.rhs);
+      for (QueryRunner<Row> runner : QueryRunnerTestHelper.makeQueryRunners(factory)) {
         final String testName = StringUtils.format(
             "config=%s, runner=%s",
             config.toString(),
             runner.toString()
         );
-        constructors.add(new Object[]{testName, config, factory, runner, closer});
+        constructors.add(new Object[]{testName, config, factory, runner});
       }
     }
 
     return constructors;
   }
 
-  @After
-  public void teardown() throws IOException
+  @AfterClass
+  public static void teardown() throws IOException
   {
     resourceCloser.close();
   }
@@ -449,14 +436,12 @@ public class GroupByQueryRunnerTest
       String testName,
       GroupByQueryConfig config,
       GroupByQueryRunnerFactory factory,
-      QueryRunner runner,
-      Closeable resourceCloser
+      QueryRunner runner
   )
   {
     this.config = config;
     this.factory = factory;
     this.runner = factory.mergeRunners(MoreExecutors.sameThreadExecutor(), ImmutableList.of(runner));
-    this.resourceCloser = resourceCloser;
   }
 
   @Test
@@ -7565,7 +7550,6 @@ public class GroupByQueryRunnerTest
     );
 
     Iterable<Row> results = GroupByQueryRunnerTestHelper.runQuery(factory, runner, query);
-    System.out.println(results);
     TestHelper.assertExpectedObjects(expectedResults, results, "");
   }
 
