@@ -661,6 +661,9 @@ public class GroupByQueryRunnerTest
   @Test
   public void testGroupByWithSortDimsFirst()
   {
+    if (config.getDefaultStrategy().equals(GroupByStrategySelector.STRATEGY_V1)) {
+      return;
+    }
     GroupByQuery query = GroupByQuery
         .builder()
         .setDataSource(QueryRunnerTestHelper.dataSource)
@@ -668,7 +671,7 @@ public class GroupByQueryRunnerTest
         .setDimensions(new DefaultDimensionSpec("quality", "alias"))
         .setAggregatorSpecs(QueryRunnerTestHelper.rowsCount, new LongSumAggregatorFactory("idx", "index"))
         .setGranularity(QueryRunnerTestHelper.dayGran)
-        .setContext(ImmutableMap.of("sortByDimsFirst", true, "groupByStrategy", "v2"))
+        .setContext(ImmutableMap.of("sortByDimsFirst", true))
         .build();
 
     List<Row> expectedResults = Arrays.asList(
