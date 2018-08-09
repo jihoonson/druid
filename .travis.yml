@@ -33,7 +33,7 @@ matrix:
         - unset _JAVA_OPTIONS
       script:
         - echo "MAVEN_OPTS='-Xmx512m'" > ~/.mavenrc && mvn test -B -pl processing
-        - sh -c "dmesg | egrep -i '(oom|out of memory|kill process|killed).*' || exit 0"
+        - sh -c "dmesg | egrep -i '(oom|out of memory|kill process|killed).*' -C 1 || exit 0"
         - free -m
 
       # processing module tests with SQL Compatibility enabled
@@ -45,7 +45,7 @@ matrix:
         - unset _JAVA_OPTIONS
       script:
         - echo "MAVEN_OPTS='-Xmx512m'" > ~/.mavenrc && mvn test -B -Ddruid.generic.useDefaultValueForNull=false -pl processing
-        - sh -c "dmesg | egrep -i '(oom|out of memory|kill process|killed).*' || exit 0"
+        - sh -c "dmesg | egrep -i '(oom|out of memory|kill process|killed).*' -C 1 || exit 0"
         - free -m
 
       # server module test
@@ -77,7 +77,7 @@ matrix:
         - unset _JAVA_OPTIONS
       script:
         - echo "MAVEN_OPTS='-Xmx512m'" > ~/.mavenrc && mvn test -B -pl '!processing,!server'
-        - sh -c "dmesg | egrep -i '(oom|out of memory|kill process|killed).*' || exit 0"
+        - sh -c "dmesg | egrep -i '(oom|out of memory|kill process|killed).*' -C 1 || exit 0"
         - free -m
 
       # other modules test with SQL Compatibility enabled
@@ -90,7 +90,7 @@ matrix:
         - unset _JAVA_OPTIONS
       script:
         - echo "MAVEN_OPTS='-Xmx512m'" > ~/.mavenrc && mvn test -B -Ddruid.generic.useDefaultValueForNull=false -pl '!processing,!server'
-        - sh -c "dmesg | egrep -i '(oom|out of memory|kill process|killed).*' || exit 0"
+        - sh -c "dmesg | egrep -i '(oom|out of memory|kill process|killed).*' -C 1 || exit 0"
         - free -m
 
       # run integration tests
