@@ -53,7 +53,7 @@ matrix:
       install: MAVEN_OPTS='-Xmx3000m' mvn install -q -ff -DskipTests -B
       before_script: unset _JAVA_OPTIONS
       script:
-        - _JAVA_OPTIONS="-Xmx1024m -XX:MaxDirectMemorySize=512m -Duser.language=en -Duser.GroupByQueryRunnerTest.javacountry=US -Dfile.encoding=UTF-8 -Duser.timezone=UTC -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager -Ddruid.indexing.doubleStorage=double" MAVEN_OPTS='-Xmx512m' mvn test -B -pl server
+        - _JAVA_OPTIONS="-Xmx1500m -XX:MaxDirectMemorySize=512m -Duser.language=en -Duser.GroupByQueryRunnerTest.javacountry=US -Dfile.encoding=UTF-8 -Duser.timezone=UTC -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager -Ddruid.indexing.doubleStorage=double" MAVEN_OPTS='-Xmx512m' mvn test -B -pl server
 
       # server module test with SQL Compatibility enabled
     - sudo: false
@@ -62,7 +62,7 @@ matrix:
       install: MAVEN_OPTS='-Xmx3000m' mvn install -q -ff -DskipTests -B
       before_script: unset _JAVA_OPTIONS
       script:
-        - _JAVA_OPTIONS="-Xmx1024m -XX:MaxDirectMemorySize=512m -Duser.language=en -Duser.GroupByQueryRunnerTest.javacountry=US -Dfile.encoding=UTF-8 -Duser.timezone=UTC -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager -Ddruid.indexing.doubleStorage=double" MAVEN_OPTS='-Xmx512m' mvn test -B -pl server -Ddruid.generic.useDefaultValueForNull=false
+        - _JAVA_OPTIONS="-Xmx1500m -XX:MaxDirectMemorySize=512m -Duser.language=en -Duser.GroupByQueryRunnerTest.javacountry=US -Dfile.encoding=UTF-8 -Duser.timezone=UTC -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager -Ddruid.indexing.doubleStorage=double" MAVEN_OPTS='-Xmx512m' mvn test -B -pl server -Ddruid.generic.useDefaultValueForNull=false
 
 
       # other modules test
@@ -73,7 +73,7 @@ matrix:
       install: MAVEN_OPTS='-Xmx3000m' mvn install -q -ff -DskipTests -B
       before_script: unset _JAVA_OPTIONS
       script:
-        - _JAVA_OPTIONS="-Xmx1024m -XX:MaxDirectMemorySize=512m -Duser.language=en -Duser.GroupByQueryRunnerTest.javacountry=US -Dfile.encoding=UTF-8 -Duser.timezone=UTC -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager -Ddruid.indexing.doubleStorage=double" MAVEN_OPTS='-Xmx512m' mvn test -B -pl '!processing,!server'
+        - _JAVA_OPTIONS="-Xmx1500m -XX:MaxDirectMemorySize=512m -Duser.language=en -Duser.GroupByQueryRunnerTest.javacountry=US -Dfile.encoding=UTF-8 -Duser.timezone=UTC -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager -Ddruid.indexing.doubleStorage=double" MAVEN_OPTS='-Xmx512m' mvn test -B -pl '!processing,!server'
         - sh -c "dmesg | egrep -i '(oom|out of memory|kill process|killed).*' -C 1 || exit 0"
         - free -m
 
@@ -85,7 +85,7 @@ matrix:
       install: MAVEN_OPTS='-Xmx3000m' mvn install -q -ff -DskipTests -B
       before_script: unset _JAVA_OPTIONS
       script:
-        - _JAVA_OPTIONS="-Xmx1024m -XX:MaxDirectMemorySize=512m -Duser.language=en -Duser.GroupByQueryRunnerTest.javacountry=US -Dfile.encoding=UTF-8 -Duser.timezone=UTC -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager -Ddruid.indexing.doubleStorage=double" MAVEN_OPTS='-Xmx512m' mvn test -B -Ddruid.generic.useDefaultValueForNull=false -pl '!processing,!server'
+        - _JAVA_OPTIONS="-Xmx1500m -XX:MaxDirectMemorySize=512m -Duser.language=en -Duser.GroupByQueryRunnerTest.javacountry=US -Dfile.encoding=UTF-8 -Duser.timezone=UTC -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager -Ddruid.indexing.doubleStorage=double" MAVEN_OPTS='-Xmx512m' mvn test -B -Ddruid.generic.useDefaultValueForNull=false -pl '!processing,!server'
         - sh -c "dmesg | egrep -i '(oom|out of memory|kill process|killed).*' -C 1 || exit 0"
         - free -m
 
