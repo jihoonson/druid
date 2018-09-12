@@ -22,6 +22,7 @@ package io.druid.indexing.common;
 import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.base.Stopwatch;
 import io.druid.guice.ServerModule;
 import io.druid.indexing.common.stats.DropwizardRowIngestionMetersFactory;
@@ -34,6 +35,8 @@ import io.druid.query.expression.LookupEnabledTestExprMacroTable;
 import io.druid.segment.IndexIO;
 import io.druid.segment.IndexMergerV9;
 import io.druid.segment.column.ColumnConfig;
+import io.druid.segment.loading.LocalDataSegmentPuller;
+import io.druid.segment.loading.LocalLoadSpec;
 import io.druid.segment.realtime.firehose.ChatHandlerProvider;
 import io.druid.segment.realtime.firehose.NoopChatHandlerProvider;
 import io.druid.segment.writeout.OffHeapMemorySegmentWriteOutMediumFactory;
@@ -89,6 +92,18 @@ public class TestUtils
             .addValue(AuthorizerMapper.class, null)
             .addValue(RowIngestionMetersFactory.class, rowIngestionMetersFactory)
             .addValue(DataSegment.PruneLoadSpecHolder.class, DataSegment.PruneLoadSpecHolder.DEFAULT)
+            .addValue(LocalDataSegmentPuller.class, new LocalDataSegmentPuller())
+    );
+
+    jsonMapper.registerModule(
+        new SimpleModule()
+        {
+          @Override
+          public void setupModule(SetupContext context)
+          {
+            context.registerSubtypes(LocalLoadSpec.class);
+          }
+        }
     );
   }
 

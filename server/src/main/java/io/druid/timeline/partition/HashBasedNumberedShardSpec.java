@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
@@ -78,7 +79,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   {
     final List<Object> groupKey = getGroupKey(timestamp, inputRow);
     try {
-      return hashFunction.hashBytes(jsonMapper.writeValueAsBytes(groupKey)).asInt();
+      return hash(jsonMapper, groupKey);
     }
     catch (JsonProcessingException e) {
       throw Throwables.propagate(e);
@@ -99,6 +100,12 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
         }
       });
     }
+  }
+
+  @VisibleForTesting
+  public static int hash(ObjectMapper jsonMapper, List<Object> objects) throws JsonProcessingException
+  {
+    return hashFunction.hashBytes(jsonMapper.writeValueAsBytes(objects)).asInt();
   }
 
   @Override

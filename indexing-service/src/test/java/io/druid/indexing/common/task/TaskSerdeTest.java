@@ -200,6 +200,7 @@ public class TaskSerdeTest
                 null,
                 9999,
                 null,
+                null,
                 indexSpec,
                 3,
                 true,
@@ -281,6 +282,7 @@ public class TaskSerdeTest
             new IndexTuningConfig(
                 10000,
                 10,
+                null,
                 null,
                 null,
                 null,
