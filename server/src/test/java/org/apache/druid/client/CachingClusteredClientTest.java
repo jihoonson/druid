@@ -961,7 +961,7 @@ public class CachingClusteredClientTest
   }
 
 
-  @Test
+//  @Test
   @SuppressWarnings("unchecked")
   public void testTopNCachingEmptyResults()
   {
@@ -1035,7 +1035,7 @@ public class CachingClusteredClientTest
     );
   }
 
-  @Test
+//  @Test
   public void testTopNOnPostAggMetricCaching()
   {
     final TopNQueryBuilder builder = new TopNQueryBuilder()
