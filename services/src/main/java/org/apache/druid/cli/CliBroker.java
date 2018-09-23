@@ -24,6 +24,8 @@ import com.google.inject.Key;
 import com.google.inject.Module;
 import com.google.inject.name.Names;
 import io.airlift.airline.Command;
+import org.apache.druid.guice.ForkJoinPoolProvider;
+import org.apache.druid.guice.LifecycleForkJoinPool;
 import org.apache.druid.client.BrokerSegmentWatcherConfig;
 import org.apache.druid.client.BrokerServerView;
 import org.apache.druid.client.CachingClusteredClient;
@@ -42,8 +44,10 @@ import org.apache.druid.guice.Jerseys;
 import org.apache.druid.guice.JsonConfigProvider;
 import org.apache.druid.guice.LazySingleton;
 import org.apache.druid.guice.LifecycleModule;
+import org.apache.druid.guice.ManageLifecycle;
 import org.apache.druid.guice.QueryRunnerFactoryModule;
 import org.apache.druid.guice.QueryableModule;
+import org.apache.druid.guice.annotations.Processing;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.query.QuerySegmentWalker;
 import org.apache.druid.query.RetryQueryRunnerConfig;
@@ -62,6 +66,7 @@ import org.apache.druid.timeline.PruneLoadSpec;
 import org.eclipse.jetty.server.Server;
 
 import java.util.List;
+import java.util.concurrent.ForkJoinPool;
 
 /**
  */
@@ -96,6 +101,14 @@ public class CliBroker extends ServerRunnable
           binder.bind(CachingClusteredClient.class).in(LazySingleton.class);
           binder.bind(BrokerServerView.class).in(LazySingleton.class);
           binder.bind(TimelineServerView.class).to(BrokerServerView.class).in(LazySingleton.class);
+          binder.bind(Key.get(LifecycleForkJoinPool.class, Processing.class))
+                .toProvider(new ForkJoinPoolProvider("processing-fjp-%s"))
+                .in(ManageLifecycle.class);
+          // Bind the lifecycle key, then bind the lifecycle to the forkjoinpool key so that any extensions that
+          // want to have their own fork join pool instead of this one can do so.
+          LifecycleModule.register(binder, LifecycleForkJoinPool.class, Processing.class);
+          binder.bind(Key.get(ForkJoinPool.class, Processing.class))
+                .to(Key.get(LifecycleForkJoinPool.class, Processing.class));
 
           JsonConfigProvider.bind(binder, "druid.broker.cache", CacheConfig.class);
           binder.install(new CacheModule());

@@ -30,6 +30,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.stream.Stream;
 
 /**
  */
@@ -53,6 +54,27 @@ public class Sequences
           public void cleanup(Iterator<T> iterFromMake)
           {
 
+          }
+        }
+    );
+  }
+
+  public static <T> Sequence<T> fromStream(final Stream<? extends T> stream)
+  {
+    return new BaseSequence<>(
+        new BaseSequence.IteratorMaker<T, Iterator<T>>()
+        {
+          @Override
+          @SuppressWarnings("unchecked")
+          public Iterator<T> make()
+          {
+            return (Iterator<T>) stream.iterator();
+          }
+
+          @Override
+          public void cleanup(Iterator<T> iterFromMake)
+          {
+            stream.close();
           }
         }
     );

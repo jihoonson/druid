@@ -20,11 +20,13 @@
 package org.apache.druid.query;
 
 import com.google.common.base.Function;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
+import org.apache.druid.collections.StupidPool;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.granularity.Granularities;
@@ -48,16 +50,40 @@ import org.apache.druid.query.aggregation.post.ArithmeticPostAggregator;
 import org.apache.druid.query.aggregation.post.ConstantPostAggregator;
 import org.apache.druid.query.aggregation.post.FieldAccessPostAggregator;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
+import org.apache.druid.query.groupby.GroupByQuery;
+import org.apache.druid.query.groupby.GroupByQueryConfig;
+import org.apache.druid.query.groupby.GroupByQueryRunnerTest;
+import org.apache.druid.query.groupby.strategy.GroupByStrategySelector;
+import org.apache.druid.query.metadata.SegmentMetadataQueryConfig;
+import org.apache.druid.query.metadata.SegmentMetadataQueryQueryToolChest;
+import org.apache.druid.query.metadata.SegmentMetadataQueryRunnerFactory;
+import org.apache.druid.query.metadata.metadata.SegmentMetadataQuery;
+import org.apache.druid.query.scan.ScanQuery;
+import org.apache.druid.query.scan.ScanQueryConfig;
+import org.apache.druid.query.scan.ScanQueryEngine;
+import org.apache.druid.query.scan.ScanQueryQueryToolChest;
+import org.apache.druid.query.scan.ScanQueryRunnerFactory;
+import org.apache.druid.query.select.SelectQuery;
+import org.apache.druid.query.select.SelectQueryConfig;
+import org.apache.druid.query.select.SelectQueryEngine;
+import org.apache.druid.query.select.SelectQueryQueryToolChest;
+import org.apache.druid.query.select.SelectQueryRunnerFactory;
 import org.apache.druid.query.spec.MultipleIntervalSegmentSpec;
 import org.apache.druid.query.spec.QuerySegmentSpec;
 import org.apache.druid.query.spec.SpecificSegmentSpec;
+import org.apache.druid.query.timeseries.TimeseriesQuery;
 import org.apache.druid.query.timeseries.TimeseriesQueryEngine;
 import org.apache.druid.query.timeseries.TimeseriesQueryQueryToolChest;
 import org.apache.druid.query.timeseries.TimeseriesQueryRunnerFactory;
+import org.apache.druid.query.topn.TopNQuery;
+import org.apache.druid.query.topn.TopNQueryConfig;
+import org.apache.druid.query.topn.TopNQueryQueryToolChest;
+import org.apache.druid.query.topn.TopNQueryRunnerFactory;
 import org.apache.druid.segment.IncrementalIndexSegment;
 import org.apache.druid.segment.QueryableIndex;
 import org.apache.druid.segment.QueryableIndexSegment;
 import org.apache.druid.segment.Segment;
+import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.TestIndex;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.timeline.TimelineObjectHolder;
@@ -66,6 +92,7 @@ import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -80,7 +107,8 @@ import java.util.Map;
 public class QueryRunnerTestHelper
 {
 
-  public static final QueryWatcher NOOP_QUERYWATCHER = (query, future) -> {};
+  public static final QueryWatcher NOOP_QUERYWATCHER = (query, future) -> {
+  };
 
   public static final String segmentId = "testSegment";
   public static final String dataSource = "testing";
@@ -274,6 +302,104 @@ public class QueryRunnerTestHelper
         }
     );
   }
+
+
+  public static final Map<Class<? extends Query>, QueryRunnerFactory> DEFAULT_CONGLOMERATE_MAP = ImmutableMap
+      .<Class<? extends Query>, QueryRunnerFactory>builder()
+      .put(
+          SegmentMetadataQuery.class,
+          new SegmentMetadataQueryRunnerFactory(
+              new SegmentMetadataQueryQueryToolChest(
+                  new SegmentMetadataQueryConfig("P1W")
+              ),
+              QueryRunnerTestHelper.NOOP_QUERYWATCHER
+          )
+      )
+      .put(
+          ScanQuery.class,
+          new ScanQueryRunnerFactory(
+              new ScanQueryQueryToolChest(
+                  new ScanQueryConfig(),
+                  new DefaultGenericQueryMetricsFactory(TestHelper.makeJsonMapper())
+              ),
+              new ScanQueryEngine()
+          )
+      )
+      .put(
+          SelectQuery.class,
+          new SelectQueryRunnerFactory(
+              new SelectQueryQueryToolChest(
+                  TestHelper.makeJsonMapper(),
+                  QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator(),
+                  Suppliers.ofInstance(
+                      new SelectQueryConfig(true)
+                  )
+              ),
+              new SelectQueryEngine(),
+              QueryRunnerTestHelper.NOOP_QUERYWATCHER
+          )
+      )
+      .put(
+          TimeseriesQuery.class,
+          new TimeseriesQueryRunnerFactory(
+              new TimeseriesQueryQueryToolChest(
+                  QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator()
+              ),
+              new TimeseriesQueryEngine(),
+              QueryRunnerTestHelper.NOOP_QUERYWATCHER
+          )
+      )
+      .put(
+          TopNQuery.class,
+          new TopNQueryRunnerFactory(
+              new StupidPool<>(
+                  "test-TopNQueryRunnerFactory-bufferPool",
+                  () -> ByteBuffer.allocate(10 << 20)
+              ),
+              new TopNQueryQueryToolChest(
+                  new TopNQueryConfig(),
+                  QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator()
+              ),
+              QueryRunnerTestHelper.NOOP_QUERYWATCHER
+          )
+      )
+      .put(
+          GroupByQuery.class,
+          GroupByQueryRunnerTest.makeQueryRunnerFactory(
+              GroupByQueryRunnerTest.DEFAULT_MAPPER,
+              new GroupByQueryConfig()
+              {
+                @Override
+                public String getDefaultStrategy()
+                {
+                  return GroupByStrategySelector.STRATEGY_V2;
+                }
+              },
+              new DruidProcessingConfig()
+              {
+                @Override
+                public String getFormatString()
+                {
+                  return "test-processing-%s";
+                }
+
+                @Override
+                public int intermediateComputeSizeBytes()
+                {
+                  return 10 << 20;
+                }
+
+                @Override
+                public int getNumMergeBuffers()
+                {
+                  // Need 3 buffers for CalciteQueryTest.testDoubleNestedGroupby.
+                  // Two buffers for the broker and one for the queryable
+                  return 3;
+                }
+              }
+          ).getLhs()
+      )
+      .build();
 
   // simple cartesian iterable
   public static Iterable<Object[]> cartesian(final Iterable... iterables)

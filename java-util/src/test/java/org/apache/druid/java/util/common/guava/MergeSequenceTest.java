@@ -21,17 +21,35 @@ package org.apache.druid.java.util.common.guava;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  */
 public class MergeSequenceTest
 {
+  public static <T extends Comparable<? super T>> Supplier<Sequence<T>> naturalMergeSupplier(
+      Supplier<Stream<? extends Sequence<? extends T>>> stream
+  )
+  {
+    return () -> naturalMerge(stream.get());
+  }
+
+  public static <T extends Comparable<? super T>> Sequence<T> naturalMerge(Stream<? extends Sequence<? extends T>> stream)
+  {
+    return new MergeSequence<>(
+        Ordering.natural(),
+        Sequences.fromStream(stream)
+    );
+  }
+
   @Test
   public void testSanity() throws Exception
   {
@@ -40,13 +58,23 @@ public class MergeSequenceTest
         TestSequence.create(2, 8),
         TestSequence.create(4, 6, 8)
     );
+    final List<Integer> expected = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9);
 
-    MergeSequence<Integer> seq = new MergeSequence<>(Ordering.<Integer>natural(), (Sequence) Sequences.simple(testSeqs));
-    SequenceTestHelper.testAll(seq, Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9));
+    MergeSequence<Integer> seq = new MergeSequence<>(
+        Ordering.<Integer>natural(),
+        (Sequence) Sequences.simple(testSeqs)
+    );
+    SequenceTestHelper.testAll(seq, expected);
 
     for (TestSequence<Integer> sequence : testSeqs) {
       Assert.assertTrue(sequence.isClosed());
     }
+
+    SequenceTestHelper.testAll(
+        naturalMergeSupplier(testSeqs::stream),
+        expected
+    );
+
   }
 
   @Test
@@ -58,12 +86,19 @@ public class MergeSequenceTest
         TestSequence.create(4, 6, 8)
     );
 
-    MergeSequence<Integer> seq = new MergeSequence<>(Ordering.<Integer>natural(), (Sequence) Sequences.simple(testSeqs));
-    SequenceTestHelper.testAll(seq, Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9));
+    final List<Integer> expected = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9);
+
+    MergeSequence<Integer> seq = new MergeSequence<>(Ordering.natural(), Sequences.simple(testSeqs));
+    SequenceTestHelper.testAll(seq, expected);
 
     for (TestSequence<Integer> sequence : testSeqs) {
       Assert.assertTrue(sequence.isClosed());
     }
+
+    SequenceTestHelper.testAll(
+        naturalMergeSupplier(testSeqs::stream),
+        expected
+    );
   }
 
   @Test
@@ -76,12 +111,22 @@ public class MergeSequenceTest
         TestSequence.create(4, 6, 8)
     );
 
-    MergeSequence<Integer> seq = new MergeSequence<>(Ordering.<Integer>natural(), (Sequence) Sequences.simple(testSeqs));
-    SequenceTestHelper.testAll(seq, Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9));
+    final List<Integer> expected = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9);
+
+    MergeSequence<Integer> seq = new MergeSequence<>(
+        Ordering.natural(),
+        Sequences.simple(testSeqs)
+    );
+    SequenceTestHelper.testAll(seq, expected);
 
     for (TestSequence<Integer> sequence : testSeqs) {
       Assert.assertTrue(sequence.isClosed());
     }
+
+    SequenceTestHelper.testAll(
+        naturalMergeSupplier(testSeqs::stream),
+        expected
+    );
   }
 
   @Test
@@ -94,12 +139,22 @@ public class MergeSequenceTest
         TestSequence.create(4, 6, 8)
     );
 
-    MergeSequence<Integer> seq = new MergeSequence<>(Ordering.<Integer>natural(), (Sequence) Sequences.simple(testSeqs));
-    SequenceTestHelper.testAll(seq, Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9));
+    final List<Integer> expected = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9);
+
+    MergeSequence<Integer> seq = new MergeSequence<>(
+        Ordering.natural(),
+        Sequences.simple(testSeqs)
+    );
+    SequenceTestHelper.testAll(seq, expected);
 
     for (TestSequence<Integer> sequence : testSeqs) {
       Assert.assertTrue(sequence.isClosed());
     }
+
+    SequenceTestHelper.testAll(
+        naturalMergeSupplier(testSeqs::stream),
+        expected
+    );
   }
 
   @Test
@@ -113,12 +168,22 @@ public class MergeSequenceTest
         TestSequence.create()
     );
 
-    MergeSequence<Integer> seq = new MergeSequence<>(Ordering.<Integer>natural(), (Sequence) Sequences.simple(testSeqs));
-    SequenceTestHelper.testAll(seq, Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9));
+    final List<Integer> expected = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9);
+
+    MergeSequence<Integer> seq = new MergeSequence<>(
+        Ordering.natural(),
+        Sequences.simple(testSeqs)
+    );
+    SequenceTestHelper.testAll(seq, expected);
 
     for (TestSequence<Integer> sequence : testSeqs) {
       Assert.assertTrue(sequence.isClosed());
     }
+
+    SequenceTestHelper.testAll(
+        naturalMergeSupplier(testSeqs::stream),
+        expected
+    );
   }
 
   @Test
@@ -130,12 +195,19 @@ public class MergeSequenceTest
         TestSequence.create(4, 6)
     );
 
-    MergeSequence<Integer> seq = new MergeSequence<>(Ordering.<Integer>natural(), (Sequence) Sequences.simple(testSeqs));
-    SequenceTestHelper.testAll(seq, Arrays.asList(1, 2, 3, 4, 5, 4, 6, 7, 8, 9));
+    final List<Integer> expected = Arrays.asList(1, 2, 3, 4, 5, 4, 6, 7, 8, 9);
+
+    MergeSequence<Integer> seq = new MergeSequence<>(Ordering.natural(), Sequences.simple(testSeqs));
+    SequenceTestHelper.testAll(seq, expected);
 
     for (TestSequence<Integer> sequence : testSeqs) {
       Assert.assertTrue(sequence.isClosed());
     }
+
+    SequenceTestHelper.testAll(
+        naturalMergeSupplier(testSeqs::stream),
+        expected
+    );
   }
 
   @Test
@@ -161,9 +233,12 @@ public class MergeSequenceTest
   public void testMergeOne() throws Exception
   {
     final Sequence<Integer> mergeOne = new MergeSequence<>(
-        Ordering.natural(), Sequences.simple(
-        Collections.singletonList(TestSequence.create(1))
-    )
+        Ordering.natural(),
+        Sequences.<Sequence<Integer>>simple(
+            Collections.singletonList(
+                TestSequence.create(1)
+            )
+        )
     );
 
     SequenceTestHelper.testAll(mergeOne, Collections.singletonList(1));

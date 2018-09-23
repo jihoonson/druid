@@ -22,8 +22,12 @@ package org.apache.druid.common.guava;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.primitives.Longs;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 
 import javax.annotation.Nullable;
+import java.util.List;
+import java.util.stream.Stream;
 
 /**
  */
@@ -61,5 +65,18 @@ public class GuavaUtils
     }
 
     return null;
+  }
+
+  /**
+   * Materialze the stream of futures into a single listenable future that will return the list of results.
+   *
+   * @param futures The futures to collect into a single Listenable future
+   * @param <V>     The return value for the futures
+   *
+   * @return A single ListenableFuture whose return value is a list of the completed values of the input stream.
+   */
+  public static <V> ListenableFuture<List<V>> allFuturesAsList(Stream<ListenableFuture<? extends V>> futures)
+  {
+    return Futures.allAsList(futures::iterator);
   }
 }

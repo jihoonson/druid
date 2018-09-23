@@ -38,12 +38,15 @@ import org.apache.druid.guice.http.DruidHttpClientConfig;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.query.DataSource;
+import org.apache.druid.query.DefaultQueryRunnerFactoryConglomerate;
 import org.apache.druid.query.Druids;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
+import org.apache.druid.query.QueryRunnerTestHelper;
 import org.apache.druid.query.QueryToolChestWarehouse;
 import org.apache.druid.query.aggregation.CountAggregatorFactory;
 import org.apache.druid.query.select.SelectQueryConfig;
@@ -67,6 +70,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 
 /**
  */
@@ -97,6 +101,21 @@ public class CachingClusteredClientFunctionalityTest
   {
     timeline = new VersionedIntervalTimeline<>(Ordering.natural());
     serverView = EasyMock.createNiceMock(TimelineServerView.class);
+
+    final QueryRunner<Object> emptyQueryRunner = EasyMock.createStrictMock(QueryRunner.class);
+
+    EasyMock.expect(
+        emptyQueryRunner.run(EasyMock.anyObject(), EasyMock.anyObject())
+    ).andReturn(
+        Sequences.empty()
+    ).anyTimes();
+    EasyMock.expect(
+        serverView.getQueryRunner(EasyMock.anyObject())
+    ).andReturn(
+        emptyQueryRunner
+    ).anyTimes();
+
+    EasyMock.replay(serverView, emptyQueryRunner);
     cache = MapCache.create(100000);
     client = makeClient(
         new ForegroundCachePopulator(OBJECT_MAPPER, new CachePopulatorStats(), -1)
@@ -237,6 +256,9 @@ public class CachingClusteredClientFunctionalityTest
   )
   {
     return new CachingClusteredClient(
+        new DefaultQueryRunnerFactoryConglomerate(
+            QueryRunnerTestHelper.DEFAULT_CONGLOMERATE_MAP
+        ),
         WAREHOUSE,
         new TimelineServerView()
         {
@@ -271,6 +293,7 @@ public class CachingClusteredClientFunctionalityTest
         },
         cache,
         OBJECT_MAPPER,
+        ForkJoinPool.commonPool(),
         cachePopulator,
         new CacheConfig()
         {

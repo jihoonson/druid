@@ -36,6 +36,7 @@ import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.RE;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.CloseQuietly;
 import org.apache.druid.java.util.common.guava.Sequence;
@@ -628,7 +629,7 @@ public class DirectDruidClient<T> implements QueryRunner<T>
     {
       if (jp == null) {
         try {
-          InputStream is = future.get();
+          final InputStream is = Execs.futureManagedBlockGet(future);
           if (is == null) {
             throw new QueryInterruptedException(
                 new ResourceLimitExceededException(

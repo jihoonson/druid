@@ -17,17 +17,15 @@
  * under the License.
  */
 
-package org.apache.druid.concurrent;
+package org.apache.druid.java.util.common.concurrent;
 
 import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.logger.Logger;
-
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.IllegalFormatException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -53,6 +51,20 @@ public class ExecsTest
   public void testBlockingExecutorServiceThreeCapacity() throws Exception
   {
     runTest(3);
+  }
+
+  @Test
+  public void testNameFormatGood()
+  {
+    Execs.checkThreadNameFormat("good-%s");
+    Execs.checkThreadNameFormat("good-%d");
+    Execs.checkThreadNameFormat("whoops");
+  }
+
+  @Test(expected = IllegalFormatException.class)
+  public void testNameForamtBad()
+  {
+    Execs.checkThreadNameFormat("%");
   }
 
   private static void runTest(final int capacity) throws Exception
