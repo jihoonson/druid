@@ -52,10 +52,10 @@ public class MergeWorkTask<T> extends ForkJoinTask<Sequence<T>>
    * Exceptions that happen during execution of the merge are passed through and bubbled up during the resulting sequence
    * iteration
    *
+   * @param baseSequences The sequences that need merged
    * @param mergerFn      The function that will merge a stream of sequences into a single sequence. If the
    *                      baseSequences stream is parallel, this work will be done in the FJP, otherwise it
    *                      will be called directly.
-   * @param baseSequences The sequences that need merged
    * @param batchSize     The input stream should be split down to this number if possible. This sets the target number of segments per merge thread work
    * @param fjp           The ForkJoinPool to do the intermediate merges in.
    * @param <T>           The result type

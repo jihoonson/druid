@@ -205,26 +205,36 @@ public class CachingClusteredClient implements QuerySegmentWalker
         return MergeWorkTask.parallelMerge(
             sequences.parallel(),
             sequenceStream ->
-                new FluentQueryRunnerBuilder<>(toolChest)
-                    .create(
-                        queryRunnerFactory.mergeRunners(
-                            mergeFjp,
-                            new Iterable<QueryRunner<T>>()
-                            {
-                              final Stream<QueryRunner<T>> runnerStream = sequenceStream.map(
-                                  s -> (QueryRunner<T>) (ignored0, ignored1) -> (Sequence<T>) s
-                              );
-
-                              @Override
-                              public Iterator<QueryRunner<T>> iterator()
-                              {
-                                return runnerStream.iterator();
-                              }
-                            }
-                        )
-                    )
-                    .mergeResults()
-                    .run(queryPlus, responseContext),
+//                new FluentQueryRunnerBuilder<>(toolChest)
+//                    .create(
+//                        queryRunnerFactory.mergeRunners(
+//                            mergeFjp,
+//                            new Iterable<QueryRunner<T>>()
+//                            {
+//                              final Stream<QueryRunner<T>> runnerStream = sequenceStream.map(
+//                                  s -> (QueryRunner<T>) (ignored0, ignored1) -> (Sequence<T>) s
+//                              );
+//
+//                              @Override
+//                              public Iterator<QueryRunner<T>> iterator()
+//                              {
+//                                return runnerStream.iterator();
+//                              }
+//                            }
+//                        )
+//                    )
+//                    .mergeResults()
+//                    .run(queryPlus, responseContext),
+                toolChest.mergeResults(
+                    new QueryRunner<T>()
+                    {
+                      @Override
+                      public Sequence<T> run(QueryPlus<T> queryPlus, Map<String, Object> responseContext)
+                      {
+                        return new MergeSequence<>(query.getResultOrdering(), Sequences.fromStream(sequenceStream));
+                      }
+                    }
+                ).run(queryPlus, responseContext),
             mergeBatch.getAsLong(),
             mergeFjp
         );
