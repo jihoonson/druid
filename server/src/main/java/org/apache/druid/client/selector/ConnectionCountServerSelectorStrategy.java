@@ -27,16 +27,17 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class ConnectionCountServerSelectorStrategy implements ServerSelectorStrategy
 {
-  private static final Comparator<QueryableDruidServer> comparator =
+  private static final Comparator<RemoteDruidServer> comparator =
       Comparator.comparingInt(s -> s.getClient().getNumOpenConnections());
 
   @Override
   public QueryableDruidServer pick(Set<QueryableDruidServer> servers, DataSegment segment)
   {
-    return Collections.min(servers, comparator);
+    return Collections.min(servers.stream().map(server -> (RemoteDruidServer)server).collect(Collectors.toSet()), comparator);
   }
 
   @Override
@@ -47,6 +48,7 @@ public class ConnectionCountServerSelectorStrategy implements ServerSelectorStra
     if (servers.size() <= numServersToPick) {
       return ImmutableList.copyOf(servers);
     }
-    return Ordering.from(comparator).leastOf(servers, numServersToPick);
+    return Ordering.from(comparator).leastOf(servers.stream().map(server -> (RemoteDruidServer)server).collect(Collectors.toSet()), numServersToPick)
+        .stream().map(server -> (QueryableDruidServer)server).collect(Collectors.toList());
   }
 }

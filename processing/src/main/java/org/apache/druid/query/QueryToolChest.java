@@ -43,7 +43,15 @@ public abstract class QueryToolChest<ResultType, QueryType extends Query<ResultT
    *
    * @return a QueryRunner that potentially merges the stream of ordered ResultType objects
    */
-  public abstract QueryRunner<ResultType> mergeResults(QueryRunner<ResultType> runner);
+  public QueryRunner<ResultType> mergeResults(QueryRunner<ResultType> runner)
+  {
+    return mergeResults(runner, null);
+  }
+
+  public QueryRunner<ResultType> mergeResults(QueryRunner<ResultType> runner, String id)
+  {
+    return mergeResults(runner);
+  }
 
   /**
    * Creates a {@link QueryMetrics} object that is used to generate metrics for this specific query type.  This exists

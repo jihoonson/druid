@@ -70,6 +70,7 @@ public interface GroupByStrategy
   Sequence<Row> mergeResults(
       QueryRunner<Row> baseRunner,
       GroupByQuery query,
+      String id,
       Map<String, Object> responseContext
   );
 

@@ -32,6 +32,7 @@ import org.apache.druid.client.cache.Cache;
 import org.apache.druid.client.cache.CacheConfig;
 import org.apache.druid.client.cache.CachePopulator;
 import org.apache.druid.client.selector.QueryableDruidServer;
+import org.apache.druid.client.selector.RemoteDruidServer;
 import org.apache.druid.client.selector.ServerSelector;
 import org.apache.druid.guice.annotations.Client;
 import org.apache.druid.guice.annotations.Processing;
@@ -48,7 +49,6 @@ import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.BySegmentResultValueClass;
 import org.apache.druid.query.CacheStrategy;
-import org.apache.druid.query.FluentQueryRunnerBuilder;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryPlus;
@@ -80,7 +80,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -198,6 +197,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
     final OptionalLong mergeBatch = QueryContexts.getIntermediateMergeBatchThreshold(query);
 
     if (mergeBatch.isPresent()) {
+      log.info("Running parallel merge");
       final QueryRunnerFactory<T, Query<T>> queryRunnerFactory = conglomerate.findFactory(query);
       final QueryToolChest<T, Query<T>> toolChest = queryRunnerFactory.getToolchest();
       return (queryPlus, responseContext) -> {
@@ -233,7 +233,8 @@ public class CachingClusteredClient implements QuerySegmentWalker
                       {
                         return new MergeSequence<>(query.getResultOrdering(), Sequences.fromStream(sequenceStream));
                       }
-                    }
+                    },
+                    "parallelMerge"
                 ).run(queryPlus, responseContext),
             mergeBatch.getAsLong(),
             mergeFjp

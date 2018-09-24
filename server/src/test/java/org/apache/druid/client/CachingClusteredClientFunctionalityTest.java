@@ -32,6 +32,7 @@ import org.apache.druid.client.cache.CachePopulatorStats;
 import org.apache.druid.client.cache.ForegroundCachePopulator;
 import org.apache.druid.client.cache.MapCache;
 import org.apache.druid.client.selector.QueryableDruidServer;
+import org.apache.druid.client.selector.RemoteDruidServer;
 import org.apache.druid.client.selector.ServerSelector;
 import org.apache.druid.client.selector.TierSelectorStrategy;
 import org.apache.druid.guice.http.DruidHttpClientConfig;
@@ -219,7 +220,7 @@ public class CachingClusteredClientFunctionalityTest
                   Int2ObjectRBTreeMap<Set<QueryableDruidServer>> prioritizedServers, DataSegment segment
               )
               {
-                return new QueryableDruidServer(
+                return new RemoteDruidServer(
                     new DruidServer("localhost", "localhost", null, 100, ServerType.HISTORICAL, "a", 10),
                     EasyMock.createNiceMock(DirectDruidClient.class)
                 );
@@ -233,7 +234,7 @@ public class CachingClusteredClientFunctionalityTest
               )
               {
                 return Collections.singletonList(
-                    new QueryableDruidServer(
+                    new RemoteDruidServer(
                         new DruidServer("localhost", "localhost", null, 100, ServerType.HISTORICAL, "a", 10),
                         EasyMock.createNiceMock(DirectDruidClient.class)
                     )

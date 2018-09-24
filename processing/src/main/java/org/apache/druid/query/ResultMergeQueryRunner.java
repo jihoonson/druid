@@ -32,18 +32,29 @@ import java.util.Map;
 @PublicApi
 public abstract class ResultMergeQueryRunner<T> extends BySegmentSkippingQueryRunner<T>
 {
+  private final String id;
   public ResultMergeQueryRunner(
       QueryRunner<T> baseRunner
   )
   {
     super(baseRunner);
+    id = null;
+  }
+
+  public ResultMergeQueryRunner(
+      QueryRunner<T> baseRunner,
+      String id
+  )
+  {
+    super(baseRunner);
+    this.id = id;
   }
 
   @Override
   public Sequence<T> doRun(QueryRunner<T> baseRunner, QueryPlus<T> queryPlus, Map<String, Object> context)
   {
     Query<T> query = queryPlus.getQuery();
-    return CombiningSequence.create(baseRunner.run(queryPlus, context), makeOrdering(query), createMergeFn(query));
+    return CombiningSequence.create(baseRunner.run(queryPlus, context), makeOrdering(query), createMergeFn(query), id);
   }
 
   protected abstract Ordering<T> makeOrdering(Query<T> query);

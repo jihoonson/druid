@@ -51,7 +51,7 @@ import org.apache.druid.client.cache.CachePopulatorStats;
 import org.apache.druid.client.cache.ForegroundCachePopulator;
 import org.apache.druid.client.cache.MapCache;
 import org.apache.druid.client.selector.HighestPriorityTierSelectorStrategy;
-import org.apache.druid.client.selector.QueryableDruidServer;
+import org.apache.druid.client.selector.RemoteDruidServer;
 import org.apache.druid.client.selector.RandomServerSelectorStrategy;
 import org.apache.druid.client.selector.ServerSelector;
 import org.apache.druid.data.input.MapBasedRow;
@@ -568,7 +568,7 @@ public class CachingClusteredClientTest
         dataSegment,
         new HighestPriorityTierSelectorStrategy(new RandomServerSelectorStrategy())
     );
-    selector.addServerAndUpdateSegment(new QueryableDruidServer(lastServer, null), dataSegment);
+    selector.addServerAndUpdateSegment(new RemoteDruidServer(lastServer, null), dataSegment);
     timeline.add(interval, "v", new SingleElementPartitionChunk<>(selector));
 
     getDefaultQueryRunner().run(QueryPlus.wrap(query), context);
@@ -1763,7 +1763,7 @@ public class CachingClusteredClientTest
         segment,
         new HighestPriorityTierSelectorStrategy(new RandomServerSelectorStrategy())
     );
-    selector.addServerAndUpdateSegment(new QueryableDruidServer(server, null), segment);
+    selector.addServerAndUpdateSegment(new RemoteDruidServer(server, null), segment);
     return selector;
   }
 
@@ -2198,7 +2198,7 @@ public class CachingClusteredClientTest
             expectation.getSegment(),
             new HighestPriorityTierSelectorStrategy(new RandomServerSelectorStrategy())
         );
-        selector.addServerAndUpdateSegment(new QueryableDruidServer(lastServer, null), selector.getSegment());
+        selector.addServerAndUpdateSegment(new RemoteDruidServer(lastServer, null), selector.getSegment());
 
         final ShardSpec shardSpec;
         if (numChunks == 1) {
@@ -3087,7 +3087,7 @@ public class CachingClusteredClientTest
         dataSegment,
         new HighestPriorityTierSelectorStrategy(new RandomServerSelectorStrategy())
     );
-    selector.addServerAndUpdateSegment(new QueryableDruidServer(servers[0], null), dataSegment);
+    selector.addServerAndUpdateSegment(new RemoteDruidServer(servers[0], null), dataSegment);
     timeline.add(interval, "ver", new SingleElementPartitionChunk<>(selector));
 
     TimeBoundaryQuery query = Druids.newTimeBoundaryQueryBuilder()

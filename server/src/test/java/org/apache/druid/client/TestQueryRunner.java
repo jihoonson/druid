@@ -16,13 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.druid.client.selector;
+package org.apache.druid.client;
 
-import org.apache.druid.client.DruidServer;
+import org.apache.druid.data.input.Row;
+import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Sequences;
+import org.apache.druid.query.QueryPlus;
+import org.apache.druid.query.QueryRunner;
 
-public interface QueryableDruidServer<T>
+import java.util.Map;
+
+public class TestQueryRunner implements QueryRunner<Row>
 {
-  DruidServer getServer();
+  private final Sequence<Row> sequence;
 
-  T getClient();
+  public TestQueryRunner(Iterable<Row> iterable)
+  {
+    sequence = Sequences.simple(iterable);
+  }
+
+  @Override
+  public Sequence<Row> run(
+      QueryPlus<Row> queryPlus, Map<String, Object> responseContext
+  )
+  {
+    return sequence;
+  }
 }

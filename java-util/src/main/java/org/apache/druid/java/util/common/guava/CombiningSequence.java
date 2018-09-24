@@ -34,22 +34,35 @@ public class CombiningSequence<T> implements Sequence<T>
       BinaryFn<T, T, T> mergeFn
   )
   {
-    return new CombiningSequence<>(baseSequence, ordering, mergeFn);
+    return create(baseSequence, ordering, mergeFn, null);
+  }
+
+  public static <T> CombiningSequence<T> create(
+      Sequence<T> baseSequence,
+      Ordering<T> ordering,
+      BinaryFn<T, T, T> mergeFn,
+      String id
+  )
+  {
+    return new CombiningSequence<>(baseSequence, ordering, mergeFn, id);
   }
 
   private final Sequence<T> baseSequence;
   private final Ordering<T> ordering;
   private final BinaryFn<T, T, T> mergeFn;
+  private final String id;
 
   private CombiningSequence(
       Sequence<T> baseSequence,
       Ordering<T> ordering,
-      BinaryFn<T, T, T> mergeFn
+      BinaryFn<T, T, T> mergeFn,
+      String id
   )
   {
     this.baseSequence = baseSequence;
     this.ordering = ordering;
     this.mergeFn = mergeFn;
+    this.id = id;
   }
 
   @Override

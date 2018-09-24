@@ -16,13 +16,43 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.druid.client.selector;
 
+import org.apache.druid.client.DirectDruidClient;
 import org.apache.druid.client.DruidServer;
 
-public interface QueryableDruidServer<T>
+/**
+ */
+public class RemoteDruidServer implements QueryableDruidServer<DirectDruidClient>
 {
-  DruidServer getServer();
+  private final DruidServer server;
+  private final DirectDruidClient client;
 
-  T getClient();
+  public RemoteDruidServer(DruidServer server, DirectDruidClient client)
+  {
+    this.server = server;
+    this.client = client;
+  }
+
+  @Override
+  public DruidServer getServer()
+  {
+    return server;
+  }
+
+  @Override
+  public DirectDruidClient getClient()
+  {
+    return client;
+  }
+
+  @Override
+  public String toString()
+  {
+    return "RemoteDruidServer{" +
+           "server=" + server +
+           ", client=" + client +
+           '}';
+  }
 }
