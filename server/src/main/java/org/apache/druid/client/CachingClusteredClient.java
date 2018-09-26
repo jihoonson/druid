@@ -32,7 +32,6 @@ import org.apache.druid.client.cache.Cache;
 import org.apache.druid.client.cache.CacheConfig;
 import org.apache.druid.client.cache.CachePopulator;
 import org.apache.druid.client.selector.QueryableDruidServer;
-import org.apache.druid.client.selector.RemoteDruidServer;
 import org.apache.druid.client.selector.ServerSelector;
 import org.apache.druid.guice.annotations.Client;
 import org.apache.druid.guice.annotations.Processing;
@@ -364,7 +363,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
 
       // Divide user-provided maxQueuedBytes by the number of servers, and limit each server to that much.
       final long maxQueuedBytes = QueryContexts.getMaxQueuedBytes(query, httpClientConfig.getMaxQueuedBytes());
-      final long maxQueuedBytesPerServer = maxQueuedBytes / serverCountAndStream.getLhs();
+      final long maxQueuedBytesPerServer = maxQueuedBytes / Math.max(serverCountAndStream.getLhs(), 1);
 
       return serverCountAndStream
           .getRhs()
