@@ -49,6 +49,7 @@ public class MergeWorkTaskTest
     final List<Integer> expected = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9);
 
     SequenceTestHelper.testAll(() -> MergeWorkTask.parallelMerge(
+        "",
         testSeqs.stream(),
         s -> new MergeSequence<>(Ordering.natural(), Sequences.fromStream(s)),
         999,
@@ -67,6 +68,7 @@ public class MergeWorkTaskTest
     final List<Integer> expected = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9);
 
     SequenceTestHelper.testAll(() -> MergeWorkTask.parallelMerge(
+        "",
         testSeqs.stream().parallel(),
         MergeSequenceTest::naturalMerge,
         999,
@@ -85,6 +87,7 @@ public class MergeWorkTaskTest
     final List<Integer> expected = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9);
 
     SequenceTestHelper.testAll(() -> MergeWorkTask.parallelMerge(
+        "",
         testSeqs.stream().parallel(),
         MergeSequenceTest::naturalMerge,
         1,
@@ -103,6 +106,7 @@ public class MergeWorkTaskTest
     final List<Integer> expected = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 8, 9);
 
     SequenceTestHelper.testAll(() -> MergeWorkTask.parallelMerge(
+        "",
         testSeqs.stream().parallel(),
         MergeSequenceTest::naturalMerge,
         2,
@@ -128,6 +132,7 @@ public class MergeWorkTaskTest
         false
     );
     SequenceTestHelper.testAll(() -> MergeWorkTask.parallelMerge(
+        "",
         testSeqs.stream().parallel(),
         MergeSequenceTest::naturalMerge,
         1,
@@ -160,6 +165,7 @@ public class MergeWorkTaskTest
       final Random r = new Random(37489165L);
       intList.forEach(i -> listList.get(r.nextInt(listList.size())).add(i));
       SequenceTestHelper.testAll(() -> MergeWorkTask.parallelMerge(
+          "",
           listList.stream(
           ).map(
               TestSequence::create

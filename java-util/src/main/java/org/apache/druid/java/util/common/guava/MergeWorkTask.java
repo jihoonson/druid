@@ -21,6 +21,7 @@ package org.apache.druid.java.util.common.guava;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.logger.Logger;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ import java.util.stream.StreamSupport;
 
 public class MergeWorkTask<T> extends ForkJoinTask<Sequence<T>>
 {
+  private static final Logger log = new Logger(MergeWorkTask.class);
 
   /**
    * Take a stream of sequences, split them as possible, and do intermediate merges. If the input stream is not
@@ -66,6 +68,7 @@ public class MergeWorkTask<T> extends ForkJoinTask<Sequence<T>>
    *                          was encountered in an intermediate merge
    */
   public static <T> Sequence<T> parallelMerge(
+      String queryId,
       Stream<? extends Sequence<? extends T>> baseSequences,
       Function<Stream<? extends Sequence<? extends T>>, Sequence<T>> mergerFn,
       long batchSize,
@@ -122,19 +125,20 @@ public class MergeWorkTask<T> extends ForkJoinTask<Sequence<T>>
 
     // Push the base spliterator onto the stack, keep splitting until we can't or splits are small
     spliteratorStack.push(baseSpliterator);
+    int i = 0;
     while (!spliteratorStack.isEmpty()) {
 
       final Spliterator<? extends Sequence<T>> pop = spliteratorStack.pop();
       if (pop.estimateSize() <= batchSize) {
         // Batch is small enough, yay!
-        tasks.add(fjp.submit(new MergeWorkTask<>(mergerFn, pop)));
+        tasks.add(fjp.submit(new MergeWorkTask<>(i++, mergerFn, pop)));
         continue;
       }
 
       final Spliterator<? extends Sequence<T>> other = pop.trySplit();
       if (other == null) {
         // splits are too big, but we can't split any more
-        tasks.add(fjp.submit(new MergeWorkTask<>(mergerFn, pop)));
+        tasks.add(fjp.submit(new MergeWorkTask<>(i++, mergerFn, pop)));
         continue;
       }
       spliteratorStack.push(pop);
@@ -162,10 +166,19 @@ public class MergeWorkTask<T> extends ForkJoinTask<Sequence<T>>
                 new Iterator<Sequence<? extends T>>()
                 {
                   long taken = 0L;
+                  long iterStart = 0;
+                  long iterEnd = 0;
 
                   @Override
                   public boolean hasNext()
                   {
+                    if (iterStart == 0) {
+                      iterStart = System.currentTimeMillis();
+                    }
+                    if (taken >= totalAdditions) {
+                      iterEnd = System.currentTimeMillis();
+                      log.info("query[%s] iteration time mergeTask: %d ms", queryId, (iterEnd - iterStart));
+                    }
                     return taken < totalAdditions;
                   }
 
@@ -197,18 +210,29 @@ public class MergeWorkTask<T> extends ForkJoinTask<Sequence<T>>
     );
   }
 
+  private final int i;
   private final Spliterator<? extends Sequence<? extends T>> baseSpliterator;
   private final Function<Stream<? extends Sequence<? extends T>>, Sequence<T>> mergerFn;
   private Sequence<T> result;
 
   @VisibleForTesting
   MergeWorkTask(
+      int i,
       Function<Stream<? extends Sequence<? extends T>>, Sequence<T>> mergerFn,
       Spliterator<? extends Sequence<? extends T>> baseSpliterator
   )
   {
+    this.i = i;
     this.mergerFn = mergerFn;
     this.baseSpliterator = baseSpliterator;
+  }
+
+  MergeWorkTask(
+      Function<Stream<? extends Sequence<? extends T>>, Sequence<T>> mergerFn,
+      Spliterator<? extends Sequence<? extends T>> baseSpliterator
+  )
+  {
+    this(0, mergerFn, baseSpliterator);
   }
 
   @Override
@@ -229,7 +253,10 @@ public class MergeWorkTask<T> extends ForkJoinTask<Sequence<T>>
     // Force materialization "work" in this thread
     // For singleton lists it is not clear it is even worth the optimization of short circuiting the merge for the
     // extra code maintenance overhead
+    final long before = System.currentTimeMillis();
     result = mergerFn.apply(StreamSupport.stream(baseSpliterator, false));
+    final long after = System.currentTimeMillis();
+    log.info("task[%d] took [%d] ms", i, (after - before));
     return true;
   }
 }

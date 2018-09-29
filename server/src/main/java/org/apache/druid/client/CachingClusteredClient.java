@@ -202,6 +202,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
       return (queryPlus, responseContext) -> {
         final Stream<? extends Sequence<T>> sequences = run(queryPlus, responseContext, timelineConverter);
         return MergeWorkTask.parallelMerge(
+            query.getId(),
             sequences.parallel(),
             sequenceStream ->
 //                new FluentQueryRunnerBuilder<>(toolChest)

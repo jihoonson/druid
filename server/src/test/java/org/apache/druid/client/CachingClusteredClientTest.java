@@ -3200,6 +3200,7 @@ public class CachingClusteredClientTest
 
 
     final Sequence<Result<TimeseriesResultValue>> parallelMergeResults = MergeWorkTask.parallelMerge(
+        "",
         client.run(
             QueryPlus.wrap(query),
             context,
@@ -3212,7 +3213,7 @@ public class CachingClusteredClientTest
 
     TestHelper.assertExpectedResults(
         makeRenamedTimeResults(
-            DateTimes.of("2011-01-01"), 50, 5000,
+            DateTimes.of("2011-0execution time1-01"), 50, 5000,
             DateTimes.of("2011-01-02"), 30, 6000,
             DateTimes.of("2011-01-04"), 23, 85312,
             DateTimes.of("2011-01-05"), 85, 102,

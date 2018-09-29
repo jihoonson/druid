@@ -28,6 +28,7 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.guava.Yielder;
 import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.java.util.common.logger.Logger;
+import org.apache.druid.query.BaseQuery;
 import org.apache.druid.query.QueryInterruptedException;
 import org.apache.druid.server.security.ForbiddenException;
 import org.apache.druid.sql.calcite.planner.Calcites;
@@ -83,6 +84,7 @@ public class SqlResource
     final PlannerResult plannerResult;
     final DateTimeZone timeZone;
 
+    final long before = System.currentTimeMillis();
     try (final DruidPlanner planner = plannerFactory.createPlanner(sqlQuery.getContext())) {
       plannerResult = planner.plan(sqlQuery.getQuery(), req);
       timeZone = planner.getPlannerContext().getTimeZone();
@@ -179,6 +181,10 @@ public class SqlResource
                      .type(MediaType.APPLICATION_JSON_TYPE)
                      .entity(jsonMapper.writeValueAsBytes(QueryInterruptedException.wrapIfNeeded(exceptionToReport)))
                      .build();
+    }
+    finally {
+      final long after = System.currentTimeMillis();
+      log.info("query[%s] execution time: %d ms", sqlQuery.getContext().get(BaseQuery.QUERYID), (after - before));
     }
   }
 }
