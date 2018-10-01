@@ -48,6 +48,7 @@ import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.BySegmentResultValueClass;
 import org.apache.druid.query.CacheStrategy;
+import org.apache.druid.query.ParallelResultMergeQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryPlus;
@@ -196,7 +197,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
     final OptionalLong mergeBatch = QueryContexts.getIntermediateMergeBatchThreshold(query);
 
     if (mergeBatch.isPresent()) {
-      log.info("Running parallel merge");
+//      log.info("Running parallel merge");
       final QueryRunnerFactory<T, Query<T>> queryRunnerFactory = conglomerate.findFactory(query);
       final QueryToolChest<T, Query<T>> toolChest = queryRunnerFactory.getToolchest();
       return (queryPlus, responseContext) -> {
@@ -225,22 +226,24 @@ public class CachingClusteredClient implements QuerySegmentWalker
 //                    )
 //                    .mergeResults()
 //                    .run(queryPlus, responseContext),
-                toolChest.mergeResults(
-                    new QueryRunner<T>()
-                    {
-                      @Override
-                      public Sequence<T> run(QueryPlus<T> queryPlus, Map<String, Object> responseContext)
-                      {
-                        return new MergeSequence<>(query.getResultOrdering(), Sequences.fromStream(sequenceStream));
-                      }
-                    },
-                    "parallelMerge"
+
+                new ParallelResultMergeQueryRunner<>(
+                    mergeFjp,
+                    (int) mergeBatch.getAsLong(),
+                    sequenceStream.map(s -> (QueryRunner<T>) (queryPlus1, responseContext1) -> (Sequence<T>) s).collect(Collectors.toList()),
+                    toolChest.getOrdering(query),
+                    toolChest.getMergeFn(query)
                 ).run(queryPlus, responseContext),
+
+//                toolChest.mergeResults(
+//                    (a, b) -> new MergeSequence<>(query.getResultOrdering(), Sequences.fromStream(sequenceStream))
+//                ).run(queryPlus, responseContext),
             mergeBatch.getAsLong(),
             mergeFjp
         );
       };
     } else {
+//      log.info("Running sequential merge");
       return (queryPlus, responseContext) -> {
         final Stream<? extends Sequence<T>> sequences = run(queryPlus, responseContext, timelineConverter);
         return new MergeSequence<>(query.getResultOrdering(), Sequences.fromStream(sequences));

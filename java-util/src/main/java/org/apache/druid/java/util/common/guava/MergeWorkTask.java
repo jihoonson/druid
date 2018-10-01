@@ -166,19 +166,19 @@ public class MergeWorkTask<T> extends ForkJoinTask<Sequence<T>>
                 new Iterator<Sequence<? extends T>>()
                 {
                   long taken = 0L;
-                  long iterStart = 0;
-                  long iterEnd = 0;
+//                  long iterStart = 0;
+//                  long iterEnd = 0;
 
                   @Override
                   public boolean hasNext()
                   {
-                    if (iterStart == 0) {
-                      iterStart = System.currentTimeMillis();
-                    }
-                    if (taken >= totalAdditions) {
-                      iterEnd = System.currentTimeMillis();
-                      log.info("query[%s] iteration time mergeTask: %d ms", queryId, (iterEnd - iterStart));
-                    }
+//                    if (iterStart == 0) {
+//                      iterStart = System.currentTimeMillis();
+//                    }
+//                    if (taken >= totalAdditions) {
+//                      iterEnd = System.currentTimeMillis();
+//                      log.info("query[%s] iteration time mergeTask: %d ms", queryId, (iterEnd - iterStart));
+//                    }
                     return taken < totalAdditions;
                   }
 
@@ -253,10 +253,10 @@ public class MergeWorkTask<T> extends ForkJoinTask<Sequence<T>>
     // Force materialization "work" in this thread
     // For singleton lists it is not clear it is even worth the optimization of short circuiting the merge for the
     // extra code maintenance overhead
-    final long before = System.currentTimeMillis();
+//    final long before = System.currentTimeMillis();
     result = mergerFn.apply(StreamSupport.stream(baseSpliterator, false));
-    final long after = System.currentTimeMillis();
-    log.info("task[%d] took [%d] ms", i, (after - before));
+//    final long after = System.currentTimeMillis();
+//    log.info("task[%d] took [%d] ms", i, (after - before));
     return true;
   }
 }

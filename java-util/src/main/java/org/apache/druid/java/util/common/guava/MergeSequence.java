@@ -31,6 +31,7 @@ import java.util.PriorityQueue;
  */
 public class MergeSequence<T> extends YieldingSequenceBase<T>
 {
+//  private static final Logger log = new Logger(MergeSequence.class);
   private final Ordering<? super T> ordering;
   private final Sequence<? extends Sequence<T>> baseSequences;
 
@@ -64,8 +65,8 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
         pQueue,
         (queue, in) -> {
           final Yielder<T> yielder = in.toYielder(
-              null,
-              new YieldingAccumulator<T, T>()
+              () -> null,
+              () -> new YieldingAccumulator<T, T>()
               {
                 @Override
                 public T accumulate(T accumulated, T in)
@@ -95,6 +96,7 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
   }
 
   private <OutType> Yielder<OutType> makeYielder(
+//      int loopCnt,
       final PriorityQueue<Yielder<T>> pQueue,
       OutType initVal,
       final YieldingAccumulator<OutType, T> accumulator
@@ -102,6 +104,7 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
   {
     OutType retVal = initVal;
     while (!accumulator.yielded() && !pQueue.isEmpty()) {
+//      loopCnt++;
       Yielder<T> yielder = pQueue.remove();
       retVal = accumulator.accumulate(retVal, yielder.get());
       yielder = yielder.next(null);
@@ -118,9 +121,11 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
     }
 
     if (pQueue.isEmpty() && !accumulator.yielded()) {
+//      log.info("loop [%s] in mergeSequence", loopCnt);
       return Yielders.done(retVal, null);
     }
 
+//    final int loopSoFar = loopCnt;
     final OutType yieldVal = retVal;
     return new Yielder<OutType>()
     {

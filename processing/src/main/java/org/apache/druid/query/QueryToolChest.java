@@ -21,7 +21,9 @@ package org.apache.druid.query;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.base.Function;
+import com.google.common.collect.Ordering;
 import org.apache.druid.guice.annotations.ExtensionPoint;
+import org.apache.druid.java.util.common.guava.nary.BinaryFn;
 import org.apache.druid.query.aggregation.MetricManipulationFn;
 import org.apache.druid.timeline.LogicalSegment;
 
@@ -51,6 +53,16 @@ public abstract class QueryToolChest<ResultType, QueryType extends Query<ResultT
   public QueryRunner<ResultType> mergeResults(QueryRunner<ResultType> runner, String id)
   {
     return mergeResults(runner);
+  }
+
+  public Ordering<ResultType> getOrdering(QueryType query)
+  {
+    return null;
+  }
+
+  public BinaryFn<ResultType, ResultType, ResultType> getMergeFn(QueryType query)
+  {
+    return null;
   }
 
   /**

@@ -23,6 +23,7 @@ import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.apache.commons.compress.utils.Lists;
 import org.apache.druid.client.cache.CacheConfig;
 import org.apache.druid.client.cache.CachePopulatorStats;
 import org.apache.druid.client.cache.ForegroundCachePopulator;
@@ -39,6 +40,7 @@ import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.query.DefaultGenericQueryMetricsFactory;
 import org.apache.druid.query.DefaultQueryRunnerFactoryConglomerate;
 import org.apache.druid.query.DruidProcessingConfig;
+import org.apache.druid.query.FluentQueryRunnerBuilder;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
@@ -84,10 +86,12 @@ import org.apache.druid.server.coordination.ServerType;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.joda.time.Interval;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -102,6 +106,7 @@ public class CachingClusteredClientParallelMergeTest
   private static final int NUM_SERVERS = 3;
 
   private CachingClusteredClient client;
+  private QueryToolChestWarehouse toolChestWarehouse;
 
   @Before
   public void setup()
@@ -212,7 +217,7 @@ public class CachingClusteredClientParallelMergeTest
             .build()
     );
 
-    final QueryToolChestWarehouse toolChestWarehouse = new QueryToolChestWarehouse()
+    toolChestWarehouse = new QueryToolChestWarehouse()
     {
       @Override
       public <T, QueryType extends Query<T>> QueryToolChest<T, QueryType> getToolChest(final QueryType query)
@@ -335,13 +340,52 @@ public class CachingClusteredClientParallelMergeTest
         null,
         null,
         ImmutableMap.of("intermediateMergeBatchThreshold", 2)
+//        Collections.emptyMap()
     );
     final QueryRunner<Row> queryRunner = client.getQueryRunnerForIntervals(
         query,
         Collections.singletonList(Intervals.of("2018-01-01/2018-01-07"))
     );
 
-    final List<Row> result = queryRunner.run(QueryPlus.wrap(query), new HashMap<>()).toList();
-    System.out.println(result);
+    final List<Row> result = new FluentQueryRunnerBuilder<>(toolChestWarehouse.getToolChest(query))
+        .create(queryRunner)
+        .mergeResults()
+        .applyPostMergeDecoration()
+        .run(QueryPlus.wrap(query), new HashMap<>()).toList();
+
+    final List<Row> expected = new ArrayList<>();
+    expected.add(
+        new MapBasedRow(
+            DateTimes.of("2018-01-01T00:00:00.000Z"),
+            ImmutableMap.of(
+                "dim1",
+                "dim1_1",
+                "dim2",
+                "dim2_1",
+                "cnt",
+                20L,
+                "double_max",
+                10.0
+            )
+        )
+    );
+
+    expected.add(
+        new MapBasedRow(
+            DateTimes.of("2018-01-01T00:00:00.000Z"),
+            ImmutableMap.of(
+                "dim1",
+                "dim1_2",
+                "dim2",
+                "dim2_1",
+                "cnt",
+                5L,
+                "double_max",
+                2.2
+            )
+        )
+    );
+
+    Assert.assertEquals(expected, result);
   }
 }
