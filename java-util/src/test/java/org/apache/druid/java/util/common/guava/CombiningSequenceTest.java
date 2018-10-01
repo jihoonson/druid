@@ -249,24 +249,6 @@ public class CombiningSequenceTest
         }
     ).limit(limit);
 
-//    Sequence<Pair<Integer, Integer>> seq = new ParallelMergeCombineSequence2<>(
-//        exec,
-//        pairs.stream().map(pair -> Sequences.simple(Collections.singletonList(pair))).collect(Collectors.toList()),
-//        Ordering.natural().onResultOf(p -> p.lhs),
-//        (lhs, rhs) -> {
-//          if (lhs == null) {
-//            return rhs;
-//          }
-//
-//          if (rhs == null) {
-//            return lhs;
-//          }
-//
-//          return Pair.of(lhs.lhs, lhs.rhs + rhs.rhs);
-//        },
-//        2
-//    ).withBaggage(closeable).limit(limit);
-
     List<Pair<Integer, Integer>> merged = seq.toList();
 
     Assert.assertEquals(expected, merged);

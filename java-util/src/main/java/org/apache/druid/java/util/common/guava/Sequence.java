@@ -84,7 +84,7 @@ public interface Sequence<T>
 
   default List<T> toList()
   {
-    return accumulate(new ArrayList<>(), Accumulators.list());
+    return accumulate(() -> new ArrayList<>(), () -> Accumulators.list());
   }
 
   default Sequence<T> limit(int limit)

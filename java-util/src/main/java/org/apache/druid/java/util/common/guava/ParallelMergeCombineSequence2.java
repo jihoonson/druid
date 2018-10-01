@@ -60,7 +60,7 @@ public class ParallelMergeCombineSequence2<T> implements Sequence<T>
   @Override
   public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator)
   {
-    throw new UnsupportedOperationException();
+    return accumulate(() -> initValue, () -> accumulator);
   }
 
   @Override
@@ -68,6 +68,7 @@ public class ParallelMergeCombineSequence2<T> implements Sequence<T>
       Supplier<OutType> initValueSupplier, Supplier<Accumulator<OutType, T>> accumulatorSupplier
   )
   {
+    // TODO: validate this
     final List<Sequence<OutType>> finalSequences = new ArrayList<>();
 
     for (int i = 0; i < baseSequences.size(); i += batchSize) {
@@ -118,7 +119,7 @@ public class ParallelMergeCombineSequence2<T> implements Sequence<T>
   @Override
   public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
   {
-    throw new UnsupportedOperationException();
+    return toYielder(() -> initValue, () -> accumulator);
   }
 
   @Override

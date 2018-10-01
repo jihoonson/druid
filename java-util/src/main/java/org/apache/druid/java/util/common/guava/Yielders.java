@@ -30,8 +30,8 @@ public class Yielders
   public static <T> Yielder<T> each(final Sequence<T> sequence)
   {
     return sequence.toYielder(
-        null,
-        new YieldingAccumulator<T, T>()
+        () -> null,
+        () -> new YieldingAccumulator<T, T>()
         {
           @Override
           public T accumulate(T accumulated, T in)
