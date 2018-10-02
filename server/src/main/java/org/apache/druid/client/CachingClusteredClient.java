@@ -234,10 +234,6 @@ public class CachingClusteredClient implements QuerySegmentWalker
                     toolChest.getOrdering(query),
                     toolChest.getMergeFn(query)
                 ).run(queryPlus, responseContext),
-
-//                toolChest.mergeResults(
-//                    (a, b) -> new MergeSequence<>(query.getResultOrdering(), Sequences.fromStream(sequenceStream))
-//                ).run(queryPlus, responseContext),
             mergeBatch.getAsLong(),
             mergeFjp
         );

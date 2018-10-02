@@ -84,8 +84,8 @@ public class SequenceTestHelper
   {
     Iterator<Integer> numsIter = nums.iterator();
     Yielder<Integer> yielder = seq.get().toYielder(
-        0,
-        new YieldingAccumulator<Integer, Integer>()
+        () ->0,
+        () -> new YieldingAccumulator<Integer, Integer>()
         {
           final Iterator<Integer> valsIter = nums.iterator();
           int count = 0;
@@ -183,8 +183,8 @@ public class SequenceTestHelper
     Yielder<Integer> yielder = null;
     try {
       yielder = seq.toYielder(
-          1,
-          new YieldingAccumulator<Integer, Integer>()
+          () -> 1,
+          () -> new YieldingAccumulator<Integer, Integer>()
           {
             @Override
             public Integer accumulate(Integer accumulated, Integer in)

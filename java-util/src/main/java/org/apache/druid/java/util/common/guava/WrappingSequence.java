@@ -73,8 +73,8 @@ final class WrappingSequence<T> implements Sequence<T>
 
   @Override
   public <OutType> Yielder<OutType> toYielder(
-      final OutType initValue,
-      final YieldingAccumulator<OutType, T> accumulator
+      final java.util.function.Supplier<OutType> initValue,
+      final java.util.function.Supplier<YieldingAccumulator<OutType, T>> accumulator
   )
   {
     try {

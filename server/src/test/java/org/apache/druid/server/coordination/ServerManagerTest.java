@@ -89,6 +89,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  */
@@ -714,7 +715,7 @@ public class ServerManagerTest
 
     @Override
     public <OutType> Yielder<OutType> toYielder(
-        final OutType initValue, final YieldingAccumulator<OutType, T> accumulator
+        final Supplier<OutType> initValue, final Supplier<YieldingAccumulator<OutType, T>> accumulator
     )
     {
       notifyLatch.countDown();

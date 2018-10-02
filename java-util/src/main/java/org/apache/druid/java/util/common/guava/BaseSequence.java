@@ -21,6 +21,7 @@ package org.apache.druid.java.util.common.guava;
 
 import java.io.Closeable;
 import java.util.Iterator;
+import java.util.function.Supplier;
 
 /**
  */
@@ -40,9 +41,10 @@ public class BaseSequence<T, IterType extends Iterator<T>> implements Sequence<T
   public <OutType> OutType accumulate(OutType initValue, final Accumulator<OutType, T> fn)
   {
     IterType iterator = maker.make();
+    OutType accumulated = initValue;
     try {
       while (iterator.hasNext()) {
-        initValue = fn.accumulate(initValue, iterator.next());
+        accumulated = fn.accumulate(accumulated, iterator.next());
       }
     }
     catch (Throwable t) {
@@ -55,16 +57,16 @@ public class BaseSequence<T, IterType extends Iterator<T>> implements Sequence<T
       throw t;
     }
     maker.cleanup(iterator);
-    return initValue;
+    return accumulated;
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
+  public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, Supplier<YieldingAccumulator<OutType, T>> accumulator)
   {
     final IterType iterator = maker.make();
 
     try {
-      return makeYielder(initValue, accumulator, iterator);
+      return makeYielder(initValue.get(), accumulator.get(), iterator);
     }
     catch (Throwable t) {
       try {

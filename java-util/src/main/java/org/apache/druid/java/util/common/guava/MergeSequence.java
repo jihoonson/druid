@@ -26,12 +26,12 @@ import org.apache.druid.java.util.common.io.Closer;
 
 import java.io.IOException;
 import java.util.PriorityQueue;
+import java.util.function.Supplier;
 
 /**
  */
 public class MergeSequence<T> extends YieldingSequenceBase<T>
 {
-//  private static final Logger log = new Logger(MergeSequence.class);
   private final Ordering<? super T> ordering;
   private final Sequence<? extends Sequence<T>> baseSequences;
 
@@ -45,7 +45,7 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
+  public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, Supplier<YieldingAccumulator<OutType, T>> accumulator)
   {
     PriorityQueue<Yielder<T>> pQueue = new PriorityQueue<>(
         32,
@@ -92,11 +92,10 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
         }
     );
 
-    return makeYielder(pQueue, initValue, accumulator);
+    return makeYielder(pQueue, initValue.get(), accumulator.get());
   }
 
   private <OutType> Yielder<OutType> makeYielder(
-//      int loopCnt,
       final PriorityQueue<Yielder<T>> pQueue,
       OutType initVal,
       final YieldingAccumulator<OutType, T> accumulator
@@ -104,7 +103,6 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
   {
     OutType retVal = initVal;
     while (!accumulator.yielded() && !pQueue.isEmpty()) {
-//      loopCnt++;
       Yielder<T> yielder = pQueue.remove();
       retVal = accumulator.accumulate(retVal, yielder.get());
       yielder = yielder.next(null);
@@ -121,11 +119,9 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
     }
 
     if (pQueue.isEmpty() && !accumulator.yielded()) {
-//      log.info("loop [%s] in mergeSequence", loopCnt);
       return Yielders.done(retVal, null);
     }
 
-//    final int loopSoFar = loopCnt;
     final OutType yieldVal = retVal;
     return new Yielder<OutType>()
     {

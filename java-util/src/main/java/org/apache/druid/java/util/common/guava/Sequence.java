@@ -54,11 +54,6 @@ public interface Sequence<T>
    */
   <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator);
 
-  default <OutType> OutType accumulate(Supplier<OutType> initValueSupplier, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
-  {
-    return accumulate(initValueSupplier.get(), accumulatorSupplier.get());
-  }
-
  /**
    * Return an Yielder for accumulated sequence.
    *
@@ -70,12 +65,7 @@ public interface Sequence<T>
    *
    * @see Yielder
    */
-  <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator);
-
-  default <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValueSupplier, Supplier<YieldingAccumulator<OutType, T>> accumulatorSupplier)
-  {
-    return toYielder(initValueSupplier.get(), accumulatorSupplier.get());
-  }
+  <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValueSupplier, Supplier<YieldingAccumulator<OutType, T>> accumulatorSupplier);
 
   default <U> Sequence<U> map(Function<? super T, ? extends U> mapper)
   {
@@ -84,7 +74,7 @@ public interface Sequence<T>
 
   default List<T> toList()
   {
-    return accumulate(() -> new ArrayList<>(), () -> Accumulators.list());
+    return accumulate(new ArrayList<>(), Accumulators.list());
   }
 
   default Sequence<T> limit(int limit)
@@ -115,5 +105,10 @@ public interface Sequence<T>
   default Sequence<T> withBaggage(Closeable baggage)
   {
     return Sequences.withBaggage(this, baggage);
+  }
+
+  default Yielder<T> each()
+  {
+    return Yielders.each(this);
   }
 }

@@ -22,6 +22,7 @@ package org.apache.druid.java.util.common.guava;
 import java.io.Closeable;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  */
@@ -62,7 +63,7 @@ public class TestSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
+  public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, Supplier<YieldingAccumulator<OutType, T>> accumulator)
   {
     return base.toYielder(initValue, accumulator);
   }

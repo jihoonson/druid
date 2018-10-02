@@ -23,18 +23,19 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.java.util.common.guava.MergeSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.guava.Yielder;
 import org.apache.druid.java.util.common.guava.YieldingAccumulator;
 import org.apache.druid.java.util.common.guava.YieldingSequenceBase;
+import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.spec.MultipleSpecificSegmentSpec;
 import org.apache.druid.segment.SegmentMissingException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class RetryQueryRunner<T> implements QueryRunner<T>
 {
@@ -65,7 +66,7 @@ public class RetryQueryRunner<T> implements QueryRunner<T>
     {
       @Override
       public <OutType> Yielder<OutType> toYielder(
-          OutType initValue, YieldingAccumulator<OutType, T> accumulator
+          Supplier<OutType> initValue, Supplier<YieldingAccumulator<OutType, T>> accumulator
       )
       {
         List<SegmentDescriptor> missingSegments = getMissingSegments(context);

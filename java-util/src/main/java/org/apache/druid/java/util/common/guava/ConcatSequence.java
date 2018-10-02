@@ -23,6 +23,7 @@ import com.google.common.base.Throwables;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.function.Supplier;
 
 /**
  */
@@ -45,13 +46,13 @@ public class ConcatSequence<T> implements Sequence<T>
 
   @Override
   public <OutType> Yielder<OutType> toYielder(
-      final OutType initValue,
-      final YieldingAccumulator<OutType, T> accumulator
+      final Supplier<OutType> initValue,
+      final Supplier<YieldingAccumulator<OutType, T>> accumulator
   )
   {
     Yielder<Sequence<T>> yielderYielder = baseSequences.toYielder(
-        null,
-        new YieldingAccumulator<Sequence<T>, Sequence<T>>()
+        () -> null,
+        () -> new YieldingAccumulator<Sequence<T>, Sequence<T>>()
         {
           @Override
           public Sequence<T> accumulate(Sequence<T> accumulated, Sequence<T> in)
@@ -63,7 +64,7 @@ public class ConcatSequence<T> implements Sequence<T>
     );
 
     try {
-      return makeYielder(yielderYielder, initValue, accumulator);
+      return makeYielder(yielderYielder, initValue.get(), accumulator.get());
     }
     catch (Throwable t) {
       try {
@@ -83,7 +84,8 @@ public class ConcatSequence<T> implements Sequence<T>
   )
   {
     while (!yielderYielder.isDone()) {
-      Yielder<OutType> yielder = yielderYielder.get().toYielder(initValue, accumulator);
+      final OutType yielderInitVal = initValue;
+      Yielder<OutType> yielder = yielderYielder.get().toYielder(() -> yielderInitVal, () -> accumulator);
       if (accumulator.yielded()) {
         return wrapYielder(yielder, yielderYielder, accumulator);
       }

@@ -19,7 +19,6 @@
 
 package org.apache.druid.query.spec;
 
-import com.google.common.base.Supplier;
 import com.google.common.collect.Lists;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.Accumulator;
@@ -39,6 +38,7 @@ import org.apache.druid.segment.SegmentMissingException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  */
@@ -67,14 +67,7 @@ public class SpecificSegmentQueryRunner<T> implements QueryRunner<T>
     final String newName = StringUtils.format("%s_%s_%s", query.getType(), query.getDataSource(), query.getIntervals());
 
     final Sequence<T> baseSequence = doNamed(
-        currThread, currThreadName, newName, new Supplier<Sequence<T>>()
-        {
-          @Override
-          public Sequence<T> get()
-          {
-            return base.run(queryPlus, responseContext);
-          }
-        }
+        currThread, currThreadName, newName, () -> base.run(queryPlus, responseContext)
     );
 
     Sequence<T> segmentMissingCatchingSequence = new Sequence<T>()
@@ -93,8 +86,8 @@ public class SpecificSegmentQueryRunner<T> implements QueryRunner<T>
 
       @Override
       public <OutType> Yielder<OutType> toYielder(
-          final OutType initValue,
-          final YieldingAccumulator<OutType, T> accumulator
+          final Supplier<OutType> initValue,
+          final Supplier<YieldingAccumulator<OutType, T>> accumulator
       )
       {
         try {
@@ -102,7 +95,7 @@ public class SpecificSegmentQueryRunner<T> implements QueryRunner<T>
         }
         catch (SegmentMissingException e) {
           appendMissingSegment(responseContext);
-          return Yielders.done(initValue, null);
+          return Yielders.done(initValue.get(), null);
         }
       }
 
@@ -147,7 +140,7 @@ public class SpecificSegmentQueryRunner<T> implements QueryRunner<T>
         new SequenceWrapper()
         {
           @Override
-          public <RetType> RetType wrap(Supplier<RetType> sequenceProcessing)
+          public <RetType> RetType wrap(com.google.common.base.Supplier<RetType> sequenceProcessing)
           {
             return doNamed(currThread, currThreadName, newName, sequenceProcessing);
           }
@@ -165,7 +158,7 @@ public class SpecificSegmentQueryRunner<T> implements QueryRunner<T>
     missingSegments.add(specificSpec.getDescriptor());
   }
 
-  private <RetType> RetType doNamed(Thread currThread, String currName, String newName, Supplier<RetType> toRun)
+  private <RetType> RetType doNamed(Thread currThread, String currName, String newName, com.google.common.base.Supplier<RetType> toRun)
   {
     try {
       currThread.setName(newName);

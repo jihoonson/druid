@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @RunWith(Parameterized.class)
 public class CombiningSequenceTest
@@ -254,8 +253,8 @@ public class CombiningSequenceTest
     Assert.assertEquals(expected, merged);
 
     Yielder<Pair<Integer, Integer>> yielder = seq.toYielder(
-        null,
-        new YieldingAccumulator<Pair<Integer, Integer>, Pair<Integer, Integer>>()
+        () -> null,
+        () ->  new YieldingAccumulator<Pair<Integer, Integer>, Pair<Integer, Integer>>()
         {
           int count = 0;
 

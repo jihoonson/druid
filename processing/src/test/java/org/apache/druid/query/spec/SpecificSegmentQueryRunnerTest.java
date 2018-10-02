@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class SpecificSegmentQueryRunnerTest
 {
@@ -68,7 +69,7 @@ public class SpecificSegmentQueryRunnerTest
         new QueryRunner()
         {
           @Override
-          public Sequence run(QueryPlus queryPlus, Map responseContext)
+          public Sequence<Object> run(QueryPlus queryPlus, Map responseContext)
           {
             return new Sequence()
             {
@@ -80,7 +81,7 @@ public class SpecificSegmentQueryRunnerTest
 
               @Override
               public Yielder<Object> toYielder(
-                  Object initValue, YieldingAccumulator accumulator
+                  Supplier initValue, Supplier accumulator
               )
               {
                 throw new SegmentMissingException("FAILSAUCE");
@@ -114,7 +115,8 @@ public class SpecificSegmentQueryRunnerTest
     responseContext = Maps.newHashMap();
     results = queryRunner.run(QueryPlus.wrap(query), responseContext);
     results.toYielder(
-        null, new YieldingAccumulator()
+        () -> null,
+        () -> new YieldingAccumulator()
         {
           final List lists = Lists.newArrayList();
           @Override

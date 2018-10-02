@@ -29,7 +29,7 @@ public abstract class YieldingSequenceBase<T> implements Sequence<T>
   @Override
   public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator)
   {
-    Yielder<OutType> yielder = toYielder(initValue, YieldingAccumulators.fromAccumulator(accumulator));
+    Yielder<OutType> yielder = toYielder(() -> initValue, () -> YieldingAccumulators.fromAccumulator(accumulator));
 
     try {
       return yielder.get();

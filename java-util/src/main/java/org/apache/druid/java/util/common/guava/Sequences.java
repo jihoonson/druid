@@ -30,6 +30,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -146,7 +147,7 @@ public class Sequences
     return new YieldingSequenceBase<T>()
     {
       @Override
-      public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
+      public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, Supplier<YieldingAccumulator<OutType, T>> accumulator)
       {
         return new ExecuteWhenDoneYielder<>(seq.toYielder(initValue, accumulator), effect, exec);
       }
@@ -170,9 +171,9 @@ public class Sequences
     }
 
     @Override
-    public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, Object> accumulator)
+    public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, Supplier<YieldingAccumulator<OutType, Object>> accumulator)
     {
-      return Yielders.done(initValue, null);
+      return Yielders.done(initValue.get(), null);
     }
   }
 }

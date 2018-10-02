@@ -60,14 +60,6 @@ public class ParallelMergeCombineSequence2<T> implements Sequence<T>
   @Override
   public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator)
   {
-    return accumulate(() -> initValue, () -> accumulator);
-  }
-
-  @Override
-  public <OutType> OutType accumulate(
-      Supplier<OutType> initValueSupplier, Supplier<Accumulator<OutType, T>> accumulatorSupplier
-  )
-  {
     // TODO: validate this
     final List<Sequence<OutType>> finalSequences = new ArrayList<>();
 
@@ -76,7 +68,7 @@ public class ParallelMergeCombineSequence2<T> implements Sequence<T>
           baseSequences.subList(i, Math.min(i + batchSize, baseSequences.size()))
       );
       final CombiningSequence<T> combiningSequence = CombiningSequence.create(new MergeSequence<>(ordering, subSequences), ordering, mergeFn, null);
-      final Future<OutType> future = exec.submit(() -> combiningSequence.accumulate(initValueSupplier, accumulatorSupplier));
+      final Future<OutType> future = exec.submit(() -> combiningSequence.accumulate(initValue, accumulator));
 
       finalSequences.add(
           new LazySequence<>(
@@ -113,13 +105,7 @@ public class ParallelMergeCombineSequence2<T> implements Sequence<T>
         new MergeSequence<>(ordering, Sequences.fromStream(finalSequences.stream().map(seq -> (Sequence<T>) seq))),
         ordering,
         mergeFn
-    ).accumulate(null, accumulatorSupplier.get());
-  }
-
-  @Override
-  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
-  {
-    return toYielder(() -> initValue, () -> accumulator);
+    ).accumulate(null, accumulator);
   }
 
   @Override
@@ -140,10 +126,8 @@ public class ParallelMergeCombineSequence2<T> implements Sequence<T>
 
       exec.submit(() -> {
         try {
-          final OutType initVal = initValueSupplier.get();
-          final YieldingAccumulator<OutType, T> yieldingAccumulator = yieldingAccumulatorSupplier.get();
-          Yielder<OutType> yielder = combiningSequence.toYielder(initVal, yieldingAccumulator);
-          OutType prevVal = null;
+          Yielder<OutType> yielder = combiningSequence.toYielder(initValueSupplier, yieldingAccumulatorSupplier);
+          OutType prevVal;
           OutType val = yielder.get();
 
           queue.put(val);
@@ -179,7 +163,7 @@ public class ParallelMergeCombineSequence2<T> implements Sequence<T>
                     public boolean hasNext()
                     {
                       try {
-                        nextVal = queue.take();
+                        nextVal = queue.take(); // TODO: race??
                         return nextVal != sentinel;
                       }
                       catch (InterruptedException e) {
@@ -209,6 +193,6 @@ public class ParallelMergeCombineSequence2<T> implements Sequence<T>
         new MergeSequence<>(ordering, Sequences.fromStream(finalSequences.stream().map(seq -> (Sequence<T>) seq))),
         ordering,
         mergeFn
-    ).toYielder(null, yieldingAccumulatorSupplier.get());
+    ).toYielder(() -> null, yieldingAccumulatorSupplier);
   }
 }

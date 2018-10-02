@@ -53,8 +53,8 @@ public class ComplexSequenceTest
     Assert.assertEquals(expected, combined.toString());
 
     Yielder<Integer> yielder = complex.toYielder(
-        null,
-        new YieldingAccumulator<Integer, Integer>()
+        () -> null,
+        () -> new YieldingAccumulator<Integer, Integer>()
         {
           @Override
           public Integer accumulate(Integer accumulated, Integer in)
