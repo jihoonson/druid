@@ -35,13 +35,15 @@ public class ParallelResultMergeQueryRunner<T> implements QueryRunner<T>
   private final List<QueryRunner<T>> runners;
   private final Ordering<T> ordering;
   private final BinaryFn<T, T, T> mergeFn;
+  private final int queueSize;
 
   public ParallelResultMergeQueryRunner(
       ExecutorService exec,
       int batchSize,
       List<QueryRunner<T>> runners,
       Ordering<T> ordering,
-      BinaryFn<T, T, T> mergeFn
+      BinaryFn<T, T, T> mergeFn,
+      int queueSize
   )
   {
     this.exec = exec;
@@ -49,6 +51,7 @@ public class ParallelResultMergeQueryRunner<T> implements QueryRunner<T>
     this.runners = runners;
     this.ordering = ordering;
     this.mergeFn = mergeFn;
+    this.queueSize = queueSize;
   }
 
   @Override
@@ -61,7 +64,8 @@ public class ParallelResultMergeQueryRunner<T> implements QueryRunner<T>
         runners.stream().map(runner -> runner.run(queryPlus, responseContext)).collect(Collectors.toList()),
         ordering,
         mergeFn,
-        batchSize
+        batchSize,
+        queueSize
     );
   }
 }

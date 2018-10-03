@@ -241,7 +241,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<Row>
                                       ) {
                                         final AggregateResult retVal = input.run(queryPlusForRunners, responseContext)
                                                                             .accumulate(
-                                                                                AggregateResult.ok(),
+                                                                                () -> AggregateResult.ok(),
                                                                                 accumulator
                                                                             );
 

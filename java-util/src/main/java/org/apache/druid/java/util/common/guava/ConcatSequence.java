@@ -39,20 +39,25 @@ public class ConcatSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(OutType initValue, final Accumulator<OutType, T> accumulator)
+  public <OutType> OutType accumulate(Supplier<OutType> initValue, final Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorFactory)
   {
-    return baseSequences.accumulate(initValue, (accumulated, in) -> in.accumulate(accumulated, accumulator));
+    return baseSequences.accumulate(
+        initValue,
+        (accumulated, in) -> in.accumulate(() -> accumulated, accumulator),
+        () -> (accumulated, in) -> in.accumulate(() -> accumulated, accumulatorFactory.get())
+    );
   }
 
   @Override
   public <OutType> Yielder<OutType> toYielder(
       final Supplier<OutType> initValue,
+      YieldingAccumulator<OutType, T> statefulAccumulator,
       final Supplier<YieldingAccumulator<OutType, T>> accumulator
   )
   {
     Yielder<Sequence<T>> yielderYielder = baseSequences.toYielder(
         () -> null,
-        () -> new YieldingAccumulator<Sequence<T>, Sequence<T>>()
+        new YieldingAccumulator<Sequence<T>, Sequence<T>>()
         {
           @Override
           public Sequence<T> accumulate(Sequence<T> accumulated, Sequence<T> in)
@@ -64,7 +69,7 @@ public class ConcatSequence<T> implements Sequence<T>
     );
 
     try {
-      return makeYielder(yielderYielder, initValue.get(), accumulator.get());
+      return makeYielder(yielderYielder, initValue.get(), statefulAccumulator);
     }
     catch (Throwable t) {
       try {
@@ -85,7 +90,7 @@ public class ConcatSequence<T> implements Sequence<T>
   {
     while (!yielderYielder.isDone()) {
       final OutType yielderInitVal = initValue;
-      Yielder<OutType> yielder = yielderYielder.get().toYielder(() -> yielderInitVal, () -> accumulator);
+      Yielder<OutType> yielder = yielderYielder.get().toYielder(() -> yielderInitVal, accumulator);
       if (accumulator.yielded()) {
         return wrapYielder(yielder, yielderYielder, accumulator);
       }

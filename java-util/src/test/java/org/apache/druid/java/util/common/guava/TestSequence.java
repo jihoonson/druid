@@ -57,15 +57,15 @@ public class TestSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator)
+  public <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorFactory)
   {
-    return base.accumulate(initValue, accumulator);
+    return base.accumulate(initValue, accumulator, accumulatorFactory);
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, Supplier<YieldingAccumulator<OutType, T>> accumulator)
+  public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator)
   {
-    return base.toYielder(initValue, accumulator);
+    return base.toYielder(initValue, statefulAccumulator);
   }
 
   public boolean isClosed()

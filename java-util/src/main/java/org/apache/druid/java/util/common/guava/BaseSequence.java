@@ -38,10 +38,10 @@ public class BaseSequence<T, IterType extends Iterator<T>> implements Sequence<T
   }
 
   @Override
-  public <OutType> OutType accumulate(OutType initValue, final Accumulator<OutType, T> fn)
+  public <OutType> OutType accumulate(Supplier<OutType> initValue, final Accumulator<OutType, T> fn, Supplier<Accumulator<OutType, T>> accumulatorFactory)
   {
     IterType iterator = maker.make();
-    OutType accumulated = initValue;
+    OutType accumulated = initValue.get();
     try {
       while (iterator.hasNext()) {
         accumulated = fn.accumulate(accumulated, iterator.next());
@@ -61,12 +61,12 @@ public class BaseSequence<T, IterType extends Iterator<T>> implements Sequence<T
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, Supplier<YieldingAccumulator<OutType, T>> accumulator)
+  public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator)
   {
     final IterType iterator = maker.make();
 
     try {
-      return makeYielder(initValue.get(), accumulator.get(), iterator);
+      return makeYielder(initValue.get(), statefulAccumulator, iterator);
     }
     catch (Throwable t) {
       try {

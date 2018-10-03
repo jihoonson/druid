@@ -23,7 +23,6 @@ import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.apache.commons.compress.utils.Lists;
 import org.apache.druid.client.cache.CacheConfig;
 import org.apache.druid.client.cache.CachePopulatorStats;
 import org.apache.druid.client.cache.ForegroundCachePopulator;
@@ -35,8 +34,13 @@ import org.apache.druid.guice.http.DruidHttpClientConfig;
 import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
+import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Yielder;
+import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.query.DefaultGenericQueryMetricsFactory;
 import org.apache.druid.query.DefaultQueryRunnerFactoryConglomerate;
 import org.apache.druid.query.DruidProcessingConfig;
@@ -85,7 +89,6 @@ import org.apache.druid.segment.VirtualColumns;
 import org.apache.druid.server.coordination.ServerType;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
-import org.joda.time.Interval;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -94,10 +97,12 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
-import java.util.function.Function;
-import java.util.stream.Stream;
 
 public class CachingClusteredClientParallelMergeTest
 {
@@ -105,8 +110,13 @@ public class CachingClusteredClientParallelMergeTest
   private static final String VERSION = "version";
   private static final int NUM_SERVERS = 3;
 
+  private final Random random = new Random(9999);
+
   private CachingClusteredClient client;
   private QueryToolChestWarehouse toolChestWarehouse;
+
+  private static final int DIM1_CARD = 10;
+  private static final int DIM2_CARD = 1;
 
   @Before
   public void setup()
@@ -227,36 +237,54 @@ public class CachingClusteredClientParallelMergeTest
     };
 
     final TestTimelineServerView serverView = new TestTimelineServerView();
-    serverView.addServer(
-        createServer(1),
-        new TestQueryRunner(
-            ImmutableList.of(
-                createRow("2018-01-01", "dim1_1", "dim2_1", 2, 0.1),
-                createRow("2018-01-02", "dim1_1", "dim2_1", 5, 0.3)
-            )
-        )
-    );
-    serverView.addServer(
-        createServer(2),
-        new TestQueryRunner(
-            ImmutableList.of(
-                createRow("2018-01-01", "dim1_1", "dim2_1", 1, 0.9),
-                createRow("2018-01-03", "dim1_1", "dim2_1", 4, 0.3),
-                createRow("2018-01-01", "dim1_2", "dim2_1", 4, 1.2)
-            )
-        )
-    );
-    serverView.addServer(
-        createServer(3),
-        new TestQueryRunner(
-            ImmutableList.of(
-                createRow("2018-01-01", "dim1_1", "dim2_1", 2, 10.0),
-                createRow("2018-01-02", "dim1_1", "dim2_1", 1, 0.1),
-                createRow("2018-01-03", "dim1_1", "dim2_1", 5, 0.3),
-                createRow("2018-01-01", "dim1_2", "dim2_1", 1, 2.2)
-            )
-        )
-    );
+
+    for (int i = 0; i < NUM_SERVERS; i++) {
+      final int numRows = random.nextInt(10000) + 10000;
+//      final int numRows = 2;
+      final List<Row> rows = new ArrayList<>(numRows);
+      for (int j = 0; j < numRows; j++) {
+        final Row row = createRow(
+            "2018-01-01",
+            StringUtils.format("dim1_%d", random.nextInt(DIM1_CARD)),
+            StringUtils.format("dim2_%d", random.nextInt(DIM2_CARD)),
+            random.nextInt(100),
+            random.nextDouble()
+        );
+        rows.add(row);
+      }
+      serverView.addServer(createServer(i + 1), new TestQueryRunner(rows));
+    }
+
+//    serverView.addServer(
+//        createServer(1),
+//        new TestQueryRunner(
+//            ImmutableList.of(
+//                createRow("2018-01-01", "dim1_1", "dim2_1", 2, 0.1),
+//                createRow("2018-01-02", "dim1_1", "dim2_1", 5, 0.3)
+//            )
+//        )
+//    );
+//    serverView.addServer(
+//        createServer(2),
+//        new TestQueryRunner(
+//            ImmutableList.of(
+//                createRow("2018-01-01", "dim1_1", "dim2_1", 1, 0.9),
+//                createRow("2018-01-03", "dim1_1", "dim2_1", 4, 0.3),
+//                createRow("2018-01-01", "dim1_2", "dim2_1", 4, 1.2)
+//            )
+//        )
+//    );
+//    serverView.addServer(
+//        createServer(3),
+//        new TestQueryRunner(
+//            ImmutableList.of(
+//                createRow("2018-01-01", "dim1_1", "dim2_1", 2, 10.0),
+//                createRow("2018-01-02", "dim1_1", "dim2_1", 1, 0.1),
+//                createRow("2018-01-03", "dim1_1", "dim2_1", 6, 0.3),
+//                createRow("2018-01-01", "dim1_2", "dim2_1", 1, 2.2)
+//            )
+//        )
+//    );
 
     serverView.addSegmentToServer(
         createServer(1),
@@ -279,6 +307,7 @@ public class CachingClusteredClientParallelMergeTest
         MapCache.create(1024),
         objectMapper,
         new ForkJoinPool(),
+        Execs.multiThreaded(2, "caching-clustered-client-parallel-merge-test"),
         new ForegroundCachePopulator(objectMapper, new CachePopulatorStats(), 1024),
         new CacheConfig(),
         new DruidHttpClientConfig()
@@ -321,6 +350,34 @@ public class CachingClusteredClientParallelMergeTest
     );
   }
 
+  private boolean sameDim(Row row1, Row row2)
+  {
+    for (int i = 0; i < DIM1_CARD; i++) {
+      final String dim = StringUtils.format("dim1_%d", i);
+      if (!row1.getDimension(dim).equals(row2.getDimension(dim))) {
+        return false;
+      }
+    }
+
+    for (int i = 0; i < DIM2_CARD; i++) {
+      final String dim = StringUtils.format("dim2_%d", i);
+      if (!row1.getDimension(dim).equals(row2.getDimension(dim))) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private Set<String> getDims(Row row)
+  {
+    final Set<String> dims = new HashSet<>();
+    dims.add(row.getDimension("dim1").get(0));
+    dims.add(row.getDimension("dim2").get(0));
+
+    return dims;
+  }
+
   @Test
   public void test()
   {
@@ -347,45 +404,75 @@ public class CachingClusteredClientParallelMergeTest
         Collections.singletonList(Intervals.of("2018-01-01/2018-01-07"))
     );
 
-    final List<Row> result = new FluentQueryRunnerBuilder<>(toolChestWarehouse.getToolChest(query))
+    final Sequence<Row> result = new FluentQueryRunnerBuilder<>(toolChestWarehouse.getToolChest(query))
         .create(queryRunner)
+        .applyPreMergeDecoration()
         .mergeResults()
         .applyPostMergeDecoration()
-        .run(QueryPlus.wrap(query), new HashMap<>()).toList();
+        .run(QueryPlus.wrap(query), new HashMap<>());
 
-    final List<Row> expected = new ArrayList<>();
-    expected.add(
-        new MapBasedRow(
-            DateTimes.of("2018-01-01T00:00:00.000Z"),
-            ImmutableMap.of(
-                "dim1",
-                "dim1_1",
-                "dim2",
-                "dim2_1",
-                "cnt",
-                20L,
-                "double_max",
-                10.0
-            )
-        )
+    final GroupByQuery expectedQuery = new GroupByQuery(
+        new TableDataSource(DATA_SOURCE),
+        new MultipleIntervalSegmentSpec(Collections.singletonList(Intervals.of("2018-01-01/2018-01-07"))),
+        VirtualColumns.EMPTY,
+        null,
+        Granularities.ALL,
+        ImmutableList.of(new DefaultDimensionSpec("dim1", "dim1"), new DefaultDimensionSpec("dim2", "dim2")),
+        ImmutableList.of(
+            new LongSumAggregatorFactory("cnt", "cnt"),
+            new DoubleMaxAggregatorFactory("double_max", "double_met")
+        ),
+        null,
+        null,
+        null,
+        null,
+        Collections.emptyMap()
     );
 
-    expected.add(
-        new MapBasedRow(
-            DateTimes.of("2018-01-01T00:00:00.000Z"),
-            ImmutableMap.of(
-                "dim1",
-                "dim1_2",
-                "dim2",
-                "dim2_1",
-                "cnt",
-                5L,
-                "double_max",
-                2.2
-            )
-        )
-    );
+    final Sequence<Row> expected = new FluentQueryRunnerBuilder<>(toolChestWarehouse.getToolChest(expectedQuery))
+        .create(queryRunner)
+        .applyPreMergeDecoration()
+        .mergeResults()
+        .applyPostMergeDecoration()
+        .run(QueryPlus.wrap(query), new HashMap<>());
 
-    Assert.assertEquals(expected, result);
+//    final List<Row> rows = result.toList();
+
+    Assert.assertEquals(expected.toList(), result.toList());
+
+//    final List<Row> expected = new ArrayList<>();
+//    expected.add(
+//        new MapBasedRow(
+//            DateTimes.of("2018-01-01T00:00:00.000Z"),
+//            ImmutableMap.of(
+//                "dim1",
+//                "dim1_1",
+//                "dim2",
+//                "dim2_1",
+//                "cnt",
+//                21L,
+//                "double_max",
+//                10.0
+//            )
+//        )
+//    );
+//
+//    expected.add(
+//        new MapBasedRow(
+//            DateTimes.of("2018-01-01T00:00:00.000Z"),
+//            ImmutableMap.of(
+//                "dim1",
+//                "dim1_2",
+//                "dim2",
+//                "dim2_1",
+//                "cnt",
+//                5L,
+//                "double_max",
+//                2.2
+//            )
+//        )
+//    );
+//
+//      Assert.assertEquals(expected, result.toList());
   }
 }

@@ -262,7 +262,7 @@ public class SegmentAnalyzer
           );
 
       size = cursors.accumulate(
-          0L,
+          () -> 0L,
           new Accumulator<Long, Cursor>()
           {
             @Override

@@ -715,7 +715,7 @@ public class ServerManagerTest
 
     @Override
     public <OutType> Yielder<OutType> toYielder(
-        final Supplier<OutType> initValue, final Supplier<YieldingAccumulator<OutType, T>> accumulator
+        final Supplier<OutType> initValue, YieldingAccumulator<OutType, T> statefulAccumulator, final Supplier<YieldingAccumulator<OutType, T>> accumulator
     )
     {
       notifyLatch.countDown();
@@ -727,7 +727,7 @@ public class ServerManagerTest
         throw Throwables.propagate(e);
       }
 
-      final Yielder<OutType> baseYielder = baseSequence.toYielder(initValue, accumulator);
+      final Yielder<OutType> baseYielder = baseSequence.toYielder(initValue, statefulAccumulator);
       return new Yielder<OutType>()
       {
         @Override

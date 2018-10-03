@@ -85,7 +85,7 @@ public class SequenceTestHelper
     Iterator<Integer> numsIter = nums.iterator();
     Yielder<Integer> yielder = seq.get().toYielder(
         () ->0,
-        () -> new YieldingAccumulator<Integer, Integer>()
+        new YieldingAccumulator<Integer, Integer>()
         {
           final Iterator<Integer> valsIter = nums.iterator();
           int count = 0;
@@ -139,7 +139,7 @@ public class SequenceTestHelper
 
 
     int sum = seq.get().accumulate(
-        0,
+        () -> 0,
         new Accumulator<Integer, Integer>()
         {
           final Iterator<Integer> valsIter = nums.iterator();
@@ -161,7 +161,7 @@ public class SequenceTestHelper
     boolean exceptionThrown = false;
     try {
       seq.accumulate(
-          1,
+          () -> 1,
           new Accumulator<Integer, Integer>()
           {
             @Override
@@ -184,7 +184,7 @@ public class SequenceTestHelper
     try {
       yielder = seq.toYielder(
           () -> 1,
-          () -> new YieldingAccumulator<Integer, Integer>()
+          new YieldingAccumulator<Integer, Integer>()
           {
             @Override
             public Integer accumulate(Integer accumulated, Integer in)

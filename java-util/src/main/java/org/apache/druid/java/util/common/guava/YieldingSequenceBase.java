@@ -19,6 +19,8 @@
 
 package org.apache.druid.java.util.common.guava;
 
+import java.util.function.Supplier;
+
 /**
  * A Sequence that is based entirely on the Yielder implementation.
  * <p/>
@@ -27,9 +29,9 @@ package org.apache.druid.java.util.common.guava;
 public abstract class YieldingSequenceBase<T> implements Sequence<T>
 {
   @Override
-  public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator)
+  public <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorFactory)
   {
-    Yielder<OutType> yielder = toYielder(() -> initValue, () -> YieldingAccumulators.fromAccumulator(accumulator));
+    Yielder<OutType> yielder = toYielder(initValue, YieldingAccumulators.fromAccumulator(accumulator), () -> YieldingAccumulators.fromAccumulator(accumulatorFactory.get()));
 
     try {
       return yielder.get();

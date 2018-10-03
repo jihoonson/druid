@@ -45,28 +45,40 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, Supplier<YieldingAccumulator<OutType, T>> accumulator)
+  public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator)
   {
-    PriorityQueue<Yielder<T>> pQueue = new PriorityQueue<>(
-        32,
-        ordering.onResultOf(
-            new Function<Yielder<T>, T>()
-            {
-              @Override
-              public T apply(Yielder<T> input)
-              {
-                return input.get();
-              }
-            }
-        )
-    );
+//    PriorityQueue<Yielder<T>> pQueue = new PriorityQueue<>(
+//        32,
+//        ordering.onResultOf(
+//            new Function<Yielder<T>, T>()
+//            {
+//              @Override
+//              public T apply(Yielder<T> input)
+//              {
+//                return input.get();
+//              }
+//            }
+//        )
+//    );
 
-    pQueue = baseSequences.accumulate(
-        pQueue,
+    PriorityQueue<Yielder<T>> pQueue = baseSequences.accumulate(
+        () -> new PriorityQueue<>(
+            32,
+            ordering.onResultOf(
+                new Function<Yielder<T>, T>()
+                {
+                  @Override
+                  public T apply(Yielder<T> input)
+                  {
+                    return input.get();
+                  }
+                }
+            )
+        ),
         (queue, in) -> {
           final Yielder<T> yielder = in.toYielder(
               () -> null,
-              () -> new YieldingAccumulator<T, T>()
+              new YieldingAccumulator<T, T>()
               {
                 @Override
                 public T accumulate(T accumulated, T in)
@@ -92,7 +104,7 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
         }
     );
 
-    return makeYielder(pQueue, initValue.get(), accumulator.get());
+    return makeYielder(pQueue, initValue.get(), statefulAccumulator);
   }
 
   private <OutType> Yielder<OutType> makeYielder(

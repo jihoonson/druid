@@ -38,6 +38,7 @@ import org.apache.druid.client.selector.TierSelectorStrategy;
 import org.apache.druid.guice.http.DruidHttpClientConfig;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.io.Closer;
@@ -295,6 +296,7 @@ public class CachingClusteredClientFunctionalityTest
         cache,
         OBJECT_MAPPER,
         ForkJoinPool.commonPool(),
+        Execs.multiThreaded(2, "caching-clustered-client-functionality-test"),
         cachePopulator,
         new CacheConfig()
         {

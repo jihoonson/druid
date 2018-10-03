@@ -31,11 +31,14 @@ import org.junit.Test;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ExecutorService;
 
 public class ParallelMergeCombineSequence2Test
 {
+  private Random random = new Random(System.currentTimeMillis());
   private ExecutorService service;
 
   @Before
@@ -51,7 +54,7 @@ public class ParallelMergeCombineSequence2Test
   }
 
   @Test
-  public void test()
+  public void testSimple()
   {
     List<IntPair> pairs1 = Arrays.asList(
         new IntPair(0, 6),
@@ -79,6 +82,28 @@ public class ParallelMergeCombineSequence2Test
     input.add(Sequences.simple(pairs2));
     input.add(Sequences.simple(pairs3));
 
+    assertResult(input, false);
+  }
+
+  @Test
+  public void teatRandom()
+  {
+    final List<Sequence<IntPair>> sequences = new ArrayList<>();
+    for (int i = 0; i < 7; i++) {
+      final List<IntPair> pairs = new ArrayList<>();
+      final int size = 10000 + random.nextInt(1000);
+      for (int j = 0; j < size; j++) {
+        pairs.add(new IntPair(random.nextInt(10000), random.nextInt(500)));
+      }
+      pairs.sort(Comparator.comparing(Pair::getLhs));
+      sequences.add(Sequences.simple(pairs));
+    }
+
+    assertResult(sequences, false);
+  }
+
+  private void assertResult(List<Sequence<IntPair>> sequences, boolean debug)
+  {
     final Ordering<IntPair> ordering = Ordering.natural().onResultOf(p -> p.lhs);
     final BinaryFn<IntPair, IntPair, IntPair> mergeFn = (lhs, rhs) -> {
       if (lhs == null) {
@@ -93,25 +118,35 @@ public class ParallelMergeCombineSequence2Test
     };
 
     final CombiningSequence<IntPair> combiningSequence = CombiningSequence.create(
-        new MergeSequence<>(ordering, Sequences.simple(input)),
+        new MergeSequence<>(ordering, Sequences.simple(sequences)),
         ordering,
         mergeFn
     );
-    
+
     final ParallelMergeCombineSequence2<IntPair> parallelMergeCombineSequence2 = new ParallelMergeCombineSequence2<>(
         service,
-        input,
+        sequences,
         ordering,
         mergeFn,
-        2
+        2,
+        10240
     );
 
     Yielder<IntPair> combiningYielder = Yielders.each(combiningSequence);
     Yielder<IntPair> parallelMergeCombineYielder = Yielders.each(parallelMergeCombineSequence2);
 
+    IntPair prev = null;
+
     while (!combiningYielder.isDone() && !parallelMergeCombineYielder.isDone()) {
-      System.out.println("combine: " + combiningYielder.get() + ", parallelCombine: " + parallelMergeCombineYielder.get());
+      if (debug) {
+        System.out.println("combine: "
+                           + combiningYielder.get()
+                           + ", parallelCombine: "
+                           + parallelMergeCombineYielder.get());
+      }
       Assert.assertEquals(combiningYielder.get(), parallelMergeCombineYielder.get());
+      Assert.assertNotEquals(parallelMergeCombineYielder.get(), prev);
+      prev = parallelMergeCombineYielder.get();
       combiningYielder = combiningYielder.next(combiningYielder.get());
       parallelMergeCombineYielder = parallelMergeCombineYielder.next(parallelMergeCombineYielder.get());
     }

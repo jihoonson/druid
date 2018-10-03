@@ -87,7 +87,7 @@ public class DruidDefaultSerializersModule extends SimpleModule
           {
             jgen.writeStartArray();
             value.accumulate(
-                null,
+                () -> null,
                 new Accumulator<Object, Object>()
                 {
                   @Override

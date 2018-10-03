@@ -97,11 +97,12 @@ public class CursorOnlyStrategy extends SearchStrategy
           null
       );
 
-      final Object2IntRBTreeMap<SearchHit> retVal = new Object2IntRBTreeMap<>(query.getSort().getComparator());
-      retVal.defaultReturnValue(0);
-
-      cursors.accumulate(
-          retVal,
+      final Object2IntRBTreeMap<SearchHit> retVal = cursors.accumulate(
+          () -> {
+            final Object2IntRBTreeMap<SearchHit> map = new Object2IntRBTreeMap<>(query.getSort().getComparator());
+            map.defaultReturnValue(0);
+            return map;
+          },
           (map, cursor) -> {
             if (map.size() >= limit) {
               return map;

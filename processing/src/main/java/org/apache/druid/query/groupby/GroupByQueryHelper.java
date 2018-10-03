@@ -201,7 +201,7 @@ public class GroupByQueryHelper
         combine
     );
 
-    return rows.accumulate(indexAccumulatorPair.lhs, indexAccumulatorPair.rhs);
+    return rows.accumulate(() -> indexAccumulatorPair.lhs, indexAccumulatorPair.rhs);
   }
 
   // Used by GroupByStrategyV1

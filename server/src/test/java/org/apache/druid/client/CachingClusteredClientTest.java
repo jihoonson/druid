@@ -63,6 +63,7 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.granularity.PeriodGranularity;
@@ -2678,6 +2679,7 @@ public class CachingClusteredClientTest
         cache,
         JSON_MAPPER,
         ForkJoinPool.commonPool(),
+        Execs.multiThreaded(2, "parallel-merge-comine-sequence-test"),
         cachePopulator,
         new CacheConfig()
         {

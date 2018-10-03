@@ -351,6 +351,7 @@ public class CachingClusteredClientBenchmark
         MapCache.create(0),
         JSON_MAPPER,
         ForkJoinPool.commonPool(),
+        ForkJoinPool.commonPool(),
         new ForegroundCachePopulator(JSON_MAPPER, new CachePopulatorStats(), 0),
         new CacheConfig(),
         new DruidHttpClientConfig()
@@ -394,7 +395,7 @@ public class CachingClusteredClientBenchmark
     Sequence<Row> queryResult = theRunner.run(QueryPlus.wrap(query), Maps.newHashMap());
     List<Row> results = queryResult.toList();
 
-//    log.info("# of results: " + results.size());
+    log.info("# of results: " + results.size());
 
     for (Row result : results) {
       blackhole.consume(result);

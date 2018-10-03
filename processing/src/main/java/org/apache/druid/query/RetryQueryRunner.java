@@ -66,7 +66,7 @@ public class RetryQueryRunner<T> implements QueryRunner<T>
     {
       @Override
       public <OutType> Yielder<OutType> toYielder(
-          Supplier<OutType> initValue, Supplier<YieldingAccumulator<OutType, T>> accumulator
+          Supplier<OutType> initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator
       )
       {
         List<SegmentDescriptor> missingSegments = getMissingSegments(context);
@@ -97,10 +97,10 @@ public class RetryQueryRunner<T> implements QueryRunner<T>
           return new MergeSequence<>(
               queryPlus.getQuery().getResultOrdering(),
               Sequences.simple(listOfSequences)).toYielder(
-              initValue, accumulator
+              initValue, statefulAccumulator, accumulator
           );
         } else {
-          return Iterables.getOnlyElement(listOfSequences).toYielder(initValue, accumulator);
+          return Iterables.getOnlyElement(listOfSequences).toYielder(initValue, statefulAccumulator, accumulator);
         }
       }
     };

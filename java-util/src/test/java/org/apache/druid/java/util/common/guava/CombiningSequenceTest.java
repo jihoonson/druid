@@ -254,7 +254,7 @@ public class CombiningSequenceTest
 
     Yielder<Pair<Integer, Integer>> yielder = seq.toYielder(
         () -> null,
-        () ->  new YieldingAccumulator<Pair<Integer, Integer>, Pair<Integer, Integer>>()
+        new YieldingAccumulator<Pair<Integer, Integer>, Pair<Integer, Integer>>()
         {
           int count = 0;
 

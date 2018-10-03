@@ -115,10 +115,10 @@ public class GroupByMergedQueryRunner<T> implements QueryRunner<T>
                             try {
                               if (bySegment) {
                                 input.run(threadSafeQueryPlus, responseContext)
-                                     .accumulate(bySegmentAccumulatorPair.lhs, bySegmentAccumulatorPair.rhs);
+                                     .accumulate(() -> bySegmentAccumulatorPair.lhs, bySegmentAccumulatorPair.rhs);
                               } else {
                                 input.run(threadSafeQueryPlus, responseContext)
-                                     .accumulate(indexAccumulatorPair.lhs, indexAccumulatorPair.rhs);
+                                     .accumulate(() -> indexAccumulatorPair.lhs, indexAccumulatorPair.rhs);
                               }
 
                               return null;

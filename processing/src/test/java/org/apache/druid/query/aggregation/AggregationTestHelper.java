@@ -34,6 +34,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.io.Closeables;
 import com.google.common.util.concurrent.MoreExecutors;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.LineIterator;
 import org.apache.druid.collections.CloseableStupidPool;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.Row;
@@ -81,8 +83,6 @@ import org.apache.druid.segment.column.ColumnConfig;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
 import org.apache.druid.segment.writeout.OffHeapMemorySegmentWriteOutMediumFactory;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.LineIterator;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.Closeable;
@@ -657,7 +657,7 @@ public class AggregationTestHelper implements Closeable
           Sequence<Row> resultSeq = baseRunner.run(queryPlus, Maps.newHashMap());
           final Yielder yielder = resultSeq.toYielder(
               () -> null,
-              () -> new YieldingAccumulator()
+              new YieldingAccumulator()
               {
                 @Override
                 public Object accumulate(Object accumulated, Object in)

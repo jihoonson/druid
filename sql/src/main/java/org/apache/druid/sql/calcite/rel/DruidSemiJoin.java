@@ -286,7 +286,7 @@ public class DruidSemiJoin extends DruidRel<DruidSemiJoin>
     // Build list of acceptable values from right side.
     final Set<List<String>> valuess = new HashSet<>();
     final List<RexNode> conditions = druidRight.runQuery().accumulate(
-        new ArrayList<>(),
+        () -> new ArrayList<>(),
         new Accumulator<List<RexNode>, Object[]>()
         {
           int numRows;

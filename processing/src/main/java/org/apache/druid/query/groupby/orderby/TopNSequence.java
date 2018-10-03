@@ -47,13 +47,16 @@ public class TopNSequence<T> extends BaseSequence<T, Iterator<T>>
             }
 
             // Materialize the topN values
-            final MinMaxPriorityQueue<T> queue = MinMaxPriorityQueue
-                .orderedBy(ordering)
-                .maximumSize(limit)
-                .create();
+//            final MinMaxPriorityQueue<T> queue = MinMaxPriorityQueue
+//                .orderedBy(ordering)
+//                .maximumSize(limit)
+//                .create();
 
-            input.accumulate(
-                queue,
+            final MinMaxPriorityQueue<T> queue = input.accumulate(
+                () -> MinMaxPriorityQueue
+                    .orderedBy(ordering)
+                    .maximumSize(limit)
+                    .create(),
                 new Accumulator<MinMaxPriorityQueue<T>, T>()
                 {
                   @Override
@@ -62,6 +65,10 @@ public class TopNSequence<T> extends BaseSequence<T, Iterator<T>>
                     theQueue.offer(row);
                     return theQueue;
                   }
+                },
+                () -> (theQueue, row) -> {
+                  theQueue.offer(row);
+                  return theQueue;
                 }
             );
 

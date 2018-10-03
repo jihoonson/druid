@@ -31,6 +31,15 @@ public class Yielders
   {
     return sequence.toYielder(
         () -> null,
+        new YieldingAccumulator<T, T>()
+        {
+          @Override
+          public T accumulate(T accumulated, T in)
+          {
+            yield();
+            return in;
+          }
+        },
         () -> new YieldingAccumulator<T, T>()
         {
           @Override

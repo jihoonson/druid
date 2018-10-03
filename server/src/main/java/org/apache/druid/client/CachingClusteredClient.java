@@ -41,6 +41,7 @@ import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.concurrent.Execs;
+import org.apache.druid.java.util.common.guava.CombiningSequence;
 import org.apache.druid.java.util.common.guava.MergeSequence;
 import org.apache.druid.java.util.common.guava.MergeWorkTask;
 import org.apache.druid.java.util.common.guava.Sequence;
@@ -87,6 +88,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Spliterators;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -119,6 +121,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
   private final CachePopulator cachePopulator;
   private final CacheConfig cacheConfig;
   private final ForkJoinPool mergeFjp;
+  private final ExecutorService processingPool;
   private final DruidHttpClientConfig httpClientConfig;
 
   @Inject
@@ -129,6 +132,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
       Cache cache,
       @Smile ObjectMapper objectMapper,
       @Processing ForkJoinPool mergeFjp,
+      @Processing ExecutorService processingPool,
       CachePopulator cachePopulator,
       CacheConfig cacheConfig,
       @Client DruidHttpClientConfig httpClientConfig
@@ -142,6 +146,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
     this.cachePopulator = cachePopulator;
     this.cacheConfig = cacheConfig;
     this.mergeFjp = mergeFjp;
+    this.processingPool = processingPool;
     this.httpClientConfig = httpClientConfig;
 
     if (cacheConfig.isQueryCacheable(Query.GROUP_BY) && (cacheConfig.isUseCache() || cacheConfig.isPopulateCache())) {
@@ -200,42 +205,58 @@ public class CachingClusteredClient implements QuerySegmentWalker
 //      log.info("Running parallel merge");
       final QueryRunnerFactory<T, Query<T>> queryRunnerFactory = conglomerate.findFactory(query);
       final QueryToolChest<T, Query<T>> toolChest = queryRunnerFactory.getToolchest();
+//      return (queryPlus, responseContext) -> {
+//        final Stream<? extends Sequence<T>> sequences = run(queryPlus, responseContext, timelineConverter);
+//        return MergeWorkTask.parallelMerge(
+//            query.getId(),
+//            sequences.parallel(),
+//            sequenceStream ->
+////                new FluentQueryRunnerBuilder<>(toolChest)
+////                    .create(
+////                        queryRunnerFactory.mergeRunners(
+////                            mergeFjp,
+////                            new Iterable<QueryRunner<T>>()
+////                            {
+////                              final Stream<QueryRunner<T>> runnerStream = sequenceStream.map(
+////                                  s -> (QueryRunner<T>) (ignored0, ignored1) -> (Sequence<T>) s
+////                              );
+////
+////                              @Override
+////                              public Iterator<QueryRunner<T>> iterator()
+////                              {
+////                                return runnerStream.iterator();
+////                              }
+////                            }
+////                        )
+////                    )
+////                    .mergeResults()
+////                    .run(queryPlus, responseContext),
+//
+//                new ParallelResultMergeQueryRunner<>(
+//                    mergeFjp,
+//                    (int) mergeBatch.getAsLong(),
+//                    sequenceStream.map(s -> (QueryRunner<T>) (queryPlus1, responseContext1) -> (Sequence<T>) s).collect(Collectors.toList()),
+//                    toolChest.getOrdering(query),
+//                    toolChest.getMergeFn(query)
+//                ).run(queryPlus, responseContext),
+//            mergeBatch.getAsLong(),
+//            mergeFjp
+//        );
+//      };
+
       return (queryPlus, responseContext) -> {
         final Stream<? extends Sequence<T>> sequences = run(queryPlus, responseContext, timelineConverter);
-        return MergeWorkTask.parallelMerge(
-            query.getId(),
-            sequences.parallel(),
-            sequenceStream ->
-//                new FluentQueryRunnerBuilder<>(toolChest)
-//                    .create(
-//                        queryRunnerFactory.mergeRunners(
-//                            mergeFjp,
-//                            new Iterable<QueryRunner<T>>()
-//                            {
-//                              final Stream<QueryRunner<T>> runnerStream = sequenceStream.map(
-//                                  s -> (QueryRunner<T>) (ignored0, ignored1) -> (Sequence<T>) s
-//                              );
-//
-//                              @Override
-//                              public Iterator<QueryRunner<T>> iterator()
-//                              {
-//                                return runnerStream.iterator();
-//                              }
-//                            }
-//                        )
-//                    )
-//                    .mergeResults()
-//                    .run(queryPlus, responseContext),
-
-                new ParallelResultMergeQueryRunner<>(
-                    mergeFjp,
-                    (int) mergeBatch.getAsLong(),
-                    sequenceStream.map(s -> (QueryRunner<T>) (queryPlus1, responseContext1) -> (Sequence<T>) s).collect(Collectors.toList()),
-                    toolChest.getOrdering(query),
-                    toolChest.getMergeFn(query)
-                ).run(queryPlus, responseContext),
-            mergeBatch.getAsLong(),
-            mergeFjp
+        return CombiningSequence.create(
+            new ParallelResultMergeQueryRunner<>(
+                mergeFjp,
+                (int) mergeBatch.getAsLong(),
+                sequences.map(s -> (QueryRunner<T>) (queryPlus1, responseContext1) -> (Sequence<T>) s).collect(Collectors.toList()),
+                query.getResultOrdering(),
+                toolChest.getMergeFn(query),
+                query.getContextValue("queueSize", 10240)
+            ).run(queryPlus, responseContext),
+            query.getResultOrdering(),
+            toolChest.getMergeFn(query)
         );
       };
     } else {

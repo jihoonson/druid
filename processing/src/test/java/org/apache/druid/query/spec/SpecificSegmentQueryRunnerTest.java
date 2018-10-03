@@ -74,14 +74,14 @@ public class SpecificSegmentQueryRunnerTest
             return new Sequence()
             {
               @Override
-              public Object accumulate(Object initValue, Accumulator accumulator)
+              public Object accumulate(Supplier initValue, Accumulator accumulator, Supplier supplier)
               {
                 throw new SegmentMissingException("FAILSAUCE");
               }
 
               @Override
               public Yielder<Object> toYielder(
-                  Supplier initValue, Supplier accumulator
+                  Supplier initValue, YieldingAccumulator statefulAccumulator, Supplier accumulator
               )
               {
                 throw new SegmentMissingException("FAILSAUCE");
@@ -116,7 +116,7 @@ public class SpecificSegmentQueryRunnerTest
     results = queryRunner.run(QueryPlus.wrap(query), responseContext);
     results.toYielder(
         () -> null,
-        () -> new YieldingAccumulator()
+        new YieldingAccumulator()
         {
           final List lists = Lists.newArrayList();
           @Override
