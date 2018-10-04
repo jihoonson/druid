@@ -24,12 +24,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.indexing.overlord.IndexerMetadataStorageCoordinator;
 import org.apache.druid.indexing.overlord.LockResult;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -260,7 +262,26 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
         rowInterval,
         tryInterval
     );
-    final LockResult lockResult = toolbox.getTaskLockbox().tryLock(TaskLockType.EXCLUSIVE, task, tryInterval);
+
+    // TODO: probably doInCriticalSection??
+    final Pair<String, Integer> maxVersionAndPartitionId = toolbox.getIndexerMetadataStorageCoordinator().findMaxVersionAndAvailablePartitionId(
+        dataSource,
+        sequenceName,
+        previousSegmentId,
+        tryInterval,
+        skipSegmentLineageCheck
+    );
+
+    // This action is always used by appending tasks, which cannot change the segment granularity of existing
+    // dataSources. So, all lock requests should be segmentLock.
+    final LockResult lockResult = toolbox.getTaskLockbox().tryLock(
+        LockGranularity.SEGMENT,
+        TaskLockType.EXCLUSIVE,
+        task,
+        tryInterval,
+        maxVersionAndPartitionId.rhs
+    );
+
     if (lockResult.isRevoked()) {
       // We had acquired a lock but it was preempted by other locks
       throw new ISE("The lock for interval[%s] is preempted and no longer valid", tryInterval);
@@ -272,7 +293,8 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
           sequenceName,
           previousSegmentId,
           tryInterval,
-          lockResult.getTaskLock().getVersion(),
+          maxVersionAndPartitionId.lhs,
+          maxVersionAndPartitionId.rhs,
           skipSegmentLineageCheck
       );
       if (identifier != null) {

@@ -40,14 +40,19 @@ import org.apache.druid.indexer.MetadataStorageUpdaterJobHandler;
 import org.apache.druid.indexer.TaskMetricsGetter;
 import org.apache.druid.indexer.TaskMetricsUtils;
 import org.apache.druid.indexer.TaskStatus;
+import org.apache.druid.indexer.path.DatasourcePathSpec;
+import org.apache.druid.indexer.path.MultiplePathSpec;
+import org.apache.druid.indexer.path.PathSpec;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReport;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReportData;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockAcquireAction;
 import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
+import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.hadoop.OverlordActionBasedUsedSegmentLister;
@@ -70,9 +75,11 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
@@ -187,15 +194,42 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
   {
     Optional<SortedSet<Interval>> intervals = spec.getDataSchema().getGranularitySpec().bucketIntervals();
     if (intervals.isPresent()) {
-      Interval interval = JodaUtils.umbrellaInterval(
-          JodaUtils.condenseIntervals(
-              intervals.get()
-          )
-      );
-      return taskActionClient.submit(new LockTryAcquireAction(TaskLockType.EXCLUSIVE, interval)) != null;
+      final Interval interval = JodaUtils.umbrellaInterval(JodaUtils.condenseIntervals(intervals.get()));
+      final LockGranularity lockGranularity = findRequiredLockGranularity(taskActionClient, interval, getPathSpec());
+      return taskActionClient.submit(LockTryAcquireAction.segmentLockAcquireAction(lockGranularity, TaskLockType.EXCLUSIVE, interval)) != null;
     } else {
       return true;
     }
+  }
+
+  private LockGranularity findRequiredLockGranularity(TaskActionClient actionClient, Interval interval, PathSpec pathSpec) throws IOException
+  {
+    if (pathSpec instanceof DatasourcePathSpec) {
+      final List<DataSegment> segments = actionClient.submit(new SegmentListUsedAction(getDataSource(), null, Collections.singletonList(interval)));
+      if (spec.getDataSchema().getGranularitySpec().getSegmentGranularity().match(segments.get(0).getInterval())) {
+        return LockGranularity.SEGMENT;
+      } else {
+        return LockGranularity.TIME_CHUNK;
+      }
+    } else if (pathSpec instanceof MultiplePathSpec) {
+      LockGranularity found = null;
+      for (PathSpec childSpec : ((MultiplePathSpec) pathSpec).getChildren()) {
+        final LockGranularity childGranularity = findRequiredLockGranularity(actionClient, interval, childSpec);
+        if (found == null) {
+          found = childGranularity;
+        } else if (found != childGranularity) {
+          return LockGranularity.TIME_CHUNK; // use interval lock if any child pathSpec needs it
+        }
+      }
+      return found;
+    } else {
+      return LockGranularity.SEGMENT;
+    }
+  }
+
+  private PathSpec getPathSpec()
+  {
+    return jsonMapper.convertValue(spec.getIOConfig().getPathSpec(), PathSpec.class);
   }
 
   @JsonProperty("spec")

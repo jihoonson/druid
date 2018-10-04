@@ -23,6 +23,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.google.common.base.Preconditions;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
@@ -33,20 +35,47 @@ import javax.annotation.Nullable;
 
 public class LockTryAcquireAction implements TaskAction<TaskLock>
 {
+  private final LockGranularity granularity;
+
   @JsonIgnore
   private final TaskLockType type;
 
   @JsonIgnore
   private final Interval interval;
 
+  @Nullable
+  private final Integer partitionId;
+
+  public static LockTryAcquireAction timeChunkLockAcquireAction(TaskLockType type, Interval interval)
+  {
+    return new LockTryAcquireAction(LockGranularity.TIME_CHUNK, type, interval, null);
+  }
+
+  public static LockTryAcquireAction segmentLockAcquireAction(TaskLockType type, Interval interval, int partitionId)
+  {
+    return new LockTryAcquireAction(LockGranularity.SEGMENT, type, interval, partitionId);
+  }
+
   @JsonCreator
-  public LockTryAcquireAction(
+  private LockTryAcquireAction(
+      @JsonProperty("lockGranularity") @Nullable LockGranularity granularity, // nullable for backward compatibility
       @JsonProperty("lockType") @Nullable TaskLockType type, // nullable for backward compatibility
-      @JsonProperty("interval") Interval interval
+      @JsonProperty("interval") Interval interval,
+      @JsonProperty("partitionId") @Nullable Integer partitionId
   )
   {
+    this.granularity = granularity == null ? LockGranularity.TIME_CHUNK : granularity;
     this.type = type == null ? TaskLockType.EXCLUSIVE : type;
     this.interval = interval;
+    this.partitionId = this.granularity == LockGranularity.SEGMENT
+                       ? Preconditions.checkNotNull(partitionId, "partitionId")
+                       : partitionId;
+  }
+
+  @JsonProperty("lockGranularity")
+  public LockGranularity getGranularity()
+  {
+    return granularity;
   }
 
   @JsonProperty("lockType")
@@ -72,7 +101,8 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
   @Override
   public TaskLock perform(Task task, TaskActionToolbox toolbox)
   {
-    final LockResult result = toolbox.getTaskLockbox().tryLock(type, task, interval);
+    toolbox.getIndexerMetadataStorageCoordinator().getUsedSegmentsForInterval(task.getDataSource(), interval).get(0).getInterval();
+    final LockResult result = toolbox.getTaskLockbox().tryLock(granularity, type, task, interval, partitionId);
     return result.isOk() ? result.getTaskLock() : null;
   }
 
@@ -86,7 +116,8 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
   public String toString()
   {
     return "LockTryAcquireAction{" +
-           "lockType=" + type +
+           "granularity=" + granularity +
+           ", type=" + type +
            ", interval=" + interval +
            '}';
   }

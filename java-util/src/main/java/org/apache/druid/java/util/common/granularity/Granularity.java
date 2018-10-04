@@ -113,6 +113,13 @@ public abstract class Granularity implements Cacheable
 
   public abstract DateTime toDate(String filePath, Formatter formatter);
 
+  /**
+   * TODO: doc, rename
+   * @param interval
+   * @return
+   */
+  public abstract boolean match(Interval interval);
+
   public DateTime bucketEnd(DateTime time)
   {
     return increment(bucketStart(time));

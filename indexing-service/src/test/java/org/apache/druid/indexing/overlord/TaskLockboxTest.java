@@ -586,17 +586,17 @@ public class TaskLockboxTest
                 .collect(Collectors.toSet());
   }
 
-  private static class TaskLockWithoutPriority extends TaskLock
+  private static class IntervalLockWithoutPriority extends TaskLock
   {
     @JsonCreator
-    TaskLockWithoutPriority(
+    IntervalLockWithoutPriority(
         String groupId,
         String dataSource,
         Interval interval,
         String version
     )
     {
-      super(null, groupId, dataSource, interval, version, 0, false);
+      super(null, null, groupId, dataSource, interval, null, version, 0, false);
     }
 
     @Override

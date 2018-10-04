@@ -112,6 +112,18 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
   }
 
   @Override
+  public Pair<String, Integer> findMaxVersionAndAvailablePartitionId(
+      String dataSource,
+      String sequenceName,
+      String previousSegmentId,
+      Interval interval,
+      boolean skipSegmentLineageCheck
+  )
+  {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public SegmentPublishResult announceHistoricalSegments(
       Set<DataSegment> segments,
       DataSourceMetadata oldCommitMetadata,

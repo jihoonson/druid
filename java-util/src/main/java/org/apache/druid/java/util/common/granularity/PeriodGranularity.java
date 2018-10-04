@@ -33,6 +33,7 @@ import org.apache.druid.java.util.common.StringUtils;
 import org.joda.time.Chronology;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.Interval;
 import org.joda.time.Period;
 import org.joda.time.chrono.ISOChronology;
 import org.joda.time.format.DateTimeFormat;
@@ -135,6 +136,23 @@ public class PeriodGranularity extends Granularity implements JsonSerializable
     }
 
     return null;
+  }
+
+  @Override
+  public boolean match(Interval interval)
+  {
+    if (interval.getChronology().equals(chronology)) {
+      if (interval.toPeriod().equals(period)) {
+        DateTime candidate;
+
+        while ((candidate = new DateTime(origin, chronology).plus(period)).isBefore(interval.getStart())) {
+          if (candidate.equals(interval.getStart())) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   @Override

@@ -80,6 +80,14 @@ public interface IndexerMetadataStorageCoordinator
    */
   Set<DataSegment> announceHistoricalSegments(Set<DataSegment> segments) throws IOException;
 
+  Pair<String, Integer> findMaxVersionAndAvailablePartitionId(
+      String dataSource,
+      String sequenceName,
+      String previousSegmentId,
+      Interval interval,
+      boolean skipSegmentLineageCheck
+  );
+
   /**
    * Allocate a new pending segment in the pending segments table. This segment identifier will never be given out
    * again, <em>unless</em> another call is made with the same dataSource, sequenceName, and previousSegmentId.
@@ -105,7 +113,8 @@ public interface IndexerMetadataStorageCoordinator
       String sequenceName,
       String previousSegmentId,
       Interval interval,
-      String maxVersion,
+      String version,
+      int partitionId,
       boolean skipSegmentLineageCheck
   );
 

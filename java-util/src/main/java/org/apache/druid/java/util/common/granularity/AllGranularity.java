@@ -61,6 +61,12 @@ public class AllGranularity extends Granularity
   }
 
   @Override
+  public boolean match(Interval interval)
+  {
+    return false;
+  }
+
+  @Override
   public byte[] getCacheKey()
   {
     return new byte[]{0x7f};
