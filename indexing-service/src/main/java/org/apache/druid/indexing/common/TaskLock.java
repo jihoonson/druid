@@ -19,6 +19,8 @@
 
 package org.apache.druid.indexing.common;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import org.joda.time.Interval;
@@ -30,6 +32,10 @@ import javax.annotation.Nullable;
  * TODO: serde test
  */
 @JsonTypeInfo(use = Id.NAME, property = "type", defaultImpl = TimeChunkLock.class)
+@JsonSubTypes(value = {
+    @Type(name = "timeChunk", value = TimeChunkLock.class),
+    @Type(name = "segment", value = SegmentLock.class)
+})
 public interface TaskLock
 {
   TaskLock revokedCopy();

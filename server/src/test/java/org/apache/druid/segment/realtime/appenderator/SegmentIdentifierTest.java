@@ -34,8 +34,8 @@ public class SegmentIdentifierTest
   private static final String VERSION = "v1";
   private static final NumberedShardSpec SHARD_SPEC_0 = new NumberedShardSpec(0, 2);
   private static final NumberedShardSpec SHARD_SPEC_1 = new NumberedShardSpec(1, 2);
-  private static final SegmentIdentifier ID_0 = new SegmentIdentifier(DATA_SOURCE, INTERVAL, VERSION, SHARD_SPEC_0);
-  private static final SegmentIdentifier ID_1 = new SegmentIdentifier(DATA_SOURCE, INTERVAL, VERSION, SHARD_SPEC_1);
+  private static final SegmentIdentifier ID_0 = new SegmentIdentifier(DATA_SOURCE, INTERVAL, VERSION, SHARD_SPEC_0, null);
+  private static final SegmentIdentifier ID_1 = new SegmentIdentifier(DATA_SOURCE, INTERVAL, VERSION, SHARD_SPEC_1, null);
 
   @Test
   public void testSerde() throws Exception

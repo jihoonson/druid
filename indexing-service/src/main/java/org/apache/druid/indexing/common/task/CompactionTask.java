@@ -40,7 +40,11 @@ import org.apache.druid.data.input.impl.NoopInputRowParser;
 import org.apache.druid.data.input.impl.StringDimensionSchema;
 import org.apache.druid.data.input.impl.TimeAndDimsParseSpec;
 import org.apache.druid.indexer.TaskStatus;
+import org.apache.druid.indexing.common.LockGranularity;
+import org.apache.druid.indexing.common.TaskLock;
+import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
+import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
@@ -88,8 +92,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -226,9 +228,22 @@ public class CompactionTask extends AbstractTask
   @Override
   public boolean isReady(TaskActionClient taskActionClient) throws Exception
   {
-    final SortedSet<Interval> intervals = new TreeSet<>(Comparators.intervalsByStartThenEnd());
-    intervals.add(segmentProvider.interval);
-    return IndexTask.isReady(taskActionClient, intervals);
+    final List<DataSegment> segments = segmentProvider.checkAndGetSegments(taskActionClient);
+    final Map<Interval, List<Integer>> intervalToPartitionIds = new HashMap<>(segments.size());
+    for (DataSegment segment : segments) {
+      intervalToPartitionIds.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>())
+                            .add(segment.getShardSpec().getPartitionNum());
+    }
+
+    for (Entry<Interval, List<Integer>> entry : intervalToPartitionIds.entrySet()) {
+      final TaskLock lock = taskActionClient.submit(
+          new LockTryAcquireAction(LockGranularity.SEGMENT, TaskLockType.EXCLUSIVE, entry.getKey(), entry.getValue())
+      );
+      if (lock == null) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @Override
@@ -399,7 +414,7 @@ public class CompactionTask extends AbstractTask
       SegmentProvider segmentProvider
   ) throws IOException, SegmentLoadingException
   {
-    final List<DataSegment> usedSegments = segmentProvider.checkAndGetSegments(toolbox);
+    final List<DataSegment> usedSegments = segmentProvider.checkAndGetSegments(toolbox.getTaskActionClient());
     final Map<DataSegment, File> segmentFileMap = toolbox.fetchSegments(usedSegments);
     final List<TimelineObjectHolder<String, DataSegment>> timelineSegments = VersionedIntervalTimeline
         .forSegments(usedSegments)
@@ -627,10 +642,9 @@ public class CompactionTask extends AbstractTask
       return segments;
     }
 
-    List<DataSegment> checkAndGetSegments(TaskToolbox toolbox) throws IOException
+    List<DataSegment> checkAndGetSegments(TaskActionClient actionClient) throws IOException
     {
-      final List<DataSegment> usedSegments = toolbox.getTaskActionClient()
-                                                    .submit(new SegmentListUsedAction(dataSource, interval, null));
+      final List<DataSegment> usedSegments = actionClient.submit(new SegmentListUsedAction(dataSource, interval, null));
       if (segments != null) {
         Collections.sort(usedSegments);
         Collections.sort(segments);

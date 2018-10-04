@@ -258,7 +258,8 @@ public class AppenderatorPlumber implements Plumber
           schema.getDataSource(),
           interval,
           versioningPolicy.getVersion(interval),
-          config.getShardSpec()
+          config.getShardSpec(),
+          null
       );
       addSegment(retVal);
 
@@ -295,7 +296,9 @@ public class AppenderatorPlumber implements Plumber
               ImmutableList.of(),
               identifier.getShardSpec(),
               null,
-              0
+              0,
+              identifier.getOvershadowingSegments(),
+              null
           )
       );
     }

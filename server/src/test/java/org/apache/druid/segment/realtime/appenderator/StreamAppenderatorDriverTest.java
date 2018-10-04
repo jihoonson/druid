@@ -155,8 +155,8 @@ public class StreamAppenderatorDriverTest extends EasyMockSupport
 
     Assert.assertEquals(
         ImmutableSet.of(
-            new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0)),
-            new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000T01/PT1H"), VERSION, new NumberedShardSpec(0, 0))
+            new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0), null),
+            new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000T01/PT1H"), VERSION, new NumberedShardSpec(0, 0), null)
         ),
         asIdentifiers(segmentsAndMetadata.getSegments())
     );
@@ -252,7 +252,7 @@ public class StreamAppenderatorDriverTest extends EasyMockSupport
 
       Assert.assertEquals(
           ImmutableSet.of(
-              new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0))
+              new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0), null)
           ),
           asIdentifiers(segmentsAndMetadata.getSegments())
       );
@@ -275,7 +275,7 @@ public class StreamAppenderatorDriverTest extends EasyMockSupport
           ImmutableSet.of(
               // The second and third rows have the same dataSource, interval, and version, but different shardSpec of
               // different partitionNum
-              new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000T01/PT1H"), VERSION, new NumberedShardSpec(i - 1, 0))
+              new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000T01/PT1H"), VERSION, new NumberedShardSpec(i - 1, 0), null)
           ),
           asIdentifiers(segmentsAndMetadata.getSegments())
       );
@@ -338,14 +338,14 @@ public class StreamAppenderatorDriverTest extends EasyMockSupport
 
     Assert.assertEquals(
         ImmutableSet.of(
-            new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0))
+            new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0), null)
         ),
         asIdentifiers(handedoffFromSequence0.getSegments())
     );
 
     Assert.assertEquals(
         ImmutableSet.of(
-            new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000T01/PT1H"), VERSION, new NumberedShardSpec(0, 0))
+            new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000T01/PT1H"), VERSION, new NumberedShardSpec(0, 0), null)
         ),
         asIdentifiers(handedoffFromSequence1.getSegments())
     );
@@ -435,7 +435,8 @@ public class StreamAppenderatorDriverTest extends EasyMockSupport
             dataSource,
             granularity.bucket(dateTimeTruncated),
             VERSION,
-            new NumberedShardSpec(partitionNum, 0)
+            new NumberedShardSpec(partitionNum, 0),
+            null
         );
       }
     }

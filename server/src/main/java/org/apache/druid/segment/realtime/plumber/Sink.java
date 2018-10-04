@@ -73,6 +73,7 @@ public class Sink implements Iterable<FireHydrant>
   private volatile boolean writable = true;
   private final String dedupColumn;
   private final Set<Long> dedupSet = new HashSet<>();
+  private final List<Integer> overshadowingSegments;
 
   public Sink(
       Interval interval,
@@ -82,7 +83,8 @@ public class Sink implements Iterable<FireHydrant>
       int maxRowsInMemory,
       long maxBytesInMemory,
       boolean reportParseExceptions,
-      String dedupColumn
+      String dedupColumn,
+      List<Integer> overshadowingSegments
   )
   {
     this.schema = schema;
@@ -93,6 +95,7 @@ public class Sink implements Iterable<FireHydrant>
     this.maxBytesInMemory = maxBytesInMemory;
     this.reportParseExceptions = reportParseExceptions;
     this.dedupColumn = dedupColumn;
+    this.overshadowingSegments = overshadowingSegments;
 
     makeNewCurrIndex(interval.getStartMillis(), schema);
   }
@@ -106,7 +109,8 @@ public class Sink implements Iterable<FireHydrant>
       long maxBytesInMemory,
       boolean reportParseExceptions,
       String dedupColumn,
-      List<FireHydrant> hydrants
+      List<FireHydrant> hydrants,
+      List<Integer> overshadowingSegments
   )
   {
     this.schema = schema;
@@ -117,6 +121,7 @@ public class Sink implements Iterable<FireHydrant>
     this.maxBytesInMemory = maxBytesInMemory;
     this.reportParseExceptions = reportParseExceptions;
     this.dedupColumn = dedupColumn;
+    this.overshadowingSegments = overshadowingSegments;
 
     int maxCount = -1;
     for (int i = 0; i < hydrants.size(); ++i) {
@@ -259,7 +264,9 @@ public class Sink implements Iterable<FireHydrant>
         ),
         shardSpec,
         null,
-        0
+        0,
+        overshadowingSegments,
+        null
     );
   }
 

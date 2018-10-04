@@ -769,7 +769,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
           interval,
           existingChunks.size()
       );
-      return null;
+      return Pair.of(null, null);
     } else {
       SegmentIdentifier max = null;
 
@@ -808,7 +808,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             interval,
             max.getIdentifierAsString()
         );
-        return null;
+        return Pair.of(null, null);
       } else if (max.getShardSpec() instanceof LinearShardSpec) {
         return Pair.of(max.getVersion(), max.getShardSpec().getPartitionNum() + 1);
       } else if (max.getShardSpec() instanceof NumberedShardSpec) {
@@ -821,7 +821,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             max.getShardSpec().getClass(),
             max.getIdentifierAsString()
         );
-        return null;
+        return Pair.of(null, null);
       }
     }
   }
@@ -890,7 +890,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             dataSource,
             interval,
             version,
-            new NumberedShardSpec(partitionId, 0)
+            new NumberedShardSpec(partitionId, 0),
+            null
         );
       } else if (!max.getInterval().equals(interval) || !max.getVersion().equals(version)) {
         log.warn(
@@ -906,7 +907,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             dataSource,
             max.getInterval(),
             version,
-            new LinearShardSpec(partitionId)
+            new LinearShardSpec(partitionId),
+            null
         );
       } else if (max.getShardSpec() instanceof NumberedShardSpec) {
         return new SegmentIdentifier(
@@ -916,7 +918,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             new NumberedShardSpec(
                 partitionId,
                 ((NumberedShardSpec) max.getShardSpec()).getPartitions()
-            )
+            ),
+            null
         );
       } else {
         log.warn(

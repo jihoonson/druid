@@ -25,6 +25,7 @@ import org.apache.druid.indexing.common.RetryPolicyConfig;
 import org.apache.druid.indexing.common.RetryPolicyFactory;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
+import org.apache.druid.indexing.common.TimeChunkLock;
 import org.apache.druid.indexing.common.task.NoopTask;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.jackson.DefaultObjectMapper;
@@ -62,7 +63,7 @@ public class RemoteTaskActionClientTest
 
     long now = System.currentTimeMillis();
 
-    result = Collections.singletonList(new TaskLock(
+    result = Collections.singletonList(new TimeChunkLock(
         TaskLockType.SHARED,
         "groupId",
         "dataSource",

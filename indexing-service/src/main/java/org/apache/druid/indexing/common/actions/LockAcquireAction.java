@@ -33,6 +33,8 @@ import org.apache.druid.indexing.overlord.LockResult;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.List;
 
 public class LockAcquireAction implements TaskAction<TaskLock>
 {
@@ -44,7 +46,7 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   private final Interval interval;
 
   @Nullable
-  private final Integer partitionId;
+  private final List<Integer> partitionId;
 
   @JsonIgnore
   private final long timeoutMs;
@@ -69,7 +71,7 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   }
 
   @JsonCreator
-  private LockAcquireAction(
+  public LockAcquireAction(
       @JsonProperty("lockGranularity") @Nullable LockGranularity granularity, // nullable for backward compatibility
       @JsonProperty("lockType") @Nullable TaskLockType type, // nullable for backward compatibility
       @JsonProperty("interval") Interval interval,
@@ -81,8 +83,8 @@ public class LockAcquireAction implements TaskAction<TaskLock>
     this.type = type == null ? TaskLockType.EXCLUSIVE : type;
     this.interval = Preconditions.checkNotNull(interval, "interval");
     this.partitionId = this.granularity == LockGranularity.SEGMENT
-                       ? Preconditions.checkNotNull(partitionId, "partitionId")
-                       : partitionId;
+                       ? Collections.singletonList(Preconditions.checkNotNull(partitionId, "partitionId"))
+                       : partitionId == null ? Collections.emptyList() : Collections.singletonList(partitionId);
     this.timeoutMs = timeoutMs;
   }
 
@@ -105,8 +107,7 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   }
 
   @JsonProperty
-  @Nullable
-  public Integer getPartitionId()
+  public List<Integer> getPartitionId()
   {
     return partitionId;
   }

@@ -26,6 +26,7 @@ import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.TestUtils;
+import org.apache.druid.indexing.common.TimeChunkLock;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.SegmentInsertAction;
@@ -123,7 +124,7 @@ public class SameIntervalMergeTaskTest
           // the lock of this interval is required
           Assert.assertEquals(mergeTask.getInterval(), ((LockTryAcquireAction) taskAction).getInterval());
           isRedayCountDown.countDown();
-          taskLock = new TaskLock(
+          taskLock = new TimeChunkLock(
               TaskLockType.EXCLUSIVE,
               mergeTask.getGroupId(),
               mergeTask.getDataSource(),

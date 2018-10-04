@@ -164,7 +164,8 @@ public class DefaultOfflineAppenderatorFactoryTest
           "dataSourceName",
           Intervals.of("2000/2001"),
           "A",
-          new LinearShardSpec(0)
+          new LinearShardSpec(0),
+          null
       );
       Assert.assertEquals(0, ((AppenderatorImpl) appenderator).getRowsInMemory());
       appenderator.add(identifier, AppenderatorTest.IR("2000", "bar", 1), Suppliers.ofInstance(Committers.nil()));

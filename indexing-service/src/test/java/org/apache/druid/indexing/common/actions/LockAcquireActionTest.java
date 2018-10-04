@@ -20,6 +20,7 @@
 package org.apache.druid.indexing.common.actions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.NoopTask;
@@ -43,8 +44,10 @@ public class LockAcquireActionTest
   public void testSerdeWithAllFields() throws IOException
   {
     final LockAcquireAction expected = new LockAcquireAction(
+        LockGranularity.TIME_CHUNK,
         TaskLockType.SHARED,
         Intervals.of("2017-01-01/2017-01-02"),
+        null,
         1000
     );
 
@@ -62,8 +65,10 @@ public class LockAcquireActionTest
 
     final LockAcquireAction actual = mapper.readValue(json, LockAcquireAction.class);
     final LockAcquireAction expected = new LockAcquireAction(
+        LockGranularity.TIME_CHUNK,
         TaskLockType.EXCLUSIVE,
         Intervals.of("2017-01-01/2017-01-02"),
+        null,
         0
     );
     Assert.assertEquals(expected.getType(), actual.getType());
@@ -76,8 +81,10 @@ public class LockAcquireActionTest
   {
     final Task task = NoopTask.create();
     final LockAcquireAction action = new LockAcquireAction(
+        LockGranularity.TIME_CHUNK,
         TaskLockType.EXCLUSIVE,
         Intervals.of("2017-01-01/2017-01-02"),
+        null,
         1000
     );
 
@@ -91,8 +98,10 @@ public class LockAcquireActionTest
   {
     final Task task = NoopTask.create();
     final LockAcquireAction action = new LockAcquireAction(
+        LockGranularity.TIME_CHUNK,
         null,
         Intervals.of("2017-01-01/2017-01-02"),
+        null,
         1000
     );
 

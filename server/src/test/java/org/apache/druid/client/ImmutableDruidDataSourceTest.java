@@ -48,6 +48,8 @@ public class ImmutableDruidDataSourceTest
         null,
         1,
         100L,
+        null,
+        null,
         PruneLoadSpecHolder.DEFAULT
     );
     final ImmutableDruidDataSource dataSource = new ImmutableDruidDataSource(

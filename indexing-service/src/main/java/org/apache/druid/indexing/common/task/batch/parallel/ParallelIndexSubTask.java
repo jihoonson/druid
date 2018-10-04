@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Optional;
-import com.google.common.base.Preconditions;
 import org.apache.commons.io.FileUtils;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.Firehose;
@@ -32,10 +31,13 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
+import org.apache.druid.indexing.common.LockGranularity;
+import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
+import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.SurrogateAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.task.AbstractTask;
@@ -45,9 +47,12 @@ import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.firehose.IngestSegmentFirehoseFactory;
+import org.apache.druid.indexing.overlord.LockResult;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.query.DruidMetrics;
@@ -72,11 +77,14 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.SortedSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 /**
  * A worker task of {@link ParallelIndexSupervisorTask}. Similar to {@link IndexTask}, but this task
@@ -153,7 +161,7 @@ public class ParallelIndexSubTask extends AbstractTask
   private boolean checkLockAcquired(TaskActionClient actionClient, SortedSet<Interval> intervals)
   {
     try {
-      tryAcquireExclusiveSurrogateLocks(actionClient, intervals);
+      tryAcquireExclusiveSurrogateLocks(actionClient);
       return true;
     }
     catch (Exception e) {
@@ -212,19 +220,81 @@ public class ParallelIndexSubTask extends AbstractTask
     return TaskStatus.success(getId());
   }
 
-  private void tryAcquireExclusiveSurrogateLocks(
-      TaskActionClient client,
-      SortedSet<Interval> intervals
-  )
-      throws IOException
+  private void tryAcquireExclusiveSurrogateLocks(TaskActionClient client) throws IOException
   {
-    for (Interval interval : Tasks.computeCompactIntervals(intervals)) {
-      Preconditions.checkNotNull(
-          client.submit(
-              new SurrogateAction<>(supervisorTaskId, new LockTryAcquireAction(TaskLockType.EXCLUSIVE, interval))
-          ),
-          "Cannot acquire a lock for interval[%s]", interval
+//    for (Interval interval : Tasks.computeCompactIntervals(intervals)) {
+//      Preconditions.checkNotNull(
+//          client.submit(
+//              new SurrogateAction<>(
+//                  supervisorTaskId,
+//                  new LockTryAcquireAction(TaskLockType.EXCLUSIVE, interval)
+//              )
+//          ),
+//          "Cannot acquire a lock for interval[%s]", interval
+//      );
+//    }
+
+    final Pair<LockGranularity, Map<Interval, List<Integer>>> granularityAndMap = findRequiredLockGranularity(client);
+    if (granularityAndMap != null) {
+      for (Entry<Interval, List<Integer>> entry : granularityAndMap.rhs.entrySet()) {
+        final TaskLock lock = client.submit(
+            new SurrogateAction<>(
+                supervisorTaskId,
+                new LockTryAcquireAction(granularityAndMap.lhs, TaskLockType.EXCLUSIVE, entry.getKey(), entry.getValue())
+            )
+        );
+        if (lock == null) {
+          throw new ISE("Cannot acquire a lock for interval[%s]", entry.getKey());
+        }
+      }
+    }
+  }
+
+  @Nullable
+  private Pair<LockGranularity, Map<Interval, List<Integer>>> findRequiredLockGranularity(TaskActionClient actionClient) throws IOException
+  {
+    final FirehoseFactory firehoseFactory = ingestionSchema.getIOConfig().getFirehoseFactory();
+    if (firehoseFactory instanceof IngestSegmentFirehoseFactory) {
+      final Map<Interval, List<DataSegment>> segments = findInputSegments(actionClient);
+
+      if (segments.isEmpty()) {
+        throw new ISE("empty input segments");
+      }
+
+      final Map<Interval, List<Integer>> intervalToPIds = new HashMap<>(segments.size());
+      for (Entry<Interval, List<DataSegment>> entry : segments.entrySet()) {
+        intervalToPIds.put(
+            entry.getKey(),
+            entry.getValue().stream().map(s -> s.getShardSpec().getPartitionNum()).collect(Collectors.toList())
+        );
+      }
+      final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
+      if (!segmentGranularity.match(segments.values().iterator().next().get(0).getInterval())) {
+        return Pair.of(LockGranularity.TIME_CHUNK, intervalToPIds);
+      } else {
+        return Pair.of(LockGranularity.SEGMENT, intervalToPIds);
+      }
+    } else {
+      return null;
+    }
+  }
+
+  private Map<Interval, List<DataSegment>> findInputSegments(TaskActionClient actionClient) throws IOException
+  {
+    final FirehoseFactory firehoseFactory = ingestionSchema.getIOConfig().getFirehoseFactory();
+    if (firehoseFactory instanceof IngestSegmentFirehoseFactory) {
+      final Interval interval = ((IngestSegmentFirehoseFactory) firehoseFactory).getInterval();
+
+      final List<DataSegment> segments = actionClient.submit(
+          new SegmentListUsedAction(getDataSource(), null, Collections.singletonList(interval))
       );
+      final Map<Interval, List<DataSegment>> map = new HashMap<>();
+      for (DataSegment segment : segments) {
+        map.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>()).add(segment);
+      }
+      return map;
+    } else {
+      return Collections.emptyMap();
     }
   }
 

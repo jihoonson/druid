@@ -22,6 +22,7 @@ package org.apache.druid.indexing.overlord;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.apache.druid.indexer.TaskStatus;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
@@ -70,7 +71,7 @@ public class RealtimeishTask extends AbstractTask
 
     // Acquire lock for first interval
     final TaskLock lock1 = toolbox.getTaskActionClient().submit(
-        new LockAcquireAction(TaskLockType.EXCLUSIVE, interval1, 5000)
+        new LockAcquireAction(LockGranularity.TIME_CHUNK, TaskLockType.EXCLUSIVE, interval1, null, 5000)
     );
     Assert.assertNotNull(lock1);
     final List<TaskLock> locks1 = toolbox.getTaskActionClient().submit(new LockListAction());
@@ -81,7 +82,7 @@ public class RealtimeishTask extends AbstractTask
 
     // Acquire lock for second interval
     final TaskLock lock2 = toolbox.getTaskActionClient().submit(
-        new LockAcquireAction(TaskLockType.EXCLUSIVE, interval2, 5000)
+        new LockAcquireAction(LockGranularity.TIME_CHUNK, TaskLockType.EXCLUSIVE, interval2, null, 5000)
     );
     Assert.assertNotNull(lock2);
     final List<TaskLock> locks2 = toolbox.getTaskActionClient().submit(new LockListAction());

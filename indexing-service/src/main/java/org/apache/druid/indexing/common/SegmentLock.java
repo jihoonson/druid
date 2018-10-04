@@ -23,6 +23,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.joda.time.Interval;
 
+import java.util.List;
+import java.util.Objects;
+
 /**
  * Lock for a single segment. Should be unique for (dataSource, interval, partitionId).
  */
@@ -32,7 +35,7 @@ public class SegmentLock implements TaskLock
   private final String groupId;
   private final String dataSource;
   private final Interval interval;
-  private final int partitionId;
+  private final List<Integer> partitionIds;
   private final String version;
   private final int priority;
   private final boolean revoked;
@@ -43,7 +46,7 @@ public class SegmentLock implements TaskLock
       @JsonProperty("groupId") String groupId,
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("interval") Interval interval,
-      @JsonProperty("partitionId") int partitionId,
+      @JsonProperty("partitionIds") List<Integer> partitionIds,
       @JsonProperty("version") String version,
       @JsonProperty("priority") int priority,
       @JsonProperty("revoked") boolean revoked
@@ -53,7 +56,7 @@ public class SegmentLock implements TaskLock
     this.groupId = Preconditions.checkNotNull(groupId, "groupId");
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
     this.interval = Preconditions.checkNotNull(interval, "interval");
-    this.partitionId = partitionId;
+    this.partitionIds = partitionIds;
     this.version = Preconditions.checkNotNull(version, "version");
     this.priority = priority;
     this.revoked = revoked;
@@ -64,24 +67,24 @@ public class SegmentLock implements TaskLock
       String groupId,
       String dataSource,
       Interval interval,
-      int partitionId,
+      List<Integer> partitionIds,
       String version,
       int priority
   )
   {
-    this(type, groupId, dataSource, interval, partitionId, version, priority, false);
+    this(type, groupId, dataSource, interval, partitionIds, version, priority, false);
   }
 
   @Override
   public TaskLock revokedCopy()
   {
-    return new SegmentLock(type, groupId, dataSource, interval, partitionId, version, priority, true);
+    return new SegmentLock(type, groupId, dataSource, interval, partitionIds, version, priority, true);
   }
 
   @Override
   public TaskLock withPriority(int newPriority)
   {
-    return new SegmentLock(type, groupId, dataSource, interval, partitionId, version, newPriority, revoked);
+    return new SegmentLock(type, groupId, dataSource, interval, partitionIds, version, newPriority, revoked);
   }
 
   @Override
@@ -119,9 +122,9 @@ public class SegmentLock implements TaskLock
   }
 
   @JsonProperty
-  public int getPartitionId()
+  public List<Integer> getPartitionIds()
   {
-    return partitionId;
+    return partitionIds;
   }
 
   @JsonProperty
@@ -149,5 +152,46 @@ public class SegmentLock implements TaskLock
   public boolean isRevoked()
   {
     return revoked;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    SegmentLock that = (SegmentLock) o;
+    return priority == that.priority &&
+           revoked == that.revoked &&
+           type == that.type &&
+           Objects.equals(groupId, that.groupId) &&
+           Objects.equals(dataSource, that.dataSource) &&
+           Objects.equals(interval, that.interval) &&
+           Objects.equals(partitionIds, that.partitionIds) &&
+           Objects.equals(version, that.version);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(type, groupId, dataSource, interval, partitionIds, version, priority, revoked);
+  }
+
+  @Override
+  public String toString()
+  {
+    return "SegmentLock{" +
+           "type=" + type +
+           ", groupId='" + groupId + '\'' +
+           ", dataSource='" + dataSource + '\'' +
+           ", interval=" + interval +
+           ", partitionIds=" + partitionIds +
+           ", version='" + version + '\'' +
+           ", priority=" + priority +
+           ", revoked=" + revoked +
+           '}';
   }
 }

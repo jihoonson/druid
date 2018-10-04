@@ -140,7 +140,8 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
       String sequenceName,
       String previousSegmentId,
       Interval interval,
-      String maxVersion,
+      String version,
+      int partitionId,
       boolean skipSegmentLineageCheck
   )
   {

@@ -749,7 +749,8 @@ public class AppenderatorTest
         AppenderatorTester.DATASOURCE,
         Intervals.of(interval),
         version,
-        new LinearShardSpec(partitionNum)
+        new LinearShardSpec(partitionNum),
+        null
     );
   }
 

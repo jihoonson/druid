@@ -36,7 +36,6 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import org.apache.druid.guice.annotations.PublicApi;
 import org.apache.druid.jackson.CommaListJoinDeserializer;
 import org.apache.druid.jackson.CommaListJoinSerializer;
-import org.apache.druid.java.util.common.IntRange;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.query.SegmentDescriptor;
 import org.apache.druid.timeline.partition.NoneShardSpec;
@@ -49,7 +48,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -112,8 +110,36 @@ public class DataSegment implements Comparable<DataSegment>
   private final ShardSpec shardSpec;
   private final long size;
   private final String identifier;
-  private final Set<IntRange> overshadowingSegments;
-  private final Set<IntRange> atomicUpdateGroup;
+  private final List<Integer> overshadowingSegments;
+  private final List<Integer> atomicUpdateGroup;
+
+  public DataSegment(
+      String dataSource,
+      Interval interval,
+      String version,
+      Map<String, Object> loadSpec,
+      List<String> dimensions,
+      List<String> metrics,
+      ShardSpec shardSpec,
+      Integer binaryVersion,
+      long size
+  )
+  {
+    this(
+        dataSource,
+        interval,
+        version,
+        loadSpec,
+        dimensions,
+        metrics,
+        shardSpec,
+        binaryVersion,
+        size,
+        null,
+        null,
+        PruneLoadSpecHolder.DEFAULT
+    );
+  }
 
   public DataSegment(
       String dataSource,
@@ -125,8 +151,8 @@ public class DataSegment implements Comparable<DataSegment>
       ShardSpec shardSpec,
       Integer binaryVersion,
       long size,
-      Set<IntRange> overshadowingSegments,
-      Set<IntRange> atomicUpdateGroup
+      List<Integer> overshadowingSegments,
+      List<Integer> atomicUpdateGroup
   )
   {
     this(
@@ -163,8 +189,8 @@ public class DataSegment implements Comparable<DataSegment>
       @JsonProperty("shardSpec") @Nullable ShardSpec shardSpec,
       @JsonProperty("binaryVersion") Integer binaryVersion,
       @JsonProperty("size") long size,
-      @JsonProperty("overshadowingSegments") @Nullable Set<IntRange> overshadowingSegments,
-      @JsonProperty("atomicUpdateGroup") @Nullable Set<IntRange> atomicUpdateGroup,
+      @JsonProperty("overshadowingSegments") @Nullable List<Integer> overshadowingSegments,
+      @JsonProperty("atomicUpdateGroup") @Nullable List<Integer> atomicUpdateGroup,
       @JacksonInject PruneLoadSpecHolder pruneLoadSpecHolder
   )
   {
@@ -181,8 +207,8 @@ public class DataSegment implements Comparable<DataSegment>
     this.shardSpec = (shardSpec == null) ? NoneShardSpec.instance() : shardSpec;
     this.binaryVersion = binaryVersion;
     this.size = size;
-    this.overshadowingSegments = overshadowingSegments == null ? Collections.emptySet() : overshadowingSegments;
-    this.atomicUpdateGroup = atomicUpdateGroup == null ? Collections.emptySet() : atomicUpdateGroup;
+    this.overshadowingSegments = overshadowingSegments == null ? Collections.emptyList() : overshadowingSegments;
+    this.atomicUpdateGroup = atomicUpdateGroup == null ? Collections.emptyList() : atomicUpdateGroup;
 
     this.identifier = makeDataSegmentIdentifier(
         this.dataSource,
@@ -291,15 +317,9 @@ public class DataSegment implements Comparable<DataSegment>
   }
 
   @JsonProperty
-  public Set<IntRange> getOvershadowingSegments()
+  public List<Integer> getOvershadowingSegments()
   {
     return overshadowingSegments;
-  }
-
-  @JsonProperty
-  public Set<IntRange> getAtomicUpdateGroup()
-  {
-    return atomicUpdateGroup;
   }
 
   public SegmentDescriptor toDescriptor()
@@ -373,7 +393,6 @@ public class DataSegment implements Comparable<DataSegment>
            ", size=" + size +
            ", identifier='" + identifier + '\'' +
            ", overshadowingSegments=" + overshadowingSegments +
-           ", atomicUpdateGroup=" + atomicUpdateGroup +
            '}';
   }
 
@@ -421,8 +440,8 @@ public class DataSegment implements Comparable<DataSegment>
     private ShardSpec shardSpec;
     private Integer binaryVersion;
     private long size;
-    private Set<IntRange> overshadowingSegments;
-    private Set<IntRange> atomicUpdateGroup;
+    private List<Integer> overshadowingSegments;
+    private List<Integer> atomicUpdateGroup;
 
     public Builder()
     {
@@ -502,13 +521,13 @@ public class DataSegment implements Comparable<DataSegment>
       return this;
     }
 
-    public Builder overshadowingSegments(Set<IntRange> overshadowingSegments)
+    public Builder overshadowingSegments(List<Integer> overshadowingSegments)
     {
       this.overshadowingSegments = overshadowingSegments;
       return this;
     }
 
-    public Builder atomicUpdateGroup(Set<IntRange> atomicUpdateGroup)
+    public Builder atomicUpdateGroup(List<Integer> atomicUpdateGroup)
     {
       this.atomicUpdateGroup = atomicUpdateGroup;
       return this;

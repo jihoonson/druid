@@ -58,6 +58,7 @@ import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.hadoop.OverlordActionBasedUsedSegmentLister;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.JodaUtils;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
@@ -78,11 +79,13 @@ import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
+import java.util.stream.Collectors;
 
 public class HadoopIndexTask extends HadoopTask implements ChatHandler
 {
@@ -195,35 +198,44 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
     Optional<SortedSet<Interval>> intervals = spec.getDataSchema().getGranularitySpec().bucketIntervals();
     if (intervals.isPresent()) {
       final Interval interval = JodaUtils.umbrellaInterval(JodaUtils.condenseIntervals(intervals.get()));
-      final LockGranularity lockGranularity = findRequiredLockGranularity(taskActionClient, interval, getPathSpec());
-      return taskActionClient.submit(LockTryAcquireAction.segmentLockAcquireAction(lockGranularity, TaskLockType.EXCLUSIVE, interval)) != null;
+      final Pair<LockGranularity, List<Integer>> lockGranularityAndPids = findRequiredLockGranularity(taskActionClient, interval, getPathSpec());
+      if (lockGranularityAndPids.lhs != null) {
+        return taskActionClient.submit(new LockTryAcquireAction(lockGranularityAndPids.lhs, TaskLockType.EXCLUSIVE, interval, lockGranularityAndPids.rhs)) != null;
+      } else {
+        return true;
+      }
     } else {
       return true;
     }
   }
 
-  private LockGranularity findRequiredLockGranularity(TaskActionClient actionClient, Interval interval, PathSpec pathSpec) throws IOException
+  private Pair<LockGranularity, List<Integer>> findRequiredLockGranularity(TaskActionClient actionClient, Interval interval, PathSpec pathSpec) throws IOException
   {
     if (pathSpec instanceof DatasourcePathSpec) {
       final List<DataSegment> segments = actionClient.submit(new SegmentListUsedAction(getDataSource(), null, Collections.singletonList(interval)));
+      final List<Integer> partitionIds = segments.stream()
+                                                 .map(segment -> segment.getShardSpec().getPartitionNum())
+                                                 .collect(Collectors.toList());
       if (spec.getDataSchema().getGranularitySpec().getSegmentGranularity().match(segments.get(0).getInterval())) {
-        return LockGranularity.SEGMENT;
+        return Pair.of(LockGranularity.SEGMENT, partitionIds);
       } else {
-        return LockGranularity.TIME_CHUNK;
+        return Pair.of(LockGranularity.TIME_CHUNK, null);
       }
     } else if (pathSpec instanceof MultiplePathSpec) {
       LockGranularity found = null;
+      final List<Integer> partitionIds = new ArrayList<>();
       for (PathSpec childSpec : ((MultiplePathSpec) pathSpec).getChildren()) {
-        final LockGranularity childGranularity = findRequiredLockGranularity(actionClient, interval, childSpec);
+        final Pair<LockGranularity, List<Integer>> childGranularityAndPIds = findRequiredLockGranularity(actionClient, interval, childSpec);
         if (found == null) {
-          found = childGranularity;
-        } else if (found != childGranularity) {
-          return LockGranularity.TIME_CHUNK; // use interval lock if any child pathSpec needs it
+          found = childGranularityAndPIds.lhs;
+          partitionIds.addAll(childGranularityAndPIds.rhs);
+        } else if (found != childGranularityAndPIds.lhs) {
+          return Pair.of(LockGranularity.TIME_CHUNK, null); // use interval lock if any child pathSpec needs it
         }
       }
-      return found;
+      return Pair.of(found, partitionIds);
     } else {
-      return LockGranularity.SEGMENT;
+      return Pair.of(null, null);
     }
   }
 
@@ -365,7 +377,8 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
       // Note: if lockTimeoutMs is larger than ServerConfig.maxIdleTime, the below line can incur http timeout error.
       final TaskLock lock = Preconditions.checkNotNull(
           toolbox.getTaskActionClient().submit(
-              new LockAcquireAction(TaskLockType.EXCLUSIVE, interval, lockTimeoutMs)
+              // TODO: get proper lock
+              LockAcquireAction.timeChunkLockAcquireAction(TaskLockType.EXCLUSIVE, interval, lockTimeoutMs)
           ),
           "Cannot acquire a lock for interval[%s]", interval
       );

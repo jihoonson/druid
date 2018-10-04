@@ -228,7 +228,7 @@ public class TaskLockbox
               segmentLock.getGroupId(),
               segmentLock.getDataSource(),
               segmentLock.getInterval(),
-              segmentLock.getPartitionId(),
+              segmentLock.getPartitionIds(),
               segmentLock.getVersion(),
               taskPriority,
               segmentLock.isRevoked()
@@ -257,6 +257,15 @@ public class TaskLockbox
     }
   }
 
+  public LockResult lock(
+      final TaskLockType lockType,
+      final Task task,
+      final Interval interval
+  ) throws InterruptedException
+  {
+    return lock(LockGranularity.TIME_CHUNK, lockType, task, interval, null);
+  }
+
   /**
    * Acquires a lock on behalf of a task.  Blocks until the lock is acquired.
    *
@@ -275,13 +284,13 @@ public class TaskLockbox
       final TaskLockType lockType,
       final Task task,
       final Interval interval,
-      @Nullable final Integer partitionId
+      final List<Integer> partitionIds
   ) throws InterruptedException
   {
     giant.lockInterruptibly();
     try {
       LockResult lockResult;
-      while (!(lockResult = tryLock(granularity, lockType, task, interval, partitionId)).isOk()) {
+      while (!(lockResult = tryLock(granularity, lockType, task, interval, partitionIds)).isOk()) {
         if (lockResult.isRevoked()) {
           return lockResult;
         }
@@ -292,6 +301,16 @@ public class TaskLockbox
     finally {
       giant.unlock();
     }
+  }
+
+  public LockResult lock(
+      final TaskLockType lockType,
+      final Task task,
+      final Interval interval,
+      long timeoutMs
+  ) throws InterruptedException
+  {
+    return lock(LockGranularity.TIME_CHUNK, lockType, task, interval, null, timeoutMs);
   }
 
   /**
@@ -313,7 +332,7 @@ public class TaskLockbox
       final TaskLockType lockType,
       final Task task,
       final Interval interval,
-      @Nullable final Integer partitionId,
+      final List<Integer> partitionIds,
       long timeoutMs
   ) throws InterruptedException
   {
@@ -321,7 +340,7 @@ public class TaskLockbox
     giant.lockInterruptibly();
     try {
       LockResult lockResult;
-      while (!(lockResult = tryLock(granularity, lockType, task, interval, partitionId)).isOk()) {
+      while (!(lockResult = tryLock(granularity, lockType, task, interval, partitionIds)).isOk()) {
         if (nanos <= 0 || lockResult.isRevoked()) {
           return lockResult;
         }
@@ -339,7 +358,7 @@ public class TaskLockbox
       final TaskLockType lockType,
       final Task task,
       final Interval interval,
-      @Nullable final Integer partitionId
+      final List<Integer> partitionIds
   )
   {
     switch (granularity) {
@@ -357,12 +376,21 @@ public class TaskLockbox
             task.getGroupId(),
             task.getDataSource(),
             interval,
-            partitionId,
+            partitionIds,
             task.getPriority()
         );
       default:
         throw new ISE("Unknown lockGranularity[%s]", granularity);
     }
+  }
+
+  public LockResult tryLock(
+      final TaskLockType lockType,
+      final Task task,
+      final Interval interval
+  )
+  {
+    return tryLock(LockGranularity.TIME_CHUNK, lockType, task, interval, null);
   }
 
   /**
@@ -384,7 +412,7 @@ public class TaskLockbox
       final TaskLockType lockType,
       final Task task,
       final Interval interval,
-      @Nullable final Integer partitionId
+      final List<Integer> partitionIds
   )
   {
     giant.lock();
@@ -395,7 +423,7 @@ public class TaskLockbox
       }
       Preconditions.checkArgument(interval.toDurationMillis() > 0, "interval empty");
 
-      final LockRequest request = createRequest(granularity, lockType, task, interval, partitionId);
+      final LockRequest request = createRequest(granularity, lockType, task, interval, partitionIds);
       final TaskLockPosse posseToUse = createOrFindLockPosse(task, request);
       if (posseToUse != null && !posseToUse.getTaskLock().isRevoked()) {
         // Add to existing TaskLockPosse, if necessary
@@ -500,7 +528,7 @@ public class TaskLockbox
       if (foundPosses.size() > 0) {
         // If we have some locks for dataSource and interval, check they can be reused.
         // If they can't be reused, check lock priority and revoke existing locks if possible.
-        final List<TaskLockPosse> filteredPosses = foundPosses
+        final List<TaskLockPosse> reusablePosses = foundPosses
             .stream()
             .filter(posse -> matchGroupIdAndContainInterval(
                 posse.taskLock,
@@ -509,7 +537,7 @@ public class TaskLockbox
             ))
             .collect(Collectors.toList());
 
-        if (filteredPosses.size() == 0) {
+        if (reusablePosses.size() == 0) {
           // case 1) this task doesn't have any lock, but others do
 
           if (request.getLockType().equals(TaskLockType.SHARED) && isAllSharedLocks(foundPosses)) {
@@ -551,18 +579,28 @@ public class TaskLockbox
               return null;
             }
           }
-        } else if (filteredPosses.size() == 1) {
+        } else if (reusablePosses.size() == 1) {
           // case 2) we found a lock posse for the given task
-          final TaskLockPosse foundPosse = filteredPosses.get(0);
-          if (request.getLockType().equals(foundPosse.getTaskLock().getType())) {
+          final TaskLockPosse foundPosse = reusablePosses.get(0);
+          if (request.getLockType().equals(foundPosse.getTaskLock().getType()) &&
+              request.getGranularity() == foundPosse.getTaskLock().getGranularity()) {
             return foundPosse;
           } else {
-            throw new ISE(
-                "Task[%s] already acquired a lock for interval[%s] but different type[%s]",
-                taskId,
-                request.getInterval(),
-                foundPosse.getTaskLock().getType()
-            );
+            if (request.getLockType() != foundPosse.getTaskLock().getType()) {
+              throw new ISE(
+                  "Task[%s] already acquired a lock for interval[%s] but different type[%s]",
+                  taskId,
+                  request.getInterval(),
+                  foundPosse.getTaskLock().getType()
+              );
+            } else {
+              throw new ISE(
+                  "Task[%s] already acquired a lock for interval[%s] but different granularity[%s]",
+                  taskId,
+                  request.getInterval(),
+                  foundPosse.getTaskLock().getGranularity()
+              );
+            }
           }
         } else {
           // case 3) we found multiple lock posses for the given task
@@ -628,6 +666,8 @@ public class TaskLockbox
 
   public interface LockRequest
   {
+    LockGranularity getGranularity();
+
     TaskLockType getLockType();
 
     String getGroupId();
@@ -702,6 +742,12 @@ public class TaskLockbox
     }
 
     @Override
+    public LockGranularity getGranularity()
+    {
+      return LockGranularity.TIME_CHUNK;
+    }
+
+    @Override
     public TaskLockType getLockType()
     {
       return lockType;
@@ -765,7 +811,7 @@ public class TaskLockbox
     private final String groupId;
     private final String dataSource;
     private final Interval interval;
-    private final int partitionId;
+    private final List<Integer> partitionIds;
     @Nullable private final String preferredVersion;
     private final int priority;
     private final boolean revoked;
@@ -775,7 +821,7 @@ public class TaskLockbox
         String groupId,
         String dataSource,
         Interval interval,
-        int partitionId,
+        List<Integer> partitionIds,
         @Nullable String preferredVersion,
         int priority,
         boolean revoked
@@ -785,7 +831,7 @@ public class TaskLockbox
       this.groupId = groupId;
       this.dataSource = dataSource;
       this.interval = interval;
-      this.partitionId = partitionId;
+      this.partitionIds = partitionIds;
       this.preferredVersion = preferredVersion;
       this.priority = priority;
       this.revoked = revoked;
@@ -796,11 +842,17 @@ public class TaskLockbox
         String groupId,
         String dataSource,
         Interval interval,
-        int partitionId,
+        List<Integer> partitionIds,
         int priority
     )
     {
-      this(lockType, groupId, dataSource, interval, partitionId, null, priority, false);
+      this(lockType, groupId, dataSource, interval, partitionIds, null, priority, false);
+    }
+
+    @Override
+    public LockGranularity getGranularity()
+    {
+      return LockGranularity.SEGMENT;
     }
 
     @Override
@@ -854,7 +906,7 @@ public class TaskLockbox
           groupId,
           dataSource,
           interval,
-          partitionId,
+          partitionIds,
           getVersion(),
           priority,
           revoked

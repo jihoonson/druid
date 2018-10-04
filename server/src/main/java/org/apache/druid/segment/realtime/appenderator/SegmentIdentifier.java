@@ -26,6 +26,9 @@ import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 
+import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 public class SegmentIdentifier
@@ -35,19 +38,32 @@ public class SegmentIdentifier
   private final String version;
   private final ShardSpec shardSpec;
   private final String asString;
+  private final List<Integer> overshadowingSegments;
+
+  public SegmentIdentifier(
+      String dataSource,
+      Interval interval,
+      String version,
+      ShardSpec shardSpec
+  )
+  {
+    this(dataSource, interval, version, shardSpec, null);
+  }
 
   @JsonCreator
   public SegmentIdentifier(
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("interval") Interval interval,
       @JsonProperty("version") String version,
-      @JsonProperty("shardSpec") ShardSpec shardSpec
+      @JsonProperty("shardSpec") ShardSpec shardSpec,
+      @JsonProperty("overshadowingSegments") @Nullable List<Integer> overshadowingSegments
   )
   {
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
     this.interval = Preconditions.checkNotNull(interval, "interval");
     this.version = Preconditions.checkNotNull(version, "version");
     this.shardSpec = Preconditions.checkNotNull(shardSpec, "shardSpec");
+    this.overshadowingSegments = overshadowingSegments == null ? Collections.emptyList() : overshadowingSegments;
     this.asString = DataSegment.makeDataSegmentIdentifier(
         dataSource,
         interval.getStart(),
@@ -79,6 +95,12 @@ public class SegmentIdentifier
   public ShardSpec getShardSpec()
   {
     return shardSpec;
+  }
+
+  @JsonProperty
+  public List<Integer> getOvershadowingSegments()
+  {
+    return overshadowingSegments;
   }
 
   public String getIdentifierAsString()
@@ -117,7 +139,8 @@ public class SegmentIdentifier
         segment.getDataSource(),
         segment.getInterval(),
         segment.getVersion(),
-        segment.getShardSpec()
+        segment.getShardSpec(),
+        segment.getOvershadowingSegments()
     );
   }
 }

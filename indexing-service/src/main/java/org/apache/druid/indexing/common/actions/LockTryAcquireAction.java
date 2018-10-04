@@ -32,6 +32,8 @@ import org.apache.druid.indexing.overlord.LockResult;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.List;
 
 public class LockTryAcquireAction implements TaskAction<TaskLock>
 {
@@ -44,32 +46,24 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
   private final Interval interval;
 
   @Nullable
-  private final Integer partitionId;
-
-  public static LockTryAcquireAction timeChunkLockAcquireAction(TaskLockType type, Interval interval)
-  {
-    return new LockTryAcquireAction(LockGranularity.TIME_CHUNK, type, interval, null);
-  }
-
-  public static LockTryAcquireAction segmentLockAcquireAction(TaskLockType type, Interval interval, int partitionId)
-  {
-    return new LockTryAcquireAction(LockGranularity.SEGMENT, type, interval, partitionId);
-  }
+  private final List<Integer> partitionIds;
 
   @JsonCreator
-  private LockTryAcquireAction(
+  public LockTryAcquireAction(
       @JsonProperty("lockGranularity") @Nullable LockGranularity granularity, // nullable for backward compatibility
       @JsonProperty("lockType") @Nullable TaskLockType type, // nullable for backward compatibility
       @JsonProperty("interval") Interval interval,
-      @JsonProperty("partitionId") @Nullable Integer partitionId
+      @JsonProperty("partitionIds") @Nullable List<Integer> partitionIds
   )
   {
     this.granularity = granularity == null ? LockGranularity.TIME_CHUNK : granularity;
     this.type = type == null ? TaskLockType.EXCLUSIVE : type;
     this.interval = interval;
-    this.partitionId = this.granularity == LockGranularity.SEGMENT
-                       ? Preconditions.checkNotNull(partitionId, "partitionId")
-                       : partitionId;
+    this.partitionIds = partitionIds == null ? Collections.emptyList() : partitionIds;
+
+    if (this.granularity == LockGranularity.SEGMENT) {
+      Preconditions.checkState(!this.partitionIds.isEmpty(), "partitionIds shouldn't be empty for segment lock");
+    }
   }
 
   @JsonProperty("lockGranularity")
@@ -90,6 +84,12 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
     return interval;
   }
 
+  @JsonProperty
+  public List<Integer> getPartitionIds()
+  {
+    return partitionIds;
+  }
+
   @Override
   public TypeReference<TaskLock> getReturnTypeReference()
   {
@@ -102,7 +102,7 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
   public TaskLock perform(Task task, TaskActionToolbox toolbox)
   {
     toolbox.getIndexerMetadataStorageCoordinator().getUsedSegmentsForInterval(task.getDataSource(), interval).get(0).getInterval();
-    final LockResult result = toolbox.getTaskLockbox().tryLock(granularity, type, task, interval, partitionId);
+    final LockResult result = toolbox.getTaskLockbox().tryLock(granularity, type, task, interval, partitionIds);
     return result.isOk() ? result.getTaskLock() : null;
   }
 

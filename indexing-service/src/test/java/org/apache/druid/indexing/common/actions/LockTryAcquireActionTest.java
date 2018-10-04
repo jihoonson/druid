@@ -20,6 +20,7 @@
 package org.apache.druid.indexing.common.actions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.NoopTask;
@@ -43,8 +44,10 @@ public class LockTryAcquireActionTest
   public void testSerdeWithAllFields() throws IOException
   {
     final LockTryAcquireAction expected = new LockTryAcquireAction(
+        LockGranularity.TIME_CHUNK,
         TaskLockType.SHARED,
-        Intervals.of("2017-01-01/2017-01-02")
+        Intervals.of("2017-01-01/2017-01-02"),
+        null
     );
 
     final byte[] bytes = mapper.writeValueAsBytes(expected);
@@ -60,8 +63,10 @@ public class LockTryAcquireActionTest
 
     final LockTryAcquireAction actual = mapper.readValue(json, LockTryAcquireAction.class);
     final LockTryAcquireAction expected = new LockTryAcquireAction(
+        LockGranularity.TIME_CHUNK,
         TaskLockType.EXCLUSIVE,
-        Intervals.of("2017-01-01/2017-01-02")
+        Intervals.of("2017-01-01/2017-01-02"),
+        null
     );
     Assert.assertEquals(expected.getType(), actual.getType());
     Assert.assertEquals(expected.getInterval(), actual.getInterval());
@@ -72,8 +77,10 @@ public class LockTryAcquireActionTest
   {
     final Task task = NoopTask.create();
     final LockTryAcquireAction action = new LockTryAcquireAction(
+        LockGranularity.TIME_CHUNK,
         TaskLockType.EXCLUSIVE,
-        Intervals.of("2017-01-01/2017-01-02")
+        Intervals.of("2017-01-01/2017-01-02"),
+        null
     );
 
     actionTestKit.getTaskLockbox().add(task);
@@ -87,7 +94,9 @@ public class LockTryAcquireActionTest
     final Task task = NoopTask.create();
     final LockTryAcquireAction action = new LockTryAcquireAction(
         null,
-        Intervals.of("2017-01-01/2017-01-02")
+        null,
+        Intervals.of("2017-01-01/2017-01-02"),
+        null
     );
 
     actionTestKit.getTaskLockbox().add(task);

@@ -841,12 +841,14 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   {
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
+    int partitionId = 0;
     final SegmentIdentifier identifier = coordinator.allocatePendingSegment(
         dataSource,
         "seq",
         null,
         interval,
         "version",
+        partitionId++,
         false
     );
 
@@ -858,6 +860,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         identifier.toString(),
         interval,
         identifier.getVersion(),
+        partitionId++,
         false
     );
 
@@ -869,6 +872,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         identifier1.toString(),
         interval,
         identifier1.getVersion(),
+        partitionId++,
         false
     );
 
@@ -880,6 +884,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         identifier1.toString(),
         interval,
         identifier1.getVersion(),
+        partitionId++,
         false
     );
 
@@ -892,6 +897,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         null,
         interval,
         "version",
+        partitionId++,
         false
     );
 
@@ -907,6 +913,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
 
     final DateTime begin = DateTimes.nowUtc();
 
+    int partitionId = 0;
     for (int i = 0; i < 10; i++) {
       final SegmentIdentifier identifier = coordinator.allocatePendingSegment(
           dataSource,
@@ -914,6 +921,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
           prevSegmentId,
           interval,
           "version",
+          partitionId++,
           false
       );
       prevSegmentId = identifier.toString();
@@ -928,6 +936,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
           prevSegmentId,
           interval,
           "version",
+          partitionId++,
           false
       );
       prevSegmentId = identifier.toString();

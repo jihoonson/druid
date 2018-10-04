@@ -20,6 +20,7 @@
 package org.apache.druid.indexing.common.actions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.jackson.DefaultObjectMapper;
@@ -36,7 +37,7 @@ public class SurrogateActionTest
   {
     final ObjectMapper objectMapper = new DefaultObjectMapper();
     final SurrogateAction<TaskLock, LockTryAcquireAction> surrogateAction = new SurrogateAction<>(
-        "testId", new LockTryAcquireAction(TaskLockType.EXCLUSIVE, Intervals.of("2018-01-01/2019-01-01"))
+        "testId", new LockTryAcquireAction(LockGranularity.TIME_CHUNK, TaskLockType.EXCLUSIVE, Intervals.of("2018-01-01/2019-01-01"), null)
     );
 
     final String json = objectMapper.writeValueAsString(surrogateAction);

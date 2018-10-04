@@ -38,12 +38,12 @@ import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReportData;
-import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskReportFileWriter;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.TestUtils;
+import org.apache.druid.indexing.common.TimeChunkLock;
 import org.apache.druid.indexing.common.actions.LockAcquireAction;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
@@ -1401,7 +1401,7 @@ public class IndexTaskTest
       {
         if (taskAction instanceof LockListAction) {
           return (RetType) Collections.singletonList(
-              new TaskLock(
+              new TimeChunkLock(
                   TaskLockType.EXCLUSIVE,
                   "",
                   "",
@@ -1412,7 +1412,7 @@ public class IndexTaskTest
         }
 
         if (taskAction instanceof LockAcquireAction) {
-          return (RetType) new TaskLock(
+          return (RetType) new TimeChunkLock(
               TaskLockType.EXCLUSIVE, "groupId",
               "test",
               ((LockAcquireAction) taskAction).getInterval(),
@@ -1422,7 +1422,7 @@ public class IndexTaskTest
         }
 
         if (taskAction instanceof LockTryAcquireAction) {
-          return (RetType) new TaskLock(
+          return (RetType) new TimeChunkLock(
               TaskLockType.EXCLUSIVE,
               "groupId",
               "test",

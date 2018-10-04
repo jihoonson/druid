@@ -40,6 +40,7 @@ import org.apache.druid.timeline.DataSegment;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -272,6 +273,11 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
         skipSegmentLineageCheck
     );
 
+    if (maxVersionAndPartitionId.lhs == null) {
+      // TODO: log?
+      return null;
+    }
+
     // This action is always used by appending tasks, which cannot change the segment granularity of existing
     // dataSources. So, all lock requests should be segmentLock.
     final LockResult lockResult = toolbox.getTaskLockbox().tryLock(
@@ -279,7 +285,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
         TaskLockType.EXCLUSIVE,
         task,
         tryInterval,
-        maxVersionAndPartitionId.rhs
+        Collections.singletonList(maxVersionAndPartitionId.rhs)
     );
 
     if (lockResult.isRevoked()) {

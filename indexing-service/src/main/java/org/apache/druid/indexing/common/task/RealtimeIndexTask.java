@@ -35,6 +35,7 @@ import org.apache.druid.discovery.DiscoveryDruidNode;
 import org.apache.druid.discovery.DruidNodeDiscoveryProvider;
 import org.apache.druid.discovery.LookupNodeService;
 import org.apache.druid.indexer.TaskStatus;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskRealtimeMetricsMonitorBuilder;
@@ -240,7 +241,7 @@ public class RealtimeIndexTask extends AbstractTask
         // Side effect: Calling announceSegment causes a lock to be acquired
         Preconditions.checkNotNull(
             toolbox.getTaskActionClient().submit(
-                new LockAcquireAction(TaskLockType.EXCLUSIVE, segment.getInterval(), lockTimeoutMs)
+                new LockAcquireAction(LockGranularity.SEGMENT, TaskLockType.EXCLUSIVE, segment.getInterval(), null, lockTimeoutMs)
             ),
             "Cannot acquire a lock for interval[%s]",
             segment.getInterval()
@@ -266,7 +267,7 @@ public class RealtimeIndexTask extends AbstractTask
         for (DataSegment segment : segments) {
           Preconditions.checkNotNull(
               toolbox.getTaskActionClient().submit(
-                  new LockAcquireAction(TaskLockType.EXCLUSIVE, segment.getInterval(), lockTimeoutMs)
+                  new LockAcquireAction(LockGranularity.SEGMENT, TaskLockType.EXCLUSIVE, segment.getInterval(), null, lockTimeoutMs)
               ),
               "Cannot acquire a lock for interval[%s]",
               segment.getInterval()
@@ -302,7 +303,7 @@ public class RealtimeIndexTask extends AbstractTask
       {
         try {
           // Side effect: Calling getVersion causes a lock to be acquired
-          final LockAcquireAction action = new LockAcquireAction(TaskLockType.EXCLUSIVE, interval, lockTimeoutMs);
+          final LockAcquireAction action = new LockAcquireAction(LockGranularity.SEGMENT, TaskLockType.EXCLUSIVE, interval, null, lockTimeoutMs);
           final TaskLock lock = Preconditions.checkNotNull(
               toolbox.getTaskActionClient().submit(action),
               "Cannot acquire a lock for interval[%s]",
