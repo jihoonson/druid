@@ -53,7 +53,7 @@ public abstract class IngestionTestBase
   {
   }
 
-  public TaskActionClient createActionClient(Task task)
+  public LocalTaskActionClient createActionClient(Task task)
   {
     return new LocalTaskActionClient(task, taskStorage, createTaskActionToolbox(), new TaskAuditLogConfig(false));
   }

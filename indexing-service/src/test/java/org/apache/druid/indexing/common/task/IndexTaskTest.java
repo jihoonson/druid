@@ -38,25 +38,17 @@ import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReportData;
-import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskReportFileWriter;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.TestUtils;
-import org.apache.druid.indexing.common.TimeChunkLock;
-import org.apache.druid.indexing.common.actions.LockAcquireAction;
-import org.apache.druid.indexing.common.actions.LockListAction;
-import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
+import org.apache.druid.indexing.common.actions.LocalTaskActionClient;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
-import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
-import org.apache.druid.indexing.common.actions.TaskAction;
-import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.IndexTask.IndexIngestionSpec;
 import org.apache.druid.indexing.common.task.IndexTask.IndexTuningConfig;
-import org.apache.druid.indexing.overlord.SegmentPublishResult;
-import org.apache.druid.java.util.common.DateTimes;
+import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
@@ -74,7 +66,6 @@ import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.loading.DataSegmentKiller;
 import org.apache.druid.segment.loading.DataSegmentPusher;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.segment.realtime.firehose.LocalFirehoseFactory;
 import org.apache.druid.segment.transform.ExpressionTransform;
 import org.apache.druid.segment.transform.TransformSpec;
@@ -83,7 +74,6 @@ import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
-import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 import org.junit.After;
 import org.junit.Assert;
@@ -106,7 +96,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class IndexTaskTest
+public class IndexTaskTest extends IngestionTestBase
 {
   @Rule
   public TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -135,9 +125,9 @@ public class IndexTaskTest
   private final ObjectMapper jsonMapper;
   private IndexMergerV9 indexMergerV9;
   private IndexIO indexIO;
-  private volatile int segmentAllocatePartitionCounter;
   private File reportsFile;
   private RowIngestionMetersFactory rowIngestionMetersFactory;
+  private LocalTaskActionClient actionClient;
 
   public IndexTaskTest()
   {
@@ -407,14 +397,13 @@ public class IndexTaskTest
 
     Assert.assertEquals("test", segments.get(0).getDataSource());
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
-    Assert.assertTrue(segments.get(0).getShardSpec().getClass().equals(NoneShardSpec.class));
+    Assert.assertEquals(NoneShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
   }
 
   @Test
   public void testAppendToExisting() throws Exception
   {
-    segmentAllocatePartitionCounter = 0;
     File tmpDir = temporaryFolder.newFolder();
     File tmpFile = File.createTempFile("druid", "index", tmpDir);
 
@@ -444,7 +433,7 @@ public class IndexTaskTest
 
     final List<DataSegment> segments = runTask(indexTask).rhs;
 
-    Assert.assertEquals(2, segmentAllocatePartitionCounter);
+    Assert.assertEquals(2, actionClient.getActionCount(SegmentAllocateAction.class));
     Assert.assertEquals(2, segments.size());
 
     Assert.assertEquals("test", segments.get(0).getDataSource());
@@ -1390,66 +1379,13 @@ public class IndexTaskTest
     Assert.assertTrue(status.getErrorMsg().contains("Max parse exceptions exceeded, terminating task..."));
   }
 
-  private Pair<TaskStatus, List<DataSegment>> runTask(IndexTask indexTask) throws Exception
+  private Pair<TaskStatus, List<DataSegment>> runTask(IndexTask task) throws Exception
   {
+    getLockbox().add(task);
+    getTaskStorage().insert(task, TaskStatus.running(task.getId()));
+    actionClient = createActionClient(task);
+
     final List<DataSegment> segments = Lists.newArrayList();
-
-    final TaskActionClient actionClient = new TaskActionClient()
-    {
-      @Override
-      public <RetType> RetType submit(TaskAction<RetType> taskAction)
-      {
-        if (taskAction instanceof LockListAction) {
-          return (RetType) Collections.singletonList(
-              new TimeChunkLock(
-                  TaskLockType.EXCLUSIVE,
-                  "",
-                  "",
-                  Intervals.of("2014/P1Y"), DateTimes.nowUtc().toString(),
-                  Tasks.DEFAULT_BATCH_INDEX_TASK_PRIORITY
-              )
-          );
-        }
-
-        if (taskAction instanceof LockAcquireAction) {
-          return (RetType) new TimeChunkLock(
-              TaskLockType.EXCLUSIVE, "groupId",
-              "test",
-              ((LockAcquireAction) taskAction).getInterval(),
-              DateTimes.nowUtc().toString(),
-              Tasks.DEFAULT_BATCH_INDEX_TASK_PRIORITY
-          );
-        }
-
-        if (taskAction instanceof LockTryAcquireAction) {
-          return (RetType) new TimeChunkLock(
-              TaskLockType.EXCLUSIVE,
-              "groupId",
-              "test",
-              ((LockTryAcquireAction) taskAction).getInterval(),
-              DateTimes.nowUtc().toString(),
-              Tasks.DEFAULT_BATCH_INDEX_TASK_PRIORITY
-          );
-        }
-
-        if (taskAction instanceof SegmentTransactionalInsertAction) {
-          return (RetType) new SegmentPublishResult(
-              ((SegmentTransactionalInsertAction) taskAction).getSegments(),
-              true
-          );
-        }
-
-        if (taskAction instanceof SegmentAllocateAction) {
-          SegmentAllocateAction action = (SegmentAllocateAction) taskAction;
-          Interval interval = action.getPreferredSegmentGranularity().bucket(action.getTimestamp());
-          ShardSpec shardSpec = new NumberedShardSpec(segmentAllocatePartitionCounter++, 0);
-          return (RetType) new SegmentIdentifier(action.getDataSource(), interval, "latestVersion", shardSpec);
-        }
-
-        return null;
-      }
-    };
-
     final DataSegmentPusher pusher = new DataSegmentPusher()
     {
       @Deprecated
@@ -1523,12 +1459,13 @@ public class IndexTaskTest
         new TaskReportFileWriter(reportsFile)
     );
 
-    indexTask.isReady(box.getTaskActionClient());
-    TaskStatus status = indexTask.run(box);
-
-    Collections.sort(segments);
-
-    return Pair.of(status, segments);
+    if (task.isReady(box.getTaskActionClient())) {
+      TaskStatus status = task.run(box);
+      Collections.sort(segments);
+      return Pair.of(status, segments);
+    } else {
+      throw new ISE("task is not ready");
+    }
   }
 
   private IndexTask.IndexIngestionSpec createIngestionSpec(

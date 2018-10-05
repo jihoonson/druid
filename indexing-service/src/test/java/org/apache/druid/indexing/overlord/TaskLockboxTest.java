@@ -673,7 +673,7 @@ public class TaskLockboxTest
   @Test
   public void testLockWithDifferentGranularity()
   {
-    final Task task = NoopTask.create(10);
+    final Task task = NoopTask.create("test", 10);
     lockbox.add(task);
 
     Assert.assertTrue(
@@ -687,7 +687,7 @@ public class TaskLockboxTest
     );
 
     expectedException.expect(ISE.class);
-    expectedException.expectMessage("already acquired a lock for interval");
+    expectedException.expectMessage("Task[test] already acquired a lock for interval[2015-01-01T00:00:00.000Z/2015-01-02T00:00:00.000Z] but different granularity[TIME_CHUNK]");
 
     lockbox.tryLock(
         LockGranularity.SEGMENT,

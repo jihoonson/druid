@@ -73,6 +73,17 @@ public class SegmentIdentifier
     );
   }
 
+  public SegmentIdentifier withShardSpec(ShardSpec shardSpec)
+  {
+    return new SegmentIdentifier(
+        dataSource,
+        interval,
+        version,
+        shardSpec,
+        overshadowingSegments
+    );
+  }
+
   @JsonProperty
   public String getDataSource()
   {

@@ -19,6 +19,7 @@
 
 package org.apache.druid.indexing.test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -29,10 +30,12 @@ import org.apache.druid.indexing.overlord.SegmentPublishResult;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataStorageCoordinator
 {
@@ -141,7 +144,7 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
       String previousSegmentId,
       Interval interval,
       String version,
-      int partitionId,
+      final BiFunction<Integer, ObjectMapper, ShardSpec> shardSpecGenrator,
       boolean skipSegmentLineageCheck
   )
   {

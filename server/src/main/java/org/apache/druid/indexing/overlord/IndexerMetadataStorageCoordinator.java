@@ -19,15 +19,18 @@
 
 package org.apache.druid.indexing.overlord;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 /**
  */
@@ -114,7 +117,7 @@ public interface IndexerMetadataStorageCoordinator
       String previousSegmentId,
       Interval interval,
       String version,
-      int partitionId,
+      final BiFunction<Integer, ObjectMapper, ShardSpec> shardSpecGenrator,
       boolean skipSegmentLineageCheck
   );
 

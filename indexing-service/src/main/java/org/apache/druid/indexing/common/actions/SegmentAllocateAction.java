@@ -37,6 +37,7 @@ import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
@@ -300,7 +301,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
           previousSegmentId,
           tryInterval,
           maxVersionAndPartitionId.lhs,
-          maxVersionAndPartitionId.rhs,
+          (maxPartitions, objectMapper) -> new NumberedShardSpec(maxVersionAndPartitionId.rhs, maxPartitions == null ? 0 : maxPartitions),
           skipSegmentLineageCheck
       );
       if (identifier != null) {
