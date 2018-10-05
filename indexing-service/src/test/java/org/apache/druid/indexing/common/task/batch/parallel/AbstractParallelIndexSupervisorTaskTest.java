@@ -385,11 +385,11 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
       this.supervisorTask = supervisorTask;
     }
 
-    @Override
-    public SegmentIdentifier allocateSegment(String supervisorTaskId, DateTime timestamp) throws IOException
-    {
-      return supervisorTask.allocateNewSegment(timestamp);
-    }
+//    @Override
+//    public SegmentIdentifier allocateSegment(String supervisorTaskId, DateTime timestamp) throws IOException
+//    {
+//      return supervisorTask.allocateNewSegment(timestamp);
+//    }
 
     @Override
     public void report(String supervisorTaskId, List<DataSegment> pushedSegments)

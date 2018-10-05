@@ -264,7 +264,7 @@ public class TaskLockbox
       final Interval interval
   ) throws InterruptedException
   {
-    return lock(LockGranularity.TIME_CHUNK, lockType, task, interval, null);
+    return lock(LockGranularity.TIME_CHUNK, lockType, task, interval, null, null);
   }
 
   /**
@@ -285,13 +285,14 @@ public class TaskLockbox
       final TaskLockType lockType,
       final Task task,
       final Interval interval,
+      final String version,
       final List<Integer> partitionIds
   ) throws InterruptedException
   {
     giant.lockInterruptibly();
     try {
       LockResult lockResult;
-      while (!(lockResult = tryLock(granularity, lockType, task, interval, partitionIds)).isOk()) {
+      while (!(lockResult = tryLock(granularity, lockType, task, interval, version, partitionIds)).isOk()) {
         if (lockResult.isRevoked()) {
           return lockResult;
         }
@@ -311,7 +312,7 @@ public class TaskLockbox
       long timeoutMs
   ) throws InterruptedException
   {
-    return lock(LockGranularity.TIME_CHUNK, lockType, task, interval, null, timeoutMs);
+    return lock(LockGranularity.TIME_CHUNK, lockType, task, interval, null, null, timeoutMs);
   }
 
   /**
@@ -333,6 +334,7 @@ public class TaskLockbox
       final TaskLockType lockType,
       final Task task,
       final Interval interval,
+      final String version,
       final List<Integer> partitionIds,
       long timeoutMs
   ) throws InterruptedException
@@ -341,7 +343,7 @@ public class TaskLockbox
     giant.lockInterruptibly();
     try {
       LockResult lockResult;
-      while (!(lockResult = tryLock(granularity, lockType, task, interval, partitionIds)).isOk()) {
+      while (!(lockResult = tryLock(granularity, lockType, task, interval, version, partitionIds)).isOk()) {
         if (nanos <= 0 || lockResult.isRevoked()) {
           return lockResult;
         }
@@ -359,6 +361,7 @@ public class TaskLockbox
       final TaskLockType lockType,
       final Task task,
       final Interval interval,
+      final String version,
       final List<Integer> partitionIds
   )
   {
@@ -369,7 +372,9 @@ public class TaskLockbox
             task.getGroupId(),
             task.getDataSource(),
             interval,
-            task.getPriority()
+            version,
+            task.getPriority(),
+            false
         );
       case SEGMENT:
         return new SegmentLockRequest(
@@ -378,7 +383,9 @@ public class TaskLockbox
             task.getDataSource(),
             interval,
             partitionIds,
-            task.getPriority()
+            version,
+            task.getPriority(),
+            false
         );
       default:
         throw new ISE("Unknown lockGranularity[%s]", granularity);
@@ -391,7 +398,7 @@ public class TaskLockbox
       final Interval interval
   )
   {
-    return tryLock(LockGranularity.TIME_CHUNK, lockType, task, interval, null);
+    return tryLock(LockGranularity.TIME_CHUNK, lockType, task, interval, null, null);
   }
 
   /**
@@ -413,6 +420,7 @@ public class TaskLockbox
       final TaskLockType lockType,
       final Task task,
       final Interval interval,
+      final String version,
       final List<Integer> partitionIds
   )
   {
@@ -424,7 +432,7 @@ public class TaskLockbox
       }
       Preconditions.checkArgument(interval.toDurationMillis() > 0, "interval empty");
 
-      final LockRequest request = createRequest(granularity, lockType, task, interval, partitionIds);
+      final LockRequest request = createRequest(granularity, lockType, task, interval, version, partitionIds);
       final TaskLockPosse posseToUse = createOrFindLockPosse(task, request);
       if (posseToUse != null && !posseToUse.getTaskLock().isRevoked()) {
         // Add to existing TaskLockPosse, if necessary

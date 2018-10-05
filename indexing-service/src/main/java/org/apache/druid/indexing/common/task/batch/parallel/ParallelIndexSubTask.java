@@ -307,29 +307,29 @@ public class ParallelIndexSubTask extends AbstractTask
     final DataSchema dataSchema = ingestionSchema.getDataSchema();
     final boolean explicitIntervals = dataSchema.getGranularitySpec().bucketIntervals().isPresent();
     final ParallelIndexIOConfig ioConfig = ingestionSchema.getIOConfig();
-    if (ioConfig.isAppendToExisting() || !explicitIntervals) {
-      return new ActionBasedSegmentAllocator(
-          toolbox.getTaskActionClient(),
-          dataSchema,
-          (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SurrogateAction<>(
-              supervisorTaskId,
-              new SegmentAllocateAction(
-                  schema.getDataSource(),
-                  row.getTimestamp(),
-                  schema.getGranularitySpec().getQueryGranularity(),
-                  schema.getGranularitySpec().getSegmentGranularity(),
-                  sequenceName,
-                  previousSegmentId,
-                  skipSegmentLineageCheck
-              )
-          )
-      );
-    } else {
-      return (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> taskClient.allocateSegment(
-          supervisorTaskId,
-          row.getTimestamp()
-      );
-    }
+    return new ActionBasedSegmentAllocator(
+        toolbox.getTaskActionClient(),
+        dataSchema,
+        (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SurrogateAction<>(
+            supervisorTaskId,
+            new SegmentAllocateAction(
+                schema.getDataSource(),
+                row.getTimestamp(),
+                schema.getGranularitySpec().getQueryGranularity(),
+                schema.getGranularitySpec().getSegmentGranularity(),
+                sequenceName,
+                previousSegmentId,
+                skipSegmentLineageCheck
+            )
+        )
+    );
+//    if (ioConfig.isAppendToExisting() || !explicitIntervals) {
+//    } else {
+//      return (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> taskClient.allocateSegment(
+//          supervisorTaskId,
+//          row.getTimestamp()
+//      );
+//    }
   }
 
   /**

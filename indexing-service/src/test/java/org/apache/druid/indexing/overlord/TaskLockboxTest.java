@@ -100,13 +100,13 @@ public class TaskLockboxTest
   {
     Task task = NoopTask.create();
     lockbox.add(task);
-    Assert.assertNotNull(lockbox.lock(LockGranularity.TIME_CHUNK, TaskLockType.EXCLUSIVE, task, Intervals.of("2015-01-01/2015-01-02"), null));
+    Assert.assertNotNull(lockbox.lock(TaskLockType.EXCLUSIVE, task, Intervals.of("2015-01-01/2015-01-02")));
   }
 
   @Test(expected = IllegalStateException.class)
   public void testLockForInactiveTask() throws InterruptedException
   {
-    lockbox.lock(LockGranularity.TIME_CHUNK, TaskLockType.EXCLUSIVE, NoopTask.create(), Intervals.of("2015-01-01/2015-01-02"), null);
+    lockbox.lock(TaskLockType.EXCLUSIVE, NoopTask.create(), Intervals.of("2015-01-01/2015-01-02"));
   }
 
   @Test
@@ -117,7 +117,7 @@ public class TaskLockboxTest
     exception.expectMessage("Unable to grant lock to inactive Task");
     lockbox.add(task);
     lockbox.remove(task);
-    lockbox.lock(LockGranularity.TIME_CHUNK, TaskLockType.EXCLUSIVE, task, Intervals.of("2015-01-01/2015-01-02"), null);
+    lockbox.lock(TaskLockType.EXCLUSIVE, task, Intervals.of("2015-01-01/2015-01-02"));
   }
 
   @Test
@@ -132,7 +132,7 @@ public class TaskLockboxTest
       final Task task = NoopTask.create(Math.min(0, (i - 1) * 10)); // the first two tasks have the same priority
       tasks.add(task);
       lockbox.add(task);
-      final TaskLock lock = lockbox.tryLock(LockGranularity.TIME_CHUNK, TaskLockType.SHARED, task, interval, null).getTaskLock();
+      final TaskLock lock = lockbox.tryLock(TaskLockType.SHARED, task, interval).getTaskLock();
       Assert.assertNotNull(lock);
       actualLocks.add(lock);
     }
@@ -157,15 +157,15 @@ public class TaskLockboxTest
 
     lockbox.add(lowPriorityTask);
     lockbox.add(lowPriorityTask2);
-    Assert.assertTrue(lockbox.tryLock(LockGranularity.TIME_CHUNK, TaskLockType.EXCLUSIVE, lowPriorityTask, interval1, null).isOk());
-    Assert.assertTrue(lockbox.tryLock(LockGranularity.TIME_CHUNK, TaskLockType.SHARED, lowPriorityTask, interval2, null).isOk());
-    Assert.assertTrue(lockbox.tryLock(LockGranularity.TIME_CHUNK, TaskLockType.SHARED, lowPriorityTask2, interval2, null).isOk());
-    Assert.assertTrue(lockbox.tryLock(LockGranularity.TIME_CHUNK, TaskLockType.EXCLUSIVE, lowPriorityTask, interval3, null).isOk());
+    Assert.assertTrue(lockbox.tryLock(TaskLockType.EXCLUSIVE, lowPriorityTask, interval1).isOk());
+    Assert.assertTrue(lockbox.tryLock(TaskLockType.SHARED, lowPriorityTask, interval2).isOk());
+    Assert.assertTrue(lockbox.tryLock(TaskLockType.SHARED, lowPriorityTask2, interval2).isOk());
+    Assert.assertTrue(lockbox.tryLock(TaskLockType.EXCLUSIVE, lowPriorityTask, interval3).isOk());
 
     lockbox.add(highPiorityTask);
-    Assert.assertTrue(lockbox.tryLock(LockGranularity.TIME_CHUNK, TaskLockType.SHARED, highPiorityTask, interval1, null).isOk());
-    Assert.assertTrue(lockbox.tryLock(LockGranularity.TIME_CHUNK, TaskLockType.EXCLUSIVE, highPiorityTask, interval2, null).isOk());
-    Assert.assertTrue(lockbox.tryLock(LockGranularity.TIME_CHUNK, TaskLockType.EXCLUSIVE, highPiorityTask, interval3, null).isOk());
+    Assert.assertTrue(lockbox.tryLock(TaskLockType.SHARED, highPiorityTask, interval1).isOk());
+    Assert.assertTrue(lockbox.tryLock(TaskLockType.EXCLUSIVE, highPiorityTask, interval2).isOk());
+    Assert.assertTrue(lockbox.tryLock(TaskLockType.EXCLUSIVE, highPiorityTask, interval3).isOk());
 
     Assert.assertTrue(lockbox.findLocksForTask(lowPriorityTask).stream().allMatch(TaskLock::isRevoked));
     Assert.assertTrue(lockbox.findLocksForTask(lowPriorityTask2).stream().allMatch(TaskLock::isRevoked));
@@ -593,6 +593,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task,
             Intervals.of("2015-01-01/2015-01-02"),
+            "v1",
             ImmutableList.of(0, 3, 6, 9)
         )
     );
@@ -613,6 +614,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task1,
             Intervals.of("2015-01-01/2015-01-02"),
+            "v1",
             ImmutableList.of(0, 3, 6, 9)
         ).isOk()
     );
@@ -623,6 +625,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task2,
             Intervals.of("2015-01-01/2015-01-02"),
+            "v1",
             null
         ).isOk()
     );
@@ -645,6 +648,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task1,
             Intervals.of("2015-01-01/2015-01-02"),
+            "v1",
             ImmutableList.of(0, 3, 6, 9)
         ).isOk()
     );
@@ -655,6 +659,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task2,
             Intervals.of("2015-01-01/2015-01-02"),
+            "v1",
             null
         ).isOk()
     );
@@ -664,6 +669,7 @@ public class TaskLockboxTest
         TaskLockType.EXCLUSIVE,
         task1,
         Intervals.of("2015-01-01/2015-01-02"),
+        "v1",
         ImmutableList.of(0, 3, 6, 9)
     );
     Assert.assertFalse(resultOfTask1.isOk());
@@ -682,6 +688,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task,
             Intervals.of("2015-01-01/2015-01-02"),
+            "v1",
             null
         ).isOk()
     );
@@ -694,6 +701,7 @@ public class TaskLockboxTest
         TaskLockType.EXCLUSIVE,
         task,
         Intervals.of("2015-01-01/2015-01-02"),
+        "v1",
         ImmutableList.of(0, 3, 6, 9)
     );
   }
@@ -713,6 +721,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task1,
             Intervals.of("2015-01-01/2015-01-02"),
+            "v1",
             ImmutableList.of(0, 3, 6, 9)
         ).isOk()
     );
@@ -723,6 +732,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task2,
             Intervals.of("2015-01-01/2015-01-02"),
+            "v1",
             ImmutableList.of(0, 3, 6, 9)
         ).isOk()
     );
@@ -743,6 +753,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task1,
             Intervals.of("2015-01-01/2015-01-02"),
+            "v1",
             ImmutableList.of(0, 3, 6, 9)
         ).isOk()
     );
@@ -753,6 +764,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task2,
             Intervals.of("2015-01-01/2015-01-02"),
+            "v1",
             ImmutableList.of(1, 2, 4)
         ).isOk()
     );
@@ -773,6 +785,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task1,
             Intervals.of("2015-01-01/2015-01-05"),
+            "v1",
             ImmutableList.of(0, 3, 6, 9)
         ).isOk()
     );
@@ -783,6 +796,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task2,
             Intervals.of("2015-01-03/2015-01-08"),
+            "v1",
             ImmutableList.of(1, 2, 4)
         ).isOk()
     );

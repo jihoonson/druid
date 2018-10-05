@@ -57,32 +57,32 @@ public class ParallelIndexTaskClient extends IndexTaskClient
     return subtaskId;
   }
 
-  public SegmentIdentifier allocateSegment(String supervisorTaskId, DateTime timestamp) throws IOException
-  {
-    final FullResponseHolder response = submitSmileRequest(
-        supervisorTaskId,
-        HttpMethod.POST,
-        "segment/allocate",
-        null,
-        serialize(timestamp),
-        true
-    );
-    if (!isSuccess(response)) {
-      throw new ISE(
-          "task[%s] failed to allocate a new segment identifier with the HTTP code[%d] and content[%s]",
-          supervisorTaskId,
-          response.getStatus().getCode(),
-          response.getContent()
-      );
-    } else {
-      return deserialize(
-          response.getContent(),
-          new TypeReference<SegmentIdentifier>()
-          {
-          }
-      );
-    }
-  }
+//  public SegmentIdentifier allocateSegment(String supervisorTaskId, DateTime timestamp) throws IOException
+//  {
+//    final FullResponseHolder response = submitSmileRequest(
+//        supervisorTaskId,
+//        HttpMethod.POST,
+//        "segment/allocate",
+//        null,
+//        serialize(timestamp),
+//        true
+//    );
+//    if (!isSuccess(response)) {
+//      throw new ISE(
+//          "task[%s] failed to allocate a new segment identifier with the HTTP code[%d] and content[%s]",
+//          supervisorTaskId,
+//          response.getStatus().getCode(),
+//          response.getContent()
+//      );
+//    } else {
+//      return deserialize(
+//          response.getContent(),
+//          new TypeReference<SegmentIdentifier>()
+//          {
+//          }
+//      );
+//    }
+//  }
 
   public void report(String supervisorTaskId, List<DataSegment> pushedSegments)
   {

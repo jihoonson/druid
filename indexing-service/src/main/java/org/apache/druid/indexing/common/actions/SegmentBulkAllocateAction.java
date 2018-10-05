@@ -78,62 +78,64 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
   @Override
   public List<SegmentIdentifier> perform(Task task, TaskActionToolbox toolbox)
   {
-    final List<SegmentIdentifier> allocatedIds = new ArrayList<>();
+    return toolbox.doSynchronized(() -> {
+      final List<SegmentIdentifier> allocatedIds = new ArrayList<>();
 
-    for (Entry<Interval, Integer> entry : allocateSpec.entrySet()) {
-      final Interval interval = entry.getKey();
-      final int numSegmentsToAllocate = entry.getValue();
+      for (Entry<Interval, Integer> entry : allocateSpec.entrySet()) {
+        final Interval interval = entry.getKey();
+        final int numSegmentsToAllocate = entry.getValue();
 
-      for (int i = 0; i < numSegmentsToAllocate; i++) {
-        final String sequenceName = StringUtils.format("%s_%s_%d", baseSequenceName, interval, i);
-        // TODO: probably doInCriticalSection??
-        final Pair<String, Integer> maxVersionAndPartitionId = toolbox.getIndexerMetadataStorageCoordinator().findMaxVersionAndAvailablePartitionId(
-            task.getDataSource(),
-            sequenceName,
-            null,
-            interval,
-            true
-        );
-
-        if (maxVersionAndPartitionId.lhs == null) {
-          // TODO: log?
-          return Collections.emptyList();
-        }
-
-        // This action is always used by overwriting tasks without changing segment granularity, and so all lock
-        // requests should be segmentLock.
-        final LockResult lockResult = toolbox.getTaskLockbox().tryLock(
-            LockGranularity.SEGMENT,
-            TaskLockType.EXCLUSIVE,
-            task,
-            interval,
-            Collections.singletonList(maxVersionAndPartitionId.rhs)
-        );
-
-        if (lockResult.isRevoked()) {
-          // We had acquired a lock but it was preempted by other locks
-          throw new ISE("The lock for interval[%s] is preempted and no longer valid", interval);
-        }
-
-        if (lockResult.isOk()) {
-          final SegmentIdentifier identifier = toolbox.getIndexerMetadataStorageCoordinator().allocatePendingSegment(
+        for (int i = 0; i < numSegmentsToAllocate; i++) {
+          final String sequenceName = StringUtils.format("%s_%s_%d", baseSequenceName, interval, i);
+          // TODO: probably doInCriticalSection??
+          final Pair<String, Integer> maxVersionAndPartitionId = toolbox.getIndexerMetadataStorageCoordinator().findMaxVersionAndAvailablePartitionId(
               task.getDataSource(),
               sequenceName,
               null,
               interval,
-              maxVersionAndPartitionId.lhs,
-              (maxPartitions, objectMapper) -> {
-                if (numSegmentsToAllocate == 1) {
-                  return NoneShardSpec.instance();
-                } else {
-                  return new HashBasedNumberedShardSpec(maxVersionAndPartitionId.rhs, numSegmentsToAllocate, null, objectMapper);
-                }
-              },
               true
           );
-          if (identifier != null) {
-            allocatedIds.add(identifier);
-          } else {
+
+          if (maxVersionAndPartitionId.lhs == null) {
+            // TODO: log?
+            return Collections.emptyList();
+          }
+
+          // This action is always used by overwriting tasks without changing segment granularity, and so all lock
+          // requests should be segmentLock.
+          final LockResult lockResult = toolbox.getTaskLockbox().tryLock(
+              LockGranularity.SEGMENT,
+              TaskLockType.EXCLUSIVE,
+              task,
+              interval,
+              maxVersionAndPartitionId.lhs,
+              Collections.singletonList(maxVersionAndPartitionId.rhs)
+          );
+
+          if (lockResult.isRevoked()) {
+            // We had acquired a lock but it was preempted by other locks
+            throw new ISE("The lock for interval[%s] is preempted and no longer valid", interval);
+          }
+
+          if (lockResult.isOk()) {
+            final SegmentIdentifier identifier = toolbox.getIndexerMetadataStorageCoordinator().allocatePendingSegment(
+                task.getDataSource(),
+                sequenceName,
+                null,
+                interval,
+                maxVersionAndPartitionId.lhs,
+                (maxPartitions, objectMapper) -> {
+                  if (numSegmentsToAllocate == 1) {
+                    return NoneShardSpec.instance();
+                  } else {
+                    return new HashBasedNumberedShardSpec(maxVersionAndPartitionId.rhs, numSegmentsToAllocate, null, objectMapper);
+                  }
+                },
+                true
+            );
+            if (identifier != null) {
+              allocatedIds.add(identifier);
+            } else {
 //            final String msg = StringUtils.format(
 //                "Could not allocate pending segment for interval[%s],.",
 //                interval
@@ -143,9 +145,9 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
 //            } else {
 //              log.debug(msg);
 //            }
-            return Collections.emptyList();
-          }
-        } else {
+              return Collections.emptyList();
+            }
+          } else {
 //          final String msg = StringUtils.format(
 //              "Could not acquire lock for interval[%s].",
 //              interval
@@ -155,12 +157,13 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
 //          } else {
 //            log.debug(msg);
 //          }
-          return Collections.emptyList();
+            return Collections.emptyList();
+          }
         }
       }
-    }
 
-    return allocatedIds;
+      return allocatedIds;
+    });
   }
 
   @Override

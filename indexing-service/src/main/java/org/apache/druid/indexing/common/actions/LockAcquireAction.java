@@ -131,9 +131,10 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   {
     try {
 
+      // TODO: set proper version
       final LockResult result = timeoutMs == 0 ?
-                                toolbox.getTaskLockbox().lock(granularity, type, task, interval, partitionId) :
-                                toolbox.getTaskLockbox().lock(granularity, type, task, interval, partitionId, timeoutMs);
+                                toolbox.getTaskLockbox().lock(granularity, type, task, interval, null, partitionId) :
+                                toolbox.getTaskLockbox().lock(granularity, type, task, interval, null, partitionId, timeoutMs);
       return result.isOk() ? result.getTaskLock() : null;
     }
     catch (InterruptedException e) {

@@ -27,6 +27,8 @@ import org.apache.druid.indexing.overlord.TaskStorage;
 import org.apache.druid.indexing.overlord.supervisor.SupervisorManager;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 
+import java.util.concurrent.Callable;
+
 public class TaskActionToolbox
 {
   private final TaskLockbox taskLockbox;
@@ -82,5 +84,15 @@ public class TaskActionToolbox
   public Counters getCounters()
   {
     return counters;
+  }
+
+  public synchronized <T> T doSynchronized(Callable<T> callable)
+  {
+    try {
+      return callable.call();
+    }
+    catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 }
