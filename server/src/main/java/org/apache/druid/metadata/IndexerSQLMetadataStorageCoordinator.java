@@ -893,7 +893,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             interval,
             version,
 //            new NumberedShardSpec(partitionId, 0),
-            shardSpecGenrator.apply(null, jsonMapper),
+            shardSpecGenrator.apply(0, jsonMapper),
             null
         );
       } else if (!max.getInterval().equals(interval) || !max.getVersion().equals(version)) {
@@ -936,7 +936,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
 //        return null;
         final Integer maxPartitions = max.getShardSpec() instanceof NumberedShardSpec ?
                                      ((NumberedShardSpec) max.getShardSpec()).getPartitions() :
-                                     null;
+                                     0;
         return new SegmentIdentifier(
             dataSource,
             max.getInterval(),

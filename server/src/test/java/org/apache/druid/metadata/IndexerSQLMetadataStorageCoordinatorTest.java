@@ -838,6 +838,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
 
   private SegmentIdentifier allocatePendingSegment(
       final String dataSource,
+      final String sequenceName,
       final String prevSegmentId,
       final Interval interval,
       final String version,
@@ -846,7 +847,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   {
     return coordinator.allocatePendingSegment(
         dataSource,
-        "seq",
+        sequenceName,
         prevSegmentId,
         interval,
         version,
@@ -861,12 +862,13 @@ public class IndexerSQLMetadataStorageCoordinatorTest
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
     int partitionId = 0;
-    final SegmentIdentifier identifier = allocatePendingSegment(dataSource, null, interval, "version", partitionId++);
+    final SegmentIdentifier identifier = allocatePendingSegment(dataSource, "seq", null, interval, "version", partitionId++);
 
     Assert.assertEquals("ds_2017-01-01T00:00:00.000Z_2017-02-01T00:00:00.000Z_version", identifier.toString());
 
     final SegmentIdentifier identifier1 = allocatePendingSegment(
         dataSource,
+        "seq",
         identifier.toString(),
         interval,
         identifier.getVersion(),
@@ -877,6 +879,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
 
     final SegmentIdentifier identifier2 = allocatePendingSegment(
         dataSource,
+        "seq",
         identifier1.toString(),
         interval,
         identifier1.getVersion(),
@@ -887,10 +890,11 @@ public class IndexerSQLMetadataStorageCoordinatorTest
 
     final SegmentIdentifier identifier3 = allocatePendingSegment(
         dataSource,
+        "seq",
         identifier1.toString(),
         interval,
         identifier1.getVersion(),
-        partitionId++
+        partitionId
     );
 
     Assert.assertEquals("ds_2017-01-01T00:00:00.000Z_2017-02-01T00:00:00.000Z_version_2", identifier3.toString());
@@ -898,10 +902,11 @@ public class IndexerSQLMetadataStorageCoordinatorTest
 
     final SegmentIdentifier identifier4 = allocatePendingSegment(
         dataSource,
+        "seq1",
         null,
         interval,
         "version",
-        partitionId++
+        partitionId
     );
 
     Assert.assertEquals("ds_2017-01-01T00:00:00.000Z_2017-02-01T00:00:00.000Z_version_3", identifier4.toString());
@@ -920,6 +925,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
     for (int i = 0; i < 10; i++) {
       final SegmentIdentifier identifier = allocatePendingSegment(
           dataSource,
+          "seq",
           prevSegmentId,
           interval,
           "version",
@@ -933,6 +939,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
     for (int i = 0; i < 5; i++) {
       final SegmentIdentifier identifier = allocatePendingSegment(
           dataSource,
+          "seq",
           prevSegmentId,
           interval,
           "version",

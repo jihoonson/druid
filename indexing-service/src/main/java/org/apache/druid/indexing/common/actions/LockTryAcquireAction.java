@@ -101,7 +101,6 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
   @Override
   public TaskLock perform(Task task, TaskActionToolbox toolbox)
   {
-    toolbox.getIndexerMetadataStorageCoordinator().getUsedSegmentsForInterval(task.getDataSource(), interval).get(0).getInterval();
     // TODO: set proper version
     final LockResult result = toolbox.getTaskLockbox().tryLock(granularity, type, task, interval, null, partitionIds);
     return result.isOk() ? result.getTaskLock() : null;

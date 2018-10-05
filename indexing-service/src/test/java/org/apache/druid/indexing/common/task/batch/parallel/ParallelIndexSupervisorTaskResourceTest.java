@@ -30,9 +30,12 @@ import org.apache.druid.indexer.TaskLocation;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.TaskStatusPlus;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
+import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
+import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.SurrogateAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.task.AbstractTask;
@@ -666,9 +669,17 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
 
       final TestFirehose firehose = (TestFirehose) getIngestionSchema().getIOConfig().getFirehoseFactory();
 
-      final List<TaskLock> locks = toolbox.getTaskActionClient()
-                                          .submit(new SurrogateAction<>(getSupervisorTaskId(), new LockListAction()));
-      Preconditions.checkState(locks.size() == 1, "There should be a single lock");
+//      final List<TaskLock> locks = toolbox.getTaskActionClient()
+//                                          .submit(new SurrogateAction<>(getSupervisorTaskId(), new LockListAction()));
+//      Preconditions.checkState(locks.size() == 1, "There should be a single lock");
+
+      final Interval interval = Intervals.of("2017/2018");
+      final TaskLock lock = toolbox.getTaskActionClient()
+             .submit(new SurrogateAction<>(getSupervisorTaskId(), new LockTryAcquireAction(LockGranularity.TIME_CHUNK, TaskLockType.EXCLUSIVE, interval, null)));
+
+      if (lock == null) {
+        throw new ISE("Failed to get a lock");
+      }
 
       task.getRunner().collectReport(
           new PushedSegmentsReport(
@@ -676,8 +687,8 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
               Collections.singletonList(
                   new DataSegment(
                       getDataSource(),
-                      Intervals.of("2017/2018"),
-                      locks.get(0).getVersion(),
+                      interval,
+                      lock.getVersion(),
                       null,
                       null,
                       null,

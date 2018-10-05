@@ -127,7 +127,7 @@ public class DataSegmentTest
         JacksonUtils.TYPE_REFERENCE_MAP_STRING_OBJECT
     );
 
-    Assert.assertEquals(10, objectMap.size());
+    Assert.assertEquals(11, objectMap.size());
     Assert.assertEquals("something", objectMap.get("dataSource"));
     Assert.assertEquals(interval.toString(), objectMap.get("interval"));
     Assert.assertEquals("1", objectMap.get("version"));
