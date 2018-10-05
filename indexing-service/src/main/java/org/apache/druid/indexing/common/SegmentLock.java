@@ -21,8 +21,12 @@ package org.apache.druid.indexing.common;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+import org.apache.druid.indexing.overlord.TaskLockbox.LockRequest;
+import org.apache.druid.indexing.overlord.TaskLockbox.SegmentLockRequest;
 import org.joda.time.Interval;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -152,6 +156,24 @@ public class SegmentLock implements TaskLock
   public boolean isRevoked()
   {
     return revoked;
+  }
+
+  @Override
+  public boolean conflict(LockRequest request)
+  {
+    if (request instanceof SegmentLockRequest) {
+      // Lock conflicts only if the interval is same and the partitionIds intersect.
+      final SegmentLockRequest segmentLockRequest = (SegmentLockRequest) request;
+
+      if (dataSource.equals(segmentLockRequest.getDataSource())
+          && interval.equals(segmentLockRequest.getInterval())) {
+        return !Sets.intersection(new HashSet<>(partitionIds), new HashSet<>(segmentLockRequest.getPartitionIds())).isEmpty();
+      }
+    }
+
+    // For different interval, all overlapping intervals cause conflict.
+    return dataSource.equals(request.getDataSource())
+           && interval.overlaps(request.getInterval());
   }
 
   @Override

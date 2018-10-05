@@ -21,6 +21,7 @@ package org.apache.druid.indexing.common;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
+import org.apache.druid.indexing.overlord.TaskLockbox.LockRequest;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -157,6 +158,13 @@ public class TimeChunkLock implements TaskLock
   public boolean isRevoked()
   {
     return revoked;
+  }
+
+  @Override
+  public boolean conflict(LockRequest request)
+  {
+    return dataSource.equals(request.getDataSource())
+           && interval.overlaps(request.getInterval());
   }
 
   @Override

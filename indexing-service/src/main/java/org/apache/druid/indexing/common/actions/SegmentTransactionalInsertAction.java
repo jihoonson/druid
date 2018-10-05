@@ -31,9 +31,13 @@ import org.apache.druid.indexing.overlord.SegmentPublishResult;
 import org.apache.druid.java.util.emitter.service.ServiceMetricEvent;
 import org.apache.druid.query.DruidMetrics;
 import org.apache.druid.timeline.DataSegment;
+import org.joda.time.Interval;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Insert segments into metadata storage. The segment versions must all be less than or equal to a lock held by
@@ -104,11 +108,17 @@ public class SegmentTransactionalInsertAction implements TaskAction<SegmentPubli
   {
     TaskActionPreconditions.checkLockCoversSegments(task, toolbox.getTaskLockbox(), segments);
 
+    final Map<Interval, List<Integer>> intervalToPartitionIds = new HashMap<>();
+    for (DataSegment segment : segments) {
+      intervalToPartitionIds.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>())
+                            .add(segment.getShardSpec().getPartitionNum());
+    }
+
     final SegmentPublishResult retVal;
     try {
       retVal = toolbox.getTaskLockbox().doInCriticalSection(
           task,
-          segments.stream().map(DataSegment::getInterval).collect(Collectors.toList()),
+          intervalToPartitionIds,
           CriticalAction.<SegmentPublishResult>builder()
               .onValidLocks(
                   () -> toolbox.getIndexerMetadataStorageCoordinator().announceHistoricalSegments(

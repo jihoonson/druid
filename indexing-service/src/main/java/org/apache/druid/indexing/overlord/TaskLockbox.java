@@ -49,6 +49,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -525,10 +526,15 @@ public class TaskLockbox
           request.getInterval()
       );
 
-      if (foundPosses.size() > 0) {
+      final List<TaskLockPosse> conflictPosses = foundPosses
+          .stream()
+          .filter(taskLockPosse -> taskLockPosse.getTaskLock().conflict(request))
+          .collect(Collectors.toList());
+
+      if (conflictPosses.size() > 0) {
         // If we have some locks for dataSource and interval, check they can be reused.
         // If they can't be reused, check lock priority and revoke existing locks if possible.
-        final List<TaskLockPosse> reusablePosses = foundPosses
+        final List<TaskLockPosse> reusablePosses = conflictPosses
             .stream()
             .filter(posse -> matchGroupIdAndContainInterval(
                 posse.taskLock,
@@ -540,13 +546,13 @@ public class TaskLockbox
         if (reusablePosses.size() == 0) {
           // case 1) this task doesn't have any lock, but others do
 
-          if (request.getLockType().equals(TaskLockType.SHARED) && isAllSharedLocks(foundPosses)) {
+          if (request.getLockType().equals(TaskLockType.SHARED) && isAllSharedLocks(conflictPosses)) {
             // Any number of shared locks can be acquired for the same dataSource and interval.
             return createNewTaskLockPosse(request);
           } else {
-            if (isAllRevocable(foundPosses, request.getPriority())) {
+            if (isAllRevocable(conflictPosses, request.getPriority())) {
               // Revoke all existing locks
-              foundPosses.forEach(this::revokeLock);
+              conflictPosses.forEach(this::revokeLock);
 
               return createNewTaskLockPosse(request);
             } else {
@@ -574,7 +580,7 @@ public class TaskLockbox
               log.info(
                   "%s because existing locks[%s] have same or higher priorities",
                   messagePrefix,
-                  foundPosses
+                  conflictPosses
               );
               return null;
             }
@@ -879,6 +885,11 @@ public class TaskLockbox
       return interval;
     }
 
+    public List<Integer> getPartitionIds()
+    {
+      return partitionIds;
+    }
+
     @Nullable
     @Override
     public String getPreferredVersion()
@@ -927,28 +938,29 @@ public class TaskLockbox
    */
   public <T> T doInCriticalSection(
       Task task,
-      List<Interval> intervals,
+      Map<Interval, List<Integer>> intervalToPartitionIds,
       CriticalAction<T> action
   ) throws Exception
   {
-    giant.lockInterruptibly();
+    giant.lock();
 
     try {
-      return action.perform(isTaskLocksValid(task, intervals));
+      return action.perform(isTaskLocksValid(task, intervalToPartitionIds));
     }
     finally {
       giant.unlock();
     }
   }
 
-  private boolean isTaskLocksValid(Task task, List<Interval> intervals)
+  private boolean isTaskLocksValid(Task task, Map<Interval, List<Integer>> intervalToPartitionIds)
   {
-    return intervals
+    return intervalToPartitionIds
+        .entrySet()
         .stream()
-        .allMatch(interval -> {
-          final TaskLock lock = getOnlyTaskLockPosseContainingInterval(task, interval).getTaskLock();
+        .allMatch(entry -> {
+          final List<TaskLockPosse> lockPosses = getOnlyTaskLockPosseContainingInterval(task, entry.getKey(), entry.getValue());
           // Tasks cannot enter the critical section with a shared lock
-          return !lock.isRevoked() && lock.getType() != TaskLockType.SHARED;
+          return lockPosses.stream().allMatch(posse -> !posse.getTaskLock().isRevoked() && posse.getTaskLock().getType() != TaskLockType.SHARED);
         });
   }
 
@@ -1255,7 +1267,7 @@ public class TaskLockbox
     return existingLock.isRevoked() || existingLock.getNonNullPriority() < tryLockPriority;
   }
 
-  private TaskLockPosse getOnlyTaskLockPosseContainingInterval(Task task, Interval interval)
+  private List<TaskLockPosse> getOnlyTaskLockPosseContainingInterval(Task task, Interval interval, List<Integer> partitionIds)
   {
     final List<TaskLockPosse> filteredPosses = findLockPossesContainingInterval(task.getDataSource(), interval)
         .stream()
@@ -1265,9 +1277,28 @@ public class TaskLockbox
     if (filteredPosses.isEmpty()) {
       throw new ISE("Cannot find locks for task[%s] and interval[%s]", task.getId(), interval);
     } else if (filteredPosses.size() > 1) {
-      throw new ISE("There are multiple lockPosses for task[%s] and interval[%s]?", task.getId(), interval);
+      if (filteredPosses.stream().anyMatch(posse -> posse.getTaskLock().getGranularity() == LockGranularity.TIME_CHUNK)) {
+        throw new ISE("There are multiple timeChunk lockPosses for task[%s] and interval[%s]?", task.getId(), interval);
+      } else {
+        final Map<Integer, TaskLockPosse> partitionIdsOfLocks = new HashMap<>();
+        for (TaskLockPosse posse : filteredPosses) {
+          final SegmentLock segmentLock = (SegmentLock) posse.getTaskLock();
+          segmentLock.getPartitionIds().forEach(partitionId -> partitionIdsOfLocks.put(partitionId, posse));
+        }
+
+        if (partitionIds.stream().allMatch(partitionIdsOfLocks::containsKey)) {
+          return partitionIds.stream().map(partitionIdsOfLocks::get).collect(Collectors.toList());
+        } else {
+          throw new ISE(
+              "Task[%s] doesn't have locks for interval[%s] partitions[%]",
+              task.getId(),
+              interval,
+              partitionIds.stream().filter(pid -> !partitionIdsOfLocks.containsKey(pid)).collect(Collectors.toList())
+          );
+        }
+      }
     } else {
-      return filteredPosses.get(0);
+      return filteredPosses;
     }
   }
 

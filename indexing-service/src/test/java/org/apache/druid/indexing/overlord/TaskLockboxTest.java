@@ -398,7 +398,7 @@ public class TaskLockboxTest
     Assert.assertFalse(
         lockbox.doInCriticalSection(
             task,
-            Collections.singletonList(interval),
+            Collections.singletonMap(interval, Collections.emptyList()),
             CriticalAction.<Boolean>builder().onValidLocks(() -> true).onInvalidLocks(() -> false).build()
         )
     );
@@ -416,7 +416,7 @@ public class TaskLockboxTest
     Assert.assertTrue(
         lockbox.doInCriticalSection(
             task,
-            Collections.singletonList(interval),
+            Collections.singletonMap(interval, Collections.emptyList()),
             CriticalAction.<Boolean>builder().onValidLocks(() -> true).onInvalidLocks(() -> false).build()
         )
     );
@@ -435,7 +435,7 @@ public class TaskLockboxTest
     Assert.assertTrue(
         lockbox.doInCriticalSection(
             task,
-            Collections.singletonList(smallInterval),
+            Collections.singletonMap(interval, Collections.emptyList()),
             CriticalAction.<Boolean>builder().onValidLocks(() -> true).onInvalidLocks(() -> false).build()
         )
     );
@@ -461,7 +461,7 @@ public class TaskLockboxTest
     Assert.assertTrue(
         lockbox.doInCriticalSection(
             highPriorityTask,
-            Collections.singletonList(interval),
+            Collections.singletonMap(interval, Collections.emptyList()),
             CriticalAction.<Boolean>builder().onValidLocks(() -> true).onInvalidLocks(() -> false).build()
         )
     );
@@ -486,7 +486,7 @@ public class TaskLockboxTest
     Assert.assertFalse(
         lockbox.doInCriticalSection(
             lowPriorityTask,
-            Collections.singletonList(interval),
+            Collections.singletonMap(interval, Collections.emptyList()),
             CriticalAction.<Boolean>builder().onValidLocks(() -> true).onInvalidLocks(() -> false).build()
         )
     );
@@ -695,6 +695,96 @@ public class TaskLockboxTest
         task,
         Intervals.of("2015-01-01/2015-01-02"),
         ImmutableList.of(0, 3, 6, 9)
+    );
+  }
+
+  @Test
+  public void testSegmentLockForSameIntervalAndSamePartition()
+  {
+    final Task task1 = NoopTask.create();
+    lockbox.add(task1);
+
+    final Task task2 = NoopTask.create();
+    lockbox.add(task2);
+
+    Assert.assertTrue(
+        lockbox.tryLock(
+            LockGranularity.SEGMENT,
+            TaskLockType.EXCLUSIVE,
+            task1,
+            Intervals.of("2015-01-01/2015-01-02"),
+            ImmutableList.of(0, 3, 6, 9)
+        ).isOk()
+    );
+
+    Assert.assertFalse(
+        lockbox.tryLock(
+            LockGranularity.SEGMENT,
+            TaskLockType.EXCLUSIVE,
+            task2,
+            Intervals.of("2015-01-01/2015-01-02"),
+            ImmutableList.of(0, 3, 6, 9)
+        ).isOk()
+    );
+  }
+
+  @Test
+  public void testSegmentLockForSameIntervalDifferentPartition()
+  {
+    final Task task1 = NoopTask.create();
+    lockbox.add(task1);
+
+    final Task task2 = NoopTask.create();
+    lockbox.add(task2);
+
+    Assert.assertTrue(
+        lockbox.tryLock(
+            LockGranularity.SEGMENT,
+            TaskLockType.EXCLUSIVE,
+            task1,
+            Intervals.of("2015-01-01/2015-01-02"),
+            ImmutableList.of(0, 3, 6, 9)
+        ).isOk()
+    );
+
+    Assert.assertTrue(
+        lockbox.tryLock(
+            LockGranularity.SEGMENT,
+            TaskLockType.EXCLUSIVE,
+            task2,
+            Intervals.of("2015-01-01/2015-01-02"),
+            ImmutableList.of(1, 2, 4)
+        ).isOk()
+    );
+  }
+
+  @Test
+  public void testSegmentLockForOverlappedIntervalDifferentPartition()
+  {
+    final Task task1 = NoopTask.create();
+    lockbox.add(task1);
+
+    final Task task2 = NoopTask.create();
+    lockbox.add(task2);
+
+    Assert.assertTrue(
+        lockbox.tryLock(
+            LockGranularity.SEGMENT,
+            TaskLockType.EXCLUSIVE,
+            task1,
+            Intervals.of("2015-01-01/2015-01-05"),
+            ImmutableList.of(0, 3, 6, 9)
+        ).isOk()
+    );
+
+    Assert.assertFalse(
+        lockbox.tryLock(
+            LockGranularity.SEGMENT,
+            TaskLockType.EXCLUSIVE,
+            task2,
+            Intervals.of("2015-01-03/2015-01-08"),
+            ImmutableList.of(1, 2, 4)
+        ).isOk()
     );
   }
 

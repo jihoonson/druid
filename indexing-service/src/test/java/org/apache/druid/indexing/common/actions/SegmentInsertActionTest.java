@@ -97,7 +97,7 @@ public class SegmentInsertActionTest
     actionTestKit.getTaskLockbox().lock(TaskLockType.EXCLUSIVE, task, INTERVAL, 5000);
     actionTestKit.getTaskLockbox().doInCriticalSection(
         task,
-        Collections.singletonList(INTERVAL),
+        Collections.singletonMap(INTERVAL, Collections.emptyList()),
         CriticalAction.builder()
                       .onValidLocks(() -> action.perform(task, actionTestKit.getTaskActionToolbox()))
                       .onInvalidLocks(
@@ -130,7 +130,7 @@ public class SegmentInsertActionTest
     thrown.expectMessage(CoreMatchers.containsString("are not covered by locks"));
     final Set<DataSegment> segments = actionTestKit.getTaskLockbox().doInCriticalSection(
         task,
-        Collections.singletonList(INTERVAL),
+        Collections.singletonMap(INTERVAL, Collections.emptyList()),
         CriticalAction.<Set<DataSegment>>builder()
             .onValidLocks(() -> action.perform(task, actionTestKit.getTaskActionToolbox()))
             .onInvalidLocks(
