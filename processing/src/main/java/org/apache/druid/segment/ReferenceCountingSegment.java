@@ -21,9 +21,12 @@ package org.apache.druid.segment;
 
 import com.google.common.base.Preconditions;
 import org.apache.druid.java.util.emitter.EmittingLogger;
+import org.apache.druid.timeline.Overshadowable;
 import org.joda.time.Interval;
 
 import java.io.Closeable;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -33,7 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * until that. So ReferenceCountingSegment implements something like automatic reference count-based resource
  * management.
  */
-public class ReferenceCountingSegment extends AbstractSegment
+public class ReferenceCountingSegment extends AbstractSegment implements Overshadowable<ReferenceCountingSegment>
 {
   private static final EmittingLogger log = new EmittingLogger(ReferenceCountingSegment.class);
 
@@ -62,9 +65,23 @@ public class ReferenceCountingSegment extends AbstractSegment
     }
   };
 
+  private final List<Integer> overshadowedGroup;
+  private final List<Integer> atomicUpdateGroup;
+
   public ReferenceCountingSegment(Segment baseSegment)
   {
+    this(baseSegment, Collections.emptyList(), Collections.emptyList());
+  }
+
+  public ReferenceCountingSegment(
+      Segment baseSegment,
+      List<Integer> overshadowedGroup,
+      List<Integer> atomicUpdateGroup
+  )
+  {
     this.baseSegment = baseSegment;
+    this.overshadowedGroup = overshadowedGroup;
+    this.atomicUpdateGroup = atomicUpdateGroup;
   }
 
   public Segment getBaseSegment()
@@ -147,5 +164,24 @@ public class ReferenceCountingSegment extends AbstractSegment
   public <T> T as(Class<T> clazz)
   {
     return getBaseSegment().as(clazz);
+  }
+
+  @Override
+  public boolean isOvershadow(ReferenceCountingSegment other)
+  {
+    // TODO
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public List<Integer> getOvershadowedGroup()
+  {
+    return overshadowedGroup;
+  }
+
+  @Override
+  public List<Integer> getAtomicUpdateGroup()
+  {
+    return atomicUpdateGroup;
   }
 }

@@ -19,7 +19,6 @@
 
 package org.apache.druid.timeline;
 
-import com.google.common.base.Function;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -30,6 +29,7 @@ import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.timeline.partition.ImmutablePartitionHolder;
 import org.apache.druid.timeline.partition.IntegerPartitionChunk;
+import org.apache.druid.timeline.partition.OvershadowCheckerImpl;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
 import org.apache.druid.timeline.partition.SingleElementPartitionChunk;
@@ -45,13 +45,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
  */
 public class VersionedIntervalTimelineTest
 {
-  VersionedIntervalTimeline<String, Integer> timeline;
+  VersionedIntervalTimeline<String, OvershadowableInteger> timeline;
 
   @Before
   public void setUp()
@@ -70,8 +71,8 @@ public class VersionedIntervalTimelineTest
     add("2011-05-01/2011-05-10", "4", 9);
 
     add("2011-10-01/2011-10-02", "1", 1);
-    add("2011-10-02/2011-10-03", "3", IntegerPartitionChunk.make(null, 10, 0, 20));
-    add("2011-10-02/2011-10-03", "3", IntegerPartitionChunk.make(10, null, 1, 21));
+    add("2011-10-02/2011-10-03", "3", IntegerPartitionChunk.make(null, 10, 0, new OvershadowableInteger(0, 20)));
+    add("2011-10-02/2011-10-03", "3", IntegerPartitionChunk.make(10, null, 1, new OvershadowableInteger(1, 21)));
     add("2011-10-03/2011-10-04", "3", 3);
     add("2011-10-04/2011-10-05", "4", 4);
     add("2011-10-05/2011-10-06", "5", 5);
@@ -168,7 +169,7 @@ public class VersionedIntervalTimelineTest
   @Test
   public void testMay2()
   {
-    Assert.assertNotNull(timeline.remove(Intervals.of("2011-05-01/2011-05-10"), "4", makeSingle(1)));
+    Assert.assertNotNull(timeline.remove(Intervals.of("2011-05-01/2011-05-10"), "4", makeSingle(9)));
     assertValues(
         Arrays.asList(
             createExpected("2011-05-01/2011-05-03", "2", 7),
@@ -227,8 +228,8 @@ public class VersionedIntervalTimelineTest
   @Test
   public void testRemove()
   {
-    for (TimelineObjectHolder<String, Integer> holder : timeline.findOvershadowed()) {
-      for (PartitionChunk<Integer> chunk : holder.getObject()) {
+    for (TimelineObjectHolder<String, OvershadowableInteger> holder : timeline.findOvershadowed()) {
+      for (PartitionChunk<OvershadowableInteger> chunk : holder.getObject()) {
         timeline.remove(holder.getInterval(), holder.getVersion(), chunk);
       }
     }
@@ -240,22 +241,22 @@ public class VersionedIntervalTimelineTest
   public void testFindEntry()
   {
     Assert.assertEquals(
-        new ImmutablePartitionHolder<Integer>(new PartitionHolder<Integer>(makeSingle(1))),
+        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowCheckerImpl<>(), makeSingle(1))),
         timeline.findEntry(Intervals.of("2011-10-01/2011-10-02"), "1")
     );
 
     Assert.assertEquals(
-        new ImmutablePartitionHolder<Integer>(new PartitionHolder<Integer>(makeSingle(1))),
+        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowCheckerImpl<>(), makeSingle(1))),
         timeline.findEntry(Intervals.of("2011-10-01/2011-10-01T10"), "1")
     );
 
     Assert.assertEquals(
-        new ImmutablePartitionHolder<Integer>(new PartitionHolder<Integer>(makeSingle(1))),
+        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowCheckerImpl<>(), makeSingle(1))),
         timeline.findEntry(Intervals.of("2011-10-01T02/2011-10-02"), "1")
     );
 
     Assert.assertEquals(
-        new ImmutablePartitionHolder<Integer>(new PartitionHolder<Integer>(makeSingle(1))),
+        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowCheckerImpl<>(), makeSingle(1))),
         timeline.findEntry(Intervals.of("2011-10-01T04/2011-10-01T17"), "1")
     );
 
@@ -279,7 +280,7 @@ public class VersionedIntervalTimelineTest
     add("2011-01-02/2011-01-05", "2", 1);
 
     Assert.assertEquals(
-        new ImmutablePartitionHolder<Integer>(new PartitionHolder<Integer>(makeSingle(1))),
+        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowCheckerImpl<>(), makeSingle(1))),
         timeline.findEntry(Intervals.of("2011-01-02T02/2011-01-04"), "1")
     );
   }
@@ -293,8 +294,8 @@ public class VersionedIntervalTimelineTest
             createExpected(
                 "2011-10-02/2011-10-03", "3",
                 Arrays.asList(
-                    IntegerPartitionChunk.make(null, 10, 0, 20),
-                    IntegerPartitionChunk.make(10, null, 1, 21)
+                    IntegerPartitionChunk.make(null, 10, 0, new OvershadowableInteger(0, 20)),
+                    IntegerPartitionChunk.make(10, null, 1, new OvershadowableInteger(1, 21))
                 )
             ),
             createExpected("2011-10-03/2011-10-04", "3", 3),
@@ -310,30 +311,30 @@ public class VersionedIntervalTimelineTest
   {
     testRemove();
 
-    add("2011-10-06/2011-10-07", "6", IntegerPartitionChunk.make(null, 10, 0, 60));
+    add("2011-10-06/2011-10-07", "6", IntegerPartitionChunk.make(null, 10, 0, new OvershadowableInteger(0, 60)));
     assertValues(
         ImmutableList.of(createExpected("2011-10-05/2011-10-06", "5", 5)),
         timeline.lookup(Intervals.of("2011-10-05/2011-10-07"))
     );
     Assert.assertTrue("Expected no overshadowed entries", timeline.findOvershadowed().isEmpty());
 
-    add("2011-10-06/2011-10-07", "6", IntegerPartitionChunk.make(10, 20, 1, 61));
+    add("2011-10-06/2011-10-07", "6", IntegerPartitionChunk.make(10, 20, 1, new OvershadowableInteger(1, 61)));
     assertValues(
         ImmutableList.of(createExpected("2011-10-05/2011-10-06", "5", 5)),
         timeline.lookup(Intervals.of("2011-10-05/2011-10-07"))
     );
     Assert.assertTrue("Expected no overshadowed entries", timeline.findOvershadowed().isEmpty());
 
-    add("2011-10-06/2011-10-07", "6", IntegerPartitionChunk.make(20, null, 2, 62));
+    add("2011-10-06/2011-10-07", "6", IntegerPartitionChunk.make(20, null, 2, new OvershadowableInteger(2, 62)));
     assertValues(
         ImmutableList.of(
             createExpected("2011-10-05/2011-10-06", "5", 5),
             createExpected(
                 "2011-10-06/2011-10-07", "6",
                 Arrays.asList(
-                    IntegerPartitionChunk.make(null, 10, 0, 60),
-                    IntegerPartitionChunk.make(10, 20, 1, 61),
-                    IntegerPartitionChunk.make(20, null, 2, 62)
+                    IntegerPartitionChunk.make(null, 10, 0, new OvershadowableInteger(0, 60)),
+                    IntegerPartitionChunk.make(10, 20, 1, new OvershadowableInteger(1, 61)),
+                    IntegerPartitionChunk.make(20, null, 2, new OvershadowableInteger(2, 62))
                 )
             )
         ),
@@ -347,13 +348,13 @@ public class VersionedIntervalTimelineTest
   {
     testRemove();
 
-    add("2011-10-05/2011-10-07", "6", IntegerPartitionChunk.make(null, 10, 0, 60));
+    add("2011-10-05/2011-10-07", "6", IntegerPartitionChunk.make(null, 10, 0, new OvershadowableInteger(0, 60)));
     Assert.assertTrue("Expected no overshadowed entries", timeline.findOvershadowed().isEmpty());
 
-    add("2011-10-05/2011-10-07", "6", IntegerPartitionChunk.make(10, 20, 1, 61));
+    add("2011-10-05/2011-10-07", "6", IntegerPartitionChunk.make(10, 20, 1, new OvershadowableInteger(1, 61)));
     Assert.assertTrue("Expected no overshadowed entries", timeline.findOvershadowed().isEmpty());
 
-    add("2011-10-05/2011-10-07", "6", IntegerPartitionChunk.make(20, null, 2, 62));
+    add("2011-10-05/2011-10-07", "6", IntegerPartitionChunk.make(20, null, 2, new OvershadowableInteger(2, 62)));
     assertValues(
         ImmutableSet.of(
             createExpected("2011-10-05/2011-10-06", "5", 5)
@@ -367,7 +368,7 @@ public class VersionedIntervalTimelineTest
   {
     testIncompletePartitionDoesNotOvershadow();
 
-    final IntegerPartitionChunk<Integer> chunk = IntegerPartitionChunk.make(null, 10, 0, 60);
+    final IntegerPartitionChunk<OvershadowableInteger> chunk = IntegerPartitionChunk.make(null, 10, 0, new OvershadowableInteger(0, 60));
     Assert.assertEquals(chunk, timeline.remove(Intervals.of("2011-10-05/2011-10-07"), "6", chunk));
     assertValues(
         ImmutableList.of(createExpected("2011-10-05/2011-10-06", "5", 5)),
@@ -429,6 +430,8 @@ public class VersionedIntervalTimelineTest
     add("2011-01-05/2011-01-15", "1", 3);
   }
 
+  //   2|----|
+  //   2|----|
   //   1|----|
   //   1|----|
   @Test
@@ -443,7 +446,7 @@ public class VersionedIntervalTimelineTest
 
     assertValues(
         Collections.singletonList(
-            createExpected("2011-01-01/2011-01-10", "2", 2)
+            createExpected("2011-01-01/2011-01-10", "2", 3) // TODO: 2 or 3?
         ),
         timeline.lookup(Intervals.of("2011-01-01/2011-01-10"))
     );
@@ -560,8 +563,8 @@ public class VersionedIntervalTimelineTest
 
     assertValues(
         Arrays.asList(
-            createExpected("2011-01-01/2011-01-10", "2", 1),
-            createExpected("2011-01-10/2011-01-15", "1", 3)
+            createExpected("2011-01-01/2011-01-10", "2", 3),
+            createExpected("2011-01-10/2011-01-15", "1", 1)
         ),
         timeline.lookup(Intervals.of("2011-01-01/2011-01-15"))
     );
@@ -930,7 +933,7 @@ public class VersionedIntervalTimelineTest
             createExpected("2011-01-01/2011-01-03", "1", 1),
             createExpected("2011-01-03/2011-01-05", "2", 2),
             createExpected("2011-01-05/2011-01-13", "1", 1),
-            createExpected("2011-01-13/2011-01-20", "2", 2)
+            createExpected("2011-01-13/2011-01-20", "2", 3)
         ),
         timeline.lookup(Intervals.of("2011-01-01/2011-01-20"))
     );
@@ -949,8 +952,8 @@ public class VersionedIntervalTimelineTest
 
     assertValues(
         Arrays.asList(
-            createExpected("2011-01-01/2011-01-15", "2", 2),
-            createExpected("2011-01-15/2011-01-20", "1", 1)
+            createExpected("2011-01-01/2011-01-15", "2", 1),
+            createExpected("2011-01-15/2011-01-20", "1", 3)
         ),
         timeline.lookup(Intervals.of("2011-01-01/2011-01-20"))
     );
@@ -1504,30 +1507,30 @@ public class VersionedIntervalTimelineTest
   {
     timeline = makeStringIntegerTimeline();
 
-    add("2011-04-01/2011-04-02", "1", IntegerPartitionChunk.make(null, 1, 0, 77));
-    add("2011-04-01/2011-04-02", "1", IntegerPartitionChunk.make(1, null, 1, 88));
-    add("2011-04-01/2011-04-02", "2", IntegerPartitionChunk.make(null, 1, 0, 99));
+    add("2011-04-01/2011-04-02", "1", IntegerPartitionChunk.make(null, 1, 0, new OvershadowableInteger(0, 77)));
+    add("2011-04-01/2011-04-02", "1", IntegerPartitionChunk.make(1, null, 1, new OvershadowableInteger(1, 88)));
+    add("2011-04-01/2011-04-02", "2", IntegerPartitionChunk.make(null, 1, 0, new OvershadowableInteger(0, 99)));
 
     assertValues(
         ImmutableList.of(
             createExpected("2011-04-01/2011-04-02", "1",
                            Arrays.asList(
-                               IntegerPartitionChunk.make(null, 1, 0, 77),
-                               IntegerPartitionChunk.make(1, null, 1, 88)
+                               IntegerPartitionChunk.make(null, 1, 0, new OvershadowableInteger(0, 77)),
+                               IntegerPartitionChunk.make(1, null, 1, new OvershadowableInteger(1, 88))
                            )
             )
         ),
         timeline.lookup(Intervals.of("2011-04-01/2011-04-02"))
     );
 
-    add("2011-04-01/2011-04-02", "3", IntegerPartitionChunk.make(null, 1, 0, 110));
+    add("2011-04-01/2011-04-02", "3", IntegerPartitionChunk.make(null, 1, 0, new OvershadowableInteger(0, 110)));
 
     assertValues(
         ImmutableList.of(
             createExpected("2011-04-01/2011-04-02", "1",
                            Arrays.asList(
-                               IntegerPartitionChunk.make(null, 1, 0, 77),
-                               IntegerPartitionChunk.make(1, null, 1, 88)
+                               IntegerPartitionChunk.make(null, 1, 0, new OvershadowableInteger(0, 77)),
+                               IntegerPartitionChunk.make(1, null, 1, new OvershadowableInteger(1, 88))
                            )
             )
         ),
@@ -1537,7 +1540,7 @@ public class VersionedIntervalTimelineTest
         Sets.newHashSet(
             createExpected("2011-04-01/2011-04-02", "2",
                 Collections.singletonList(
-                    IntegerPartitionChunk.make(null, 1, 0, 99)
+                    IntegerPartitionChunk.make(null, 1, 0, new OvershadowableInteger(0, 99))
                 )
             )
         ),
@@ -1550,8 +1553,8 @@ public class VersionedIntervalTimelineTest
         ImmutableList.of(
             createExpected("2011-04-01/2011-04-02", "1",
                            Arrays.asList(
-                               IntegerPartitionChunk.make(null, 1, 0, 77),
-                               IntegerPartitionChunk.make(1, null, 1, 88)
+                               IntegerPartitionChunk.make(null, 1, 0, new OvershadowableInteger(0, 77)),
+                               IntegerPartitionChunk.make(1, null, 1, new OvershadowableInteger(1, 88))
                            )
             )
         ),
@@ -1564,11 +1567,11 @@ public class VersionedIntervalTimelineTest
   {
     timeline = makeStringIntegerTimeline();
 
-    add("2011-04-05/2011-04-07", "1", new SingleElementPartitionChunk<Integer>(1));
-    add("2011-04-07/2011-04-09", "1", new SingleElementPartitionChunk<Integer>(1));
+    add("2011-04-05/2011-04-07", "1", makeSingle(1));
+    add("2011-04-07/2011-04-09", "1", makeSingle(1));
 
-    add("2011-04-15/2011-04-17", "1", new SingleElementPartitionChunk<Integer>(1));
-    add("2011-04-17/2011-04-19", "1", new SingleElementPartitionChunk<Integer>(1));
+    add("2011-04-15/2011-04-17", "1", makeSingle(1));
+    add("2011-04-17/2011-04-19", "1", makeSingle(1));
 
     Assert.assertFalse(timeline.isOvershadowed(Intervals.of("2011-04-01/2011-04-03"), "0"));
     Assert.assertFalse(timeline.isOvershadowed(Intervals.of("2011-04-01/2011-04-05"), "0"));
@@ -1629,11 +1632,11 @@ public class VersionedIntervalTimelineTest
   {
     timeline = makeStringIntegerTimeline();
 
-    add("2011-04-05/2011-04-09", "11", new SingleElementPartitionChunk<Integer>(1));
-    add("2011-04-07/2011-04-11", "12", new SingleElementPartitionChunk<Integer>(1));
+    add("2011-04-05/2011-04-09", "11", makeSingle(1));
+    add("2011-04-07/2011-04-11", "12", makeSingle(1));
 
-    add("2011-04-15/2011-04-19", "12", new SingleElementPartitionChunk<Integer>(1));
-    add("2011-04-17/2011-04-21", "11", new SingleElementPartitionChunk<Integer>(1));
+    add("2011-04-15/2011-04-19", "12", makeSingle(1));
+    add("2011-04-17/2011-04-21", "11", makeSingle(1));
 
 
     Assert.assertFalse(timeline.isOvershadowed(Intervals.of("2011-04-01/2011-04-03"), "0"));
@@ -1709,7 +1712,7 @@ public class VersionedIntervalTimelineTest
     Assert.assertFalse(timeline.isOvershadowed(Intervals.of("2011-04-21/2011-04-22"), "0"));
   }
 
-  private Pair<Interval, Pair<String, PartitionHolder<Integer>>> createExpected(
+  private Pair<Interval, Pair<String, PartitionHolder<OvershadowableInteger>>> createExpected(
       String intervalString,
       String version,
       Integer value
@@ -1722,21 +1725,21 @@ public class VersionedIntervalTimelineTest
     );
   }
 
-  private Pair<Interval, Pair<String, PartitionHolder<Integer>>> createExpected(
+  private Pair<Interval, Pair<String, PartitionHolder<OvershadowableInteger>>> createExpected(
       String intervalString,
       String version,
-      List<PartitionChunk<Integer>> values
+      List<PartitionChunk<OvershadowableInteger>> values
   )
   {
     return Pair.of(
         Intervals.of(intervalString),
-        Pair.of(version, new PartitionHolder<Integer>(values))
+        Pair.of(version, new PartitionHolder<>(new OvershadowCheckerImpl<>(), values))
     );
   }
 
-  private SingleElementPartitionChunk<Integer> makeSingle(Integer value)
+  private PartitionChunk<OvershadowableInteger> makeSingle(Integer value)
   {
-    return new SingleElementPartitionChunk<Integer>(value);
+    return new SingleElementPartitionChunk<>(new OvershadowableInteger(0, value));
   }
 
   private void add(String interval, String version, Integer value)
@@ -1749,29 +1752,29 @@ public class VersionedIntervalTimelineTest
     add(interval, version, makeSingle(value));
   }
 
-  private void add(String interval, String version, PartitionChunk<Integer> value)
+  private void add(String interval, String version, PartitionChunk<OvershadowableInteger> value)
   {
     add(Intervals.of(interval), version, value);
   }
 
-  private void add(Interval interval, String version, PartitionChunk<Integer> value)
+  private void add(Interval interval, String version, PartitionChunk<OvershadowableInteger> value)
   {
     timeline.add(interval, version, value);
   }
 
   private void assertValues(
-      List<Pair<Interval, Pair<String, PartitionHolder<Integer>>>> expected,
-      List<TimelineObjectHolder<String, Integer>> actual
+      List<Pair<Interval, Pair<String, PartitionHolder<OvershadowableInteger>>>> expected,
+      List<TimelineObjectHolder<String, OvershadowableInteger>> actual
   )
   {
     Assert.assertEquals("Sizes did not match.", expected.size(), actual.size());
 
-    Iterator<Pair<Interval, Pair<String, PartitionHolder<Integer>>>> expectedIter = expected.iterator();
-    Iterator<TimelineObjectHolder<String, Integer>> actualIter = actual.iterator();
+    Iterator<Pair<Interval, Pair<String, PartitionHolder<OvershadowableInteger>>>> expectedIter = expected.iterator();
+    Iterator<TimelineObjectHolder<String, OvershadowableInteger>> actualIter = actual.iterator();
 
     while (expectedIter.hasNext()) {
-      Pair<Interval, Pair<String, PartitionHolder<Integer>>> pair = expectedIter.next();
-      TimelineObjectHolder<String, Integer> holder = actualIter.next();
+      Pair<Interval, Pair<String, PartitionHolder<OvershadowableInteger>>> pair = expectedIter.next();
+      TimelineObjectHolder<String, OvershadowableInteger> holder = actualIter.next();
 
       Assert.assertEquals(pair.lhs, holder.getInterval());
       Assert.assertEquals(pair.rhs.lhs, holder.getVersion());
@@ -1780,35 +1783,72 @@ public class VersionedIntervalTimelineTest
   }
 
   private void assertValues(
-      Set<Pair<Interval, Pair<String, PartitionHolder<Integer>>>> expected,
-      Set<TimelineObjectHolder<String, Integer>> actual
+      Set<Pair<Interval, Pair<String, PartitionHolder<OvershadowableInteger>>>> expected,
+      Set<TimelineObjectHolder<String, OvershadowableInteger>> actual
   )
   {
     Assert.assertEquals("Sizes did not match.", expected.size(), actual.size());
 
-    Set<Pair<Interval, Pair<String, PartitionHolder<Integer>>>> actualSet =
+    Set<Pair<Interval, Pair<String, PartitionHolder<OvershadowableInteger>>>> actualSet =
         Sets.newHashSet(
             Iterables.transform(
                 actual,
-                new Function<TimelineObjectHolder<String, Integer>, Pair<Interval, Pair<String, PartitionHolder<Integer>>>>()
-                {
-                  @Override
-                  public Pair<Interval, Pair<String, PartitionHolder<Integer>>> apply(
-                      TimelineObjectHolder<String, Integer> input
-                  )
-                  {
-                    return new Pair<>(input.getInterval(), new Pair<>(input.getVersion(), input.getObject()));
-                  }
-                }
+                input -> new Pair<>(input.getInterval(), new Pair<>(input.getVersion(), input.getObject()))
             )
         );
 
     Assert.assertEquals(expected, actualSet);
   }
 
-  private VersionedIntervalTimeline<String, Integer> makeStringIntegerTimeline()
+  private VersionedIntervalTimeline<String, OvershadowableInteger> makeStringIntegerTimeline()
   {
-    return new VersionedIntervalTimeline<String, Integer>(Ordering.natural());
+    return new VersionedIntervalTimeline<>(Ordering.natural());
   }
 
+  private static class OvershadowableInteger implements Overshadowable<OvershadowableInteger>
+  {
+    private final int chunkNumber;
+    private final int val;
+
+    OvershadowableInteger(int chunkNumber, int val)
+    {
+      this.chunkNumber = chunkNumber;
+      this.val = val;
+    }
+
+    @Override
+    public List<Integer> getAtomicUpdateGroup()
+    {
+      return Collections.singletonList(chunkNumber);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      OvershadowableInteger that = (OvershadowableInteger) o;
+      return chunkNumber == that.chunkNumber &&
+             val == that.val;
+    }
+
+    @Override
+    public int hashCode()
+    {
+      return Objects.hash(chunkNumber, val);
+    }
+
+    @Override
+    public String toString()
+    {
+      return "OvershadowableInteger{" +
+             "chunkNumber=" + chunkNumber +
+             ", val=" + val +
+             '}';
+    }
+  }
 }

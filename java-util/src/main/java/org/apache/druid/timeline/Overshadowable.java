@@ -18,13 +18,20 @@
  */
 package org.apache.druid.timeline;
 
+import java.util.Collections;
 import java.util.List;
 
 public interface Overshadowable<T>
 {
-  boolean isOvershadow(T other);
+  default boolean isOvershadow(T other)
+  {
+    return false;
+  }
 
-  List<Integer> getOvershadowedGroup();
+  default List<Integer> getOvershadowedGroup()
+  {
+    return Collections.emptyList();
+  }
 
   List<Integer> getAtomicUpdateGroup();
 }

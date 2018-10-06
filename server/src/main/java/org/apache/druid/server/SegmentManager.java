@@ -177,7 +177,7 @@ public class SegmentManager
             loadedIntervals.add(
                 segment.getInterval(),
                 segment.getVersion(),
-                segment.getShardSpec().createChunk(new ReferenceCountingSegment(adapter))
+                segment.getShardSpec().createChunk(new ReferenceCountingSegment(adapter, segment.getOvershadowedGroup(), segment.getAtomicUpdateGroup()))
             );
             dataSourceState.addSegment(segment);
             resultSupplier.set(true);

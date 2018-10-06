@@ -86,37 +86,35 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
 
   public boolean isComplete()
   {
-//    if (holderSet.isEmpty()) {
-//      return false;
-//    }
-//
-//    Iterator<PartitionChunk<T>> iter = holderSet.iterator();
-//
-//    PartitionChunk<T> curr = iter.next();
-//
-//    if (!curr.isStart()) {
-//      return false;
-//    }
-//
-//    if (curr.isEnd()) {
-//      return true;
-//    }
-//
-//    while (iter.hasNext()) {
-//      PartitionChunk<T> next = iter.next();
-//      if (!curr.abuts(next)) {
-//        return false;
-//      }
-//
-//      if (next.isEnd()) {
-//        return true;
-//      }
-//      curr = next;
-//    }
-//
-//    return false;
+    if (overshadowChecker.isEmpty()) {
+      return false;
+    }
 
-    return overshadowChecker.isComplete();
+    Iterator<PartitionChunk<T>> iter = iterator();
+
+    PartitionChunk<T> curr = iter.next();
+
+    if (!curr.isStart()) {
+      return false;
+    }
+
+    if (curr.isEnd()) {
+      return overshadowChecker.isComplete();
+    }
+
+    while (iter.hasNext()) {
+      PartitionChunk<T> next = iter.next();
+      if (!curr.abuts(next)) {
+        return false;
+      }
+
+      if (next.isEnd()) {
+        return overshadowChecker.isComplete();
+      }
+      curr = next;
+    }
+
+    return false;
   }
 
   public PartitionChunk<T> getChunk(final int partitionNum)

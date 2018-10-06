@@ -93,6 +93,7 @@ import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.TimelineObjectHolder;
 import org.apache.druid.timeline.partition.NumberedPartitionChunk;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.apache.druid.timeline.partition.OvershadowCheckerImpl;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
 import org.easymock.EasyMock;
@@ -632,7 +633,7 @@ public class IngestSegmentFirehoseFactoryTest
       final TimelineObjectHolder<String, DataSegment> timelineHolder = new TimelineObjectHolder<>(
           interval,
           version,
-          new PartitionHolder<>(chunks)
+          new PartitionHolder<>(new OvershadowCheckerImpl<>(), chunks)
       );
       timelineSegments.add(timelineHolder);
     }

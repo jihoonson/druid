@@ -219,7 +219,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     this.binaryVersion = binaryVersion;
     this.size = size;
     this.overshadowingSegments = overshadowingSegments == null ? Collections.emptyList() : overshadowingSegments;
-    this.atomicUpdateGroup = atomicUpdateGroup == null ? Collections.emptyList() : atomicUpdateGroup;
+    this.atomicUpdateGroup = atomicUpdateGroup == null ? Collections.singletonList(shardSpec.getPartitionNum()) : atomicUpdateGroup;
 
     this.identifier = makeDataSegmentIdentifier(
         this.dataSource,

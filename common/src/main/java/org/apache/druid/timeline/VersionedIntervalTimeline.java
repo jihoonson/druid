@@ -31,6 +31,7 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.UOE;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.timeline.partition.ImmutablePartitionHolder;
+import org.apache.druid.timeline.partition.OvershadowCheckerImpl;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
 import org.joda.time.Interval;
@@ -65,7 +66,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * to achieve "atomic" updates.  First add new items, then check if those items caused anything to be overshadowed, if
  * so, remove the overshadowed elements and you have effectively updated your data set without any user impact.
  */
-public class VersionedIntervalTimeline<VersionType, ObjectType> implements TimelineLookup<VersionType, ObjectType>
+public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshadowable<ObjectType>> implements TimelineLookup<VersionType, ObjectType>
 {
   private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
 
@@ -93,7 +94,9 @@ public class VersionedIntervalTimeline<VersionType, ObjectType> implements Timel
 
   public static VersionedIntervalTimeline<String, DataSegment> forSegments(Iterator<DataSegment> segments)
   {
-    final VersionedIntervalTimeline<String, DataSegment> timeline = new VersionedIntervalTimeline<>(Ordering.natural());
+    final VersionedIntervalTimeline<String, DataSegment> timeline = new VersionedIntervalTimeline<>(
+        Ordering.natural()
+    );
     addSegments(timeline, segments);
     return timeline;
   }
@@ -140,7 +143,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType> implements Timel
         TimelineEntry entry;
 
         if (exists == null) {
-          entry = new TimelineEntry(interval, version, new PartitionHolder<>(object));
+          entry = new TimelineEntry(interval, version, new PartitionHolder<>(new OvershadowCheckerImpl<>(), object));
           TreeMap<VersionType, TimelineEntry> versionEntry = new TreeMap<>(versionComparator);
           versionEntry.put(version, entry);
           allTimelineEntries.put(interval, versionEntry);
@@ -148,7 +151,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType> implements Timel
           entry = exists.get(version);
 
           if (entry == null) {
-            entry = new TimelineEntry(interval, version, new PartitionHolder<>(object));
+            entry = new TimelineEntry(interval, version, new PartitionHolder<>(new OvershadowCheckerImpl<>(), object));
             exists.put(version, entry);
           } else {
             PartitionHolder<ObjectType> partitionHolder = entry.getPartitionHolder();

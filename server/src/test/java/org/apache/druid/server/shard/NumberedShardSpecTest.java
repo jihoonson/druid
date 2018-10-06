@@ -26,6 +26,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.server.ServerTestHelper;
+import org.apache.druid.timeline.Overshadowable;
 import org.apache.druid.timeline.TimelineObjectHolder;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
@@ -113,11 +114,11 @@ public class NumberedShardSpecTest
   public void testVersionedIntervalTimelineBehaviorForNumberedShardSpec()
   {
     //core partition chunks
-    PartitionChunk<String> chunk0 = new NumberedShardSpec(0, 2).createChunk("0");
-    PartitionChunk<String> chunk1 = new NumberedShardSpec(1, 2).createChunk("1");
+    PartitionChunk<OvershadowableString> chunk0 = new NumberedShardSpec(0, 2).createChunk(new OvershadowableString("0"));
+    PartitionChunk<OvershadowableString> chunk1 = new NumberedShardSpec(1, 2).createChunk(new OvershadowableString("1"));
 
     //appended partition chunk
-    PartitionChunk<String> chunk4 = new NumberedShardSpec(4, 2).createChunk("4");
+    PartitionChunk<OvershadowableString> chunk4 = new NumberedShardSpec(4, 2).createChunk(new OvershadowableString("4"));
 
     //incomplete partition sets
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
@@ -150,53 +151,69 @@ public class NumberedShardSpecTest
     //complete partition sets
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
         ImmutableList.of(chunk1, chunk0),
-        ImmutableSet.of("0", "1")
+        ImmutableSet.of(new OvershadowableString("0"), new OvershadowableString("1"))
     );
 
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
         ImmutableList.of(chunk4, chunk1, chunk0),
-        ImmutableSet.of("0", "1", "4")
+        ImmutableSet.of(new OvershadowableString("0"), new OvershadowableString("1"), new OvershadowableString("4"))
     );
 
     // a partition set with 0 core partitions
-    chunk0 = new NumberedShardSpec(0, 0).createChunk("0");
-    chunk4 = new NumberedShardSpec(4, 0).createChunk("4");
+    chunk0 = new NumberedShardSpec(0, 0).createChunk(new OvershadowableString("0"));
+    chunk4 = new NumberedShardSpec(4, 0).createChunk(new OvershadowableString("4"));
 
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
         ImmutableList.of(chunk0),
-        ImmutableSet.of("0")
+        ImmutableSet.of(new OvershadowableString("0"))
     );
 
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
         ImmutableList.of(chunk4),
-        ImmutableSet.of("4")
+        ImmutableSet.of(new OvershadowableString("4"))
     );
 
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
         ImmutableList.of(chunk4, chunk0),
-        ImmutableSet.of("0", "4")
+        ImmutableSet.of(new OvershadowableString("0"), new OvershadowableString("4"))
     );
   }
 
   private void testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
-      List<PartitionChunk<String>> chunks,
-      Set<String> expectedObjects
+      List<PartitionChunk<OvershadowableString>> chunks,
+      Set<OvershadowableString> expectedObjects
   )
   {
-    VersionedIntervalTimeline<String, String> timeline = new VersionedIntervalTimeline<>(Ordering.natural());
+    VersionedIntervalTimeline<String, OvershadowableString> timeline = new VersionedIntervalTimeline<>(Ordering.natural());
     Interval interval = Intervals.of("2000/3000");
     String version = "v1";
-    for (PartitionChunk<String> chunk : chunks) {
+    for (PartitionChunk<OvershadowableString> chunk : chunks) {
       timeline.add(interval, version, chunk);
     }
 
-    Set<String> actualObjects = new HashSet<>();
-    List<TimelineObjectHolder<String, String>> entries = timeline.lookup(interval);
-    for (TimelineObjectHolder<String, String> entry : entries) {
-      for (PartitionChunk<String> chunk : entry.getObject()) {
+    Set<OvershadowableString> actualObjects = new HashSet<>();
+    List<TimelineObjectHolder<String, OvershadowableString>> entries = timeline.lookup(interval);
+    for (TimelineObjectHolder<String, OvershadowableString> entry : entries) {
+      for (PartitionChunk<OvershadowableString> chunk : entry.getObject()) {
         actualObjects.add(chunk.getObject());
       }
     }
     Assert.assertEquals(expectedObjects, actualObjects);
+  }
+
+  private static final class OvershadowableString implements Overshadowable<OvershadowableString>
+  {
+    private final String val;
+
+    OvershadowableString(String val)
+    {
+      this.val = val;
+    }
+
+    @Override
+    public List<Integer> getAtomicUpdateGroup()
+    {
+      return Collections.singletonList(Integer.parseInt(val));
+    }
   }
 }

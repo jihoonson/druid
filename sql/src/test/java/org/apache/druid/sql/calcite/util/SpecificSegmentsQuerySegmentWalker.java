@@ -19,8 +19,6 @@
 
 package org.apache.druid.sql.calcite.util;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
@@ -45,11 +43,10 @@ import org.apache.druid.query.spec.SpecificSegmentQueryRunner;
 import org.apache.druid.query.spec.SpecificSegmentSpec;
 import org.apache.druid.segment.QueryableIndex;
 import org.apache.druid.segment.QueryableIndexSegment;
+import org.apache.druid.segment.ReferenceCountingSegment;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.timeline.DataSegment;
-import org.apache.druid.timeline.TimelineObjectHolder;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
-import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
 import org.joda.time.Interval;
 
@@ -57,11 +54,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, Closeable
 {
   private final QueryRunnerFactoryConglomerate conglomerate;
-  private final Map<String, VersionedIntervalTimeline<String, Segment>> timelines = Maps.newHashMap();
+  private final Map<String, VersionedIntervalTimeline<String, ReferenceCountingSegment>> timelines = Maps.newHashMap();
   private final List<Closeable> closeables = Lists.newArrayList();
   private final List<DataSegment> segments = Lists.newArrayList();
 
@@ -77,11 +76,11 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
   {
     final Segment segment = new QueryableIndexSegment(descriptor.getIdentifier(), index);
     if (!timelines.containsKey(descriptor.getDataSource())) {
-      timelines.put(descriptor.getDataSource(), new VersionedIntervalTimeline<String, Segment>(Ordering.natural()));
+      timelines.put(descriptor.getDataSource(), new VersionedIntervalTimeline<>(Ordering.natural()));
     }
 
-    final VersionedIntervalTimeline<String, Segment> timeline = timelines.get(descriptor.getDataSource());
-    timeline.add(descriptor.getInterval(), descriptor.getVersion(), descriptor.getShardSpec().createChunk(segment));
+    final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = timelines.get(descriptor.getDataSource());
+    timeline.add(descriptor.getInterval(), descriptor.getVersion(), descriptor.getShardSpec().createChunk(new ReferenceCountingSegment(segment)));
     segments.add(descriptor);
     closeables.add(index);
     return this;
@@ -115,47 +114,24 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
                       public Sequence<T> run(QueryPlus<T> queryPlus, Map<String, Object> responseContext)
                       {
                         Query<T> query = queryPlus.getQuery();
-                        final VersionedIntervalTimeline<String, Segment> timeline = getTimelineForTableDataSource(query);
+                        final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = getTimelineForTableDataSource(query);
                         return makeBaseRunner(
                             query,
                             toolChest,
                             factory,
                             FunctionalIterable
                                 .create(intervals)
+                                .transformCat(timeline::lookup)
                                 .transformCat(
-                                    new Function<Interval, Iterable<TimelineObjectHolder<String, Segment>>>()
-                                    {
-                                      @Override
-                                      public Iterable<TimelineObjectHolder<String, Segment>> apply(final Interval interval)
-                                      {
-                                        return timeline.lookup(interval);
-                                      }
-                                    }
-                                )
-                                .transformCat(
-                                    new Function<TimelineObjectHolder<String, Segment>, Iterable<SegmentDescriptor>>()
-                                    {
-                                      @Override
-                                      public Iterable<SegmentDescriptor> apply(final TimelineObjectHolder<String, Segment> holder)
-                                      {
-                                        return FunctionalIterable
-                                            .create(holder.getObject())
-                                            .transform(
-                                                new Function<PartitionChunk<Segment>, SegmentDescriptor>()
-                                                {
-                                                  @Override
-                                                  public SegmentDescriptor apply(final PartitionChunk<Segment> chunk)
-                                                  {
-                                                    return new SegmentDescriptor(
-                                                        holder.getInterval(),
-                                                        holder.getVersion(),
-                                                        chunk.getChunkNumber()
-                                                    );
-                                                  }
-                                                }
-                                            );
-                                      }
-                                    }
+                                    holder -> FunctionalIterable
+                                        .create(holder.getObject())
+                                        .transform(
+                                            chunk -> new SegmentDescriptor(
+                                                holder.getInterval(),
+                                                holder.getVersion(),
+                                                chunk.getChunkNumber()
+                                            )
+                                        )
                                 )
                         ).run(queryPlus, responseContext);
                       }
@@ -200,7 +176,7 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
     }
   }
 
-  private <T> VersionedIntervalTimeline<String, Segment> getTimelineForTableDataSource(Query<T> query)
+  private <T> VersionedIntervalTimeline<String, ReferenceCountingSegment> getTimelineForTableDataSource(Query<T> query)
   {
     if (query.getDataSource() instanceof TableDataSource) {
       return timelines.get(((TableDataSource) query.getDataSource()).getName());
@@ -216,7 +192,7 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
       final Iterable<SegmentDescriptor> specs
   )
   {
-    final VersionedIntervalTimeline<String, Segment> timeline = getTimelineForTableDataSource(query);
+    final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = getTimelineForTableDataSource(query);
     if (timeline == null) {
       return new NoopQueryRunner<>();
     }
@@ -228,31 +204,18 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
                 FunctionalIterable
                     .create(specs)
                     .transformCat(
-                        new Function<SegmentDescriptor, Iterable<QueryRunner<T>>>()
-                        {
-                          @Override
-                          public Iterable<QueryRunner<T>> apply(final SegmentDescriptor descriptor)
-                          {
-                            final PartitionHolder<Segment> holder = timeline.findEntry(
-                                descriptor.getInterval(),
-                                descriptor.getVersion()
-                            );
+                        descriptor -> {
+                          final PartitionHolder<ReferenceCountingSegment> holder = timeline.findEntry(
+                              descriptor.getInterval(),
+                              descriptor.getVersion()
+                          );
 
-                            return Iterables.transform(
-                                holder,
-                                new Function<PartitionChunk<Segment>, QueryRunner<T>>()
-                                {
-                                  @Override
-                                  public QueryRunner<T> apply(PartitionChunk<Segment> chunk)
-                                  {
-                                    return new SpecificSegmentQueryRunner<T>(
-                                        factory.createRunner(chunk.getObject()),
-                                        new SpecificSegmentSpec(descriptor)
-                                    );
-                                  }
-                                }
-                            );
-                          }
+                          return StreamSupport.stream(holder.spliterator(), false)
+                                              .map(chunk -> new SpecificSegmentQueryRunner<T>(
+                                                  factory.createRunner(chunk.getObject()),
+                                                  new SpecificSegmentSpec(descriptor)
+                                              ))
+                                              .collect(Collectors.toList());
                         }
                     )
             )

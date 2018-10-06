@@ -23,10 +23,12 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import org.apache.druid.server.coordination.DruidServerMetadata;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.Overshadowable;
 
+import java.util.List;
 import java.util.Set;
 
-public class SegmentLoadInfo
+public class SegmentLoadInfo implements Overshadowable<SegmentLoadInfo>
 {
   private final DataSegment segment;
   private final Set<DruidServerMetadata> servers;
@@ -93,5 +95,23 @@ public class SegmentLoadInfo
            "segment=" + segment +
            ", servers=" + servers +
            '}';
+  }
+
+  @Override
+  public boolean isOvershadow(SegmentLoadInfo other)
+  {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public List<Integer> getOvershadowedGroup()
+  {
+    return segment.getOvershadowedGroup();
+  }
+
+  @Override
+  public List<Integer> getAtomicUpdateGroup()
+  {
+    return segment.getAtomicUpdateGroup();
   }
 }

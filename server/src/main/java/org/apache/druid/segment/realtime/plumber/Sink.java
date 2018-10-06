@@ -40,11 +40,13 @@ import org.apache.druid.segment.incremental.IndexSizeExceededException;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.realtime.FireHydrant;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.Overshadowable;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -54,7 +56,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class Sink implements Iterable<FireHydrant>
+public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
 {
   private static final IncrementalIndexAddResult ALREADY_SWAPPED = new IncrementalIndexAddResult(-1, -1, null, "write after index swapped");
 
@@ -424,5 +426,26 @@ public class Sink implements Iterable<FireHydrant>
            "interval=" + interval +
            ", schema=" + schema +
            '}';
+  }
+
+  @Override
+  public boolean isOvershadow(Sink other)
+  {
+    // TODO: valid?
+    return false;
+  }
+
+  @Override
+  public List<Integer> getOvershadowedGroup()
+  {
+    // TODO: valid?
+    return Collections.emptyList();
+  }
+
+  @Override
+  public List<Integer> getAtomicUpdateGroup()
+  {
+    // TODO: valid?
+    return Collections.singletonList(shardSpec.getPartitionNum());
   }
 }

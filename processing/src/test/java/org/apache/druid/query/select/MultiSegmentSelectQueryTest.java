@@ -43,6 +43,7 @@ import org.apache.druid.query.UnionQueryRunner;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
 import org.apache.druid.query.ordering.StringComparators;
 import org.apache.druid.segment.IncrementalIndexSegment;
+import org.apache.druid.segment.ReferenceCountingSegment;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.segment.TestIndex;
 import org.apache.druid.segment.incremental.IncrementalIndex;
@@ -148,7 +149,7 @@ public class MultiSegmentSelectQueryTest
     segment1 = new IncrementalIndexSegment(index1, makeIdentifier(index1, "v1"));
     segment_override = new IncrementalIndexSegment(index2, makeIdentifier(index2, "v2"));
 
-    VersionedIntervalTimeline<String, Segment> timeline = new VersionedIntervalTimeline(StringComparators.LEXICOGRAPHIC);
+    VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = new VersionedIntervalTimeline(StringComparators.LEXICOGRAPHIC);
     timeline.add(index0.getInterval(), "v1", new SingleElementPartitionChunk(segment0));
     timeline.add(index1.getInterval(), "v1", new SingleElementPartitionChunk(segment1));
     timeline.add(index2.getInterval(), "v2", new SingleElementPartitionChunk(segment_override));

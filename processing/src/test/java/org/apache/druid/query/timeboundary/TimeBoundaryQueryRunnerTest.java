@@ -36,6 +36,7 @@ import org.apache.druid.query.Result;
 import org.apache.druid.query.TableDataSource;
 import org.apache.druid.query.ordering.StringComparators;
 import org.apache.druid.segment.IncrementalIndexSegment;
+import org.apache.druid.segment.ReferenceCountingSegment;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.segment.TestIndex;
 import org.apache.druid.segment.incremental.IncrementalIndex;
@@ -153,7 +154,7 @@ public class TimeBoundaryQueryRunnerTest
     segment0 = new IncrementalIndexSegment(index0, makeIdentifier(index0, "v1"));
     segment1 = new IncrementalIndexSegment(index1, makeIdentifier(index1, "v1"));
 
-    VersionedIntervalTimeline<String, Segment> timeline = new VersionedIntervalTimeline(StringComparators.LEXICOGRAPHIC);
+    VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = new VersionedIntervalTimeline(StringComparators.LEXICOGRAPHIC);
     timeline.add(index0.getInterval(), "v1", new SingleElementPartitionChunk(segment0));
     timeline.add(index1.getInterval(), "v1", new SingleElementPartitionChunk(segment1));
 
