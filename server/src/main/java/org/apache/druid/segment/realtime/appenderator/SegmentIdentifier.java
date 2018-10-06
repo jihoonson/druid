@@ -151,7 +151,7 @@ public class SegmentIdentifier
         segment.getInterval(),
         segment.getVersion(),
         segment.getShardSpec(),
-        segment.getOvershadowingSegments()
+        segment.getOvershadowedGroup()
     );
   }
 }

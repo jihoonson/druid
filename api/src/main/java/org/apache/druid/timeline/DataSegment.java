@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
 /**
  */
 @PublicApi
-public class DataSegment implements Comparable<DataSegment>
+public class DataSegment implements Comparable<DataSegment>, Overshadowable<DataSegment>
 {
   public static String delimiter = "_";
   private final Integer binaryVersion;
@@ -85,6 +85,17 @@ public class DataSegment implements Comparable<DataSegment>
     }
 
     return sb.toString();
+  }
+
+  @Override
+  public boolean isOvershadow(DataSegment other)
+  {
+    if (dataSource.equals(other.dataSource)
+        && interval.overlaps(other.interval)
+        && version.equals(other.version)) {
+      return overshadowingSegments.contains(other.getShardSpec().getPartitionNum());
+    }
+    return false;
   }
 
   /**
@@ -316,10 +327,18 @@ public class DataSegment implements Comparable<DataSegment>
     return identifier;
   }
 
-  @JsonProperty
-  public List<Integer> getOvershadowingSegments()
+  @Override
+  @JsonProperty("overshadowingSegments")
+  public List<Integer> getOvershadowedGroup()
   {
     return overshadowingSegments;
+  }
+
+  @Override
+  @JsonProperty
+  public List<Integer> getAtomicUpdateGroup()
+  {
+    return atomicUpdateGroup;
   }
 
   public SegmentDescriptor toDescriptor()

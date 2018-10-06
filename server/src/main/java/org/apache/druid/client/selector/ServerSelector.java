@@ -23,6 +23,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectRBTreeMap;
 import org.apache.druid.server.coordination.DruidServerMetadata;
 import org.apache.druid.server.coordination.ServerType;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.Overshadowable;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -34,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  */
-public class ServerSelector implements DiscoverySelector<QueryableDruidServer>
+public class ServerSelector implements DiscoverySelector<QueryableDruidServer>, Overshadowable<ServerSelector>
 {
 
   private final Int2ObjectRBTreeMap<Set<QueryableDruidServer>> historicalServers;
@@ -169,5 +170,13 @@ public class ServerSelector implements DiscoverySelector<QueryableDruidServer>
       }
       return strategy.pick(realtimeServers, segment.get());
     }
+  }
+
+  @Override
+  public boolean isOvershadow(ServerSelector other)
+  {
+    final DataSegment thisSegment = segment.get();
+    final DataSegment thatSegment = other.getSegment();
+    return thisSegment.isOvershadow(thatSegment);
   }
 }

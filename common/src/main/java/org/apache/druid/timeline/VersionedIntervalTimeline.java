@@ -462,6 +462,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType> implements Timel
 
       if (versionCompare < 0) {
         if (currKey.contains(entryInterval)) {
+          // the version of the entry of currKey is larger than that of the given entry. Discard it
           return true;
         } else if (currKey.getStart().isBefore(entryInterval.getStart())) {
           entryInterval = new Interval(currKey.getEnd(), entryInterval.getEnd());
