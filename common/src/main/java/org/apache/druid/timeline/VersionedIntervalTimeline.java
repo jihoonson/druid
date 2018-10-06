@@ -31,7 +31,7 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.UOE;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.timeline.partition.ImmutablePartitionHolder;
-import org.apache.druid.timeline.partition.OvershadowCheckerImpl;
+import org.apache.druid.timeline.partition.OvershadowChecker;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
 import org.joda.time.Interval;
@@ -143,7 +143,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
         TimelineEntry entry;
 
         if (exists == null) {
-          entry = new TimelineEntry(interval, version, new PartitionHolder<>(new OvershadowCheckerImpl<>(), object));
+          entry = new TimelineEntry(interval, version, new PartitionHolder<>(new OvershadowChecker<>(), object));
           TreeMap<VersionType, TimelineEntry> versionEntry = new TreeMap<>(versionComparator);
           versionEntry.put(version, entry);
           allTimelineEntries.put(interval, versionEntry);
@@ -151,7 +151,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
           entry = exists.get(version);
 
           if (entry == null) {
-            entry = new TimelineEntry(interval, version, new PartitionHolder<>(new OvershadowCheckerImpl<>(), object));
+            entry = new TimelineEntry(interval, version, new PartitionHolder<>(new OvershadowChecker<>(), object));
             exists.put(version, entry);
           } else {
             PartitionHolder<ObjectType> partitionHolder = entry.getPartitionHolder();

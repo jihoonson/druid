@@ -20,14 +20,11 @@
 package org.apache.druid.timeline.partition;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Sets;
 import org.apache.druid.timeline.Overshadowable;
 
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.SortedSet;
 import java.util.Spliterator;
 
 /**

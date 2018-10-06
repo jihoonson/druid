@@ -29,7 +29,7 @@ import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.timeline.partition.ImmutablePartitionHolder;
 import org.apache.druid.timeline.partition.IntegerPartitionChunk;
-import org.apache.druid.timeline.partition.OvershadowCheckerImpl;
+import org.apache.druid.timeline.partition.OvershadowChecker;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
 import org.apache.druid.timeline.partition.SingleElementPartitionChunk;
@@ -45,7 +45,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -241,22 +240,22 @@ public class VersionedIntervalTimelineTest
   public void testFindEntry()
   {
     Assert.assertEquals(
-        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowCheckerImpl<>(), makeSingle(1))),
+        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowChecker<>(), makeSingle(1))),
         timeline.findEntry(Intervals.of("2011-10-01/2011-10-02"), "1")
     );
 
     Assert.assertEquals(
-        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowCheckerImpl<>(), makeSingle(1))),
+        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowChecker<>(), makeSingle(1))),
         timeline.findEntry(Intervals.of("2011-10-01/2011-10-01T10"), "1")
     );
 
     Assert.assertEquals(
-        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowCheckerImpl<>(), makeSingle(1))),
+        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowChecker<>(), makeSingle(1))),
         timeline.findEntry(Intervals.of("2011-10-01T02/2011-10-02"), "1")
     );
 
     Assert.assertEquals(
-        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowCheckerImpl<>(), makeSingle(1))),
+        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowChecker<>(), makeSingle(1))),
         timeline.findEntry(Intervals.of("2011-10-01T04/2011-10-01T17"), "1")
     );
 
@@ -280,7 +279,7 @@ public class VersionedIntervalTimelineTest
     add("2011-01-02/2011-01-05", "2", 1);
 
     Assert.assertEquals(
-        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowCheckerImpl<>(), makeSingle(1))),
+        new ImmutablePartitionHolder<>(new PartitionHolder<>(new OvershadowChecker<>(), makeSingle(1))),
         timeline.findEntry(Intervals.of("2011-01-02T02/2011-01-04"), "1")
     );
   }
@@ -1733,7 +1732,7 @@ public class VersionedIntervalTimelineTest
   {
     return Pair.of(
         Intervals.of(intervalString),
-        Pair.of(version, new PartitionHolder<>(new OvershadowCheckerImpl<>(), values))
+        Pair.of(version, new PartitionHolder<>(new OvershadowChecker<>(), values))
     );
   }
 
@@ -1803,52 +1802,5 @@ public class VersionedIntervalTimelineTest
   private VersionedIntervalTimeline<String, OvershadowableInteger> makeStringIntegerTimeline()
   {
     return new VersionedIntervalTimeline<>(Ordering.natural());
-  }
-
-  private static class OvershadowableInteger implements Overshadowable<OvershadowableInteger>
-  {
-    private final int chunkNumber;
-    private final int val;
-
-    OvershadowableInteger(int chunkNumber, int val)
-    {
-      this.chunkNumber = chunkNumber;
-      this.val = val;
-    }
-
-    @Override
-    public List<Integer> getAtomicUpdateGroup()
-    {
-      return Collections.singletonList(chunkNumber);
-    }
-
-    @Override
-    public boolean equals(Object o)
-    {
-      if (this == o) {
-        return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
-        return false;
-      }
-      OvershadowableInteger that = (OvershadowableInteger) o;
-      return chunkNumber == that.chunkNumber &&
-             val == that.val;
-    }
-
-    @Override
-    public int hashCode()
-    {
-      return Objects.hash(chunkNumber, val);
-    }
-
-    @Override
-    public String toString()
-    {
-      return "OvershadowableInteger{" +
-             "chunkNumber=" + chunkNumber +
-             ", val=" + val +
-             '}';
-    }
   }
 }

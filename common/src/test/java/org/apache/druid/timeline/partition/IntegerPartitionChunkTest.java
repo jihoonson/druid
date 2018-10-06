@@ -102,18 +102,6 @@ public class IntegerPartitionChunkTest
     }
 
     @Override
-    public boolean isOvershadow(OvershadowableInteger other)
-    {
-      return false;
-    }
-
-    @Override
-    public List<Integer> getOvershadowedGroup()
-    {
-      return Collections.emptyList();
-    }
-
-    @Override
     public List<Integer> getAtomicUpdateGroup()
     {
       return Collections.emptyList();
