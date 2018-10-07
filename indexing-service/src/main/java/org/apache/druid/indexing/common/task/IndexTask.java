@@ -1022,6 +1022,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
       rawAllocator = (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> lookup.get(sequenceName);
     } else if (ioConfig.isAppendToExisting()) {
       // Append mode: Allocate segments as needed using Overlord APIs.
+      // TODO: test this. does this work without the below intervalToCounter map?
       rawAllocator = new ActionBasedSegmentAllocator(
           toolbox.getTaskActionClient(),
           dataSchema,
@@ -1037,56 +1038,27 @@ public class IndexTask extends AbstractTask implements ChatHandler
       );
     } else {
       // Overwrite mode, non-guaranteed rollup: We can make up our own segment ids but we don't know them in advance.
-//      final Map<Interval, AtomicInteger> counters = new HashMap<>();
-
-//      segmentAllocator = (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
-//        final DateTime timestamp = row.getTimestamp();
-//        Optional<Interval> maybeInterval = granularitySpec.bucketInterval(timestamp);
-//        if (!maybeInterval.isPresent()) {
-//          throw new ISE("Could not find interval for timestamp [%s]", timestamp);
-//        }
-//
-//        final Interval interval = maybeInterval.get();
-//        if (!shardSpecs.getMap().containsKey(interval)) {
-//          throw new ISE("Could not find shardSpec for interval[%s]", interval);
-//        }
-//
-////        final int partitionNum = counters.computeIfAbsent(interval, x -> new AtomicInteger()).getAndIncrement();
-//        final LockResult lockResult = toolbox.getTaskActionClient().submit(
-//            new LockTryAcquireForNewSegmentAction(
-//                TaskLockType.EXCLUSIVE,
-//                interval,
-//                getId() // TODO: proper sequence name??
-//            )
-//        );
-//        if (lockResult.isRevoked()) {
-//          throw new ISE("Lock resovked for interval[%s]", interval);
-//        }
-//        if (lockResult.isOk()) {
-//          return new SegmentIdentifier(
-//              getDataSource(),
-//              interval,
-//              lockResult.getTaskLock().getVersion(),
-//              new NumberedShardSpec(((SegmentLock) lockResult.getTaskLock()).getPartitionIds().get(0), 0),
-//              inputSegmentPartitionIds.get(interval)
-//          );
-//        } else {
-//          throw new ISE("Failed to get a lock for interval[%s] with sequenceName[%s]", interval, getId());
-//        }
-//      };
+      // TODO: move this to appenderator?
+      final Map<Interval, Integer> intervalToCounter = new HashMap<>();
 
       rawAllocator = new ActionBasedSegmentAllocator(
           toolbox.getTaskActionClient(),
           dataSchema,
-          (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SegmentAllocateAction(
-              schema.getDataSource(),
-              row.getTimestamp(),
-              schema.getGranularitySpec().getQueryGranularity(),
-              schema.getGranularitySpec().getSegmentGranularity(),
-              sequenceName,
-              previousSegmentId,
-              skipSegmentLineageCheck
-          )
+          (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
+            final Interval interval = schema.getGranularitySpec().getSegmentGranularity().bucket(row.getTimestamp());
+            final int suffix = intervalToCounter.getOrDefault(interval, 0);
+            intervalToCounter.put(interval, suffix + 1);
+
+            return new SegmentAllocateAction(
+                schema.getDataSource(),
+                row.getTimestamp(),
+                schema.getGranularitySpec().getQueryGranularity(),
+                schema.getGranularitySpec().getSegmentGranularity(),
+                StringUtils.format("%s_%d", sequenceName, suffix),
+                null,
+                true
+            );
+          }
       );
     }
 

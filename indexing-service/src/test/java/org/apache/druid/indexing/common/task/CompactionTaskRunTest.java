@@ -94,7 +94,6 @@ public class CompactionTaskRunTest extends IngestionTestBase
   );
 
   private RowIngestionMetersFactory rowIngestionMetersFactory;
-  private LocalTaskActionClient actionClient;
   private ExecutorService exec;
 
   public CompactionTaskRunTest()
@@ -142,10 +141,13 @@ public class CompactionTaskRunTest extends IngestionTestBase
     Assert.assertTrue(resultPair.lhs.isSuccess());
 
     final List<DataSegment> segments = resultPair.rhs;
-    Assert.assertEquals(1, segments.size());
-    Assert.assertEquals(Intervals.of("2014-01-01T01:00:00/2014-01-01T02:00:00"), segments.get(0).getInterval());
-    Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(0).getShardSpec());
-    Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(0).getOvershadowedGroup()));
+    Assert.assertEquals(3, segments.size());
+
+    for (int i = 0; i < 3; i++) {
+      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
+      Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+    }
   }
 
   @Test
@@ -169,8 +171,6 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         rowIngestionMetersFactory
     );
-
-    System.err.println("data gen finished");
 
     File tmpDir = temporaryFolder.newFolder();
     File tmpFile = File.createTempFile("druid", "index", tmpDir);
@@ -211,12 +211,31 @@ public class CompactionTaskRunTest extends IngestionTestBase
         () -> runTask(compactionTask)
     );
 
-//    final Future<Pair<TaskStatus, List<DataSegment>>> indexFuture = exec.submit(
-//        () -> runTask(indexTask)
-//    );
+    final Future<Pair<TaskStatus, List<DataSegment>>> indexFuture = exec.submit(
+        () -> runTask(indexTask)
+    );
 
     Assert.assertTrue(compactionFuture.get().lhs.isSuccess());
-//    Assert.assertTrue(indexFuture.get().lhs.isSuccess());
+
+    List<DataSegment> segments = compactionFuture.get().rhs;
+    Assert.assertEquals(3, segments.size());
+
+    for (int i = 0; i < 3; i++) {
+      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
+      Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+    }
+
+    Assert.assertTrue(indexFuture.get().lhs.isSuccess());
+
+    segments = indexFuture.get().rhs;
+    Assert.assertEquals(6, segments.size());
+
+    for (int i = 0; i < 6; i++) {
+      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", 3 + i / 2, 3 + i / 2 + 1), segments.get(i).getInterval());
+      Assert.assertEquals(new NumberedShardSpec(i % 2, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(Collections.emptySet(), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+    }
   }
 
   private void runIndexTask() throws Exception
@@ -263,7 +282,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
   {
     getLockbox().add(task);
     getTaskStorage().insert(task, TaskStatus.running(task.getId()));
-    actionClient = createActionClient(task);
+    final LocalTaskActionClient actionClient = createActionClient(task);
 
     final File deepStorageDir = temporaryFolder.newFolder();
     final ObjectMapper objectMapper = getObjectMapper();
