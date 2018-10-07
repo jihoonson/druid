@@ -96,9 +96,13 @@ import org.apache.druid.segment.writeout.SegmentWriteOutMediumFactory;
 import org.apache.druid.server.security.Action;
 import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.TimelineLookup;
+import org.apache.druid.timeline.TimelineObjectHolder;
+import org.apache.druid.timeline.VersionedIntervalTimeline;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.utils.CircularBuffer;
 import org.codehaus.plexus.util.FileUtils;
@@ -133,6 +137,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
 public class IndexTask extends AbstractTask implements ChatHandler
 {
@@ -325,14 +330,22 @@ public class IndexTask extends AbstractTask implements ChatHandler
 //    if (firehoseFactory instanceof IngestSegmentFirehoseFactory) {
     if (isOverwriteMode()) {
 //      final Interval interval = ((IngestSegmentFirehoseFactory) firehoseFactory).getInterval();
-      final List<DataSegment> segments = actionClient.submit(
+      final List<DataSegment> usedSegments = actionClient.submit(
 //          new SegmentListUsedAction(getDataSource(), null, Collections.singletonList(interval))
           new SegmentListUsedAction(getDataSource(), null, intervals)
       );
 
-      if (segments.isEmpty()) {
+      if (usedSegments.isEmpty()) {
         return null;
       }
+
+      final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(usedSegments);
+      final List<DataSegment> segments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
+          .stream()
+          .map(TimelineObjectHolder::getObject)
+          .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
+          .map(PartitionChunk::getObject)
+          .collect(Collectors.toList());
 
       for (DataSegment segment : segments) {
         inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>())
