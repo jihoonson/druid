@@ -53,6 +53,7 @@ import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.segment.loading.DataSegmentKiller;
 import org.apache.druid.segment.loading.LocalDataSegmentPusher;
 import org.apache.druid.segment.loading.LocalDataSegmentPusherConfig;
+import org.apache.druid.segment.loading.NoopDataSegmentKiller;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.segment.realtime.firehose.NoopChatHandlerProvider;
 import org.apache.druid.server.security.AllowAllAuthorizer;
@@ -231,18 +232,7 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
             },
             getObjectMapper()
         ),
-        new DataSegmentKiller()
-        {
-          @Override
-          public void kill(DataSegment segment)
-          {
-          }
-
-          @Override
-          public void killAll()
-          {
-          }
-        },
+        new NoopDataSegmentKiller(),
         null,
         null,
         null,

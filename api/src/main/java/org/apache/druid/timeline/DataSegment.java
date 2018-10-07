@@ -93,7 +93,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     if (dataSource.equals(other.dataSource)
         && interval.overlaps(other.interval)
         && version.equals(other.version)) {
-      return overshadowingSegments.contains(other.getShardSpec().getPartitionNum());
+      return overshadowedSegments.contains(other.getShardSpec().getPartitionNum());
     }
     return false;
   }
@@ -121,7 +121,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   private final ShardSpec shardSpec;
   private final long size;
   private final String identifier;
-  private final List<Integer> overshadowingSegments;
+  private final List<Integer> overshadowedSegments;
   private final List<Integer> atomicUpdateGroup;
 
   public DataSegment(
@@ -162,7 +162,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       ShardSpec shardSpec,
       Integer binaryVersion,
       long size,
-      List<Integer> overshadowingSegments,
+      List<Integer> overshadowedSegments,
       List<Integer> atomicUpdateGroup
   )
   {
@@ -176,7 +176,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
         shardSpec,
         binaryVersion,
         size,
-        overshadowingSegments,
+        overshadowedSegments,
         atomicUpdateGroup,
         PruneLoadSpecHolder.DEFAULT
     );
@@ -200,7 +200,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       @JsonProperty("shardSpec") @Nullable ShardSpec shardSpec,
       @JsonProperty("binaryVersion") Integer binaryVersion,
       @JsonProperty("size") long size,
-      @JsonProperty("overshadowingSegments") @Nullable List<Integer> overshadowingSegments,
+      @JsonProperty("overshadowedSegments") @Nullable List<Integer> overshadowedSegments,
       @JsonProperty("atomicUpdateGroup") @Nullable List<Integer> atomicUpdateGroup,
       @JacksonInject PruneLoadSpecHolder pruneLoadSpecHolder
   )
@@ -218,7 +218,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     this.shardSpec = (shardSpec == null) ? NoneShardSpec.instance() : shardSpec;
     this.binaryVersion = binaryVersion;
     this.size = size;
-    this.overshadowingSegments = overshadowingSegments == null ? Collections.emptyList() : overshadowingSegments;
+    this.overshadowedSegments = overshadowedSegments == null ? Collections.emptyList() : overshadowedSegments;
     this.atomicUpdateGroup = atomicUpdateGroup == null ? Collections.singletonList(shardSpec.getPartitionNum()) : atomicUpdateGroup;
 
     this.identifier = makeDataSegmentIdentifier(
@@ -328,10 +328,10 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   }
 
   @Override
-  @JsonProperty("overshadowingSegments")
+  @JsonProperty
   public List<Integer> getOvershadowedGroup()
   {
-    return overshadowingSegments;
+    return overshadowedSegments;
   }
 
   @Override
@@ -376,6 +376,11 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     return builder(this).binaryVersion(binaryVersion).build();
   }
 
+  public DataSegment withAtomicUpdateGroup(List<Integer> atomicUpdateGroup)
+  {
+    return builder(this).atomicUpdateGroup(atomicUpdateGroup).build();
+  }
+
   @Override
   public int compareTo(DataSegment dataSegment)
   {
@@ -411,7 +416,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
            ", shardSpec=" + shardSpec +
            ", size=" + size +
            ", identifier='" + identifier + '\'' +
-           ", overshadowingSegments=" + overshadowingSegments +
+           ", overshadowedSegments=" + overshadowedSegments +
            '}';
   }
 
@@ -482,7 +487,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       this.shardSpec = segment.getShardSpec();
       this.binaryVersion = segment.getBinaryVersion();
       this.size = segment.getSize();
-      this.overshadowingSegments = segment.overshadowingSegments;
+      this.overshadowingSegments = segment.overshadowedSegments;
       this.atomicUpdateGroup = segment.atomicUpdateGroup;
     }
 

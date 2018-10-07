@@ -29,11 +29,17 @@ import org.apache.druid.java.util.common.concurrent.ListenableFutures;
 import org.apache.druid.segment.loading.DataSegmentKiller;
 import org.apache.druid.segment.realtime.appenderator.SegmentWithState.SegmentState;
 import org.apache.druid.timeline.DataSegment;
+import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -129,11 +135,12 @@ public class BatchAppenderatorDriver extends BaseAppenderatorDriver
       long pushAndClearTimeoutMs
   ) throws InterruptedException, ExecutionException, TimeoutException
   {
-    final Map<SegmentIdentifier, SegmentWithState> requestedSegmentIdsForSequences = getAppendingSegments(sequenceNames)
-        .collect(Collectors.toMap(SegmentWithState::getSegmentIdentifier, Function.identity()));
+    final Set<SegmentIdentifier> requestedSegmentIdsForSequences = getAppendingSegments(sequenceNames)
+        .map(SegmentWithState::getSegmentIdentifier)
+        .collect(Collectors.toSet());
 
     final ListenableFuture<SegmentsAndMetadata> future = ListenableFutures.transformAsync(
-        pushInBackground(null, requestedSegmentIdsForSequences.keySet(), false),
+        pushInBackground(null, requestedSegmentIdsForSequences, false),
         this::dropInBackground
     );
 
@@ -147,11 +154,11 @@ public class BatchAppenderatorDriver extends BaseAppenderatorDriver
         .stream()
         .collect(Collectors.toMap(SegmentIdentifier::fromDataSegment, Function.identity()));
 
-    if (!pushedSegmentIdToSegmentMap.keySet().equals(requestedSegmentIdsForSequences.keySet())) {
+    if (!pushedSegmentIdToSegmentMap.keySet().equals(requestedSegmentIdsForSequences)) {
       throw new ISE(
           "Pushed segments[%s] are different from the requested ones[%s]",
           pushedSegmentIdToSegmentMap.keySet(),
-          requestedSegmentIdsForSequences.keySet()
+          requestedSegmentIdsForSequences
       );
     }
 

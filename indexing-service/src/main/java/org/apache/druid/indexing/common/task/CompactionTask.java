@@ -58,6 +58,7 @@ import org.apache.druid.java.util.common.JodaUtils;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.RE;
 import org.apache.druid.java.util.common.granularity.Granularities;
+import org.apache.druid.java.util.common.granularity.GranularityType;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.java.util.common.jackson.JacksonUtils;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -70,6 +71,7 @@ import org.apache.druid.segment.column.ValueType;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
+import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.loading.SegmentLoadingException;
 import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
 import org.apache.druid.server.coordinator.DataSourceCompactionConfig;
@@ -431,6 +433,7 @@ public class CompactionTask extends AbstractTask
   )
   {
     // find merged aggregators
+    final Interval segmentInterval = queryableIndexAndSegments.get(0).rhs.getInterval();
     for (Pair<QueryableIndex, DataSegment> pair : queryableIndexAndSegments) {
       final QueryableIndex index = pair.lhs;
       if (index.getMetadata() == null) {
@@ -455,7 +458,14 @@ public class CompactionTask extends AbstractTask
       return isRollup != null && isRollup;
     });
 
-    final GranularitySpec granularitySpec = new ArbitraryGranularitySpec(
+//    final GranularitySpec granularitySpec = new ArbitraryGranularitySpec(
+//        Granularities.NONE,
+//        rollup,
+//        Collections.singletonList(totalInterval)
+//    );
+
+    final GranularitySpec granularitySpec = new UniformGranularitySpec(
+        GranularityType.fromPeriod(segmentInterval.toPeriod()).getDefaultGranularity(),
         Granularities.NONE,
         rollup,
         Collections.singletonList(totalInterval)

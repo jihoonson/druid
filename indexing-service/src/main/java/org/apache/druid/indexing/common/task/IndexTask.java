@@ -974,7 +974,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
     final long pushTimeout = tuningConfig.getPushTimeout();
     final boolean isGuaranteedRollup = isGuaranteedRollup(ioConfig, tuningConfig);
 
-    final SegmentAllocator segmentAllocator;
+    final SegmentAllocator rawAllocator;
     if (isGuaranteedRollup) {
       // Overwrite mode, guaranteed rollup: segments are all known in advance and there is one per sequenceName.
 
@@ -1019,10 +1019,10 @@ public class IndexTask extends AbstractTask implements ChatHandler
         }
       }
 
-      segmentAllocator = (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> lookup.get(sequenceName);
+      rawAllocator = (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> lookup.get(sequenceName);
     } else if (ioConfig.isAppendToExisting()) {
       // Append mode: Allocate segments as needed using Overlord APIs.
-      segmentAllocator = new ActionBasedSegmentAllocator(
+      rawAllocator = new ActionBasedSegmentAllocator(
           toolbox.getTaskActionClient(),
           dataSchema,
           (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SegmentAllocateAction(
@@ -1063,13 +1063,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
 //          throw new ISE("Lock resovked for interval[%s]", interval);
 //        }
 //        if (lockResult.isOk()) {
-//          log.info("allocating a new segment: %s for interval[%s]", new SegmentIdentifier(
-//              getDataSource(),
-//              interval,
-//              lockResult.getTaskLock().getVersion(),
-//              new NumberedShardSpec(((SegmentLock) lockResult.getTaskLock()).getPartitionIds().get(0), 0),
-//              inputSegmentPartitionIds.get(interval)
-//          ), interval);
 //          return new SegmentIdentifier(
 //              getDataSource(),
 //              interval,
@@ -1082,7 +1075,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
 //        }
 //      };
 
-      segmentAllocator = new ActionBasedSegmentAllocator(
+      rawAllocator = new ActionBasedSegmentAllocator(
           toolbox.getTaskActionClient(),
           dataSchema,
           (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SegmentAllocateAction(
@@ -1096,6 +1089,20 @@ public class IndexTask extends AbstractTask implements ChatHandler
           )
       );
     }
+
+    final SegmentAllocator segmentAllocator = new SegmentAllocator()
+    {
+      @Override
+      public SegmentIdentifier allocate(
+          InputRow row, String sequenceName, String previousSegmentId, boolean skipSegmentLineageCheck
+      ) throws IOException
+      {
+        final SegmentIdentifier segmentIdentifier = rawAllocator.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);
+        return segmentIdentifier == null
+               ? null
+               :segmentIdentifier.withOvershadowedGroup(inputSegmentPartitionIds.get(segmentIdentifier.getInterval()));
+      }
+    };
 
     final TransactionalSegmentPublisher publisher = (segments, commitMetadata) -> {
       final SegmentTransactionalInsertAction action = new SegmentTransactionalInsertAction(segments);
@@ -1180,7 +1187,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
       final SegmentsAndMetadata pushed = driver.pushAllAndClear(pushTimeout);
       log.info("Pushed segments[%s]", pushed.getSegments());
 
-      // TODO: at this point, we can finally make atomicUpdateGroup.
       // Probably we can publish atomicUpdateGroup along with segments.
       final SegmentsAndMetadata published = awaitPublish(
           driver.publishAll(publisher),

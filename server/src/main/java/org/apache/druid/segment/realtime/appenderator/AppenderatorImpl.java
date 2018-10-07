@@ -90,6 +90,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -596,7 +597,10 @@ public class AppenderatorImpl implements Appenderator
       final boolean useUniquePath
   )
   {
-    final Map<SegmentIdentifier, Sink> theSinks = Maps.newHashMap();
+    final Map<SegmentIdentifier, Sink> theSinks = new HashMap<>();
+    // at this point, we can finally make atomicUpdateGroup.
+    final Map<Interval, List<Integer>> atomicUpdateGroups = new HashMap<>();
+
     for (final SegmentIdentifier identifier : identifiers) {
       final Sink sink = sinks.get(identifier);
       if (sink == null) {
@@ -606,6 +610,8 @@ public class AppenderatorImpl implements Appenderator
       if (sink.finishWriting()) {
         totalRows.addAndGet(-sink.getNumRows());
       }
+      atomicUpdateGroups.computeIfAbsent(identifier.getInterval(), k -> new ArrayList<>())
+                        .add(identifier.getShardSpec().getPartitionNum());
     }
 
     return Futures.transform(
@@ -621,7 +627,12 @@ public class AppenderatorImpl implements Appenderator
               continue;
             }
 
-            final DataSegment dataSegment = mergeAndPush(entry.getKey(), entry.getValue(), useUniquePath);
+            final DataSegment dataSegment = mergeAndPush(
+                entry.getKey(),
+                entry.getValue(),
+                useUniquePath,
+                atomicUpdateGroups.get(entry.getKey().getInterval())
+            );
             if (dataSegment != null) {
               dataSegments.add(dataSegment);
             } else {
@@ -657,7 +668,12 @@ public class AppenderatorImpl implements Appenderator
    *
    * @return segment descriptor, or null if the sink is no longer valid
    */
-  private DataSegment mergeAndPush(final SegmentIdentifier identifier, final Sink sink, final boolean useUniquePath)
+  private DataSegment mergeAndPush(
+      final SegmentIdentifier identifier,
+      final Sink sink,
+      final boolean useUniquePath,
+      final List<Integer> atomicUpdateGroup
+  )
   {
     // Bail out if this sink is null or otherwise not what we expect.
     if (sinks.get(identifier) != sink) {
@@ -740,7 +756,9 @@ public class AppenderatorImpl implements Appenderator
           // semantics.
           () -> dataSegmentPusher.push(
               mergedFile,
-              sink.getSegment().withDimensions(IndexMerger.getMergedDimensionsFromQueryableIndexes(indexes)),
+              sink.getSegment()
+                  .withDimensions(IndexMerger.getMergedDimensionsFromQueryableIndexes(indexes))
+                  .withAtomicUpdateGroup(atomicUpdateGroup),
               useUniquePath
           ),
           exception -> exception instanceof Exception,

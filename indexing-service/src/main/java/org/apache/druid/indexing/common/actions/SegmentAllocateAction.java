@@ -265,8 +265,8 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
         tryInterval
     );
 
+    // TODO: probably doInCriticalSection??
     return toolbox.doSynchronized(() -> {
-      // TODO: probably doInCriticalSection??
       final Pair<String, Integer> maxVersionAndPartitionId = toolbox.getIndexerMetadataStorageCoordinator().findMaxVersionAndAvailablePartitionId(
           dataSource,
           sequenceName,

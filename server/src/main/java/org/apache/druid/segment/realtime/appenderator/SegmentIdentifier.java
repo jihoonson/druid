@@ -84,6 +84,17 @@ public class SegmentIdentifier
     );
   }
 
+  public SegmentIdentifier withOvershadowedGroup(List<Integer> overshadowedGroup)
+  {
+    return new SegmentIdentifier(
+        dataSource,
+        interval,
+        version,
+        shardSpec,
+        overshadowedGroup
+    );
+  }
+
   @JsonProperty
   public String getDataSource()
   {

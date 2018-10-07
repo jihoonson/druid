@@ -37,6 +37,10 @@ import org.apache.druid.query.expression.LookupEnabledTestExprMacroTable;
 import org.apache.druid.segment.IndexIO;
 import org.apache.druid.segment.IndexMergerV9;
 import org.apache.druid.segment.column.ColumnConfig;
+import org.apache.druid.segment.loading.LoadSpec;
+import org.apache.druid.segment.loading.LocalDataSegmentPuller;
+import org.apache.druid.segment.loading.LocalLoadSpec;
+import org.apache.druid.segment.loading.URIDataPuller;
 import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
 import org.apache.druid.segment.realtime.firehose.NoopChatHandlerProvider;
 import org.apache.druid.segment.writeout.OffHeapMemorySegmentWriteOutMediumFactory;
@@ -93,6 +97,7 @@ public class TestUtils
             .addValue(DataSegment.PruneLoadSpecHolder.class, DataSegment.PruneLoadSpecHolder.DEFAULT)
             .addValue(IndexingServiceClient.class, new NoopIndexingServiceClient())
             .addValue(AuthorizerMapper.class, new AuthorizerMapper(ImmutableMap.of()))
+            .addValue(LocalDataSegmentPuller.class, new LocalDataSegmentPuller())
     );
   }
 

@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
@@ -64,8 +65,8 @@ import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
-import org.apache.druid.segment.loading.DataSegmentKiller;
 import org.apache.druid.segment.loading.DataSegmentPusher;
+import org.apache.druid.segment.loading.NoopDataSegmentKiller;
 import org.apache.druid.segment.realtime.firehose.LocalFirehoseFactory;
 import org.apache.druid.segment.transform.ExpressionTransform;
 import org.apache.druid.segment.transform.TransformSpec;
@@ -188,12 +189,14 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
     Assert.assertEquals(2, ((NumberedShardSpec) segments.get(0).getShardSpec()).getPartitions());
+    Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(0).getAtomicUpdateGroup()));
 
     Assert.assertEquals("test", segments.get(1).getDataSource());
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
     Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
     Assert.assertEquals(1, segments.get(1).getShardSpec().getPartitionNum());
     Assert.assertEquals(2, ((NumberedShardSpec) segments.get(1).getShardSpec()).getPartitions());
+    Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(1).getAtomicUpdateGroup()));
   }
 
   @Test
@@ -235,11 +238,13 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
+    Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(0).getAtomicUpdateGroup()));
 
     Assert.assertEquals("test", segments.get(1).getDataSource());
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
     Assert.assertEquals(1, segments.get(1).getShardSpec().getPartitionNum());
+    Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(1).getAtomicUpdateGroup()));
   }
 
   @Test
@@ -287,6 +292,7 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
+    Assert.assertEquals(ImmutableSet.of(0), new HashSet<>(segments.get(0).getAtomicUpdateGroup()));
   }
 
   @Test
@@ -399,6 +405,7 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
     Assert.assertEquals(NoneShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
+    Assert.assertEquals(ImmutableList.of(0), segments.get(0).getAtomicUpdateGroup());
   }
 
   @Test
@@ -440,11 +447,13 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
+    Assert.assertEquals(ImmutableList.of(0), segments.get(0).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(1).getDataSource());
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
     Assert.assertEquals(1, segments.get(1).getShardSpec().getPartitionNum());
+    Assert.assertEquals(ImmutableList.of(1), segments.get(1).getAtomicUpdateGroup());
   }
 
   @Test
@@ -487,16 +496,19 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014-01-01T00/PT1H"), segments.get(0).getInterval());
     Assert.assertTrue(segments.get(0).getShardSpec().getClass().equals(NoneShardSpec.class));
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
+    Assert.assertEquals(ImmutableList.of(0), segments.get(0).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(1).getDataSource());
     Assert.assertEquals(Intervals.of("2014-01-01T01/PT1H"), segments.get(1).getInterval());
     Assert.assertTrue(segments.get(1).getShardSpec().getClass().equals(NoneShardSpec.class));
     Assert.assertEquals(0, segments.get(1).getShardSpec().getPartitionNum());
+    Assert.assertEquals(ImmutableList.of(0), segments.get(1).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(2).getDataSource());
     Assert.assertEquals(Intervals.of("2014-01-01T02/PT1H"), segments.get(2).getInterval());
     Assert.assertTrue(segments.get(2).getShardSpec().getClass().equals(NoneShardSpec.class));
     Assert.assertEquals(0, segments.get(2).getShardSpec().getPartitionNum());
+    Assert.assertEquals(ImmutableList.of(0), segments.get(2).getAtomicUpdateGroup());
   }
 
   @Test
@@ -654,6 +666,7 @@ public class IndexTaskTest extends IngestionTestBase
       Assert.assertEquals(expectedInterval, segment.getInterval());
       Assert.assertEquals(NumberedShardSpec.class, segment.getShardSpec().getClass());
       Assert.assertEquals(expectedPartitionNum, segment.getShardSpec().getPartitionNum());
+      Assert.assertEquals(ImmutableList.of(expectedPartitionNum), segment.getAtomicUpdateGroup());
     }
   }
 
@@ -698,6 +711,7 @@ public class IndexTaskTest extends IngestionTestBase
       Assert.assertEquals(expectedInterval, segment.getInterval());
       Assert.assertTrue(segment.getShardSpec().getClass().equals(HashBasedNumberedShardSpec.class));
       Assert.assertEquals(i, segment.getShardSpec().getPartitionNum());
+      Assert.assertEquals(ImmutableSet.of(0, 1, 2), new HashSet<>(segment.getAtomicUpdateGroup()));
     }
   }
 
@@ -742,6 +756,7 @@ public class IndexTaskTest extends IngestionTestBase
       Assert.assertEquals(expectedInterval, segment.getInterval());
       Assert.assertEquals(NumberedShardSpec.class, segment.getShardSpec().getClass());
       Assert.assertEquals(i, segment.getShardSpec().getPartitionNum());
+      Assert.assertEquals(ImmutableList.of(i), segment.getAtomicUpdateGroup());
     }
   }
 
@@ -1415,27 +1430,12 @@ public class IndexTaskTest extends IngestionTestBase
       }
     };
 
-    final DataSegmentKiller killer = new DataSegmentKiller()
-    {
-      @Override
-      public void kill(DataSegment segment)
-      {
-
-      }
-
-      @Override
-      public void killAll()
-      {
-
-      }
-    };
-
     final TaskToolbox box = new TaskToolbox(
         null,
         actionClient,
         null,
         pusher,
-        killer,
+        new NoopDataSegmentKiller(),
         null,
         null,
         null,
@@ -1468,18 +1468,8 @@ public class IndexTaskTest extends IngestionTestBase
     }
   }
 
-  private IndexTask.IndexIngestionSpec createIngestionSpec(
-      File baseDir,
-      ParseSpec parseSpec,
-      GranularitySpec granularitySpec,
-      IndexTuningConfig tuningConfig,
-      boolean appendToExisting
-  )
-  {
-    return createIngestionSpec(baseDir, parseSpec, TransformSpec.NONE, granularitySpec, tuningConfig, appendToExisting);
-  }
-
-  private IndexTask.IndexIngestionSpec createIngestionSpec(
+  @Override
+  public IndexTask.IndexIngestionSpec createIngestionSpec(
       File baseDir,
       ParseSpec parseSpec,
       TransformSpec transformSpec,
@@ -1521,7 +1511,7 @@ public class IndexTaskTest extends IngestionTestBase
     );
   }
 
-  private static IndexTuningConfig createTuningConfig(
+  public static IndexTuningConfig createTuningConfig(
       Integer targetPartitionSize,
       Integer numShards,
       boolean forceExtendableShardSpecs,
@@ -1540,7 +1530,7 @@ public class IndexTaskTest extends IngestionTestBase
     );
   }
 
-  private static IndexTuningConfig createTuningConfig(
+  public static IndexTuningConfig createTuningConfig(
       Integer targetPartitionSize,
       Integer maxRowsInMemory,
       Long maxBytesInMemory,
