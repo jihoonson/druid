@@ -301,6 +301,63 @@ public class CompactionTaskRunTest extends IngestionTestBase
     compactionFuture.get();
   }
 
+  @Test
+  public void testRunIndexAndCompactAtTheSameTimeForSameInterval2() throws Exception
+  {
+    runIndexTask();
+
+    final CompactionTask compactionTask = new CompactionTask(
+        null,
+        null,
+        DATA_SOURCE,
+        Intervals.of("2014-01-01T00:00:00/2014-01-02T03:00:00"),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        getObjectMapper(),
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory
+    );
+
+    final Future<Pair<TaskStatus, List<DataSegment>>> compactionFuture = exec.submit(
+        () -> runTask(compactionTask)
+    );
+
+//    List<DataSegment> segments = compactionFuture.get().rhs;
+//    Assert.assertEquals(3, segments.size());
+//
+//    for (int i = 0; i < 3; i++) {
+//      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
+//      Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
+//      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+//    }
+
+    final Future<Pair<TaskStatus, List<DataSegment>>> indexFuture = exec.submit(
+        this::runIndexTask
+    );
+
+    Assert.assertTrue(indexFuture.get().lhs.isSuccess());
+
+    List<DataSegment> segments = indexFuture.get().rhs;
+    Assert.assertEquals(6, segments.size());
+
+    for (int i = 0; i < 6; i++) {
+      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i / 2, i / 2 + 1), segments.get(i).getInterval());
+      Assert.assertEquals(new NumberedShardSpec(2 + i % 2, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+    }
+
+    expectedException.expect(ExecutionException.class);
+    expectedException.expectCause(CoreMatchers.instanceOf(ISE.class));
+//    expectedException.expectMessage("Failed to get a lock for segments");
+
+    compactionFuture.get();
+  }
+
   private Pair<TaskStatus, List<DataSegment>> runIndexTask() throws Exception
   {
     File tmpDir = temporaryFolder.newFolder();
