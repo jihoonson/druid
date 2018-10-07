@@ -119,6 +119,7 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
            "granularity=" + granularity +
            ", type=" + type +
            ", interval=" + interval +
+           ", partitionIds=" + partitionIds +
            '}';
   }
 }
