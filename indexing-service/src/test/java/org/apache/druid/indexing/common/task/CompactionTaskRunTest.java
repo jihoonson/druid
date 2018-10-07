@@ -52,11 +52,13 @@ import org.apache.druid.segment.loading.StorageLocationConfig;
 import org.apache.druid.server.security.AuthTestUtils;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.BufferedWriter;
@@ -68,6 +70,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
@@ -75,6 +78,9 @@ public class CompactionTaskRunTest extends IngestionTestBase
 {
   @Rule
   public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+  @Rule
+  public ExpectedException expectedException = ExpectedException.none();
 
   private static final ParseSpec DEFAULT_PARSE_SPEC = new CSVParseSpec(
       new TimestampSpec(
@@ -151,7 +157,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
   }
 
   @Test
-  public void testRunIndexAndCompactAtTheSameTime() throws Exception
+  public void testRunIndexAndCompactAtTheSameTimeForDifferentInterval() throws Exception
   {
     runIndexTask();
 
@@ -215,20 +221,9 @@ public class CompactionTaskRunTest extends IngestionTestBase
         () -> runTask(indexTask)
     );
 
-    Assert.assertTrue(compactionFuture.get().lhs.isSuccess());
-
-    List<DataSegment> segments = compactionFuture.get().rhs;
-    Assert.assertEquals(3, segments.size());
-
-    for (int i = 0; i < 3; i++) {
-      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
-      Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
-      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
-    }
-
     Assert.assertTrue(indexFuture.get().lhs.isSuccess());
 
-    segments = indexFuture.get().rhs;
+    List<DataSegment> segments = indexFuture.get().rhs;
     Assert.assertEquals(6, segments.size());
 
     for (int i = 0; i < 6; i++) {
@@ -236,9 +231,77 @@ public class CompactionTaskRunTest extends IngestionTestBase
       Assert.assertEquals(new NumberedShardSpec(i % 2, 0), segments.get(i).getShardSpec());
       Assert.assertEquals(Collections.emptySet(), new HashSet<>(segments.get(i).getOvershadowedGroup()));
     }
+
+    Assert.assertTrue(compactionFuture.get().lhs.isSuccess());
+
+    segments = compactionFuture.get().rhs;
+    Assert.assertEquals(3, segments.size());
+
+    for (int i = 0; i < 3; i++) {
+      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
+      Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+    }
   }
 
-  private void runIndexTask() throws Exception
+  @Test
+  public void testRunIndexAndCompactAtTheSameTimeForSameInterval() throws Exception
+  {
+    runIndexTask();
+
+    final Future<Pair<TaskStatus, List<DataSegment>>> indexFuture = exec.submit(
+        this::runIndexTask
+    );
+
+    final CompactionTask compactionTask = new CompactionTask(
+        null,
+        null,
+        DATA_SOURCE,
+        Intervals.of("2014-01-01T00:00:00/2014-01-02T03:00:00"),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        getObjectMapper(),
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory
+    );
+
+    final Future<Pair<TaskStatus, List<DataSegment>>> compactionFuture = exec.submit(
+        () -> runTask(compactionTask)
+    );
+
+//    List<DataSegment> segments = compactionFuture.get().rhs;
+//    Assert.assertEquals(3, segments.size());
+//
+//    for (int i = 0; i < 3; i++) {
+//      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
+//      Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
+//      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+//    }
+
+    Assert.assertTrue(indexFuture.get().lhs.isSuccess());
+
+    List<DataSegment> segments = indexFuture.get().rhs;
+    Assert.assertEquals(6, segments.size());
+
+    for (int i = 0; i < 6; i++) {
+      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i / 2, i / 2 + 1), segments.get(i).getInterval());
+      Assert.assertEquals(new NumberedShardSpec(2 + i % 2, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+    }
+
+    expectedException.expect(ExecutionException.class);
+    expectedException.expectCause(CoreMatchers.instanceOf(ISE.class));
+//    expectedException.expectMessage("Failed to get a lock for segments");
+
+    compactionFuture.get();
+  }
+
+  private Pair<TaskStatus, List<DataSegment>> runIndexTask() throws Exception
   {
     File tmpDir = temporaryFolder.newFolder();
     File tmpFile = File.createTempFile("druid", "index", tmpDir);
@@ -275,7 +338,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         rowIngestionMetersFactory
     );
 
-    Assert.assertTrue(runTask(indexTask).lhs.isSuccess());
+    return runTask(indexTask);
   }
 
   private Pair<TaskStatus, List<DataSegment>> runTask(Task task) throws Exception

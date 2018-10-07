@@ -117,7 +117,7 @@ import javax.ws.rs.core.Response;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -274,7 +274,13 @@ public class IndexTask extends AbstractTask implements ChatHandler
     }
   }
 
-  private boolean isReady(TaskActionClient actionClient, SortedSet<Interval> intervals) throws IOException
+  private boolean isOverwriteMode()
+  {
+    return isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)
+           || !ingestionSchema.ioConfig.isAppendToExisting();
+  }
+
+  private boolean isReady(TaskActionClient actionClient, Collection<Interval> intervals) throws IOException
   {
     // Sanity check preventing empty intervals (which cannot be locked, and don't make sense anyway).
     for (Interval interval : intervals) {
@@ -293,11 +299,15 @@ public class IndexTask extends AbstractTask implements ChatHandler
 //      }
 //    }
 
-    final LockGranularity lockGranularity = findRequiredLockGranularity(actionClient);
+    final LockGranularity lockGranularity = findRequiredLockGranularity(
+        actionClient,
+        new ArrayList<>(intervals)
+    );
 
     if (lockGranularity != null) {
       for (Entry<Interval, List<Integer>> entry : inputSegmentPartitionIds.entrySet()) {
         final TaskLock lock = actionClient.submit(
+            // TODO: lock at once
             new LockTryAcquireAction(lockGranularity, TaskLockType.EXCLUSIVE, entry.getKey(), entry.getValue())
         );
         if (lock == null) {
@@ -309,14 +319,20 @@ public class IndexTask extends AbstractTask implements ChatHandler
   }
 
   @Nullable
-  private LockGranularity findRequiredLockGranularity(TaskActionClient actionClient) throws IOException
+  private LockGranularity findRequiredLockGranularity(TaskActionClient actionClient, List<Interval> intervals) throws IOException
   {
-    final FirehoseFactory firehoseFactory = ingestionSchema.getIOConfig().getFirehoseFactory();
-    if (firehoseFactory instanceof IngestSegmentFirehoseFactory) {
-      final Interval interval = ((IngestSegmentFirehoseFactory) firehoseFactory).getInterval();
+//    final FirehoseFactory firehoseFactory = ingestionSchema.getIOConfig().getFirehoseFactory();
+//    if (firehoseFactory instanceof IngestSegmentFirehoseFactory) {
+    if (isOverwriteMode()) {
+//      final Interval interval = ((IngestSegmentFirehoseFactory) firehoseFactory).getInterval();
       final List<DataSegment> segments = actionClient.submit(
-          new SegmentListUsedAction(getDataSource(), null, Collections.singletonList(interval))
+//          new SegmentListUsedAction(getDataSource(), null, Collections.singletonList(interval))
+          new SegmentListUsedAction(getDataSource(), null, intervals)
       );
+
+      if (segments.isEmpty()) {
+        return null;
+      }
 
       for (DataSegment segment : segments) {
         inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>())
@@ -334,13 +350,15 @@ public class IndexTask extends AbstractTask implements ChatHandler
     }
   }
 
-  private void initInputSegmentPartitionIds(TaskActionClient actionClient) throws IOException
+  private void initInputSegmentPartitionIds(TaskActionClient actionClient, SortedSet<Interval> intervals) throws IOException
   {
-    final FirehoseFactory firehoseFactory = ingestionSchema.getIOConfig().getFirehoseFactory();
-    if (firehoseFactory instanceof IngestSegmentFirehoseFactory) {
-      final Interval interval = ((IngestSegmentFirehoseFactory) firehoseFactory).getInterval();
+//    final FirehoseFactory firehoseFactory = ingestionSchema.getIOConfig().getFirehoseFactory();
+//    if (firehoseFactory instanceof IngestSegmentFirehoseFactory) {
+    if (isOverwriteMode()) {
+//      final Interval interval = ((IngestSegmentFirehoseFactory) firehoseFactory).getInterval();
       final List<DataSegment> segments = actionClient.submit(
-          new SegmentListUsedAction(getDataSource(), null, Collections.singletonList(interval))
+//          new SegmentListUsedAction(getDataSource(), null, Collections.singletonList(interval))
+          new SegmentListUsedAction(getDataSource(), null, new ArrayList<>(intervals))
       );
 
       for (DataSegment segment : segments) {
@@ -475,8 +493,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
         log.warn("No chat handler detected");
       }
 
-      initInputSegmentPartitionIds(toolbox.getTaskActionClient());
-
       final boolean determineIntervals = !ingestionSchema.getDataSchema()
                                                          .getGranularitySpec()
                                                          .bucketIntervals()
@@ -497,6 +513,14 @@ public class IndexTask extends AbstractTask implements ChatHandler
       @Nullable final Integer targetPartitionSize = getValidTargetPartitionSize(tuningConfig);
       @Nullable final Long maxTotalRows = getValidMaxTotalRows(tuningConfig);
       final ShardSpecs shardSpecs = determineShardSpecs(toolbox, firehoseFactory, firehoseTempDir, targetPartitionSize);
+
+//      initInputSegmentPartitionIds(toolbox.getTaskActionClient(), new TreeSet<>(shardSpecs.getIntervals()));
+
+      // get locks for found shardSpec intervals
+      if (!isReady(toolbox.getTaskActionClient(), shardSpecs.getIntervals())) {
+        throw new ISE("Failed to get a lock for segments");
+      }
+
       final DataSchema dataSchema;
       final Map<Interval, String> versions;
       if (determineIntervals) {

@@ -141,18 +141,20 @@ public class PeriodGranularity extends Granularity implements JsonSerializable
   @Override
   public boolean match(Interval interval)
   {
-    if (interval.getChronology().equals(chronology)) {
-      if (interval.toPeriod().equals(period)) {
-        DateTime candidate;
+//    if (interval.getChronology().equals(chronology)) {
+//      if (interval.toPeriod().equals(period)) {
+//        DateTime candidate;
+//
+//        while ((candidate = new DateTime(origin, chronology).plus(period)).isBefore(interval.getStart())) {
+//          if (candidate.equals(interval.getStart())) {
+//            return true;
+//          }
+//        }
+//      }
+//    }
+//    return false;
 
-        while ((candidate = new DateTime(origin, chronology).plus(period)).isBefore(interval.getStart())) {
-          if (candidate.equals(interval.getStart())) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
+    return bucket(interval.getStart()).equals(interval);
   }
 
   @Override

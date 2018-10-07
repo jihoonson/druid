@@ -89,18 +89,18 @@ public class OvershadowChecker<T extends Overshadowable<T>>
         throw new ISE("all partitions of the same atomicUpdateGroup should have the same overshadowedGroup");
       }
 
-      final Set<Integer> atomicUpdateGroup = new HashSet<>(partitionChunk.getObject().getAtomicUpdateGroup());
-      final List<PartitionChunk<T>> atomicUpdateGroupChunks = overshadowedGroupToAtomicUpdateGroup.computeIfAbsent(
-          overshadowedGroup,
-          k -> new ArrayList<>()
-      );
-      final boolean hasSameAtomicUpdateGroupForSameOvershadowedGroup = atomicUpdateGroupChunks
-          .stream()
-          .allMatch(chunk -> atomicUpdateGroup.equals(new HashSet<>(chunk.getObject().getAtomicUpdateGroup())));
-      if (!hasSameAtomicUpdateGroupForSameOvershadowedGroup) {
-        throw new ISE("all partitions having the same overshadowedGroup should have the same atomicUpdateGroup");
-      }
-      atomicUpdateGroupChunks.add(partitionChunk);
+//      final Set<Integer> atomicUpdateGroup = new HashSet<>(partitionChunk.getObject().getAtomicUpdateGroup());
+//      final List<PartitionChunk<T>> atomicUpdateGroupChunks = overshadowedGroupToAtomicUpdateGroup.computeIfAbsent(
+//          overshadowedGroup,
+//          k -> new ArrayList<>()
+//      );
+//      final boolean hasSameAtomicUpdateGroupForSameOvershadowedGroup = atomicUpdateGroupChunks
+//          .stream()
+//          .allMatch(chunk -> atomicUpdateGroup.equals(new HashSet<>(chunk.getObject().getAtomicUpdateGroup())));
+//      if (!hasSameAtomicUpdateGroupForSameOvershadowedGroup) {
+//        throw new ISE("all partitions having the same overshadowedGroup should have the same atomicUpdateGroup");
+//      }
+//      atomicUpdateGroupChunks.add(partitionChunk);
     }
 
 //    for (Integer overshadowedPartitionId : partitionChunk.getObject().getOvershadowedGroup()) {
