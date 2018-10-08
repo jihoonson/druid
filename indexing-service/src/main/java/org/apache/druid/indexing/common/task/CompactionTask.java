@@ -466,6 +466,7 @@ public class CompactionTask extends AbstractTask
 //        Collections.singletonList(totalInterval)
 //    );
 
+    // TODO: if keepSegmentGranularity then do the below. otherwise, do the above
     final GranularitySpec granularitySpec = new UniformGranularitySpec(
         GranularityType.fromPeriod(segmentInterval.toPeriod()).getDefaultGranularity(),
         Granularities.NONE,

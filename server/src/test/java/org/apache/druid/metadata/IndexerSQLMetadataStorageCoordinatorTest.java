@@ -47,6 +47,7 @@ import org.skife.jdbi.v2.tweak.HandleCallback;
 import org.skife.jdbi.v2.util.StringMapper;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -950,5 +951,33 @@ public class IndexerSQLMetadataStorageCoordinatorTest
 
     final int numDeleted = coordinator.deletePendingSegments(dataSource, new Interval(begin, secondBegin));
     Assert.assertEquals(10, numDeleted);
+  }
+
+  @Test
+  public void testTest() throws IOException
+  {
+    final DataSegment segment = new DataSegment(
+        "ds",
+        Intervals.of("2019/2020"),
+        "version",
+        Collections.emptyMap(),
+        ImmutableList.of("dim1", "dim2", "dim3"),
+        ImmutableList.of("met1", "met2"),
+        NoneShardSpec.instance(),
+        0,
+        10L,
+        ImmutableList.of(1, 2),
+        ImmutableList.of(0)
+    );
+
+    final Set<DataSegment> announced = coordinator.announceHistoricalSegments(Collections.singleton(segment));
+    Assert.assertEquals(1, announced.size());
+    final DataSegment segment1 = announced.iterator().next();
+    Assert.assertEquals(segment.getOvershadowedGroup(), segment1.getOvershadowedGroup());
+    Assert.assertEquals(segment.getAtomicUpdateGroup(), segment1.getAtomicUpdateGroup());
+
+    final List<DataSegment> usedSegments = coordinator.getUsedSegmentsForInterval("ds", Intervals.of("2019/2020"));
+    Assert.assertEquals(segment.getOvershadowedGroup(), usedSegments.get(0).getOvershadowedGroup());
+    Assert.assertEquals(segment.getAtomicUpdateGroup(), usedSegments.get(0).getAtomicUpdateGroup());
   }
 }

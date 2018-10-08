@@ -29,13 +29,16 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.jackson.JacksonUtils;
 import org.apache.druid.segment.IndexIO;
+import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NoneShardSpec;
+import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
 import org.joda.time.Interval;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -203,6 +206,32 @@ public class DataSegmentTest
       Assert.assertEquals(sortedOrder[index], dataSegment);
       ++index;
     }
+  }
+
+  @Test
+  public void testSerdeWithOvershadowedGroup() throws IOException
+  {
+    final DataSegment segment = new DataSegment(
+        "ds",
+        Intervals.of("2019/2020"),
+        "version",
+        Collections.emptyMap(),
+        ImmutableList.of("dim1", "dim2", "dim3"),
+        ImmutableList.of("met1", "met2"),
+        NoneShardSpec.instance(),
+        0,
+        10L,
+        ImmutableList.of(0, 1),
+        ImmutableList.of(3)
+    );
+
+    final String json = mapper.writeValueAsString(segment);
+    final DataSegment fromJson = mapper.readValue(json, DataSegment.class);
+    Assert.assertEquals(segment, fromJson);
+
+    final byte[] jsonBytes = mapper.writeValueAsBytes(segment);
+    final DataSegment fromBytes = mapper.readValue(jsonBytes, DataSegment.class);
+    Assert.assertEquals(segment, fromBytes);
   }
 
   private DataSegment makeDataSegment(String dataSource, String interval, String version)

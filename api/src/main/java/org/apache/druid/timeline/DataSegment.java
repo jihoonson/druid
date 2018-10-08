@@ -328,7 +328,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   }
 
   @Override
-  @JsonProperty
+  @JsonProperty("overshadowedSegments")
   public List<Integer> getOvershadowedGroup()
   {
     return overshadowedSegments;
@@ -417,6 +417,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
            ", size=" + size +
            ", identifier='" + identifier + '\'' +
            ", overshadowedSegments=" + overshadowedSegments +
+           ", atomicUpdateGroup=" + atomicUpdateGroup +
            '}';
   }
 
@@ -487,8 +488,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       this.shardSpec = segment.getShardSpec();
       this.binaryVersion = segment.getBinaryVersion();
       this.size = segment.getSize();
-      this.overshadowingSegments = segment.overshadowedSegments;
-      this.atomicUpdateGroup = segment.atomicUpdateGroup;
+      this.overshadowingSegments = segment.getOvershadowedGroup();
+      this.atomicUpdateGroup = segment.getAtomicUpdateGroup();
     }
 
     public Builder dataSource(String dataSource)
