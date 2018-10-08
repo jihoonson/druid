@@ -35,15 +35,15 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
 //  private final TreeSet<PartitionChunk<T>> holderSet;
   private final OvershadowChecker<T> overshadowChecker;
 
-  public PartitionHolder(OvershadowChecker<T> overshadowChecker, PartitionChunk<T> initialChunk)
+  public PartitionHolder(PartitionChunk<T> initialChunk)
   {
-    this.overshadowChecker = overshadowChecker;
+    this.overshadowChecker = new OvershadowChecker<>();
     add(initialChunk);
   }
 
-  public PartitionHolder(OvershadowChecker<T> overshadowChecker, List<PartitionChunk<T>> initialChunks)
+  public PartitionHolder(List<PartitionChunk<T>> initialChunks)
   {
-    this.overshadowChecker = overshadowChecker;
+    this.overshadowChecker = new OvershadowChecker<>();
     for (PartitionChunk<T> chunk : initialChunks) {
       add(chunk);
     }
@@ -51,7 +51,7 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
 
   public PartitionHolder(PartitionHolder<T> partitionHolder)
   {
-    this.overshadowChecker = partitionHolder.overshadowChecker.copy();
+    this.overshadowChecker = new OvershadowChecker<>(partitionHolder.overshadowChecker);
   }
 
   public void add(PartitionChunk<T> chunk)

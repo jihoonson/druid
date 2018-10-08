@@ -24,20 +24,20 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
-import com.google.common.collect.Sets;
 import org.apache.druid.java.util.common.DateTimes;
+import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.UOE;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.timeline.partition.ImmutablePartitionHolder;
-import org.apache.druid.timeline.partition.OvershadowChecker;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
 import org.joda.time.Interval;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -76,7 +76,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
   final NavigableMap<Interval, TimelineEntry> incompletePartitionsTimeline = new TreeMap<Interval, TimelineEntry>(
       Comparators.intervalsByStartThenEnd()
   );
-  private final Map<Interval, TreeMap<VersionType, TimelineEntry>> allTimelineEntries = Maps.newHashMap();
+  private final Map<Interval, TreeMap<VersionType, TimelineEntry>> allTimelineEntries = new HashMap<>();
 
   private final Comparator<? super VersionType> versionComparator;
 
@@ -143,7 +143,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
         TimelineEntry entry;
 
         if (exists == null) {
-          entry = new TimelineEntry(interval, version, new PartitionHolder<>(new OvershadowChecker<>(), object));
+          entry = new TimelineEntry(interval, version, new PartitionHolder<>(object));
           TreeMap<VersionType, TimelineEntry> versionEntry = new TreeMap<>(versionComparator);
           versionEntry.put(version, entry);
           allTimelineEntries.put(interval, versionEntry);
@@ -151,7 +151,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
           entry = exists.get(version);
 
           if (entry == null) {
-            entry = new TimelineEntry(interval, version, new PartitionHolder<>(new OvershadowChecker<>(), object));
+            entry = new TimelineEntry(interval, version, new PartitionHolder<>(object));
             exists.put(version, entry);
           } else {
             PartitionHolder<ObjectType> partitionHolder = entry.getPartitionHolder();
@@ -310,45 +310,53 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
     );
   }
 
+  // TODO: fix this maybe?
   public Set<TimelineObjectHolder<VersionType, ObjectType>> findOvershadowed()
   {
+    lock.readLock().lock();
     try {
-      lock.readLock().lock();
-      Set<TimelineObjectHolder<VersionType, ObjectType>> retVal = Sets.newHashSet();
+      Set<TimelineObjectHolder<VersionType, ObjectType>> retVal = new HashSet<>();
 
-      Map<Interval, Map<VersionType, TimelineEntry>> overShadowed = Maps.newHashMap();
+//      Map<Interval, Map<VersionType, TimelineEntry>> overShadowed = new HashMap<>();
+//      for (Map.Entry<Interval, TreeMap<VersionType, TimelineEntry>> versionEntry : allTimelineEntries.entrySet()) {
+//        Map<VersionType, TimelineEntry> versionCopy = new HashMap<>();
+//        versionCopy.putAll(versionEntry.getValue());
+//        overShadowed.put(versionEntry.getKey(), versionCopy);
+//      }
+//
+//      for (Map.Entry<Interval, TimelineEntry> entry : completePartitionsTimeline.entrySet()) {
+//        Map<VersionType, TimelineEntry> versionEntry = overShadowed.get(entry.getValue().getTrueInterval());
+//        if (versionEntry != null) {
+//          versionEntry.remove(entry.getValue().getVersion());
+//          if (versionEntry.isEmpty()) {
+//            overShadowed.remove(entry.getValue().getTrueInterval());
+//          }
+//        }
+//      }
+//
+//      for (Map.Entry<Interval, TimelineEntry> entry : incompletePartitionsTimeline.entrySet()) {
+//        Map<VersionType, TimelineEntry> versionEntry = overShadowed.get(entry.getValue().getTrueInterval());
+//        if (versionEntry != null) {
+//          versionEntry.remove(entry.getValue().getVersion());
+//          if (versionEntry.isEmpty()) {
+//            overShadowed.remove(entry.getValue().getTrueInterval());
+//          }
+//        }
+//      }
+//
+//      for (Map.Entry<Interval, Map<VersionType, TimelineEntry>> versionEntry : overShadowed.entrySet()) {
+//        for (Map.Entry<VersionType, TimelineEntry> entry : versionEntry.getValue().entrySet()) {
+//          TimelineEntry object = entry.getValue();
+//          retVal.add(timelineEntryToObjectHolder(object));
+//        }
+//      }
+
       for (Map.Entry<Interval, TreeMap<VersionType, TimelineEntry>> versionEntry : allTimelineEntries.entrySet()) {
-        Map<VersionType, TimelineEntry> versionCopy = Maps.newHashMap();
-        versionCopy.putAll(versionEntry.getValue());
-        overShadowed.put(versionEntry.getKey(), versionCopy);
+        versionEntry.getValue().values().forEach(entry -> retVal.add(timelineEntryToObjectHolder(entry)));
       }
 
-      for (Map.Entry<Interval, TimelineEntry> entry : completePartitionsTimeline.entrySet()) {
-        Map<VersionType, TimelineEntry> versionEntry = overShadowed.get(entry.getValue().getTrueInterval());
-        if (versionEntry != null) {
-          versionEntry.remove(entry.getValue().getVersion());
-          if (versionEntry.isEmpty()) {
-            overShadowed.remove(entry.getValue().getTrueInterval());
-          }
-        }
-      }
-
-      for (Map.Entry<Interval, TimelineEntry> entry : incompletePartitionsTimeline.entrySet()) {
-        Map<VersionType, TimelineEntry> versionEntry = overShadowed.get(entry.getValue().getTrueInterval());
-        if (versionEntry != null) {
-          versionEntry.remove(entry.getValue().getVersion());
-          if (versionEntry.isEmpty()) {
-            overShadowed.remove(entry.getValue().getTrueInterval());
-          }
-        }
-      }
-
-      for (Map.Entry<Interval, Map<VersionType, TimelineEntry>> versionEntry : overShadowed.entrySet()) {
-        for (Map.Entry<VersionType, TimelineEntry> entry : versionEntry.getValue().entrySet()) {
-          TimelineEntry object = entry.getValue();
-          retVal.add(timelineEntryToObjectHolder(object));
-        }
-      }
+      retVal.removeAll(lookup(Intervals.ETERNITY));
+      retVal.removeAll(lookupWithIncompletePartitions(Intervals.ETERNITY));
 
       return retVal;
     }
@@ -357,6 +365,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
     }
   }
 
+  // TODO: fix this too maybe?
   public boolean isOvershadowed(Interval interval, VersionType version)
   {
     try {

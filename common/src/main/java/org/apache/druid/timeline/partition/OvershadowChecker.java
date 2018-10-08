@@ -22,7 +22,6 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.timeline.Overshadowable;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,7 +39,6 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   // TODO: sync all segment info periodically
   private final Map<Integer, PartitionChunk<T>> allPartitionChunks;
 //  private final Int2ObjectMap<SortedSet<Integer>> overshadowedMap;
-  private final Map<Set<Integer>, List<PartitionChunk<T>>> overshadowedGroupToAtomicUpdateGroup;
 
   private final Map<Integer, PartitionChunk<T>> onlineSegments;
   private final Map<Integer, PartitionChunk<T>> visibleSegments;
@@ -49,23 +47,16 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   {
     this.allPartitionChunks = new HashMap<>();
 //    this.overshadowedMap = new Int2ObjectOpenHashMap<>();
-    this.overshadowedGroupToAtomicUpdateGroup = new HashMap<>();
     this.onlineSegments = new HashMap<>();
     this.visibleSegments = new HashMap<>();
   }
 
-  private OvershadowChecker(OvershadowChecker<T> other)
+  public OvershadowChecker(OvershadowChecker<T> other)
   {
     this.allPartitionChunks = new HashMap<>(other.allPartitionChunks);
-    this.overshadowedGroupToAtomicUpdateGroup = new HashMap<>(other.overshadowedGroupToAtomicUpdateGroup);
 //    this.overshadowedMap = new Int2ObjectOpenHashMap<>(other.overshadowedMap);
     this.onlineSegments = new HashMap<>(other.onlineSegments);
     this.visibleSegments = new HashMap<>(other.visibleSegments);
-  }
-
-  public OvershadowChecker<T> copy()
-  {
-    return new OvershadowChecker<>(this);
   }
 
   public void add(PartitionChunk<T> partitionChunk)
