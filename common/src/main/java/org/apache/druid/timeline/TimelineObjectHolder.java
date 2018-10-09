@@ -22,6 +22,8 @@ package org.apache.druid.timeline;
 import org.apache.druid.timeline.partition.PartitionHolder;
 import org.joda.time.Interval;
 
+import java.util.Objects;
+
 /**
 */
 public class TimelineObjectHolder<VersionType, ObjectType extends Overshadowable<ObjectType>> implements LogicalSegment
@@ -55,6 +57,27 @@ public class TimelineObjectHolder<VersionType, ObjectType extends Overshadowable
   public PartitionHolder<ObjectType> getObject()
   {
     return object;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    TimelineObjectHolder<?, ?> that = (TimelineObjectHolder<?, ?>) o;
+    return Objects.equals(interval, that.interval) &&
+           Objects.equals(version, that.version) &&
+           Objects.equals(object, that.object);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(interval, version, object);
   }
 
   @Override
