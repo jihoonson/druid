@@ -37,16 +37,17 @@ import org.joda.time.Interval;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 /**
  * VersionedIntervalTimeline is a data structure that manages objects on a specific timeline.
@@ -315,7 +316,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
   {
     lock.readLock().lock();
     try {
-      Set<TimelineObjectHolder<VersionType, ObjectType>> retVal = new HashSet<>();
+//      final Set<TimelineObjectHolder<VersionType, ObjectType>> retVal = new HashSet<>();
 
 //      Map<Interval, Map<VersionType, TimelineEntry>> overShadowed = new HashMap<>();
 //      for (Map.Entry<Interval, TreeMap<VersionType, TimelineEntry>> versionEntry : allTimelineEntries.entrySet()) {
@@ -351,14 +352,19 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
 //        }
 //      }
 
-      for (Map.Entry<Interval, TreeMap<VersionType, TimelineEntry>> versionEntry : allTimelineEntries.entrySet()) {
-        versionEntry.getValue().values().forEach(entry -> retVal.add(timelineEntryToObjectHolder(entry)));
-      }
+      final Set<TimelineEntry> entries = allTimelineEntries
+          .values()
+          .stream()
+          .flatMap(timelineEntry -> timelineEntry.values().stream())
+          .collect(Collectors.toSet());
+//      for (Map.Entry<Interval, TreeMap<VersionType, TimelineEntry>> versionEntry : allTimelineEntries.entrySet()) {
+//        versionEntry.getValue().values().forEach(entry -> retVal.add(timelineEntryToObjectHolder(entry)));
+//      }
 
-      retVal.removeAll(lookup(Intervals.ETERNITY));
-      retVal.removeAll(lookupWithIncompletePartitions(Intervals.ETERNITY));
+      entries.removeAll(lookupEntry(completePartitionsTimeline, Intervals.ETERNITY));
+      entries.removeAll(lookupEntry(incompletePartitionsTimeline, Intervals.ETERNITY));
 
-      return retVal;
+      return entries.stream().map(this::timelineEntryToObjectHolder).collect(Collectors.toSet());
     }
     finally {
       lock.readLock().unlock();
@@ -589,7 +595,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
 
   private List<TimelineObjectHolder<VersionType, ObjectType>> lookup(Interval interval, boolean incompleteOk)
   {
-    List<TimelineObjectHolder<VersionType, ObjectType>> retVal = new ArrayList<TimelineObjectHolder<VersionType, ObjectType>>();
+    List<TimelineObjectHolder<VersionType, ObjectType>> retVal = new ArrayList<>();
     NavigableMap<Interval, TimelineEntry> timeline = (incompleteOk)
                                                      ? incompletePartitionsTimeline
                                                      : completePartitionsTimeline;
@@ -600,10 +606,10 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
 
       if (timelineInterval.overlaps(interval)) {
         retVal.add(
-            new TimelineObjectHolder<VersionType, ObjectType>(
+            new TimelineObjectHolder<>(
                 timelineInterval,
                 val.getVersion(),
-                new PartitionHolder<ObjectType>(val.getPartitionHolder())
+                new PartitionHolder<>(val.getPartitionHolder())
             )
         );
       }
@@ -618,7 +624,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
                                                                .isAfter(firstEntry.getInterval().getStart())) {
       retVal.set(
           0,
-          new TimelineObjectHolder<VersionType, ObjectType>(
+          new TimelineObjectHolder<>(
               new Interval(interval.getStart(), firstEntry.getInterval().getEnd()),
               firstEntry.getVersion(),
               firstEntry.getObject()
@@ -630,7 +636,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
     if (interval.overlaps(lastEntry.getInterval()) && interval.getEnd().isBefore(lastEntry.getInterval().getEnd())) {
       retVal.set(
           retVal.size() - 1,
-          new TimelineObjectHolder<VersionType, ObjectType>(
+          new TimelineObjectHolder<>(
               new Interval(lastEntry.getInterval().getStart(), interval.getEnd()),
               lastEntry.getVersion(),
               lastEntry.getObject()
@@ -639,6 +645,16 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
     }
 
     return retVal;
+  }
+
+  private List<TimelineEntry> lookupEntry(NavigableMap<Interval, TimelineEntry> timeline, Interval interval)
+  {
+    return timeline
+        .entrySet()
+        .stream()
+        .filter(entry -> entry.getKey().overlaps(interval))
+        .map(Entry::getValue)
+        .collect(Collectors.toList());
   }
 
   public class TimelineEntry

@@ -19,6 +19,7 @@
 package org.apache.druid.timeline.partition;
 
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.timeline.Overshadowable;
 
 import javax.annotation.Nullable;
@@ -36,6 +37,8 @@ import java.util.stream.Collectors;
 // TODO: maybe rename?
 public class OvershadowChecker<T extends Overshadowable<T>>
 {
+  private static final Logger log = new Logger(OvershadowChecker.class);
+
   // TODO: sync all segment info periodically
   private final Map<Integer, PartitionChunk<T>> allPartitionChunks;
 //  private final Int2ObjectMap<SortedSet<Integer>> overshadowedMap;
@@ -63,7 +66,8 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   {
     final PartitionChunk<T> prevChunk = allPartitionChunks.put(partitionChunk.getChunkNumber(), partitionChunk);
     if (prevChunk != null) {
-      throw new ISE("Duplicate partitionId[%d]! prevChunk[%s], newChunk[%s]", partitionChunk.getChunkNumber(), prevChunk, partitionChunk);
+//      throw new ISE("Duplicate partitionId[%d]! prevChunk[%s], newChunk[%s]", partitionChunk.getChunkNumber(), prevChunk, partitionChunk);
+      log.warn("prevChunk[%s] is overwritten by newChunk[%s] for partitionId[%d]", prevChunk, partitionChunk, partitionChunk.getChunkNumber());
     }
 
     if (!partitionChunk.getObject().getOvershadowedGroup().isEmpty()) {
