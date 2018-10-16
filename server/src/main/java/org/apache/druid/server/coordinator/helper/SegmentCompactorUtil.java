@@ -27,23 +27,14 @@ import org.joda.time.Interval;
  */
 class SegmentCompactorUtil
 {
-  // Allow compaction of segments if totalSize(segments) <= remainingBytes * ALLOWED_MARGIN_OF_COMPACTION_SIZE
-  private static final double ALLOWED_MARGIN_OF_COMPACTION_SIZE = .1;
-
   static boolean isCompactibleSize(long targetBytes, long currentTotalBytes, long additionalBytes)
   {
-    return targetBytes * (1 + ALLOWED_MARGIN_OF_COMPACTION_SIZE) >= currentTotalBytes + additionalBytes;
+    return currentTotalBytes + additionalBytes <= targetBytes;
   }
 
   static boolean isCompactibleNum(int numTargetSegments, int numCurrentSegments, int numAdditionalSegments)
   {
     return numCurrentSegments + numAdditionalSegments <= numTargetSegments;
-  }
-
-  static boolean isProperCompactionSize(long targetCompactionSizeBytes, long totalBytesOfSegmentsToCompact)
-  {
-    return targetCompactionSizeBytes * (1 - ALLOWED_MARGIN_OF_COMPACTION_SIZE) <= totalBytesOfSegmentsToCompact &&
-           targetCompactionSizeBytes * (1 + ALLOWED_MARGIN_OF_COMPACTION_SIZE) >= totalBytesOfSegmentsToCompact;
   }
 
   /**

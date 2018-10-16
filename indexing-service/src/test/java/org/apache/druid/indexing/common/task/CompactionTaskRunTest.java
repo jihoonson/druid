@@ -52,7 +52,6 @@ import org.apache.druid.segment.loading.StorageLocationConfig;
 import org.apache.druid.server.security.AuthTestUtils;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
-import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -70,7 +69,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
@@ -270,7 +268,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
                 Granularities.MINUTE,
                 null
             ),
-            IndexTaskTest.createTuningConfig(2, 2, null, 2L, null, false, false, true),
+            IndexTaskTest.createTuningConfig(2, 2, null, 2L, null, null, false, false, true),
             false
         ),
         null,
@@ -452,7 +450,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
                 Granularities.MINUTE,
                 null
             ),
-            IndexTaskTest.createTuningConfig(2, 2, null, 2L, null, false, false, true),
+            IndexTaskTest.createTuningConfig(2, 2, null, 2L, null, null, false, false, true),
             false
         ),
         null,
