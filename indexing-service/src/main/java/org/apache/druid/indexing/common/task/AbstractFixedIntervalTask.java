@@ -74,7 +74,7 @@ public abstract class AbstractFixedIntervalTask extends AbstractTask
   public boolean isReady(TaskActionClient taskActionClient) throws Exception
   {
     // TODO: fix this properly
-    return taskActionClient.submit(new LockTryAcquireAction(LockGranularity.TIME_CHUNK, TaskLockType.EXCLUSIVE, interval, null)) != null;
+    return taskActionClient.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval)) != null;
   }
 
   @JsonProperty

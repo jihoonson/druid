@@ -100,7 +100,7 @@ public class TaskLockBoxConcurrencyTest
 
     // lowPriorityTask acquires a lock first and increases the int of intSupplier in the critical section
     final Future<Integer> lowPriorityFuture = service.submit(() -> {
-      final LockResult result = lockbox.tryLock(TaskLockType.EXCLUSIVE, lowPriorityTask, interval);
+      final LockResult result = lockbox.tryTimeChunkLock(TaskLockType.EXCLUSIVE, lowPriorityTask, interval);
       Assert.assertTrue(result.isOk());
       Assert.assertFalse(result.isRevoked());
 
@@ -159,7 +159,7 @@ public class TaskLockBoxConcurrencyTest
     Assert.assertEquals(2, highPriorityFuture.get().intValue());
 
     // the lock for lowPriorityTask must be revoked by the highPriorityTask after its work is done in critical section
-    final LockResult result = lockbox.tryLock(TaskLockType.EXCLUSIVE, lowPriorityTask, interval);
+    final LockResult result = lockbox.tryTimeChunkLock(TaskLockType.EXCLUSIVE, lowPriorityTask, interval);
     Assert.assertFalse(result.isOk());
     Assert.assertTrue(result.isRevoked());
   }
@@ -177,7 +177,7 @@ public class TaskLockBoxConcurrencyTest
     taskStorage.insert(task, TaskStatus.running(task.getId()));
 
     for (Interval interval : intervals) {
-      final LockResult result = lockbox.tryLock(TaskLockType.EXCLUSIVE, task, interval);
+      final LockResult result = lockbox.tryTimeChunkLock(TaskLockType.EXCLUSIVE, task, interval);
       Assert.assertTrue(result.isOk());
     }
 

@@ -267,13 +267,14 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
 
     // TODO: probably doInCriticalSection??
     return toolbox.doSynchronized(() -> {
-      final Pair<String, Integer> maxVersionAndPartitionId = toolbox.getIndexerMetadataStorageCoordinator().findMaxVersionAndAvailablePartitionId(
-          dataSource,
-          sequenceName,
-          previousSegmentId,
-          tryInterval,
-          skipSegmentLineageCheck
-      );
+      final Pair<String, Integer> maxVersionAndPartitionId = toolbox.getIndexerMetadataStorageCoordinator()
+                                                                    .findMaxVersionAndAvailablePartitionId(
+                                                                        dataSource,
+                                                                        sequenceName,
+                                                                        previousSegmentId,
+                                                                        tryInterval,
+                                                                        skipSegmentLineageCheck
+                                                                    );
 
       if (maxVersionAndPartitionId.lhs == null) {
         // TODO: log?

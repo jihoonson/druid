@@ -35,7 +35,6 @@ import org.apache.druid.discovery.DiscoveryDruidNode;
 import org.apache.druid.discovery.LookupNodeService;
 import org.apache.druid.discovery.NodeType;
 import org.apache.druid.indexer.TaskStatus;
-import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskRealtimeMetricsMonitorBuilder;
@@ -239,9 +238,10 @@ public class RealtimeIndexTask extends AbstractTask
       public void announceSegment(final DataSegment segment) throws IOException
       {
         // Side effect: Calling announceSegment causes a lock to be acquired
+        // TODO: get lock before allocating segment
         Preconditions.checkNotNull(
             toolbox.getTaskActionClient().submit(
-                new LockAcquireAction(LockGranularity.SEGMENT, TaskLockType.EXCLUSIVE, segment.getInterval(), null, lockTimeoutMs)
+                LockAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, segment.getInterval(), null, null, lockTimeoutMs)
             ),
             "Cannot acquire a lock for interval[%s]",
             segment.getInterval()
@@ -264,10 +264,11 @@ public class RealtimeIndexTask extends AbstractTask
       public void announceSegments(Iterable<DataSegment> segments) throws IOException
       {
         // Side effect: Calling announceSegments causes locks to be acquired
+        // TODO: get lock before allocating segment
         for (DataSegment segment : segments) {
           Preconditions.checkNotNull(
               toolbox.getTaskActionClient().submit(
-                  new LockAcquireAction(LockGranularity.SEGMENT, TaskLockType.EXCLUSIVE, segment.getInterval(), null, lockTimeoutMs)
+                  LockAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, segment.getInterval(), null, null, lockTimeoutMs)
               ),
               "Cannot acquire a lock for interval[%s]",
               segment.getInterval()
@@ -303,7 +304,8 @@ public class RealtimeIndexTask extends AbstractTask
       {
         try {
           // Side effect: Calling getVersion causes a lock to be acquired
-          final LockAcquireAction action = new LockAcquireAction(LockGranularity.SEGMENT, TaskLockType.EXCLUSIVE, interval, null, lockTimeoutMs);
+          // TODO: get lock to get the version?
+          final LockAcquireAction action = LockAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, interval, null, null, lockTimeoutMs);
           final TaskLock lock = Preconditions.checkNotNull(
               toolbox.getTaskActionClient().submit(action),
               "Cannot acquire a lock for interval[%s]",

@@ -392,7 +392,8 @@ public class TaskLockbox
     }
   }
 
-  public LockResult tryLock(
+  @VisibleForTesting
+  public LockResult tryTimeChunkLock(
       final TaskLockType lockType,
       final Task task,
       final Interval interval
@@ -467,60 +468,6 @@ public class TaskLockbox
       giant.unlock();
     }
   }
-
-//  /**
-//   * See {@link #createOrFindLockPosse(Task, Interval, String, LockGranularity, TaskLockType)}
-//   */
-//  @Nullable
-//  private TaskLockPosse createOrFindLockPosse(
-//      final Task task,
-//      final Interval interval,
-//      final LockGranularity granularity,
-//      final TaskLockType lockType
-//  )
-//  {
-//    return createOrFindLockPosse(task, interval, null, granularity, lockType);
-//  }
-
-//  /**
-//   * Create a new {@link TaskLockPosse} or find an existing one for the given task and interval.  Note that the returned
-//   * {@link TaskLockPosse} can hold a revoked lock.
-//   *
-//   * @param task             task acquiring a lock
-//   * @param interval         interval to be locked
-//   * @param preferredVersion a preferred version string
-//   * @param granularity      lock granularity
-//   * @param lockType         type of lock to be acquired
-//   *
-//   * @return a lock posse or null if any posse is found and a new poss cannot be created
-//   *
-//   * @see #createNewTaskLockPosse
-//   */
-//  @Nullable
-//  private TaskLockPosse createOrFindLockPosse(
-//      final Task task,
-//      final LockRequest request
-//  )
-//  {
-//    giant.lock();
-//
-//    try {
-//      return createOrFindLockPosse(
-//          granularity,
-//          lockType,
-//          task.getId(),
-//          task.getGroupId(),
-//          task.getDataSource(),
-//          interval,
-//          preferredVersion,
-//          task.getPriority(),
-//          false
-//      );
-//    }
-//    finally {
-//      giant.unlock();
-//    }
-//  }
 
   @Nullable
   private TaskLockPosse createOrFindLockPosse(Task task, LockRequest request)
@@ -649,23 +596,6 @@ public class TaskLockbox
   {
     giant.lock();
     try {
-      // Create new TaskLock and assign it a version.
-      // Assumption: We'll choose a version that is greater than any previously-chosen version for our interval. (This
-      // may not always be true, unfortunately. See below.)
-
-//      final String version;
-//
-//      if (preferredVersion != null) {
-//        // We have a preferred version. We'll trust our caller to not break our ordering assumptions and just use it.
-//        version = preferredVersion;
-//      } else {
-//        // We are running under an interval lock right now, so just using the current time works as long as we can
-//        // trustour clock to be monotonic and have enough resolution since the last time we created a TaskLock for
-//        // the same interval. This may not always be true; to assure it we would need to use some method of
-//        // timekeeping other than the wall clock.
-//        version = DateTimes.nowUtc().toString();
-//      }
-
       final TaskLockPosse posseToUse = new TaskLockPosse(request.toLock());
       running.computeIfAbsent(request.getDataSource(), k -> new TreeMap<>(Comparators.intervalsByStartThenEnd()))
              .computeIfAbsent(request.getInterval(), k -> new ArrayList<>())
@@ -697,21 +627,6 @@ public class TaskLockbox
 
     boolean isRevoked();
 
-    default String getVersion()
-    {
-      final String preferredVersion = getPreferredVersion();
-      if (preferredVersion != null) {
-        // We have a preferred version. We'll trust our caller to not break our ordering assumptions and just use it.
-        return preferredVersion;
-      } else {
-        // We are running under an interval lock right now, so just using the current time works as long as we can
-        // trustour clock to be monotonic and have enough resolution since the last time we created a TaskLock for
-        // the same interval. This may not always be true; to assure it we would need to use some method of
-        // timekeeping other than the wall clock.
-        return DateTimes.nowUtc().toString();
-      }
-    }
-
     TaskLock toLock();
   }
 
@@ -725,7 +640,7 @@ public class TaskLockbox
     private final int priority;
     private final boolean revoked;
 
-    public TimeChunkLockRequest(
+    private TimeChunkLockRequest(
         TaskLockType lockType,
         String groupId,
         String dataSource,
@@ -742,17 +657,6 @@ public class TaskLockbox
       this.preferredVersion = preferredVersion;
       this.priority = priority;
       this.revoked = revoked;
-    }
-
-    public TimeChunkLockRequest(
-        TaskLockType lockType,
-        String groupId,
-        String dataSource,
-        Interval interval,
-        int priority
-    )
-    {
-      this(lockType, groupId, dataSource, interval, null, priority, false);
     }
 
     @Override
@@ -804,6 +708,25 @@ public class TaskLockbox
       return revoked;
     }
 
+    private String getVersion()
+    {
+      // Assign a new version if preferredVersion is null.
+      // Assumption: We'll choose a version that is greater than any previously-chosen version for our interval. (This
+      // may not always be true, unfortunately. See below.)
+
+      final String preferredVersion = getPreferredVersion();
+      if (preferredVersion != null) {
+        // We have a preferred version. We'll trust our caller to not break our ordering assumptions and just use it.
+        return preferredVersion;
+      } else {
+        // We are running under an interval lock right now, so just using the current time works as long as we can
+        // trustour clock to be monotonic and have enough resolution since the last time we created a TaskLock for
+        // the same interval. This may not always be true; to assure it we would need to use some method of
+        // timekeeping other than the wall clock.
+        return DateTimes.nowUtc().toString();
+      }
+    }
+
     @Override
     public TaskLock toLock()
     {
@@ -826,17 +749,17 @@ public class TaskLockbox
     private final String dataSource;
     private final Interval interval;
     private final List<Integer> partitionIds;
-    @Nullable private final String preferredVersion;
+    private final String version;
     private final int priority;
     private final boolean revoked;
 
-    public SegmentLockRequest(
+    private SegmentLockRequest(
         TaskLockType lockType,
         String groupId,
         String dataSource,
         Interval interval,
         List<Integer> partitionIds,
-        @Nullable String preferredVersion,
+        String version,
         int priority,
         boolean revoked
     )
@@ -846,21 +769,9 @@ public class TaskLockbox
       this.dataSource = dataSource;
       this.interval = interval;
       this.partitionIds = partitionIds;
-      this.preferredVersion = preferredVersion;
+      this.version = Preconditions.checkNotNull(version, "version");
       this.priority = priority;
       this.revoked = revoked;
-    }
-
-    public SegmentLockRequest(
-        TaskLockType lockType,
-        String groupId,
-        String dataSource,
-        Interval interval,
-        List<Integer> partitionIds,
-        int priority
-    )
-    {
-      this(lockType, groupId, dataSource, interval, partitionIds, null, priority, false);
     }
 
     @Override
@@ -902,7 +813,7 @@ public class TaskLockbox
     @Override
     public String getPreferredVersion()
     {
-      return preferredVersion;
+      return version;
     }
 
     @Override
@@ -926,7 +837,7 @@ public class TaskLockbox
           dataSource,
           interval,
           partitionIds,
-          getVersion(),
+          version,
           priority,
           revoked
       );

@@ -20,7 +20,6 @@
 package org.apache.druid.indexing.common.actions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.NoopTask;
@@ -43,11 +42,9 @@ public class LockAcquireActionTest
   @Test
   public void testSerdeWithAllFields() throws IOException
   {
-    final LockAcquireAction expected = new LockAcquireAction(
-        LockGranularity.TIME_CHUNK,
+    final LockAcquireAction expected = LockAcquireAction.createTimeChunkRequest(
         TaskLockType.SHARED,
         Intervals.of("2017-01-01/2017-01-02"),
-        null,
         1000
     );
 
@@ -64,11 +61,9 @@ public class LockAcquireActionTest
     final String json = "{ \"type\": \"lockAcquire\", \"interval\" : \"2017-01-01/2017-01-02\" }";
 
     final LockAcquireAction actual = mapper.readValue(json, LockAcquireAction.class);
-    final LockAcquireAction expected = new LockAcquireAction(
-        LockGranularity.TIME_CHUNK,
+    final LockAcquireAction expected = LockAcquireAction.createTimeChunkRequest(
         TaskLockType.EXCLUSIVE,
         Intervals.of("2017-01-01/2017-01-02"),
-        null,
         0
     );
     Assert.assertEquals(expected.getType(), actual.getType());
@@ -80,11 +75,9 @@ public class LockAcquireActionTest
   public void testWithLockType()
   {
     final Task task = NoopTask.create();
-    final LockAcquireAction action = new LockAcquireAction(
-        LockGranularity.TIME_CHUNK,
+    final LockAcquireAction action = LockAcquireAction.createTimeChunkRequest(
         TaskLockType.EXCLUSIVE,
         Intervals.of("2017-01-01/2017-01-02"),
-        null,
         1000
     );
 
@@ -97,11 +90,9 @@ public class LockAcquireActionTest
   public void testWithoutLockType()
   {
     final Task task = NoopTask.create();
-    final LockAcquireAction action = new LockAcquireAction(
-        LockGranularity.TIME_CHUNK,
+    final LockAcquireAction action = LockAcquireAction.createTimeChunkRequest(
         null,
         Intervals.of("2017-01-01/2017-01-02"),
-        null,
         1000
     );
 

@@ -88,13 +88,14 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
         for (int i = 0; i < numSegmentsToAllocate; i++) {
           final String sequenceName = StringUtils.format("%s_%s_%d", baseSequenceName, interval, i);
           // TODO: probably doInCriticalSection??
-          final Pair<String, Integer> maxVersionAndPartitionId = toolbox.getIndexerMetadataStorageCoordinator().findMaxVersionAndAvailablePartitionId(
-              task.getDataSource(),
-              sequenceName,
-              null,
-              interval,
-              true
-          );
+          final Pair<String, Integer> maxVersionAndPartitionId = toolbox.getIndexerMetadataStorageCoordinator()
+                                                                        .findMaxVersionAndAvailablePartitionId(
+                                                                            task.getDataSource(),
+                                                                            sequenceName,
+                                                                            null,
+                                                                            interval,
+                                                                            true
+                                                                        );
 
           if (maxVersionAndPartitionId.lhs == null) {
             // TODO: log?

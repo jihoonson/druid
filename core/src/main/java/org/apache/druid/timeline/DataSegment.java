@@ -121,8 +121,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   private final ShardSpec shardSpec;
   private final long size;
   private final String identifier;
-  private final List<Integer> overshadowedSegments;
-  private final List<Integer> atomicUpdateGroup;
+  private final List<Integer> overshadowedSegments; // TODO: set
+  private final List<Integer> atomicUpdateGroup; // TODO: set
 
   public DataSegment(
       String dataSource,

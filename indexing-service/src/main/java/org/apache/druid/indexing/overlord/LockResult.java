@@ -29,7 +29,7 @@ import org.joda.time.Interval;
 import javax.annotation.Nullable;
 
 /**
- * This class represents the result of {@link TaskLockbox#tryLock(TaskLockType, Task, Interval)}. If the lock
+ * This class represents the result of {@link TaskLockbox#tryTimeChunkLock(TaskLockType, Task, Interval)}. If the lock
  * acquisition fails, the callers can tell that it was failed because it was preempted by other locks of higher
  * priorities or not by checking the {@link #revoked} flag.
  *
@@ -37,7 +37,7 @@ import javax.annotation.Nullable;
  * returning different locks because another lock of a higher priority preempted your lock at some point. In this case,
  * the lock acquisition must fail.
  *
- * @see TaskLockbox#tryLock(TaskLockType, Task, Interval)
+ * @see TaskLockbox#tryTimeChunkLock(TaskLockType, Task, Interval)
  */
 public class LockResult
 {

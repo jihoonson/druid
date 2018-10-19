@@ -33,7 +33,6 @@ import org.apache.druid.indexing.overlord.LockResult;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import java.util.Collections;
 import java.util.List;
 
 public class LockAcquireAction implements TaskAction<TaskLock>
@@ -46,45 +45,48 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   private final Interval interval;
 
   @Nullable
-  private final List<Integer> partitionId;
+  private final String version;
+
+  @Nullable
+  private final List<Integer> partitionIds;
 
   @JsonIgnore
   private final long timeoutMs;
 
-  public static LockAcquireAction timeChunkLockAcquireAction(
-      TaskLockType type,
-      Interval interval,
-      long timeoutMs
-  )
+  public static LockAcquireAction createTimeChunkRequest(TaskLockType type, Interval interval, long timeoutMs)
   {
-    return new LockAcquireAction(LockGranularity.TIME_CHUNK, type, interval, null, timeoutMs);
+    return new LockAcquireAction(LockGranularity.TIME_CHUNK, type, interval, null, null, timeoutMs);
   }
 
-  public static LockAcquireAction segmentLockAcquireAction(
+  public static LockAcquireAction createSegmentRequest(
       TaskLockType type,
       Interval interval,
-      int partitionId,
+      String version,
+      List<Integer> partitionIds,
       long timeoutMs
   )
   {
-    return new LockAcquireAction(LockGranularity.SEGMENT, type, interval, partitionId, timeoutMs);
+    Preconditions.checkNotNull(version, "version shouldn't be null for segment lock");
+    Preconditions.checkState(partitionIds != null && !partitionIds.isEmpty(), "partitionIds shouldn't be empty for segment lock");
+
+    return new LockAcquireAction(LockGranularity.SEGMENT, type, interval, version, partitionIds, timeoutMs);
   }
 
   @JsonCreator
-  public LockAcquireAction(
+  private LockAcquireAction(
       @JsonProperty("lockGranularity") @Nullable LockGranularity granularity, // nullable for backward compatibility
       @JsonProperty("lockType") @Nullable TaskLockType type, // nullable for backward compatibility
       @JsonProperty("interval") Interval interval,
-      @JsonProperty("partitionId") @Nullable Integer partitionId,
+      @JsonProperty("version") @Nullable String version, // null for timeChunk lock
+      @JsonProperty("partitionIds") @Nullable List<Integer> partitionIds, // null for timeChunk lock
       @JsonProperty("timeoutMs") long timeoutMs
   )
   {
     this.granularity = granularity == null ? LockGranularity.TIME_CHUNK : granularity;
     this.type = type == null ? TaskLockType.EXCLUSIVE : type;
     this.interval = Preconditions.checkNotNull(interval, "interval");
-    this.partitionId = this.granularity == LockGranularity.SEGMENT
-                       ? Collections.singletonList(Preconditions.checkNotNull(partitionId, "partitionId"))
-                       : partitionId == null ? Collections.emptyList() : Collections.singletonList(partitionId);
+    this.version = version;
+    this.partitionIds = partitionIds;
     this.timeoutMs = timeoutMs;
   }
 
@@ -107,9 +109,9 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   }
 
   @JsonProperty
-  public List<Integer> getPartitionId()
+  public List<Integer> getPartitionIds()
   {
-    return partitionId;
+    return partitionIds;
   }
 
   @JsonProperty
@@ -130,11 +132,9 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   public TaskLock perform(Task task, TaskActionToolbox toolbox)
   {
     try {
-
-      // TODO: set proper version
       final LockResult result = timeoutMs == 0 ?
-                                toolbox.getTaskLockbox().lock(granularity, type, task, interval, null, partitionId) :
-                                toolbox.getTaskLockbox().lock(granularity, type, task, interval, null, partitionId, timeoutMs);
+                                toolbox.getTaskLockbox().lock(granularity, type, task, interval, version, partitionIds) :
+                                toolbox.getTaskLockbox().lock(granularity, type, task, interval, version, partitionIds, timeoutMs);
       return result.isOk() ? result.getTaskLock() : null;
     }
     catch (InterruptedException e) {

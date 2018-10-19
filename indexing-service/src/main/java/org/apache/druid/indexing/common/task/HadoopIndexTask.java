@@ -198,12 +198,7 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
     Optional<SortedSet<Interval>> intervals = spec.getDataSchema().getGranularitySpec().bucketIntervals();
     if (intervals.isPresent()) {
       final Interval interval = JodaUtils.umbrellaInterval(JodaUtils.condenseIntervals(intervals.get()));
-      final Pair<LockGranularity, List<Integer>> lockGranularityAndPids = findRequiredLockGranularity(taskActionClient, interval, getPathSpec());
-      if (lockGranularityAndPids.lhs != null) {
-        return taskActionClient.submit(new LockTryAcquireAction(lockGranularityAndPids.lhs, TaskLockType.EXCLUSIVE, interval, lockGranularityAndPids.rhs)) != null;
-      } else {
-        return true;
-      }
+      return taskActionClient.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval)) != null;
     } else {
       return true;
     }
@@ -378,7 +373,7 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
       final TaskLock lock = Preconditions.checkNotNull(
           toolbox.getTaskActionClient().submit(
               // TODO: get proper lock
-              LockAcquireAction.timeChunkLockAcquireAction(TaskLockType.EXCLUSIVE, interval, lockTimeoutMs)
+              LockAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval, lockTimeoutMs)
           ),
           "Cannot acquire a lock for interval[%s]", interval
       );

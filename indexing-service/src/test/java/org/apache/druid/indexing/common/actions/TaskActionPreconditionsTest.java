@@ -91,7 +91,7 @@ public class TaskActionPreconditionsTest
         Collectors.toMap(
             Function.identity(),
             interval -> {
-              final TaskLock lock = lockbox.tryLock(TaskLockType.EXCLUSIVE, task, interval).getTaskLock();
+              final TaskLock lock = lockbox.tryTimeChunkLock(TaskLockType.EXCLUSIVE, task, interval).getTaskLock();
               Assert.assertNotNull(lock);
               return lock;
             }
@@ -113,7 +113,7 @@ public class TaskActionPreconditionsTest
         Collectors.toMap(
             Function.identity(),
             interval -> {
-              final TaskLock lock = lockbox.tryLock(TaskLockType.EXCLUSIVE, task, interval).getTaskLock();
+              final TaskLock lock = lockbox.tryTimeChunkLock(TaskLockType.EXCLUSIVE, task, interval).getTaskLock();
               Assert.assertNotNull(lock);
               return lock;
             }
@@ -137,7 +137,7 @@ public class TaskActionPreconditionsTest
         Collectors.toMap(
             Function.identity(),
             interval -> {
-              final TaskLock lock = lockbox.tryLock(TaskLockType.EXCLUSIVE, task, interval).getTaskLock();
+              final TaskLock lock = lockbox.tryTimeChunkLock(TaskLockType.EXCLUSIVE, task, interval).getTaskLock();
               Assert.assertNotNull(lock);
               return lock;
             }

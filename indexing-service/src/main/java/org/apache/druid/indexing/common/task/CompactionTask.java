@@ -234,14 +234,17 @@ public class CompactionTask extends AbstractTask
   {
     final List<DataSegment> segments = segmentProvider.checkAndGetSegments(taskActionClient);
     final Map<Interval, List<Integer>> intervalToPartitionIds = new HashMap<>(segments.size());
+    String version = null;
     for (DataSegment segment : segments) {
       intervalToPartitionIds.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>())
                             .add(segment.getShardSpec().getPartitionNum());
+      version = segment.getVersion();
     }
 
+    // TODO: timeChunk locking?
     for (Entry<Interval, List<Integer>> entry : intervalToPartitionIds.entrySet()) {
       final TaskLock lock = taskActionClient.submit(
-          new LockTryAcquireAction(LockGranularity.SEGMENT, TaskLockType.EXCLUSIVE, entry.getKey(), entry.getValue())
+          LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), version, entry.getValue())
       );
       if (lock == null) {
         return false;
