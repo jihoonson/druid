@@ -31,11 +31,7 @@ import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.Counters;
-import org.apache.druid.indexing.common.TaskLock;
-import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
-import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
-import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.AbstractTask;
@@ -48,7 +44,6 @@ import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexTaskRunner.SubTaskSpecStatus;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
-import org.apache.druid.java.util.common.JodaUtils;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
@@ -56,11 +51,6 @@ import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
 import org.apache.druid.segment.realtime.firehose.ChatHandlers;
 import org.apache.druid.server.security.Action;
 import org.apache.druid.server.security.AuthorizerMapper;
-import org.apache.druid.timeline.DataSegment;
-import org.apache.druid.timeline.TimelineLookup;
-import org.apache.druid.timeline.TimelineObjectHolder;
-import org.apache.druid.timeline.VersionedIntervalTimeline;
-import org.apache.druid.timeline.partition.PartitionChunk;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -75,15 +65,12 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedSet;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * ParallelIndexSupervisorTask is capable of running multiple subTasks for parallel indexing. This is
@@ -224,59 +211,67 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
     return !intervals.isPresent() || checkLock(taskActionClient, new ArrayList<>(intervals.get()));
   }
 
-  private boolean checkLock(TaskActionClient actionClient, List<Interval> intervals) throws IOException
-  {
-    if (isOverwriteMode()) {
-      final List<DataSegment> usedSegments = actionClient.submit(
-          new SegmentListUsedAction(getDataSource(), null, intervals)
-      );
+//  private boolean checkLock(TaskActionClient actionClient, List<Interval> intervals) throws IOException
+//  {
+//    if (isOverwriteMode()) {
+//      final List<DataSegment> usedSegments = actionClient.submit(
+//          new SegmentListUsedAction(getDataSource(), null, intervals)
+//      );
+//
+//      if (usedSegments.isEmpty()) {
+//        return true;
+//      }
+//
+//      // Create a timeline to find latest segments only
+//      final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(usedSegments);
+//      final List<DataSegment> segments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
+//                                                 .stream()
+//                                                 .map(TimelineObjectHolder::getObject)
+//                                                 .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
+//                                                 .map(PartitionChunk::getObject)
+//                                                 .collect(Collectors.toList());
+//
+//      final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
+//      if (!segmentGranularity.match(segments.get(0).getInterval())) {
+//        for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
+//          final TaskLock lock = actionClient.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval));
+//          if (lock == null) {
+//            return false;
+//          }
+//        }
+//        return true;
+//      } else {
+//        for (DataSegment segment : segments) {
+//          inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>())
+//                                  .add(segment.getShardSpec().getPartitionNum());
+//        }
+//        for (Entry<Interval, List<Integer>> entry : inputSegmentPartitionIds.entrySet()) {
+//          final TaskLock lock = actionClient.submit(
+//              // TODO: lock at once
+//              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), segments.get(0).getVersion(), entry.getValue())
+//          );
+//          if (lock == null) {
+//            return false;
+//          }
+//        }
+//      }
+//    } else {
+//      return true;
+//    }
+//    return true;
+//  }
 
-      if (usedSegments.isEmpty()) {
-        return true;
-      }
-
-      // Create a timeline to find latest segments only
-      final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(usedSegments);
-      final List<DataSegment> segments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
-                                                 .stream()
-                                                 .map(TimelineObjectHolder::getObject)
-                                                 .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
-                                                 .map(PartitionChunk::getObject)
-                                                 .collect(Collectors.toList());
-
-      final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
-      if (!segmentGranularity.match(segments.get(0).getInterval())) {
-        for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
-          final TaskLock lock = actionClient.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval));
-          if (lock == null) {
-            return false;
-          }
-        }
-        return true;
-      } else {
-        for (DataSegment segment : segments) {
-          inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>())
-                                  .add(segment.getShardSpec().getPartitionNum());
-        }
-        for (Entry<Interval, List<Integer>> entry : inputSegmentPartitionIds.entrySet()) {
-          final TaskLock lock = actionClient.submit(
-              // TODO: lock at once
-              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), segments.get(0).getVersion(), entry.getValue())
-          );
-          if (lock == null) {
-            return false;
-          }
-        }
-      }
-    } else {
-      return true;
-    }
-    return true;
-  }
-
-  private boolean isOverwriteMode()
+  @Override
+  public boolean isOverwriteMode()
   {
     return !ingestionSchema.getIOConfig().isAppendToExisting();
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  {
+    final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
+    return !segmentGranularity.match(intervalOfExistingSegment);
   }
 
   @Override

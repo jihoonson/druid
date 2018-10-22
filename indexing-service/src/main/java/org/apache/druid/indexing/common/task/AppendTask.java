@@ -135,6 +135,18 @@ public class AppendTask extends MergeTaskBase
     return "append";
   }
 
+  @Override
+  public boolean isOverwriteMode()
+  {
+    return true;
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  {
+    return true;
+  }
+
   @JsonProperty("aggregations")
   public List<AggregatorFactory> getAggregators()
   {

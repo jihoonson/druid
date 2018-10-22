@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * VersionedIntervalTimeline is a data structure that manages objects on a specific timeline.
@@ -311,7 +312,6 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
     );
   }
 
-  // TODO: fix this maybe?
   public Set<TimelineObjectHolder<VersionType, ObjectType>> findOvershadowed()
   {
     lock.readLock().lock();
@@ -371,8 +371,8 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
     }
   }
 
-  // TODO: fix this too maybe?
-  public boolean isOvershadowed(Interval interval, VersionType version)
+  // TODO: check this is correct
+  public boolean isOvershadowed(Interval interval, VersionType version, ObjectType object)
   {
     try {
       lock.readLock().lock();
@@ -395,11 +395,21 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
 
       do {
         if (curr == null ||  //no further keys
-            (prev != null && curr.getStartMillis() > prev.getEndMillis()) || //a discontinuity
-            //lower or same version
-            versionComparator.compare(version, completePartitionsTimeline.get(curr).getVersion()) >= 0
-            ) {
+            (prev != null && curr.getStartMillis() > prev.getEndMillis()) //a discontinuity
+        ) {
           return false;
+        }
+
+        final TimelineEntry timelineEntry = completePartitionsTimeline.get(curr);
+        final int versionCompare = versionComparator.compare(version, timelineEntry.getVersion());
+
+        //lower or same version
+        if (versionCompare > 0) {
+          return false;
+        } else if (versionCompare == 0) {
+          if (StreamSupport.stream(timelineEntry.partitionHolder.spliterator(), false).noneMatch(chunk -> chunk.getObject().isOvershadow(object))) {
+            return false;
+          }
         }
 
         prev = curr;

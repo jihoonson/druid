@@ -204,6 +204,18 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
     }
   }
 
+  @Override
+  public boolean isOverwriteMode()
+  {
+    return false;
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  {
+    return false;
+  }
+
   private Pair<LockGranularity, List<Integer>> findRequiredLockGranularity(TaskActionClient actionClient, Interval interval, PathSpec pathSpec) throws IOException
   {
     if (pathSpec instanceof DatasourcePathSpec) {

@@ -26,19 +26,33 @@ import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.TaskLock;
+import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.actions.LockListAction;
+import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
+import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.java.util.common.DateTimes;
+import org.apache.druid.java.util.common.JodaUtils;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
+import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.TimelineLookup;
+import org.apache.druid.timeline.TimelineObjectHolder;
+import org.apache.druid.timeline.VersionedIntervalTimeline;
+import org.apache.druid.timeline.partition.PartitionChunk;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public abstract class AbstractTask implements Task
 {
@@ -57,6 +71,8 @@ public abstract class AbstractTask implements Task
   private final String dataSource;
 
   private final Map<String, Object> context;
+
+  private final Map<Interval, Set<Integer>> inputSegmentPartitionIds = new HashMap<>(); // TODO: Intset
 
   protected AbstractTask(String id, String dataSource, Map<String, Object> context)
   {
@@ -187,6 +203,55 @@ public abstract class AbstractTask implements Task
   static String joinId(Object...objects)
   {
     return ID_JOINER.join(objects);
+  }
+
+  protected boolean checkLock(TaskActionClient client, List<Interval> intervals) throws IOException
+  {
+    if (isOverwriteMode()) {
+      final List<DataSegment> usedSegments = client.submit(
+          new SegmentListUsedAction(getDataSource(), null, intervals)
+      );
+
+      // Create a timeline to find latest segments only
+      final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(usedSegments);
+      final List<DataSegment> segments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
+                                                 .stream()
+                                                 .map(TimelineObjectHolder::getObject)
+                                                 .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
+                                                 .map(PartitionChunk::getObject)
+                                                 .collect(Collectors.toList());
+
+      if (segments.isEmpty()) {
+        return true;
+      }
+
+      if (changeSegmentGranularity(segments.get(0).getInterval())) {
+        for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
+          final TaskLock lock = client.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval));
+          if (lock == null) {
+            return false;
+          }
+        }
+        return true;
+      } else {
+        for (DataSegment segment : segments) {
+          inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new HashSet<>())
+                                  .add(segment.getShardSpec().getPartitionNum());
+        }
+        for (Entry<Interval, Set<Integer>> entry : inputSegmentPartitionIds.entrySet()) {
+          final TaskLock lock = client.submit(
+              // TODO: lock at once
+              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), segments.get(0).getVersion(), entry.getValue())
+          );
+          if (lock == null) {
+            return false;
+          }
+        }
+      }
+    } else {
+      return true;
+    }
+    return true;
   }
 
   public TaskStatus success()

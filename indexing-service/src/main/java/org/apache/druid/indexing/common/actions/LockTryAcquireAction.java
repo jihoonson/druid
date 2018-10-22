@@ -32,7 +32,7 @@ import org.apache.druid.indexing.overlord.LockResult;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import java.util.List;
+import java.util.Set;
 
 public class LockTryAcquireAction implements TaskAction<TaskLock>
 {
@@ -48,7 +48,7 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
   private final String version;
 
   @Nullable
-  private final List<Integer> partitionIds; // TODO: list -> set
+  private final Set<Integer> partitionIds; // TODO: list -> set
 
   public static LockTryAcquireAction createTimeChunkRequest(TaskLockType type, Interval interval)
   {
@@ -59,7 +59,7 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
       TaskLockType type,
       Interval interval,
       String version,
-      List<Integer> partitionIds
+      Set<Integer> partitionIds
   )
   {
     Preconditions.checkNotNull(version, "version shouldn't be null for segment lock");
@@ -80,7 +80,7 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
       @JsonProperty("lockType") @Nullable TaskLockType type, // nullable for backward compatibility
       @JsonProperty("interval") Interval interval,
       @JsonProperty("version") @Nullable String version, // null for timeChunk lock
-      @JsonProperty("partitionIds") @Nullable List<Integer> partitionIds // null for timeChunk lock
+      @JsonProperty("partitionIds") @Nullable Set<Integer> partitionIds // null for timeChunk lock
   )
   {
     this.granularity = granularity == null ? LockGranularity.TIME_CHUNK : granularity;
@@ -109,7 +109,7 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
   }
 
   @JsonProperty
-  public List<Integer> getPartitionIds()
+  public Set<Integer> getPartitionIds()
   {
     return partitionIds;
   }

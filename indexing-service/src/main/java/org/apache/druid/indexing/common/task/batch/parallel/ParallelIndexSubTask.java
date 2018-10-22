@@ -224,59 +224,67 @@ public class ParallelIndexSubTask extends AbstractTask
     return TaskStatus.success(getId());
   }
 
-  private boolean checkLock(TaskActionClient actionClient, List<Interval> intervals) throws IOException
-  {
-    if (isOverwriteMode()) {
-      final List<DataSegment> usedSegments = actionClient.submit(
-          new SegmentListUsedAction(getDataSource(), null, intervals)
-      );
+//  private boolean checkLock(TaskActionClient actionClient, List<Interval> intervals) throws IOException
+//  {
+//    if (isOverwriteMode()) {
+//      final List<DataSegment> usedSegments = actionClient.submit(
+//          new SegmentListUsedAction(getDataSource(), null, intervals)
+//      );
+//
+//      if (usedSegments.isEmpty()) {
+//        return true;
+//      }
+//
+//      // Create a timeline to find latest segments only
+//      final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(usedSegments);
+//      final List<DataSegment> segments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
+//                                                 .stream()
+//                                                 .map(TimelineObjectHolder::getObject)
+//                                                 .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
+//                                                 .map(PartitionChunk::getObject)
+//                                                 .collect(Collectors.toList());
+//
+//      final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
+//      if (!segmentGranularity.match(segments.get(0).getInterval())) {
+//        for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
+//          final TaskLock lock = actionClient.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval));
+//          if (lock == null) {
+//            return false;
+//          }
+//        }
+//        return true;
+//      } else {
+//        for (DataSegment segment : segments) {
+//          inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>())
+//                                  .add(segment.getShardSpec().getPartitionNum());
+//        }
+//        for (Entry<Interval, List<Integer>> entry : inputSegmentPartitionIds.entrySet()) {
+//          final TaskLock lock = actionClient.submit(
+//              // TODO: lock at once
+//              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), segments.get(0).getVersion(), entry.getValue())
+//          );
+//          if (lock == null) {
+//            return false;
+//          }
+//        }
+//      }
+//    } else {
+//      return true;
+//    }
+//    return true;
+//  }
 
-      if (usedSegments.isEmpty()) {
-        return true;
-      }
-
-      // Create a timeline to find latest segments only
-      final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(usedSegments);
-      final List<DataSegment> segments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
-                                                 .stream()
-                                                 .map(TimelineObjectHolder::getObject)
-                                                 .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
-                                                 .map(PartitionChunk::getObject)
-                                                 .collect(Collectors.toList());
-
-      final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
-      if (!segmentGranularity.match(segments.get(0).getInterval())) {
-        for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
-          final TaskLock lock = actionClient.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval));
-          if (lock == null) {
-            return false;
-          }
-        }
-        return true;
-      } else {
-        for (DataSegment segment : segments) {
-          inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>())
-                                  .add(segment.getShardSpec().getPartitionNum());
-        }
-        for (Entry<Interval, List<Integer>> entry : inputSegmentPartitionIds.entrySet()) {
-          final TaskLock lock = actionClient.submit(
-              // TODO: lock at once
-              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), segments.get(0).getVersion(), entry.getValue())
-          );
-          if (lock == null) {
-            return false;
-          }
-        }
-      }
-    } else {
-      return true;
-    }
-    return true;
-  }
-
-  private boolean isOverwriteMode()
+  @Override
+  public boolean isOverwriteMode()
   {
     return !ingestionSchema.getIOConfig().isAppendToExisting();
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  {
+    final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
+    return !segmentGranularity.match(intervalOfExistingSegment);
   }
 
   private SegmentAllocator createSegmentAllocator(

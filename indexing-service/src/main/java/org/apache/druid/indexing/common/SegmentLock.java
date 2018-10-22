@@ -27,8 +27,8 @@ import org.apache.druid.indexing.overlord.TaskLockbox.SegmentLockRequest;
 import org.joda.time.Interval;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Lock for a single segment. Should be unique for (dataSource, interval, partitionId).
@@ -39,7 +39,7 @@ public class SegmentLock implements TaskLock
   private final String groupId;
   private final String dataSource;
   private final Interval interval;
-  private final List<Integer> partitionIds;
+  private final Set<Integer> partitionIds;
   private final String version;
   private final int priority;
   private final boolean revoked;
@@ -50,7 +50,7 @@ public class SegmentLock implements TaskLock
       @JsonProperty("groupId") String groupId,
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("interval") Interval interval,
-      @JsonProperty("partitionIds") List<Integer> partitionIds,
+      @JsonProperty("partitionIds") Set<Integer> partitionIds,
       @JsonProperty("version") String version,
       @JsonProperty("priority") int priority,
       @JsonProperty("revoked") boolean revoked
@@ -71,7 +71,7 @@ public class SegmentLock implements TaskLock
       String groupId,
       String dataSource,
       Interval interval,
-      List<Integer> partitionIds,
+      Set<Integer> partitionIds,
       String version,
       int priority
   )
@@ -126,7 +126,7 @@ public class SegmentLock implements TaskLock
   }
 
   @JsonProperty
-  public List<Integer> getPartitionIds()
+  public Set<Integer> getPartitionIds()
   {
     return partitionIds;
   }

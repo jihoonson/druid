@@ -28,7 +28,9 @@ import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSubTask
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSupervisorTask;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
+import org.joda.time.Interval;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -154,6 +156,10 @@ public interface Task
    * @throws Exception if the task should be considered a failure
    */
   boolean isReady(TaskActionClient taskActionClient) throws Exception;
+
+  boolean isOverwriteMode();
+
+  boolean changeSegmentGranularity(Interval intervalOfExistingSegment);
 
   /**
    * Returns whether or not this task can restore its progress from its on-disk working directory. Restorable tasks

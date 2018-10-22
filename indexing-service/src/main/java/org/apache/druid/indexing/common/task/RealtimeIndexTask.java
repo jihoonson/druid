@@ -207,6 +207,18 @@ public class RealtimeIndexTask extends AbstractTask
   }
 
   @Override
+  public boolean isOverwriteMode()
+  {
+    return false;
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  {
+    return false;
+  }
+
+  @Override
   public TaskStatus run(final TaskToolbox toolbox) throws Exception
   {
     runThread = Thread.currentThread();

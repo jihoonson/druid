@@ -34,6 +34,7 @@ import org.apache.druid.segment.IndexSpec;
 import org.apache.druid.segment.QueryableIndex;
 import org.apache.druid.segment.writeout.SegmentWriteOutMediumFactory;
 import org.apache.druid.timeline.DataSegment;
+import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -103,6 +104,18 @@ public class MergeTask extends MergeTaskBase
   public String getType()
   {
     return "merge";
+  }
+
+  @Override
+  public boolean isOverwriteMode()
+  {
+    return true;
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  {
+    return true;
   }
 
   @JsonProperty

@@ -286,7 +286,7 @@ public class TaskLockbox
       final Task task,
       final Interval interval,
       final String version,
-      final List<Integer> partitionIds
+      final Set<Integer> partitionIds
   ) throws InterruptedException
   {
     giant.lockInterruptibly();
@@ -335,7 +335,7 @@ public class TaskLockbox
       final Task task,
       final Interval interval,
       final String version,
-      final List<Integer> partitionIds,
+      final Set<Integer> partitionIds,
       long timeoutMs
   ) throws InterruptedException
   {
@@ -362,7 +362,7 @@ public class TaskLockbox
       final Task task,
       final Interval interval,
       final String version,
-      final List<Integer> partitionIds
+      final Set<Integer> partitionIds
   )
   {
     switch (granularity) {
@@ -422,7 +422,7 @@ public class TaskLockbox
       final Task task,
       final Interval interval,
       final String version,
-      final List<Integer> partitionIds
+      final Set<Integer> partitionIds
   )
   {
     giant.lock();
@@ -748,7 +748,7 @@ public class TaskLockbox
     private final String groupId;
     private final String dataSource;
     private final Interval interval;
-    private final List<Integer> partitionIds;
+    private final Set<Integer> partitionIds;
     private final String version;
     private final int priority;
     private final boolean revoked;
@@ -758,7 +758,7 @@ public class TaskLockbox
         String groupId,
         String dataSource,
         Interval interval,
-        List<Integer> partitionIds,
+        Set<Integer> partitionIds,
         String version,
         int priority,
         boolean revoked
@@ -804,7 +804,7 @@ public class TaskLockbox
       return interval;
     }
 
-    public List<Integer> getPartitionIds()
+    public Set<Integer> getPartitionIds()
     {
       return partitionIds;
     }
