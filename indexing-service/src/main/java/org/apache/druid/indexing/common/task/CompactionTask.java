@@ -40,11 +40,7 @@ import org.apache.druid.data.input.impl.NoopInputRowParser;
 import org.apache.druid.data.input.impl.StringDimensionSchema;
 import org.apache.druid.data.input.impl.TimeAndDimsParseSpec;
 import org.apache.druid.indexer.TaskStatus;
-import org.apache.druid.indexing.common.LockGranularity;
-import org.apache.druid.indexing.common.TaskLock;
-import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
-import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
@@ -233,24 +229,19 @@ public class CompactionTask extends AbstractTask
   public boolean isReady(TaskActionClient taskActionClient) throws Exception
   {
     final List<DataSegment> segments = segmentProvider.checkAndGetSegments(taskActionClient);
-    final Map<Interval, List<Integer>> intervalToPartitionIds = new HashMap<>(segments.size());
-    String version = null;
-    for (DataSegment segment : segments) {
-      intervalToPartitionIds.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>())
-                            .add(segment.getShardSpec().getPartitionNum());
-      version = segment.getVersion();
-    }
+    return checkLockWithSegments(taskActionClient, segments);
+  }
 
-    // TODO: timeChunk locking?
-    for (Entry<Interval, List<Integer>> entry : intervalToPartitionIds.entrySet()) {
-      final TaskLock lock = taskActionClient.submit(
-          LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), version, entry.getValue())
-      );
-      if (lock == null) {
-        return false;
-      }
-    }
+  @Override
+  public boolean isOverwriteMode()
+  {
     return true;
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  {
+    return !keepSegmentGranularity;
   }
 
   @Override
@@ -369,6 +360,7 @@ public class CompactionTask extends AbstractTask
         final Interval interval = entry.getKey();
         final List<Pair<QueryableIndex, DataSegment>> segmentsToCompact = entry.getValue();
         final DataSchema dataSchema = createDataSchema(
+            true,
             segmentProvider.dataSource,
             interval,
             segmentsToCompact,
@@ -388,6 +380,7 @@ public class CompactionTask extends AbstractTask
       return specs;
     } else {
       final DataSchema dataSchema = createDataSchema(
+          false,
           segmentProvider.dataSource,
           segmentProvider.interval,
           queryableIndexAndSegments,
@@ -435,6 +428,7 @@ public class CompactionTask extends AbstractTask
   }
 
   private static DataSchema createDataSchema(
+      boolean keepSegmentGranularity,
       String dataSource,
       Interval totalInterval,
       List<Pair<QueryableIndex, DataSegment>> queryableIndexAndSegments,
@@ -468,19 +462,22 @@ public class CompactionTask extends AbstractTask
       return isRollup != null && isRollup;
     });
 
-//    final GranularitySpec granularitySpec = new ArbitraryGranularitySpec(
-//        Granularities.NONE,
-//        rollup,
-//        Collections.singletonList(totalInterval)
-//    );
+    final GranularitySpec granularitySpec;
 
-    // TODO: if keepSegmentGranularity then do the below. otherwise, do the above
-    final GranularitySpec granularitySpec = new UniformGranularitySpec(
-        GranularityType.fromPeriod(segmentInterval.toPeriod()).getDefaultGranularity(),
-        Granularities.NONE,
-        rollup,
-        Collections.singletonList(totalInterval)
-    );
+    if (keepSegmentGranularity) {
+      granularitySpec = new UniformGranularitySpec(
+          GranularityType.fromPeriod(segmentInterval.toPeriod()).getDefaultGranularity(),
+          Granularities.NONE,
+          rollup,
+          Collections.singletonList(totalInterval)
+      );
+    } else {
+      granularitySpec = new ArbitraryGranularitySpec(
+          Granularities.NONE,
+          rollup,
+          Collections.singletonList(totalInterval)
+      );
+    }
 
     // find unique dimensions
     final DimensionsSpec finalDimensionsSpec = dimensionsSpec == null ?

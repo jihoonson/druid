@@ -205,7 +205,7 @@ public abstract class AbstractTask implements Task
     return ID_JOINER.join(objects);
   }
 
-  protected boolean checkLock(TaskActionClient client, List<Interval> intervals) throws IOException
+  protected boolean checkLockWithIntervals(TaskActionClient client, List<Interval> intervals) throws IOException
   {
     if (isOverwriteMode()) {
       final List<DataSegment> usedSegments = client.submit(
@@ -221,11 +221,21 @@ public abstract class AbstractTask implements Task
                                                  .map(PartitionChunk::getObject)
                                                  .collect(Collectors.toList());
 
+      return checkLockWithSegments(client, segments);
+    } else {
+      return true;
+    }
+  }
+
+  protected boolean checkLockWithSegments(TaskActionClient client, List<DataSegment> segments) throws IOException
+  {
+    if (isOverwriteMode()) {
       if (segments.isEmpty()) {
         return true;
       }
 
       if (changeSegmentGranularity(segments.get(0).getInterval())) {
+        final List<Interval> intervals = segments.stream().map(DataSegment::getInterval).collect(Collectors.toList());
         for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
           final TaskLock lock = client.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval));
           if (lock == null) {

@@ -19,7 +19,7 @@
 package org.apache.druid.timeline;
 
 import java.util.Collections;
-import java.util.List;
+import java.util.Set;
 
 public interface Overshadowable<T>
 {
@@ -28,10 +28,10 @@ public interface Overshadowable<T>
     return false;
   }
 
-  default List<Integer> getOvershadowedGroup()
+  default Set<Integer> getOvershadowedGroup()
   {
-    return Collections.emptyList();
+    return Collections.emptySet();
   }
 
-  List<Integer> getAtomicUpdateGroup();
+  Set<Integer> getAtomicUpdateGroup();
 }

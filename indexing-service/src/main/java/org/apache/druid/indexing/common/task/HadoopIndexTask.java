@@ -40,26 +40,21 @@ import org.apache.druid.indexer.MetadataStorageUpdaterJobHandler;
 import org.apache.druid.indexer.TaskMetricsGetter;
 import org.apache.druid.indexer.TaskMetricsUtils;
 import org.apache.druid.indexer.TaskStatus;
-import org.apache.druid.indexer.path.DatasourcePathSpec;
-import org.apache.druid.indexer.path.MultiplePathSpec;
-import org.apache.druid.indexer.path.PathSpec;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReport;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReportData;
-import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockAcquireAction;
 import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
-import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.hadoop.OverlordActionBasedUsedSegmentLister;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.JodaUtils;
-import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
 import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
@@ -76,16 +71,12 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
-import java.util.stream.Collectors;
 
 public class HadoopIndexTask extends HadoopTask implements ChatHandler
 {
@@ -207,48 +198,14 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
   @Override
   public boolean isOverwriteMode()
   {
-    return false;
+    return true;
   }
 
   @Override
   public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
   {
-    return false;
-  }
-
-  private Pair<LockGranularity, List<Integer>> findRequiredLockGranularity(TaskActionClient actionClient, Interval interval, PathSpec pathSpec) throws IOException
-  {
-    if (pathSpec instanceof DatasourcePathSpec) {
-      final List<DataSegment> segments = actionClient.submit(new SegmentListUsedAction(getDataSource(), null, Collections.singletonList(interval)));
-      final List<Integer> partitionIds = segments.stream()
-                                                 .map(segment -> segment.getShardSpec().getPartitionNum())
-                                                 .collect(Collectors.toList());
-      if (spec.getDataSchema().getGranularitySpec().getSegmentGranularity().match(segments.get(0).getInterval())) {
-        return Pair.of(LockGranularity.SEGMENT, partitionIds);
-      } else {
-        return Pair.of(LockGranularity.TIME_CHUNK, null);
-      }
-    } else if (pathSpec instanceof MultiplePathSpec) {
-      LockGranularity found = null;
-      final List<Integer> partitionIds = new ArrayList<>();
-      for (PathSpec childSpec : ((MultiplePathSpec) pathSpec).getChildren()) {
-        final Pair<LockGranularity, List<Integer>> childGranularityAndPIds = findRequiredLockGranularity(actionClient, interval, childSpec);
-        if (found == null) {
-          found = childGranularityAndPIds.lhs;
-          partitionIds.addAll(childGranularityAndPIds.rhs);
-        } else if (found != childGranularityAndPIds.lhs) {
-          return Pair.of(LockGranularity.TIME_CHUNK, null); // use interval lock if any child pathSpec needs it
-        }
-      }
-      return Pair.of(found, partitionIds);
-    } else {
-      return Pair.of(null, null);
-    }
-  }
-
-  private PathSpec getPathSpec()
-  {
-    return jsonMapper.convertValue(spec.getIOConfig().getPathSpec(), PathSpec.class);
+    final Granularity segmentGranularity = spec.getDataSchema().getGranularitySpec().getSegmentGranularity();
+    return !segmentGranularity.match(intervalOfExistingSegment);
   }
 
   @JsonProperty("spec")

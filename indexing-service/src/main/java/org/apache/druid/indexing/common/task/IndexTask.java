@@ -182,7 +182,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
   @JsonIgnore
   private final RowIngestionMeters buildSegmentsMeters;
 
-  private final Map<Interval, List<Integer>> inputSegmentPartitionIds = new HashMap<>(); // TODO: list -> set
+  private final Map<Interval, Set<Integer>> inputSegmentPartitionIds = new HashMap<>();
 
   @JsonCreator
   public IndexTask(
@@ -303,7 +303,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
 //      }
 //    }
 
-    return checkLock(actionClient, new ArrayList<>(intervals));
+    return checkLockWithIntervals(actionClient, new ArrayList<>(intervals));
   }
 
   @GET
@@ -460,7 +460,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
       }
 
       final DataSchema dataSchema;
-      final Map<Interval, String> versions;
+//      final Map<Interval, String> versions;
       if (determineIntervals) {
 //        final SortedSet<Interval> intervals = new TreeSet<>(Comparators.intervalsByStartThenEnd());
 //        intervals.addAll(shardSpecs.getIntervals());

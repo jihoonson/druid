@@ -120,6 +120,18 @@ public class SameIntervalMergeTask extends AbstractFixedIntervalTask
   }
 
   @Override
+  public boolean isOverwriteMode()
+  {
+    return true;
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  {
+    return true;
+  }
+
+  @Override
   public TaskStatus run(TaskToolbox toolbox) throws Exception
   {
     final List<DataSegment> segments = toolbox.getTaskActionClient().submit(

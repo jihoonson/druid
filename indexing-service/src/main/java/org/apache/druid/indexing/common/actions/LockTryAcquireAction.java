@@ -48,7 +48,7 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
   private final String version;
 
   @Nullable
-  private final Set<Integer> partitionIds; // TODO: list -> set
+  private final Set<Integer> partitionIds;
 
   public static LockTryAcquireAction createTimeChunkRequest(TaskLockType type, Interval interval)
   {

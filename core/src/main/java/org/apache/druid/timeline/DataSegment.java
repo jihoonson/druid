@@ -48,6 +48,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -121,8 +122,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   private final ShardSpec shardSpec;
   private final long size;
   private final String identifier;
-  private final List<Integer> overshadowedSegments; // TODO: set
-  private final List<Integer> atomicUpdateGroup; // TODO: set
+  private final Set<Integer> overshadowedSegments; // TODO: set
+  private final Set<Integer> atomicUpdateGroup; // TODO: set
 
   public DataSegment(
       String dataSource,
@@ -162,8 +163,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       ShardSpec shardSpec,
       Integer binaryVersion,
       long size,
-      List<Integer> overshadowedSegments,
-      List<Integer> atomicUpdateGroup
+      Set<Integer> overshadowedSegments,
+      Set<Integer> atomicUpdateGroup
   )
   {
     this(
@@ -200,8 +201,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       @JsonProperty("shardSpec") @Nullable ShardSpec shardSpec,
       @JsonProperty("binaryVersion") Integer binaryVersion,
       @JsonProperty("size") long size,
-      @JsonProperty("overshadowedSegments") @Nullable List<Integer> overshadowedSegments,
-      @JsonProperty("atomicUpdateGroup") @Nullable List<Integer> atomicUpdateGroup,
+      @JsonProperty("overshadowedSegments") @Nullable Set<Integer> overshadowedSegments,
+      @JsonProperty("atomicUpdateGroup") @Nullable Set<Integer> atomicUpdateGroup,
       @JacksonInject PruneLoadSpecHolder pruneLoadSpecHolder
   )
   {
@@ -218,8 +219,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     this.shardSpec = (shardSpec == null) ? NoneShardSpec.instance() : shardSpec;
     this.binaryVersion = binaryVersion;
     this.size = size;
-    this.overshadowedSegments = overshadowedSegments == null ? Collections.emptyList() : overshadowedSegments;
-    this.atomicUpdateGroup = atomicUpdateGroup == null ? Collections.singletonList(shardSpec.getPartitionNum()) : atomicUpdateGroup;
+    this.overshadowedSegments = overshadowedSegments == null ? Collections.emptySet() : overshadowedSegments;
+    this.atomicUpdateGroup = atomicUpdateGroup == null ? Collections.singleton(shardSpec.getPartitionNum()) : atomicUpdateGroup;
 
     this.identifier = makeDataSegmentIdentifier(
         this.dataSource,
@@ -329,14 +330,14 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
 
   @Override
   @JsonProperty("overshadowedSegments")
-  public List<Integer> getOvershadowedGroup()
+  public Set<Integer> getOvershadowedGroup()
   {
     return overshadowedSegments;
   }
 
   @Override
   @JsonProperty
-  public List<Integer> getAtomicUpdateGroup()
+  public Set<Integer> getAtomicUpdateGroup()
   {
     return atomicUpdateGroup;
   }
@@ -376,7 +377,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     return builder(this).binaryVersion(binaryVersion).build();
   }
 
-  public DataSegment withAtomicUpdateGroup(List<Integer> atomicUpdateGroup)
+  public DataSegment withAtomicUpdateGroup(Set<Integer> atomicUpdateGroup)
   {
     return builder(this).atomicUpdateGroup(atomicUpdateGroup).build();
   }
@@ -465,8 +466,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     private ShardSpec shardSpec;
     private Integer binaryVersion;
     private long size;
-    private List<Integer> overshadowingSegments;
-    private List<Integer> atomicUpdateGroup;
+    private Set<Integer> overshadowingSegments;
+    private Set<Integer> atomicUpdateGroup;
 
     public Builder()
     {
@@ -546,13 +547,13 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       return this;
     }
 
-    public Builder overshadowingSegments(List<Integer> overshadowingSegments)
+    public Builder overshadowingSegments(Set<Integer> overshadowingSegments)
     {
       this.overshadowingSegments = overshadowingSegments;
       return this;
     }
 
-    public Builder atomicUpdateGroup(List<Integer> atomicUpdateGroup)
+    public Builder atomicUpdateGroup(Set<Integer> atomicUpdateGroup)
     {
       this.atomicUpdateGroup = atomicUpdateGroup;
       return this;

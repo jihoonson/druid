@@ -267,6 +267,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
 
     // TODO: probably doInCriticalSection??
     return toolbox.doSynchronized(() -> {
+      // TODO: maybe the task can pass the proper version since it gets input segments
       final Pair<String, Integer> maxVersionAndPartitionId = toolbox.getIndexerMetadataStorageCoordinator()
                                                                     .findMaxVersionAndAvailablePartitionId(
                                                                         dataSource,

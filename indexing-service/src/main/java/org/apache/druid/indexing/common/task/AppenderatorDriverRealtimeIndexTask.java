@@ -85,6 +85,7 @@ import org.apache.druid.segment.realtime.plumber.Committers;
 import org.apache.druid.server.security.Action;
 import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.utils.CircularBuffer;
+import org.joda.time.Interval;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.GET;
@@ -229,6 +230,18 @@ public class AppenderatorDriverRealtimeIndexTask extends AbstractTask implements
   public boolean isReady(TaskActionClient taskActionClient)
   {
     return true;
+  }
+
+  @Override
+  public boolean isOverwriteMode()
+  {
+    return false;
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  {
+    return false;
   }
 
   @Override

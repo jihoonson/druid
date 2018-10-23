@@ -33,6 +33,7 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.logger.Logger;
+import org.joda.time.Interval;
 
 import java.util.Map;
 import java.util.UUID;
@@ -133,6 +134,18 @@ public class NoopTask extends AbstractTask
       default:
         throw new AssertionError("#notreached");
     }
+  }
+
+  @Override
+  public boolean isOverwriteMode()
+  {
+    return false;
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  {
+    return false;
   }
 
   @Override

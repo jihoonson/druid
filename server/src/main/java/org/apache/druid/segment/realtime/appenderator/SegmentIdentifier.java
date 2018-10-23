@@ -28,8 +28,8 @@ import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class SegmentIdentifier
 {
@@ -38,7 +38,7 @@ public class SegmentIdentifier
   private final String version;
   private final ShardSpec shardSpec;
   private final String asString;
-  private final List<Integer> overshadowingSegments;
+  private final Set<Integer> overshadowingSegments;
 
   public SegmentIdentifier(
       String dataSource,
@@ -56,14 +56,14 @@ public class SegmentIdentifier
       @JsonProperty("interval") Interval interval,
       @JsonProperty("version") String version,
       @JsonProperty("shardSpec") ShardSpec shardSpec,
-      @JsonProperty("overshadowingSegments") @Nullable List<Integer> overshadowingSegments
+      @JsonProperty("overshadowingSegments") @Nullable Set<Integer> overshadowingSegments
   )
   {
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
     this.interval = Preconditions.checkNotNull(interval, "interval");
     this.version = Preconditions.checkNotNull(version, "version");
     this.shardSpec = Preconditions.checkNotNull(shardSpec, "shardSpec");
-    this.overshadowingSegments = overshadowingSegments == null ? Collections.emptyList() : overshadowingSegments;
+    this.overshadowingSegments = overshadowingSegments == null ? Collections.emptySet() : overshadowingSegments;
     this.asString = DataSegment.makeDataSegmentIdentifier(
         dataSource,
         interval.getStart(),
@@ -84,7 +84,7 @@ public class SegmentIdentifier
     );
   }
 
-  public SegmentIdentifier withOvershadowedGroup(List<Integer> overshadowedGroup)
+  public SegmentIdentifier withOvershadowedGroup(Set<Integer> overshadowedGroup)
   {
     return new SegmentIdentifier(
         dataSource,
@@ -120,7 +120,7 @@ public class SegmentIdentifier
   }
 
   @JsonProperty
-  public List<Integer> getOvershadowingSegments()
+  public Set<Integer> getOvershadowingSegments()
   {
     return overshadowingSegments;
   }

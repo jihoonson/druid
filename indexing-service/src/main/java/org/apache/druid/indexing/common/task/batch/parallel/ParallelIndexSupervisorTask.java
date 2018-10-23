@@ -208,7 +208,7 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
                                                                    .bucketIntervals();
 
 //    return !intervals.isPresent() || checkLock(taskActionClient);
-    return !intervals.isPresent() || checkLock(taskActionClient, new ArrayList<>(intervals.get()));
+    return !intervals.isPresent() || checkLockWithIntervals(taskActionClient, new ArrayList<>(intervals.get()));
   }
 
 //  private boolean checkLock(TaskActionClient actionClient, List<Interval> intervals) throws IOException
