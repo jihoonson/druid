@@ -62,9 +62,7 @@ public class ServerSelector implements DiscoverySelector<QueryableDruidServer>, 
     return segment.get();
   }
 
-  public void addServerAndUpdateSegment(
-      QueryableDruidServer server, DataSegment segment
-  )
+  public void addServerAndUpdateSegment(QueryableDruidServer server, DataSegment segment)
   {
     synchronized (this) {
       this.segment.set(segment);
