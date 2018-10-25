@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  */
@@ -102,9 +103,9 @@ public class IntegerPartitionChunkTest
     }
 
     @Override
-    public List<Integer> getAtomicUpdateGroup()
+    public Set<Integer> getAtomicUpdateGroup()
     {
-      return Collections.emptyList();
+      return Collections.emptySet();
     }
   }
 }

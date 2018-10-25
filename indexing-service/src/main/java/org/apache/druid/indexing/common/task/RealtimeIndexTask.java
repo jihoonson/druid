@@ -75,6 +75,7 @@ import org.joda.time.Interval;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -213,7 +214,7 @@ public class RealtimeIndexTask extends AbstractTask
   }
 
   @Override
-  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     return false;
   }

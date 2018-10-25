@@ -229,7 +229,7 @@ public class CompactionTask extends AbstractTask
   public boolean isReady(TaskActionClient taskActionClient) throws Exception
   {
     final List<DataSegment> segments = segmentProvider.checkAndGetSegments(taskActionClient);
-    return checkLockWithSegments(taskActionClient, segments);
+    return tryLockWithSegments(taskActionClient, segments);
   }
 
   @Override
@@ -239,7 +239,7 @@ public class CompactionTask extends AbstractTask
   }
 
   @Override
-  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     return !keepSegmentGranularity;
   }

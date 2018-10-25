@@ -29,12 +29,14 @@ import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.hadoop.yarn.util.ApplicationClassLoader;
 import org.easymock.EasyMock;
+import org.joda.time.Interval;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.net.URLClassLoader;
+import java.util.List;
 
 public class HadoopTaskTest
 {
@@ -61,6 +63,18 @@ public class HadoopTaskTest
       public boolean isReady(TaskActionClient taskActionClient)
       {
         return false;
+      }
+
+      @Override
+      public boolean isOverwriteMode()
+      {
+        return true;
+      }
+
+      @Override
+      public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+      {
+        return true;
       }
 
       @Override

@@ -67,7 +67,7 @@ public class ArchiveTask extends AbstractFixedIntervalTask
   }
 
   @Override
-  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     return false;
   }

@@ -61,6 +61,18 @@ public class RealtimeishTask extends AbstractTask
   }
 
   @Override
+  public boolean isOverwriteMode()
+  {
+    return false;
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+  {
+    return false;
+  }
+
+  @Override
   public TaskStatus run(TaskToolbox toolbox) throws Exception
   {
     final Interval interval1 = Intervals.of("2010-01-01T00/PT1H");

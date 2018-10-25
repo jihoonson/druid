@@ -290,7 +290,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
           task,
           tryInterval,
           maxVersionAndPartitionId.lhs,
-          Collections.singletonList(maxVersionAndPartitionId.rhs)
+          Collections.singleton(maxVersionAndPartitionId.rhs)
       );
 
       if (lockResult.isRevoked()) {

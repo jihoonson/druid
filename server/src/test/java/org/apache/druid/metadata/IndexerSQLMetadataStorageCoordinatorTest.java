@@ -966,8 +966,8 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         NoneShardSpec.instance(),
         0,
         10L,
-        ImmutableList.of(1, 2),
-        ImmutableList.of(0)
+        ImmutableSet.of(1, 2),
+        ImmutableSet.of(0)
     );
 
     final Set<DataSegment> announced = coordinator.announceHistoricalSegments(Collections.singleton(segment));

@@ -981,6 +981,18 @@ public class OverlordResourceTest
       }
 
       @Override
+      public boolean isOverwriteMode()
+      {
+        return false;
+      }
+
+      @Override
+      public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+      {
+        return false;
+      }
+
+      @Override
       public TaskStatus run(TaskToolbox toolbox)
       {
         return null;

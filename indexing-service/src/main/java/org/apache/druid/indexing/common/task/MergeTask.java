@@ -113,7 +113,7 @@ public class MergeTask extends MergeTaskBase
   }
 
   @Override
-  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     return true;
   }

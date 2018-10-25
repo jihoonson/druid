@@ -75,7 +75,8 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
   private volatile boolean writable = true;
   private final String dedupColumn;
   private final Set<Long> dedupSet = new HashSet<>();
-  private final List<Integer> overshadowingSegments;
+  @Nullable
+  private final Set<Integer> overshadowedSegments;
 
   public Sink(
       Interval interval,
@@ -86,7 +87,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
       long maxBytesInMemory,
       boolean reportParseExceptions,
       String dedupColumn,
-      List<Integer> overshadowingSegments
+      @Nullable Set<Integer> overshadowedSegments
   )
   {
     this.schema = schema;
@@ -97,7 +98,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
     this.maxBytesInMemory = maxBytesInMemory;
     this.reportParseExceptions = reportParseExceptions;
     this.dedupColumn = dedupColumn;
-    this.overshadowingSegments = overshadowingSegments;
+    this.overshadowedSegments = overshadowedSegments;
 
     makeNewCurrIndex(interval.getStartMillis(), schema);
   }
@@ -112,7 +113,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
       boolean reportParseExceptions,
       String dedupColumn,
       List<FireHydrant> hydrants,
-      List<Integer> overshadowingSegments
+      @Nullable Set<Integer> overshadowedSegments
   )
   {
     this.schema = schema;
@@ -123,7 +124,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
     this.maxBytesInMemory = maxBytesInMemory;
     this.reportParseExceptions = reportParseExceptions;
     this.dedupColumn = dedupColumn;
-    this.overshadowingSegments = overshadowingSegments;
+    this.overshadowedSegments = overshadowedSegments;
 
     int maxCount = -1;
     for (int i = 0; i < hydrants.size(); ++i) {
@@ -267,7 +268,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
         shardSpec,
         null,
         0,
-        overshadowingSegments,
+        overshadowedSegments,
         null
     );
   }
@@ -436,16 +437,16 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
   }
 
   @Override
-  public List<Integer> getOvershadowedGroup()
+  public Set<Integer> getOvershadowedGroup()
   {
     // TODO: valid?
-    return Collections.emptyList();
+    return Collections.emptySet();
   }
 
   @Override
-  public List<Integer> getAtomicUpdateGroup()
+  public Set<Integer> getAtomicUpdateGroup()
   {
     // TODO: valid?
-    return Collections.singletonList(shardSpec.getPartitionNum());
+    return Collections.singleton(shardSpec.getPartitionNum());
   }
 }

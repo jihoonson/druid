@@ -188,7 +188,11 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
   {
     Optional<SortedSet<Interval>> intervals = spec.getDataSchema().getGranularitySpec().bucketIntervals();
     if (intervals.isPresent()) {
-      final Interval interval = JodaUtils.umbrellaInterval(JodaUtils.condenseIntervals(intervals.get()));
+      Interval interval = JodaUtils.umbrellaInterval(
+          JodaUtils.condenseIntervals(
+              intervals.get()
+          )
+      );
       return taskActionClient.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval)) != null;
     } else {
       return true;
@@ -202,10 +206,10 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
   }
 
   @Override
-  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     final Granularity segmentGranularity = spec.getDataSchema().getGranularitySpec().getSegmentGranularity();
-    return !segmentGranularity.match(intervalOfExistingSegment);
+    return intervalOfExistingSegments.stream().anyMatch(interval -> !segmentGranularity.match(interval));
   }
 
   @JsonProperty("spec")
@@ -341,7 +345,6 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
       // Note: if lockTimeoutMs is larger than ServerConfig.maxIdleTime, the below line can incur http timeout error.
       final TaskLock lock = Preconditions.checkNotNull(
           toolbox.getTaskActionClient().submit(
-              // TODO: get proper lock
               LockAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval, lockTimeoutMs)
           ),
           "Cannot acquire a lock for interval[%s]", interval

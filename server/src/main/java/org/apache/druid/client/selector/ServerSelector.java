@@ -181,13 +181,13 @@ public class ServerSelector implements DiscoverySelector<QueryableDruidServer>, 
   }
 
   @Override
-  public List<Integer> getOvershadowedGroup()
+  public Set<Integer> getOvershadowedGroup()
   {
     return segment.get().getOvershadowedGroup();
   }
 
   @Override
-  public List<Integer> getAtomicUpdateGroup()
+  public Set<Integer> getAtomicUpdateGroup()
   {
     return segment.get().getAtomicUpdateGroup();
   }

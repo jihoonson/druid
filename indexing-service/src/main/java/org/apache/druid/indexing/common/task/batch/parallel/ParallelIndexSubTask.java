@@ -154,7 +154,7 @@ public class ParallelIndexSubTask extends AbstractTask
   private boolean checkLockAcquired(TaskActionClient actionClient, SortedSet<Interval> intervals)
   {
     try {
-      return checkLockWithIntervals(actionClient, new ArrayList<>(intervals));
+      return tryLockWithIntervals(actionClient, new ArrayList<>(intervals));
     }
     catch (Exception e) {
       log.error(e, "Failed to acquire locks for intervals[%s]", intervals);
@@ -269,10 +269,10 @@ public class ParallelIndexSubTask extends AbstractTask
   }
 
   @Override
-  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
-    return !segmentGranularity.match(intervalOfExistingSegment);
+    return intervalOfExistingSegments.stream().anyMatch(interval -> !segmentGranularity.match(interval));
   }
 
   private SegmentAllocator createSegmentAllocator(

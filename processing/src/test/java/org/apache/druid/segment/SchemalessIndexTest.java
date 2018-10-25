@@ -62,6 +62,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  */
@@ -590,15 +591,15 @@ public class SchemalessIndexTest
     }
 
     @Override
-    public List<Integer> getOvershadowedGroup()
+    public Set<Integer> getOvershadowedGroup()
     {
-      return Collections.emptyList();
+      return Collections.emptySet();
     }
 
     @Override
-    public List<Integer> getAtomicUpdateGroup()
+    public Set<Integer> getAtomicUpdateGroup()
     {
-      return Collections.emptyList();
+      return Collections.emptySet();
     }
   }
 }

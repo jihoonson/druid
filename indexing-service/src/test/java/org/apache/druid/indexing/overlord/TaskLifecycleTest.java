@@ -937,6 +937,18 @@ public class TaskLifecycleTest
       }
 
       @Override
+      public boolean isOverwriteMode()
+      {
+        return false;
+      }
+
+      @Override
+      public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+      {
+        return false;
+      }
+
+      @Override
       public TaskStatus run(TaskToolbox toolbox) throws Exception
       {
         final TaskLock myLock = Iterables.getOnlyElement(
@@ -974,6 +986,18 @@ public class TaskLifecycleTest
       }
 
       @Override
+      public boolean isOverwriteMode()
+      {
+        return false;
+      }
+
+      @Override
+      public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+      {
+        return false;
+      }
+
+      @Override
       public TaskStatus run(TaskToolbox toolbox) throws Exception
       {
         final TaskLock myLock = Iterables.getOnlyElement(toolbox.getTaskActionClient().submit(new LockListAction()));
@@ -1005,6 +1029,18 @@ public class TaskLifecycleTest
       public String getType()
       {
         return "test";
+      }
+
+      @Override
+      public boolean isOverwriteMode()
+      {
+        return false;
+      }
+
+      @Override
+      public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+      {
+        return false;
       }
 
       @Override

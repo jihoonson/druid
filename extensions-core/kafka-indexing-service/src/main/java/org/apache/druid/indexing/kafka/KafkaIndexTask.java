@@ -63,8 +63,10 @@ import org.apache.druid.utils.CircularBuffer;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
+import org.joda.time.Interval;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -183,6 +185,18 @@ public class KafkaIndexTask extends AbstractTask implements ChatHandler
   public boolean isReady(TaskActionClient taskActionClient)
   {
     return true;
+  }
+
+  @Override
+  public boolean isOverwriteMode()
+  {
+    return false;
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegment)
+  {
+    return false;
   }
 
   @JsonProperty

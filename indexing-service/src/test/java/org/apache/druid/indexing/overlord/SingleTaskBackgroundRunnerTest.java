@@ -43,6 +43,7 @@ import org.apache.druid.server.coordination.NoopDataSegmentAnnouncer;
 import org.apache.druid.server.initialization.ServerConfig;
 import org.apache.druid.server.metrics.NoopServiceEmitter;
 import org.easymock.EasyMock;
+import org.joda.time.Interval;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -53,6 +54,7 @@ import org.junit.rules.TemporaryFolder;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -180,6 +182,18 @@ public class SingleTaskBackgroundRunnerTest
     public boolean isReady(TaskActionClient taskActionClient)
     {
       return true;
+    }
+
+    @Override
+    public boolean isOverwriteMode()
+    {
+      return false;
+    }
+
+    @Override
+    public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+    {
+      return false;
     }
 
     @Override

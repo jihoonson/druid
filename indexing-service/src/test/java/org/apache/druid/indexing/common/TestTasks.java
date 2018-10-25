@@ -27,6 +27,9 @@ import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.task.AbstractTask;
 import org.apache.druid.indexing.common.task.Task;
+import org.joda.time.Interval;
+
+import java.util.List;
 
 public class TestTasks
 {
@@ -69,6 +72,18 @@ public class TestTasks
     }
 
     @Override
+    public boolean isOverwriteMode()
+    {
+      return false;
+    }
+
+    @Override
+    public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+    {
+      return false;
+    }
+
+    @Override
     public TaskStatus run(TaskToolbox toolbox)
     {
       return TaskStatus.success(getId());
@@ -94,6 +109,18 @@ public class TestTasks
     public boolean isReady(TaskActionClient taskActionClient)
     {
       return true;
+    }
+
+    @Override
+    public boolean isOverwriteMode()
+    {
+      return false;
+    }
+
+    @Override
+    public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+    {
+      return false;
     }
 
     @Override

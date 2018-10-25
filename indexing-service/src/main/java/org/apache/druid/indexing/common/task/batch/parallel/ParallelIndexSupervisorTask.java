@@ -208,7 +208,7 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
                                                                    .bucketIntervals();
 
 //    return !intervals.isPresent() || checkLock(taskActionClient);
-    return !intervals.isPresent() || checkLockWithIntervals(taskActionClient, new ArrayList<>(intervals.get()));
+    return !intervals.isPresent() || tryLockWithIntervals(taskActionClient, new ArrayList<>(intervals.get()));
   }
 
 //  private boolean checkLock(TaskActionClient actionClient, List<Interval> intervals) throws IOException
@@ -268,10 +268,10 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
   }
 
   @Override
-  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
-    return !segmentGranularity.match(intervalOfExistingSegment);
+    return intervalOfExistingSegments.stream().anyMatch(interval -> !segmentGranularity.match(interval));
   }
 
   @Override

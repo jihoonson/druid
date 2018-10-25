@@ -112,7 +112,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
     if (onlineSegment.getObject().getOvershadowedGroup().isEmpty()) {
       visibleSegments.put(onlineSegment.getChunkNumber(), onlineSegments.remove(onlineSegment.getChunkNumber()));
     } else {
-      final List<Integer> atomicUpdateGroup = onlineSegment.getObject().getAtomicUpdateGroup();
+      final Set<Integer> atomicUpdateGroup = onlineSegment.getObject().getAtomicUpdateGroup();
 
       // if the entire atomicUpdateGroup are online, move them to visibleSegments.
       if (atomicUpdateGroup.stream().allMatch(onlineSegments::containsKey)) {
@@ -167,7 +167,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
     if (visibleSegments.containsKey(offlineSegmentChunk.getChunkNumber())) {
       final T offlineSegment = offlineSegmentChunk.getObject();
       // find the latest visible atomic update group
-      final List<Integer> overshadowedPartitionIds = offlineSegment.getOvershadowedGroup();
+      final Set<Integer> overshadowedPartitionIds = offlineSegment.getOvershadowedGroup();
       final List<PartitionChunk<T>> onlineSegmentsInOvershadowedGroup = findAllOnlineSegmentsFor(overshadowedPartitionIds);
 
       if (!onlineSegmentsInOvershadowedGroup.isEmpty()) {
@@ -192,9 +192,9 @@ public class OvershadowChecker<T extends Overshadowable<T>>
     if (partitionChunks.stream().flatMap(chunk -> chunk.getObject().getAtomicUpdateGroup().stream()).allMatch(onlineSegments::containsKey)) {
       return partitionChunks;
     } else {
-      final List<Integer> allOvershadowedGroupOfChunks = partitionChunks.stream()
-                                                                        .flatMap(chunk -> chunk.getObject().getOvershadowedGroup().stream())
-                                                                        .collect(Collectors.toList());
+      final Set<Integer> allOvershadowedGroupOfChunks = partitionChunks.stream()
+                                                                       .flatMap(chunk -> chunk.getObject().getOvershadowedGroup().stream())
+                                                                       .collect(Collectors.toSet());
 
       if (allOvershadowedGroupOfChunks.isEmpty()) {
         return Collections.emptyList();
@@ -210,7 +210,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
     }
   }
 
-  private List<PartitionChunk<T>> findAllOnlineSegmentsFor(List<Integer> partitionIds)
+  private List<PartitionChunk<T>> findAllOnlineSegmentsFor(Set<Integer> partitionIds)
   {
     final List<PartitionChunk<T>> found = partitionIds.stream()
                                                       .map(onlineSegments::get)

@@ -27,6 +27,7 @@ import org.joda.time.Interval;
 import java.io.Closeable;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -65,18 +66,18 @@ public class ReferenceCountingSegment extends AbstractSegment implements Oversha
     }
   };
 
-  private final List<Integer> overshadowedGroup;
-  private final List<Integer> atomicUpdateGroup;
+  private final Set<Integer> overshadowedGroup;
+  private final Set<Integer> atomicUpdateGroup;
 
   public ReferenceCountingSegment(Segment baseSegment)
   {
-    this(baseSegment, Collections.emptyList(), Collections.emptyList());
+    this(baseSegment, Collections.emptySet(), Collections.emptySet());
   }
 
   public ReferenceCountingSegment(
       Segment baseSegment,
-      List<Integer> overshadowedGroup,
-      List<Integer> atomicUpdateGroup
+      Set<Integer> overshadowedGroup,
+      Set<Integer> atomicUpdateGroup
   )
   {
     this.baseSegment = baseSegment;
@@ -174,13 +175,13 @@ public class ReferenceCountingSegment extends AbstractSegment implements Oversha
   }
 
   @Override
-  public List<Integer> getOvershadowedGroup()
+  public Set<Integer> getOvershadowedGroup()
   {
     return overshadowedGroup;
   }
 
   @Override
-  public List<Integer> getAtomicUpdateGroup()
+  public Set<Integer> getAtomicUpdateGroup()
   {
     return atomicUpdateGroup;
   }

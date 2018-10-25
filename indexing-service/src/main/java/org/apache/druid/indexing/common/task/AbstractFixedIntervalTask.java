@@ -71,7 +71,7 @@ public abstract class AbstractFixedIntervalTask extends AbstractTask
   @Override
   public boolean isReady(TaskActionClient taskActionClient) throws Exception
   {
-    return checkLockWithIntervals(taskActionClient, Collections.singletonList(interval));
+    return tryLockWithIntervals(taskActionClient, Collections.singletonList(interval));
   }
 
   @JsonProperty

@@ -23,7 +23,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.LockGranularity;
@@ -594,7 +594,7 @@ public class TaskLockboxTest
             task,
             Intervals.of("2015-01-01/2015-01-02"),
             "v1",
-            ImmutableList.of(0, 3, 6, 9)
+            ImmutableSet.of(0, 3, 6, 9)
         )
     );
   }
@@ -615,7 +615,7 @@ public class TaskLockboxTest
             task1,
             Intervals.of("2015-01-01/2015-01-02"),
             "v1",
-            ImmutableList.of(0, 3, 6, 9)
+            ImmutableSet.of(0, 3, 6, 9)
         ).isOk()
     );
 
@@ -649,7 +649,7 @@ public class TaskLockboxTest
             task1,
             Intervals.of("2015-01-01/2015-01-02"),
             "v1",
-            ImmutableList.of(0, 3, 6, 9)
+            ImmutableSet.of(0, 3, 6, 9)
         ).isOk()
     );
 
@@ -670,7 +670,7 @@ public class TaskLockboxTest
         task1,
         Intervals.of("2015-01-01/2015-01-02"),
         "v1",
-        ImmutableList.of(0, 3, 6, 9)
+        ImmutableSet.of(0, 3, 6, 9)
     );
     Assert.assertFalse(resultOfTask1.isOk());
     Assert.assertTrue(resultOfTask1.isRevoked());
@@ -702,7 +702,7 @@ public class TaskLockboxTest
         task,
         Intervals.of("2015-01-01/2015-01-02"),
         "v1",
-        ImmutableList.of(0, 3, 6, 9)
+        ImmutableSet.of(0, 3, 6, 9)
     );
   }
 
@@ -722,7 +722,7 @@ public class TaskLockboxTest
             task1,
             Intervals.of("2015-01-01/2015-01-02"),
             "v1",
-            ImmutableList.of(0, 3, 6, 9)
+            ImmutableSet.of(0, 3, 6, 9)
         ).isOk()
     );
 
@@ -733,7 +733,7 @@ public class TaskLockboxTest
             task2,
             Intervals.of("2015-01-01/2015-01-02"),
             "v1",
-            ImmutableList.of(0, 3, 6, 9)
+            ImmutableSet.of(0, 3, 6, 9)
         ).isOk()
     );
   }
@@ -754,7 +754,7 @@ public class TaskLockboxTest
             task1,
             Intervals.of("2015-01-01/2015-01-02"),
             "v1",
-            ImmutableList.of(0, 3, 6, 9)
+            ImmutableSet.of(0, 3, 6, 9)
         ).isOk()
     );
 
@@ -765,7 +765,7 @@ public class TaskLockboxTest
             task2,
             Intervals.of("2015-01-01/2015-01-02"),
             "v1",
-            ImmutableList.of(1, 2, 4)
+            ImmutableSet.of(1, 2, 4)
         ).isOk()
     );
   }
@@ -786,7 +786,7 @@ public class TaskLockboxTest
             task1,
             Intervals.of("2015-01-01/2015-01-05"),
             "v1",
-            ImmutableList.of(0, 3, 6, 9)
+            ImmutableSet.of(0, 3, 6, 9)
         ).isOk()
     );
 
@@ -797,7 +797,7 @@ public class TaskLockboxTest
             task2,
             Intervals.of("2015-01-03/2015-01-08"),
             "v1",
-            ImmutableList.of(1, 2, 4)
+            ImmutableSet.of(1, 2, 4)
         ).isOk()
     );
   }

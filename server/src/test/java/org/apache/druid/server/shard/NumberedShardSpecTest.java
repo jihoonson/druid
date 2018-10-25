@@ -211,9 +211,9 @@ public class NumberedShardSpecTest
     }
 
     @Override
-    public List<Integer> getAtomicUpdateGroup()
+    public Set<Integer> getAtomicUpdateGroup()
     {
-      return Collections.singletonList(Integer.parseInt(val));
+      return Collections.singleton(Integer.parseInt(val));
     }
   }
 }

@@ -278,10 +278,10 @@ public class IndexTask extends AbstractTask implements ChatHandler
   }
 
   @Override
-  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
-    return !segmentGranularity.match(intervalOfExistingSegment);
+    return intervalOfExistingSegments.stream().anyMatch(interval -> !segmentGranularity.match(interval));
   }
 
   private boolean isReady(TaskActionClient actionClient, Collection<Interval> intervals) throws IOException
@@ -303,7 +303,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
 //      }
 //    }
 
-    return checkLockWithIntervals(actionClient, new ArrayList<>(intervals));
+    return tryLockWithIntervals(actionClient, new ArrayList<>(intervals));
   }
 
   @GET
@@ -470,6 +470,10 @@ public class IndexTask extends AbstractTask implements ChatHandler
 //        );
 //        versions = locks.entrySet().stream()
 //                        .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().getVersion()));
+
+        if (!tryLockWithIntervals(toolbox.getTaskActionClient(), shardSpecs.getIntervals())) {
+          throw new ISE("Failed to get locks for intervals[%s]", shardSpecs.getIntervals());
+        }
 
         dataSchema = ingestionSchema.getDataSchema().withGranularitySpec(
             ingestionSchema.getDataSchema()

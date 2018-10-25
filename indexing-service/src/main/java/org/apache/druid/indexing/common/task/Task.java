@@ -159,7 +159,7 @@ public interface Task
 
   boolean isOverwriteMode();
 
-  boolean changeSegmentGranularity(Interval intervalOfExistingSegment);
+  boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments);
 
   /**
    * Returns whether or not this task can restore its progress from its on-disk working directory. Restorable tasks

@@ -91,6 +91,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -599,7 +600,7 @@ public class AppenderatorImpl implements Appenderator
   {
     final Map<SegmentIdentifier, Sink> theSinks = new HashMap<>();
     // at this point, we can finally make atomicUpdateGroup.
-    final Map<Interval, List<Integer>> atomicUpdateGroups = new HashMap<>();
+    final Map<Interval, Set<Integer>> atomicUpdateGroups = new HashMap<>();
 
     for (final SegmentIdentifier identifier : identifiers) {
       final Sink sink = sinks.get(identifier);
@@ -610,7 +611,7 @@ public class AppenderatorImpl implements Appenderator
       if (sink.finishWriting()) {
         totalRows.addAndGet(-sink.getNumRows());
       }
-      atomicUpdateGroups.computeIfAbsent(identifier.getInterval(), k -> new ArrayList<>())
+      atomicUpdateGroups.computeIfAbsent(identifier.getInterval(), k -> new HashSet<>())
                         .add(identifier.getShardSpec().getPartitionNum());
     }
 
@@ -672,7 +673,7 @@ public class AppenderatorImpl implements Appenderator
       final SegmentIdentifier identifier,
       final Sink sink,
       final boolean useUniquePath,
-      final List<Integer> atomicUpdateGroup
+      final Set<Integer> atomicUpdateGroup
   )
   {
     // Bail out if this sink is null or otherwise not what we expect.

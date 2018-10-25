@@ -35,6 +35,7 @@ import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.joda.time.Interval;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -143,7 +144,7 @@ public class NoopTask extends AbstractTask
   }
 
   @Override
-  public boolean changeSegmentGranularity(Interval intervalOfExistingSegment)
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     return false;
   }

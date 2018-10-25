@@ -24,6 +24,7 @@ import com.google.common.hash.Hashing;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.timeline.DataSegment;
+import org.joda.time.Interval;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -56,6 +57,18 @@ public class MergeTaskBaseTest
     public String getType()
     {
       return "test";
+    }
+
+    @Override
+    public boolean isOverwriteMode()
+    {
+      return true;
+    }
+
+    @Override
+    public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+    {
+      return true;
     }
   };
 
