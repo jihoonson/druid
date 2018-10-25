@@ -122,8 +122,9 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   private final ShardSpec shardSpec;
   private final long size;
   private final String identifier;
-  private final Set<Integer> overshadowedSegments; // TODO: set
-  private final Set<Integer> atomicUpdateGroup; // TODO: set
+  // TODO: sometimes overshadowedSegments have invalid pids which include the overshadowed pids of the overshadowed pid ... why?
+  private final Set<Integer> overshadowedSegments; // TODO: intSet? int rangeSet?
+  private final Set<Integer> atomicUpdateGroup; // TODO: intSet? int rangeSet?
 
   public DataSegment(
       String dataSource,

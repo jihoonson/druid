@@ -94,8 +94,6 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  */
@@ -783,7 +781,6 @@ public class IndexGeneratorJob implements Jobby
 
         // ShardSpec used for partitioning within this Hadoop job.
         final ShardSpec shardSpecForPartitioning = config.getShardSpec(bucket).getActualSpec();
-        final Set<Integer> atomicUpdateGroup = IntStream.range(0, config.getShardSpec(bucket).getShardNum()).boxed().collect(Collectors.toSet());
 
         // ShardSpec to be published.
         final ShardSpec shardSpecForPublishing;
@@ -803,7 +800,6 @@ public class IndexGeneratorJob implements Jobby
             shardSpecForPublishing,
             -1,
             -1
-            // TODO: overshadowedSegments, atomicUpdateGroup
         );
 
         final DataSegment segment = JobHelper.serializeOutIndex(
@@ -834,8 +830,6 @@ public class IndexGeneratorJob implements Jobby
             ),
             config.DATA_SEGMENT_PUSHER
         );
-
-        // TODO: lock with segment
 
         Path descriptorPath = config.makeDescriptorInfoPath(segment);
         descriptorPath = JobHelper.prependFSIfNullScheme(

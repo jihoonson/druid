@@ -22,6 +22,7 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import org.apache.commons.io.FileUtils;
 import org.apache.druid.client.indexing.IndexingServiceClient;
@@ -275,9 +276,9 @@ public class ParallelIndexSubTask extends AbstractTask
     return intervalOfExistingSegments.stream().anyMatch(interval -> !segmentGranularity.match(interval));
   }
 
-  private SegmentAllocator createSegmentAllocator(
+  @VisibleForTesting
+  SegmentAllocator createSegmentAllocator(
       TaskToolbox toolbox,
-      ParallelIndexTaskClient taskClient,
       ParallelIndexIngestionSpec ingestionSchema
   )
   {
@@ -355,7 +356,7 @@ public class ParallelIndexSubTask extends AbstractTask
     @Nullable final Long maxTotalRows = IndexTask.getValidMaxTotalRows(tuningConfig);
     final long pushTimeout = tuningConfig.getPushTimeout();
     final boolean explicitIntervals = granularitySpec.bucketIntervals().isPresent();
-    final SegmentAllocator segmentAllocator = createSegmentAllocator(toolbox, taskClient, ingestionSchema);
+    final SegmentAllocator segmentAllocator = createSegmentAllocator(toolbox, ingestionSchema);
 
     try (
         final Appenderator appenderator = newAppenderator(fireDepartmentMetrics, toolbox, dataSchema, tuningConfig);

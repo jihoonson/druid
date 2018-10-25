@@ -24,17 +24,14 @@ import com.google.common.base.Preconditions;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.InputSplit;
+import org.apache.druid.data.input.MapBasedInputRow;
 import org.apache.druid.data.input.impl.StringInputRowParser;
 import org.apache.druid.indexer.RunnerTaskState;
 import org.apache.druid.indexer.TaskLocation;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.TaskStatusPlus;
-import org.apache.druid.indexing.common.TaskLock;
-import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
-import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
-import org.apache.druid.indexing.common.actions.SurrogateAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.task.AbstractTask;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
@@ -49,10 +46,11 @@ import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
+import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.server.security.AuthConfig;
 import org.apache.druid.server.security.AuthenticationResult;
 import org.apache.druid.timeline.DataSegment;
-import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.easymock.EasyMock;
 import org.joda.time.Interval;
 import org.junit.After;
@@ -547,7 +545,6 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
           supervisorTask.getId() + "_" + getAndIncrementNextSpecId(),
           supervisorTask.getGroupId(),
           supervisorTask,
-          this,
           new ParallelIndexIngestionSpec(
               getIngestionSchema().getDataSchema(),
               new ParallelIndexIOConfig(
@@ -572,7 +569,6 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
         String id,
         String groupId,
         ParallelIndexSupervisorTask supervisorTask,
-        SinglePhaseParallelIndexTaskRunner runner,
         ParallelIndexIngestionSpec ingestionSpec,
         Map<String, Object> context,
         InputSplit inputSplit
@@ -665,39 +661,30 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
         Thread.sleep(100);
       }
 
-      final TestFirehose firehose = (TestFirehose) getIngestionSchema().getIOConfig().getFirehoseFactory();
+      final SegmentAllocator segmentAllocator = createSegmentAllocator(toolbox, getIngestionSchema());
 
-//      final List<TaskLock> locks = toolbox.getTaskActionClient()
-//                                          .submit(new SurrogateAction<>(getSupervisorTaskId(), new LockListAction()));
-//      Preconditions.checkState(locks.size() == 1, "There should be a single lock");
-
-      final Interval interval = Intervals.of("2017/2018");
-      // TODO: proper locking
-      final TaskLock lock = toolbox.getTaskActionClient()
-             .submit(new SurrogateAction<>(getSupervisorTaskId(), LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval)));
-
-      if (lock == null) {
-        throw new ISE("Failed to get a lock");
-      }
-
-      task.getRunner().collectReport(
-          new PushedSegmentsReport(
-              getId(),
-              Collections.singletonList(
-                  new DataSegment(
-                      getDataSource(),
-                      interval,
-                      lock.getVersion(),
-                      null,
-                      null,
-                      null,
-                      new NumberedShardSpec(firehose.ids.get(0), NUM_SUB_TASKS),
-                      0,
-                      1L
-                  )
-              )
-          )
+      final SegmentIdentifier segmentIdentifier = segmentAllocator.allocate(
+          new MapBasedInputRow(DateTimes.of("2017-01-01"), Collections.emptyList(), Collections.emptyMap()),
+          getId(),
+          null,
+          true
       );
+
+      final DataSegment segment = new DataSegment(
+          segmentIdentifier.getDataSource(),
+          segmentIdentifier.getInterval(),
+          segmentIdentifier.getVersion(),
+          null,
+          null,
+          null,
+          segmentIdentifier.getShardSpec(),
+          0,
+          1L,
+          getInputPartitionIdsFor(segmentIdentifier.getInterval()),
+          IntStream.range(0, NUM_SUB_TASKS).boxed().collect(Collectors.toSet())
+      );
+
+      task.getRunner().collectReport(new PushedSegmentsReport(getId(), Collections.singletonList(segment)));
       return TaskStatus.fromCode(getId(), state);
     }
 

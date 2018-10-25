@@ -420,8 +420,15 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         Pair.of("end", interval.getEnd().toString())
     );
 
-    if (result.found && result.segmentIdentifier != null) {
-      return Pair.of(result.segmentIdentifier.getVersion(), result.segmentIdentifier.getShardSpec().getPartitionNum() + 1);
+    if (result.found) {
+      if (result.segmentIdentifier != null) {
+        return Pair.of(
+            result.segmentIdentifier.getVersion(),
+            result.segmentIdentifier.getShardSpec().getPartitionNum() + 1
+        );
+      } else {
+        return Pair.of(null, null);
+      }
     }
 
     return findMaxVersionAndSegment(handle, dataSource, interval);

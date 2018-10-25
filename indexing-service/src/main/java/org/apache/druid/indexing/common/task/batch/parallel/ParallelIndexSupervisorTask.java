@@ -43,7 +43,6 @@ import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexTaskRunner.SubTaskSpecStatus;
 import org.apache.druid.java.util.common.IAE;
-import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
@@ -69,7 +68,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.SortedSet;
 
 /**
@@ -445,15 +443,15 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
 //      throw new ISE("Failed to get a lock for interval[%s] with sequenceName[%s]", interval, getId());
 //    }
 //  }
-
-  private static String findVersion(Map<Interval, String> versions, Interval interval)
-  {
-    return versions.entrySet().stream()
-                   .filter(entry -> entry.getKey().contains(interval))
-                   .map(Entry::getValue)
-                   .findFirst()
-                   .orElseThrow(() -> new ISE("Cannot find a version for interval[%s]", interval));
-  }
+//
+//  private static String findVersion(Map<Interval, String> versions, Interval interval)
+//  {
+//    return versions.entrySet().stream()
+//                   .filter(entry -> entry.getKey().contains(interval))
+//                   .map(Entry::getValue)
+//                   .findFirst()
+//                   .orElseThrow(() -> new ISE("Cannot find a version for interval[%s]", interval));
+//  }
 
   /**
    * {@link ParallelIndexSubTask}s call this API to report the segments they've generated and pushed.

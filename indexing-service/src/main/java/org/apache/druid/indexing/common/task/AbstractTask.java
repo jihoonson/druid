@@ -387,6 +387,12 @@ public abstract class AbstractTask implements Task
     return Objects.hashCode(id, groupId, dataSource, context);
   }
 
+  @Nullable
+  public Set<Integer> getInputPartitionIdsFor(Interval interval)
+  {
+    return inputSegmentPartitionIds.get(interval);
+  }
+
   public static List<TaskLock> getTaskLocks(TaskActionClient client) throws IOException
   {
     return client.submit(new LockListAction());

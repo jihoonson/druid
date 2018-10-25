@@ -974,7 +974,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
         final List<ShardSpec> shardSpecsPerInterval = entry.getValue();
         final List<SegmentIdentifier> idsPerInterval = intervalToIds.get(interval);
 
-        Preconditions.checkState(shardSpecsPerInterval.size() == idsPerInterval.size(), "TODO");
+        Preconditions.checkState(shardSpecsPerInterval.size() == idsPerInterval.size(), "TODO: probably map shadrdSpecPerInterval and idsPerInterval?");
 
         for (int i = 0; i < shardSpecsPerInterval.size(); i++) {
           final ShardSpec shardSpecForPublishing;
@@ -1027,7 +1027,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
                 row.getTimestamp(),
                 schema.getGranularitySpec().getQueryGranularity(),
                 schema.getGranularitySpec().getSegmentGranularity(),
-                StringUtils.format("%s_%d", sequenceName, suffix),
+                StringUtils.format("%s_%d", sequenceName, suffix), // TODO: make the right sequenceName in the first place
                 null,
                 true
             );

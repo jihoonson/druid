@@ -26,7 +26,6 @@ import org.joda.time.Interval;
 
 import java.io.Closeable;
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -170,7 +169,6 @@ public class ReferenceCountingSegment extends AbstractSegment implements Oversha
   @Override
   public boolean isOvershadow(ReferenceCountingSegment other)
   {
-    // TODO
     throw new UnsupportedOperationException();
   }
 
