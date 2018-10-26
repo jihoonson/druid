@@ -214,12 +214,6 @@ public class GroupByStrategyV2 implements GroupByStrategy
   }
 
   @Override
-  public Ordering<Row> getOrdering(Query<Row> query)
-  {
-    return ((GroupByQuery) query).getRowOrdering(true);
-  }
-
-  @Override
   public BinaryFn<Row, Row, Row> getMergeFn(Query<Row> query)
   {
     return new GroupByBinaryFnV2((GroupByQuery) query);

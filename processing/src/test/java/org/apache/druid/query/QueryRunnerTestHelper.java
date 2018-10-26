@@ -80,8 +80,7 @@ import java.util.Map;
 public class QueryRunnerTestHelper
 {
 
-  public static final QueryWatcher NOOP_QUERYWATCHER = (query, future) -> {
-  };
+  public static final QueryWatcher NOOP_QUERYWATCHER = (query, future) -> {};
 
   public static final String segmentId = "testSegment";
   public static final String dataSource = "testing";

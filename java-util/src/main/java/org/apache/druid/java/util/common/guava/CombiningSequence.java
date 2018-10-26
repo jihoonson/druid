@@ -56,10 +56,7 @@ public class CombiningSequence<T> implements Sequence<T>
   public <OutType> OutType accumulate(OutType initValue, final Accumulator<OutType, T> accumulator)
   {
     final CombiningAccumulator<OutType> combiningAccumulator = new CombiningAccumulator<>(initValue, accumulator);
-    final T lastValue = baseSequence.accumulate(
-        null,
-        combiningAccumulator
-    );
+    final T lastValue = baseSequence.accumulate(null, combiningAccumulator);
     if (combiningAccumulator.accumulatedSomething()) {
       return accumulator.accumulate(combiningAccumulator.retVal, lastValue);
     } else {
@@ -71,9 +68,7 @@ public class CombiningSequence<T> implements Sequence<T>
   public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
   {
     final CombiningYieldingAccumulator<OutType, T> combiningAccumulator = new CombiningYieldingAccumulator<>(
-        ordering,
-        mergeFn,
-        accumulator
+        ordering, mergeFn, accumulator
     );
     combiningAccumulator.setRetVal(initValue);
 

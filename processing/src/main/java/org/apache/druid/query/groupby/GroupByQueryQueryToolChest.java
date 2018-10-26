@@ -30,7 +30,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Ordering;
 import com.google.inject.Inject;
 import org.apache.druid.data.input.MapBasedRow;
 import org.apache.druid.data.input.Row;
@@ -137,13 +136,7 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
   }
 
   @Override
-  public Ordering<Row> getOrdering(GroupByQuery query)
-  {
-    return strategySelector.strategize(query).getOrdering(query);
-  }
-
-  @Override
-  public BinaryFn<Row, Row, Row> getMergeFn(GroupByQuery query)
+  public BinaryFn<Row, Row, Row> createMergeFn(GroupByQuery query)
   {
     return strategySelector.strategize(query).getMergeFn(query);
   }

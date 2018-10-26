@@ -53,6 +53,7 @@ import org.apache.druid.java.util.common.guava.LazySequence;
 import org.apache.druid.java.util.common.guava.ParallelMergeCombineSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
+import org.apache.druid.java.util.common.guava.nary.BinaryFn;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.BySegmentResultValueClass;
 import org.apache.druid.query.CacheStrategy;
@@ -288,9 +289,6 @@ public class CachingClusteredClient implements QuerySegmentWalker
         List<Sequence<T>> sequencesByInterval = new ArrayList<>(alreadyCachedResults.size() + segmentsByServer.size());
         addSequencesFromCache(sequencesByInterval, alreadyCachedResults);
         addSequencesFromServer(sequencesByInterval, segmentsByServer);
-//        return Sequences
-//            .simple(sequencesByInterval)
-//            .flatMerge(seq -> seq, query.getResultOrdering());
         return merge(sequencesByInterval);
       });
     }
@@ -300,17 +298,18 @@ public class CachingClusteredClient implements QuerySegmentWalker
       final int mergeBatch = QueryContexts.getIntermediateMergeBatchThreshold(query);
 
       if (mergeBatch > 1) {
+        final BinaryFn<T, T, T> mergeFn = toolChest.createMergeFn(query);
         return CombiningSequence.create(
             new ParallelMergeCombineSequence<>(
                 processingPool,
                 sequencesByInterval,
                 query.getResultOrdering(),
-                toolChest.getMergeFn(query),
+                mergeFn,
                 mergeBatch,
-                query.getContextValue("queueSize", 10240)
+                query.getContextValue("queueSize", 10240) // TODO: add to queryContexts
             ),
             query.getResultOrdering(),
-            toolChest.getMergeFn(query)
+            mergeFn
         );
       } else {
         return Sequences

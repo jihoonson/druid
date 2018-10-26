@@ -19,7 +19,6 @@
 
 package org.apache.druid.query.groupby.strategy;
 
-import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import org.apache.druid.data.input.Row;
 import org.apache.druid.java.util.common.guava.Sequence;
@@ -69,11 +68,6 @@ public interface GroupByStrategy
       QueryRunner<Row> runner,
       GroupByQueryQueryToolChest toolChest
   );
-
-  default Ordering<Row> getOrdering(Query<Row> query)
-  {
-    return Ordering.natural();
-  }
 
   default BinaryFn<Row, Row, Row> getMergeFn(Query<Row> query)
   {

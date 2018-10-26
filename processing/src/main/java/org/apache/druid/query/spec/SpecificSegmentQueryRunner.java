@@ -19,6 +19,7 @@
 
 package org.apache.druid.query.spec;
 
+import com.google.common.base.Supplier;
 import com.google.common.collect.Lists;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.Accumulator;
@@ -139,7 +140,7 @@ public class SpecificSegmentQueryRunner<T> implements QueryRunner<T>
         new SequenceWrapper()
         {
           @Override
-          public <RetType> RetType wrap(com.google.common.base.Supplier<RetType> sequenceProcessing)
+          public <RetType> RetType wrap(Supplier<RetType> sequenceProcessing)
           {
             return doNamed(currThread, currThreadName, newName, sequenceProcessing);
           }
@@ -157,7 +158,7 @@ public class SpecificSegmentQueryRunner<T> implements QueryRunner<T>
     missingSegments.add(specificSpec.getDescriptor());
   }
 
-  private <RetType> RetType doNamed(Thread currThread, String currName, String newName, com.google.common.base.Supplier<RetType> toRun)
+  private <RetType> RetType doNamed(Thread currThread, String currName, String newName, Supplier<RetType> toRun)
   {
     try {
       currThread.setName(newName);

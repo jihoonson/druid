@@ -320,6 +320,8 @@ degree of intermediate nodes. See `intermediateCombineDegree` in [Advanced group
 Please note that each historical needs two merge buffers to process a groupBy v2 query with parallel combine: one for
 computing intermediate aggregates from each segment and another for combining intermediate aggregates in parallel.
 
+TODO
+
 
 #### Alternatives
 

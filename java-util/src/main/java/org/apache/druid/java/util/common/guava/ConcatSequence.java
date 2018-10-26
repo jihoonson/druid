@@ -40,16 +40,13 @@ public class ConcatSequence<T> implements Sequence<T>
   @Override
   public <OutType> OutType accumulate(OutType initValue, final Accumulator<OutType, T> accumulator)
   {
-    return baseSequences.accumulate(
-        initValue,
-        (accumulated, in) -> in.accumulate(accumulated, accumulator)
-    );
+    return baseSequences.accumulate(initValue, (accumulated, in) -> in.accumulate(accumulated, accumulator));
   }
 
   @Override
   public <OutType> Yielder<OutType> toYielder(
       final OutType initValue,
-      YieldingAccumulator<OutType, T> accumulator
+      final YieldingAccumulator<OutType, T> accumulator
   )
   {
     Yielder<Sequence<T>> yielderYielder = baseSequences.toYielder(
@@ -86,8 +83,7 @@ public class ConcatSequence<T> implements Sequence<T>
   )
   {
     while (!yielderYielder.isDone()) {
-      final OutType yielderInitVal = initValue;
-      Yielder<OutType> yielder = yielderYielder.get().toYielder(yielderInitVal, accumulator);
+      Yielder<OutType> yielder = yielderYielder.get().toYielder(initValue, accumulator);
       if (accumulator.yielded()) {
         return wrapYielder(yielder, yielderYielder, accumulator);
       }
