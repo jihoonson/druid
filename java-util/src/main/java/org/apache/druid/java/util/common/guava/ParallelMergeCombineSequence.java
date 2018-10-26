@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
-public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
+public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 {
   private final ExecutorService exec;
   private final List<? extends Sequence<T>> baseSequences;
@@ -45,7 +45,7 @@ public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
   private final int batchSize;
   private final int queueSize;
 
-  public ParallelMergeCombineSequence2(
+  public ParallelMergeCombineSequence(
       ExecutorService exec,
       List<? extends Sequence<? extends T>> baseSequences,
       Ordering<T> ordering,

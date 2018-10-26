@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 
-public class ParallelMergeCombineSequence2Test
+public class ParallelMergeCombineSequenceTest
 {
   private Random random = new Random(System.currentTimeMillis());
   private ExecutorService service;
@@ -123,7 +123,7 @@ public class ParallelMergeCombineSequence2Test
         mergeFn
     );
 
-    final ParallelMergeCombineSequence2<IntPair> parallelMergeCombineSequence2 = new ParallelMergeCombineSequence2<>(
+    final ParallelMergeCombineSequence<IntPair> parallelMergeCombineSequence = new ParallelMergeCombineSequence<>(
         service,
         sequences,
         ordering,
@@ -133,7 +133,7 @@ public class ParallelMergeCombineSequence2Test
     );
 
     Yielder<IntPair> combiningYielder = Yielders.each(combiningSequence);
-    Yielder<IntPair> parallelMergeCombineYielder = Yielders.each(parallelMergeCombineSequence2);
+    Yielder<IntPair> parallelMergeCombineYielder = Yielders.each(parallelMergeCombineSequence);
 
     IntPair prev = null;
 

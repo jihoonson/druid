@@ -143,9 +143,7 @@ public class CachingClusteredClientBenchmark
   @Param({"all"})
   private String queryGranularity;
 
-//  @Param({"0", "1", "2", "4"})
-//  @Param({"0"})
-  @Param({"2", "0"})
+  @Param({"4", "2", "0"})
   private int intermediateMergeBatchThreshold;
 
   private static final Logger log = new Logger(CachingClusteredClientBenchmark.class);

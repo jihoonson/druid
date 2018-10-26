@@ -50,7 +50,7 @@ import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.CombiningSequence;
 import org.apache.druid.java.util.common.guava.LazySequence;
-import org.apache.druid.java.util.common.guava.ParallelMergeCombineSequence2;
+import org.apache.druid.java.util.common.guava.ParallelMergeCombineSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.emitter.EmittingLogger;
@@ -301,7 +301,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
 
       if (mergeBatch > 1) {
         return CombiningSequence.create(
-            new ParallelMergeCombineSequence2<>(
+            new ParallelMergeCombineSequence<>(
                 processingPool,
                 sequencesByInterval,
                 query.getResultOrdering(),

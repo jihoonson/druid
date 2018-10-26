@@ -19,7 +19,7 @@
 package org.apache.druid.query;
 
 import com.google.common.collect.Ordering;
-import org.apache.druid.java.util.common.guava.ParallelMergeCombineSequence2;
+import org.apache.druid.java.util.common.guava.ParallelMergeCombineSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.nary.BinaryFn;
 
@@ -59,7 +59,7 @@ public class ParallelResultMergeQueryRunner<T> implements QueryRunner<T>
       QueryPlus<T> queryPlus, Map<String, Object> responseContext
   )
   {
-    return new ParallelMergeCombineSequence2<>(
+    return new ParallelMergeCombineSequence<>(
         exec,
         runners.stream().map(runner -> runner.run(queryPlus, responseContext)).collect(Collectors.toList()),
         ordering,
