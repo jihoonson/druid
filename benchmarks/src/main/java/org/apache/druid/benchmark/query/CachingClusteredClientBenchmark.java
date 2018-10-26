@@ -59,6 +59,8 @@ import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Yielder;
+import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.math.expr.ExprMacroTable;
 import org.apache.druid.offheap.OffheapBufferGenerator;
@@ -67,6 +69,7 @@ import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.FluentQueryRunnerBuilder;
 import org.apache.druid.query.MapQueryToolChestWarehouse;
 import org.apache.druid.query.Query;
+import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryRunnerFactory;
@@ -143,10 +146,11 @@ public class CachingClusteredClientBenchmark
   @Param({"all"})
   private String queryGranularity;
 
-  @Param({"4", "2", "0"})
-  private int intermediateMergeBatchThreshold;
+  @Param({"4", "2", "1"})
+  private int brokerParallelMergeDegree;
 
-  // TODO: queueSize?
+  @Param({"5120", "10240", "20480"})
+  private int brokerParallelMergeQueueSize;
 
   private static final Logger log = new Logger(CachingClusteredClientBenchmark.class);
   private static final String DATA_SOURCE = "ds";
@@ -189,7 +193,7 @@ public class CachingClusteredClientBenchmark
     INDEX_MERGER_V9 = new IndexMergerV9(JSON_MAPPER, INDEX_IO, OffHeapMemorySegmentWriteOutMediumFactory.instance());
   }
 
-  private void setupQuery(int intermediateMergeBatchThreshold)
+  private void setupQuery()
   {
     BenchmarkSchemaInfo basicSchema = BenchmarkSchemas.SCHEMA_MAP.get("basic");
 
@@ -200,7 +204,7 @@ public class CachingClusteredClientBenchmark
         "sumLongSequential"
     ));
 
-    final GroupByQuery.Builder builder = GroupByQuery
+    query = GroupByQuery
         .builder()
         .setDataSource(DATA_SOURCE)
         .setQuerySegmentSpec(intervalSpec)
@@ -209,11 +213,16 @@ public class CachingClusteredClientBenchmark
             new DefaultDimensionSpec("dimZipf", null)
         )
         .setAggregatorSpecs(queryAggs)
-        .setGranularity(Granularity.fromString(queryGranularity));
-    if (intermediateMergeBatchThreshold > 0) {
-        builder.setContext(ImmutableMap.of("intermediateMergeBatchThreshold", intermediateMergeBatchThreshold));
-    }
-    query = builder.build();
+        .setGranularity(Granularity.fromString(queryGranularity))
+        .setContext(
+            ImmutableMap.of(
+                QueryContexts.BROKER_PARALLEL_MERGE_DEGREE,
+                brokerParallelMergeDegree,
+                QueryContexts.BROKER_PARALLEL_MERGE_QUEUE_SIZE,
+                brokerParallelMergeQueueSize
+            )
+        )
+        .build();
   }
 
   @Setup(Level.Trial)
@@ -371,9 +380,9 @@ public class CachingClusteredClientBenchmark
   @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
-  public void queryMultiQueryableIndex(Blackhole blackhole)
+  public void queryMultiQueryableIndex(Blackhole blackhole) throws IOException
   {
-    setupQuery(intermediateMergeBatchThreshold);
+    setupQuery();
     QueryToolChest<Row, Query<Row>> toolChest = (QueryToolChest<Row, Query<Row>>) factory.getToolchest();
 
     QueryRunner<Row> theRunner = new FluentQueryRunnerBuilder<>(toolChest)
@@ -383,7 +392,20 @@ public class CachingClusteredClientBenchmark
         .applyPostMergeDecoration();
 
     Sequence<Row> queryResult = theRunner.run(QueryPlus.wrap(query), Maps.newHashMap());
+
+//    Yielder<Row> yielder = queryResult.each();
+//
+//    while (!yielder.isDone()) {
+//      final Row row = yielder.get();
+//      blackhole.consume(row);
+//      yielder.next(null);
+//    }
+//
+//    yielder.close();
+
     List<Row> results = queryResult.toList();
+
+    log.info("# of results: " + results.size());
 
     for (Row result : results) {
       blackhole.consume(result);

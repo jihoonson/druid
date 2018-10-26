@@ -581,19 +581,10 @@ public class CachingClusteredClientTest
     EasyMock.replay(cache);
     client = makeClient(new ForegroundCachePopulator(JSON_MAPPER, new CachePopulatorStats(), -1), cache, 0);
 
-    // Direct druid client runners are eagerly forked off
-    QueryRunner runner = EasyMock.createStrictMock(QueryRunner.class);
-    EasyMock.expect(runner.run(EasyMock.anyObject(), EasyMock.anyObject())).andReturn(Sequences.empty()).once();
-
-    EasyMock.reset(serverView);
-    EasyMock.expect(serverView.getQueryRunner(lastServer)).andReturn(runner).once();
-    EasyMock.replay(runner, serverView);
-
     getDefaultQueryRunner().run(QueryPlus.wrap(query), context);
     EasyMock.verify(cache);
     EasyMock.verify(dataSegment);
 
-    EasyMock.verify(cache, dataSegment, serverView, runner);
     Assert.assertTrue("Capture cache keys", cacheKeyCapture.hasCaptured());
     Assert.assertTrue("Cache Keys empty", ImmutableList.copyOf(cacheKeyCapture.getValue()).isEmpty());
   }

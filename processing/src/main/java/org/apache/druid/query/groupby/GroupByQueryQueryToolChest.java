@@ -138,7 +138,7 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
   @Override
   public BinaryFn<Row, Row, Row> createMergeFn(GroupByQuery query)
   {
-    return strategySelector.strategize(query).getMergeFn(query);
+    return strategySelector.strategize(query).createMergeFn(query);
   }
 
   private Sequence<Row> initAndMergeGroupByResults(

@@ -69,7 +69,7 @@ public interface GroupByStrategy
       GroupByQueryQueryToolChest toolChest
   );
 
-  default BinaryFn<Row, Row, Row> getMergeFn(Query<Row> query)
+  default BinaryFn<Row, Row, Row> createMergeFn(Query<Row> query)
   {
     return null;
   }

@@ -295,9 +295,9 @@ public class CachingClusteredClient implements QuerySegmentWalker
 
     Sequence<T> merge(List<Sequence<T>> sequencesByInterval)
     {
-      final int mergeBatch = QueryContexts.getIntermediateMergeBatchThreshold(query);
+      final int mergeDegree = QueryContexts.getBrokerParallelMergeDegree(query);
 
-      if (mergeBatch > 1) {
+      if (mergeDegree > 1) {
         final BinaryFn<T, T, T> mergeFn = toolChest.createMergeFn(query);
         return CombiningSequence.create(
             new ParallelMergeCombineSequence<>(
@@ -305,8 +305,8 @@ public class CachingClusteredClient implements QuerySegmentWalker
                 sequencesByInterval,
                 query.getResultOrdering(),
                 mergeFn,
-                mergeBatch,
-                query.getContextValue("queueSize", 10240) // TODO: add to queryContexts and rename
+                mergeDegree,
+                QueryContexts.getBrokerParallelMergeQueueSize(query)
             ),
             query.getResultOrdering(),
             mergeFn
