@@ -34,7 +34,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Supplier;
 
 public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 {
@@ -64,7 +63,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 
   @Override
   public <OutType> Yielder<OutType> toYielder(
-      OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> yieldingAccumulatorSupplier
+      OutType initValue, YieldingAccumulator<OutType, T> accumulator
   )
   {
     final List<Sequence<T>> finalSequences = new ArrayList<>();
@@ -156,7 +155,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
         new MergeSequence<>(ordering, Sequences.simple(finalSequences)),
         ordering,
         mergeFn
-    ).toYielder(initValue, statefulAccumulator);
+    ).toYielder(initValue, accumulator);
   }
 
   private class ValueHolder

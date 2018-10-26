@@ -38,7 +38,6 @@ import org.apache.druid.segment.SegmentMissingException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  */
@@ -73,10 +72,10 @@ public class SpecificSegmentQueryRunner<T> implements QueryRunner<T>
     Sequence<T> segmentMissingCatchingSequence = new Sequence<T>()
     {
       @Override
-      public <OutType> OutType accumulate(final OutType initValue, final Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
+      public <OutType> OutType accumulate(final OutType initValue, final Accumulator<OutType, T> accumulator)
       {
         try {
-          return baseSequence.accumulate(initValue, accumulator, accumulatorSupplier);
+          return baseSequence.accumulate(initValue, accumulator);
         }
         catch (SegmentMissingException e) {
           appendMissingSegment(responseContext);
@@ -87,12 +86,11 @@ public class SpecificSegmentQueryRunner<T> implements QueryRunner<T>
       @Override
       public <OutType> Yielder<OutType> toYielder(
           final OutType initValue,
-          YieldingAccumulator<OutType, T> statefulAccumulator,
-          final Supplier<YieldingAccumulator<OutType, T>> accumulator
+          final YieldingAccumulator<OutType, T> accumulator
       )
       {
         try {
-          return makeYielder(baseSequence.toYielder(initValue, statefulAccumulator, accumulator));
+          return makeYielder(baseSequence.toYielder(initValue, accumulator));
         }
         catch (SegmentMissingException e) {
           appendMissingSegment(responseContext);

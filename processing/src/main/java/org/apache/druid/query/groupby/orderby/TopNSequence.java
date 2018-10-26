@@ -21,7 +21,6 @@ package org.apache.druid.query.groupby.orderby;
 
 import com.google.common.collect.MinMaxPriorityQueue;
 import com.google.common.collect.Ordering;
-import org.apache.druid.java.util.common.guava.Accumulator;
 import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 
@@ -53,10 +52,6 @@ public class TopNSequence<T> extends BaseSequence<T, Iterator<T>>
                     .maximumSize(limit)
                     .create(),
                 (theQueue, row) -> {
-                  theQueue.offer(row);
-                  return theQueue;
-                },
-                () -> (theQueue, row) -> {
                   theQueue.offer(row);
                   return theQueue;
                 }

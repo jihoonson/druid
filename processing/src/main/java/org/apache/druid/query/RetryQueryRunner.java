@@ -35,7 +35,6 @@ import org.apache.druid.segment.SegmentMissingException;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class RetryQueryRunner<T> implements QueryRunner<T>
 {
@@ -66,7 +65,7 @@ public class RetryQueryRunner<T> implements QueryRunner<T>
     {
       @Override
       public <OutType> Yielder<OutType> toYielder(
-          OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator
+          OutType initValue, YieldingAccumulator<OutType, T> accumulator
       )
       {
         List<SegmentDescriptor> missingSegments = getMissingSegments(context);
@@ -97,10 +96,10 @@ public class RetryQueryRunner<T> implements QueryRunner<T>
           return new MergeSequence<>(
               queryPlus.getQuery().getResultOrdering(),
               Sequences.simple(listOfSequences)).toYielder(
-              initValue, statefulAccumulator, accumulator
+              initValue, accumulator
           );
         } else {
-          return Iterables.getOnlyElement(listOfSequences).toYielder(initValue, statefulAccumulator, accumulator);
+          return Iterables.getOnlyElement(listOfSequences).toYielder(initValue, accumulator);
         }
       }
     };

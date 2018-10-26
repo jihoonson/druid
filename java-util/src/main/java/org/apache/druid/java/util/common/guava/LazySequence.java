@@ -35,14 +35,14 @@ public class LazySequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator, java.util.function.Supplier<Accumulator<OutType, T>> accumulatorSupplier)
+  public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator)
   {
-    return provider.get().accumulate(initValue, accumulator, accumulatorSupplier);
+    return provider.get().accumulate(initValue, accumulator);
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, java.util.function.Supplier<YieldingAccumulator<OutType, T>> accumulator)
+  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
   {
-    return provider.get().toYielder(initValue, statefulAccumulator, accumulator);
+    return provider.get().toYielder(initValue, accumulator);
   }
 }

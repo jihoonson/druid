@@ -23,7 +23,6 @@ import com.google.common.collect.Ordering;
 import org.apache.druid.java.util.common.guava.nary.BinaryFn;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  */
@@ -54,13 +53,12 @@ public class CombiningSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(OutType initValue, final Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
+  public <OutType> OutType accumulate(OutType initValue, final Accumulator<OutType, T> accumulator)
   {
     final CombiningAccumulator<OutType> combiningAccumulator = new CombiningAccumulator<>(initValue, accumulator);
     final T lastValue = baseSequence.accumulate(
         null,
-        combiningAccumulator,
-        () -> new CombiningAccumulator<>(initValue, accumulatorSupplier.get())
+        combiningAccumulator
     );
     if (combiningAccumulator.accumulatedSomething()) {
       return accumulator.accumulate(combiningAccumulator.retVal, lastValue);
@@ -70,24 +68,16 @@ public class CombiningSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, final Supplier<YieldingAccumulator<OutType, T>> accumulator)
+  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
   {
     final CombiningYieldingAccumulator<OutType, T> combiningAccumulator = new CombiningYieldingAccumulator<>(
         ordering,
         mergeFn,
-        statefulAccumulator
+        accumulator
     );
     combiningAccumulator.setRetVal(initValue);
 
-    Yielder<T> baseYielder = baseSequence.toYielder(null, combiningAccumulator, () -> {
-      final CombiningYieldingAccumulator<OutType, T> subAccumulator = new CombiningYieldingAccumulator<>(
-          ordering,
-          mergeFn,
-          accumulator.get()
-      );
-      subAccumulator.setRetVal(initValue);
-      return subAccumulator;
-    });
+    Yielder<T> baseYielder = baseSequence.toYielder(null, combiningAccumulator);
 
     return makeYielder(baseYielder, combiningAccumulator, false);
   }

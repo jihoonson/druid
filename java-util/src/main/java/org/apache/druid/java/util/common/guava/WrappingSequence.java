@@ -37,7 +37,7 @@ final class WrappingSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(final OutType initValue, final Accumulator<OutType, T> accumulator, java.util.function.Supplier<Accumulator<OutType, T>> accumulatorSupplier)
+  public <OutType> OutType accumulate(final OutType initValue, final Accumulator<OutType, T> accumulator)
   {
     OutType result;
     try {
@@ -47,7 +47,7 @@ final class WrappingSequence<T> implements Sequence<T>
         @Override
         public OutType get()
         {
-          return baseSequence.accumulate(initValue, accumulator, accumulatorSupplier);
+          return baseSequence.accumulate(initValue, accumulator);
         }
       });
     }
@@ -74,8 +74,7 @@ final class WrappingSequence<T> implements Sequence<T>
   @Override
   public <OutType> Yielder<OutType> toYielder(
       final OutType initValue,
-      YieldingAccumulator<OutType, T> statefulAccumulator,
-      final java.util.function.Supplier<YieldingAccumulator<OutType, T>> accumulator
+      YieldingAccumulator<OutType, T> statefulAccumulator
   )
   {
     try {
@@ -85,7 +84,7 @@ final class WrappingSequence<T> implements Sequence<T>
         @Override
         public Yielder<OutType> get()
         {
-          return new WrappingYielder<>(baseSequence.toYielder(initValue, statefulAccumulator, accumulator), wrapper);
+          return new WrappingYielder<>(baseSequence.toYielder(initValue, statefulAccumulator), wrapper);
         }
       });
     }

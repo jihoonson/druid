@@ -51,7 +51,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class SpecificSegmentQueryRunnerTest
 {
@@ -74,14 +73,14 @@ public class SpecificSegmentQueryRunnerTest
             return new Sequence()
             {
               @Override
-              public Object accumulate(Object initValue, Accumulator accumulator, Supplier accumulatorSupplier)
+              public Object accumulate(Object initValue, Accumulator accumulator)
               {
                 throw new SegmentMissingException("FAILSAUCE");
               }
 
               @Override
               public Yielder<Object> toYielder(
-                  Object initValue, YieldingAccumulator statefulAccumulator, Supplier accumulator
+                  Object initValue, YieldingAccumulator accumulator
               )
               {
                 throw new SegmentMissingException("FAILSAUCE");

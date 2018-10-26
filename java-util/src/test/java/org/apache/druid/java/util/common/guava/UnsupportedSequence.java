@@ -19,15 +19,13 @@
 
 package org.apache.druid.java.util.common.guava;
 
-import java.util.function.Supplier;
-
 /**
 */
 public class UnsupportedSequence implements Sequence<Integer>
 {
   @Override
   public <OutType> OutType accumulate(
-      OutType initValue, Accumulator<OutType, Integer> accumulator, Supplier<Accumulator<OutType, Integer>> accumulatorSupplier
+      OutType initValue, Accumulator<OutType, Integer> accumulator
   )
   {
     throw new UnsupportedOperationException();
@@ -35,7 +33,7 @@ public class UnsupportedSequence implements Sequence<Integer>
 
   @Override
   public <OutType> Yielder<OutType> toYielder(
-      OutType initValue, YieldingAccumulator<OutType, Integer> statefulAccumulator, Supplier<YieldingAccumulator<OutType, Integer>> accumulator
+      OutType initValue, YieldingAccumulator<OutType, Integer> accumulator
   )
   {
     throw new UnsupportedOperationException();

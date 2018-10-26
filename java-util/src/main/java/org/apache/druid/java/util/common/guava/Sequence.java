@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * A Sequence represents an iterable sequence of elements. Unlike normal Iterators however, it doesn't expose
@@ -52,12 +51,7 @@ public interface Sequence<T>
    *
    * @return accumulated value.
    */
-  <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier);
-
-  default <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator)
-  {
-    return accumulate(initValue, accumulator, () -> accumulator);
-  }
+  <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator);
 
  /**
    * Return an Yielder for accumulated sequence.
@@ -70,12 +64,7 @@ public interface Sequence<T>
    *
    * @see Yielder
    */
-  <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulatorSupplier);
-
-  default <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator)
-  {
-    return toYielder(initValue, statefulAccumulator, () -> statefulAccumulator);
-  }
+  <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator);
 
   default <U> Sequence<U> map(Function<? super T, ? extends U> mapper)
   {
@@ -84,7 +73,7 @@ public interface Sequence<T>
 
   default List<T> toList()
   {
-    return accumulate(new ArrayList<>(), Accumulators.list(), () -> Accumulators.list());
+    return accumulate(new ArrayList<>(), Accumulators.list());
   }
 
   default Sequence<T> limit(int limit)

@@ -22,7 +22,6 @@ package org.apache.druid.java.util.common.guava;
 import com.google.common.base.Predicate;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  */
@@ -41,20 +40,19 @@ public class FilteredSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
+  public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator)
   {
-    return baseSequence.accumulate(initValue, new FilteringAccumulator<>(pred, accumulator), () -> new FilteringAccumulator<>(pred, accumulatorSupplier
-        .get()));
+    return baseSequence.accumulate(initValue, new FilteringAccumulator<>(pred, accumulator));
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator)
+  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
   {
     final FilteringYieldingAccumulator<OutType, T> filteringAccumulator = new FilteringYieldingAccumulator<>(
-        pred, statefulAccumulator
+        pred, accumulator
     );
 
-    return wrapYielder(baseSequence.toYielder(initValue, filteringAccumulator, () -> new FilteringYieldingAccumulator<>(pred, accumulator.get())), filteringAccumulator);
+    return wrapYielder(baseSequence.toYielder(initValue, filteringAccumulator), filteringAccumulator);
   }
 
   private <OutType> Yielder<OutType> wrapYielder(

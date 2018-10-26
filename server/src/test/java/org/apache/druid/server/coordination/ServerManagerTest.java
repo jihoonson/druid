@@ -89,7 +89,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 /**
  */
@@ -715,7 +714,7 @@ public class ServerManagerTest
 
     @Override
     public <OutType> Yielder<OutType> toYielder(
-        final OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, final Supplier<YieldingAccumulator<OutType, T>> accumulator
+        final OutType initValue, YieldingAccumulator<OutType, T> accumulator
     )
     {
       notifyLatch.countDown();
@@ -727,7 +726,7 @@ public class ServerManagerTest
         throw Throwables.propagate(e);
       }
 
-      final Yielder<OutType> baseYielder = baseSequence.toYielder(initValue, statefulAccumulator);
+      final Yielder<OutType> baseYielder = baseSequence.toYielder(initValue, accumulator);
       return new Yielder<OutType>()
       {
         @Override

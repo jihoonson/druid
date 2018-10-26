@@ -30,7 +30,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.function.Supplier;
 
 /**
  */
@@ -125,9 +124,9 @@ public class Sequences
     return new YieldingSequenceBase<T>()
     {
       @Override
-      public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator)
+      public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
       {
-        return new ExecuteWhenDoneYielder<>(seq.toYielder(initValue, statefulAccumulator, accumulator), effect, exec);
+        return new ExecuteWhenDoneYielder<>(seq.toYielder(initValue, accumulator), effect, exec);
       }
     };
   }
@@ -143,13 +142,13 @@ public class Sequences
   private static class EmptySequence implements Sequence<Object>
   {
     @Override
-    public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, Object> accumulator, Supplier<Accumulator<OutType, Object>> accumulatorSupplier)
+    public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, Object> accumulator)
     {
       return initValue;
     }
 
     @Override
-    public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, Object> statefulAccumulator, Supplier<YieldingAccumulator<OutType, Object>> accumulator)
+    public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, Object> accumulator)
     {
       return Yielders.done(initValue, null);
     }

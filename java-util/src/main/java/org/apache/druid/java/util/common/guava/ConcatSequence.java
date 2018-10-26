@@ -23,7 +23,6 @@ import com.google.common.base.Throwables;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  */
@@ -39,20 +38,18 @@ public class ConcatSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(OutType initValue, final Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
+  public <OutType> OutType accumulate(OutType initValue, final Accumulator<OutType, T> accumulator)
   {
     return baseSequences.accumulate(
         initValue,
-        (accumulated, in) -> in.accumulate(accumulated, accumulator),
-        () -> (accumulated, in) -> in.accumulate(accumulated, accumulatorSupplier.get())
+        (accumulated, in) -> in.accumulate(accumulated, accumulator)
     );
   }
 
   @Override
   public <OutType> Yielder<OutType> toYielder(
       final OutType initValue,
-      YieldingAccumulator<OutType, T> statefulAccumulator,
-      final Supplier<YieldingAccumulator<OutType, T>> accumulator
+      YieldingAccumulator<OutType, T> accumulator
   )
   {
     Yielder<Sequence<T>> yielderYielder = baseSequences.toYielder(
@@ -69,7 +66,7 @@ public class ConcatSequence<T> implements Sequence<T>
     );
 
     try {
-      return makeYielder(yielderYielder, initValue, statefulAccumulator);
+      return makeYielder(yielderYielder, initValue, accumulator);
     }
     catch (Throwable t) {
       try {

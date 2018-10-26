@@ -26,7 +26,6 @@ import org.apache.druid.java.util.common.io.Closer;
 
 import java.io.IOException;
 import java.util.PriorityQueue;
-import java.util.function.Supplier;
 
 /**
  */
@@ -45,7 +44,7 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator)
+  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
   {
     PriorityQueue<Yielder<T>> pQueue = baseSequences.accumulate(
         new PriorityQueue<>(
@@ -90,7 +89,7 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
         }
     );
 
-    return makeYielder(pQueue, initValue, statefulAccumulator);
+    return makeYielder(pQueue, initValue, accumulator);
   }
 
   private <OutType> Yielder<OutType> makeYielder(
