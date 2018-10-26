@@ -39,12 +39,12 @@ public class ConcatSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(Supplier<OutType> initValue, final Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorFactory)
+  public <OutType> OutType accumulate(Supplier<OutType> initValue, final Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
   {
     return baseSequences.accumulate(
         initValue,
         (accumulated, in) -> in.accumulate(() -> accumulated, accumulator),
-        () -> (accumulated, in) -> in.accumulate(() -> accumulated, accumulatorFactory.get())
+        () -> (accumulated, in) -> in.accumulate(() -> accumulated, accumulatorSupplier.get())
     );
   }
 

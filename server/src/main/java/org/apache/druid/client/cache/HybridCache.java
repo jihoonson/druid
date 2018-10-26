@@ -21,19 +21,14 @@ package org.apache.druid.client.cache;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.LongAdder;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class HybridCache implements Cache
 {
@@ -43,8 +38,8 @@ public class HybridCache implements Cache
   private final Cache level1;
   private final Cache level2;
 
-  private final LongAdder hitCount = new LongAdder();
-  private final LongAdder missCount = new LongAdder();
+  private final AtomicLong hitCount = new AtomicLong(0);
+  private final AtomicLong missCount = new AtomicLong(0);
 
   public HybridCache(HybridCacheConfig config, Cache level1, Cache level2)
   {
@@ -66,10 +61,10 @@ public class HybridCache implements Cache
       }
     }
     if (res != null) {
-      hitCount.increment();
+      hitCount.incrementAndGet();
       return res;
     } else {
-      missCount.increment();
+      missCount.incrementAndGet();
       return null;
     }
   }
@@ -98,7 +93,7 @@ public class HybridCache implements Cache
   {
     Set<NamedKey> remaining = Sets.newHashSet(keys);
     Map<NamedKey, byte[]> res = level1.getBulk(keys);
-    hitCount.add(res.size());
+    hitCount.addAndGet(res.size());
 
     remaining = Sets.difference(remaining, res.keySet());
 
@@ -109,8 +104,8 @@ public class HybridCache implements Cache
       }
 
       int size = res2.size();
-      hitCount.add(size);
-      missCount.add(remaining.size() - size);
+      hitCount.addAndGet(size);
+      missCount.addAndGet(remaining.size() - size);
 
       if (size != 0) {
         res = Maps.newHashMap(res);
@@ -130,49 +125,6 @@ public class HybridCache implements Cache
   }
 
   @Override
-  public Stream<Pair<NamedKey, Optional<byte[]>>> getBulk(Stream<NamedKey> keys)
-  {
-    if (!config.getUseL2()) {
-      return level1.getBulk(keys);
-    }
-    final List<Pair<NamedKey, Optional<byte[]>>> materializedL1Results = level1
-        .getBulk(keys)
-        .collect(Collectors.toList());
-    final List<Pair<NamedKey, Optional<byte[]>>> materializedL2Results = level2
-        .getBulk(
-            materializedL1Results.stream(
-            ).filter(
-                s -> !s.getRhs().isPresent()
-            ).map(
-                Pair::getLhs
-            )
-        ).collect(Collectors.toList());
-    // The l2 list should only have "missing" ones from l1. So we loop through and look for the missing L1 results
-    // and replace with whatever l2 found
-    int l2Pos = 0;
-    for (int i = 0; i < materializedL1Results.size(); i++) {
-      final Pair<NamedKey, Optional<byte[]>> me = materializedL1Results.get(i);
-      if (!me.getRhs().isPresent()) {
-        final Pair<NamedKey, Optional<byte[]>> other = materializedL2Results.get(l2Pos++);
-        if (!me.getLhs().equals(other.getLhs())) {
-          // sanity check for something very broken
-          break;
-        }
-        materializedL1Results.set(i, other);
-      }
-    }
-    // Register hits/misses early so it doesn't require the stream to be consumed
-    materializedL1Results.forEach(sp -> {
-      if (sp.getRhs().isPresent()) {
-        hitCount.increment();
-      } else {
-        missCount.increment();
-      }
-    });
-    return materializedL1Results.stream();
-  }
-
-  @Override
   public void close(String namespace)
   {
     level1.close(namespace);
@@ -185,8 +137,8 @@ public class HybridCache implements Cache
     CacheStats stats1 = level1.getStats();
     CacheStats stats2 = level2.getStats();
     return new CacheStats(
-        hitCount.longValue(),
-        missCount.longValue(),
+        hitCount.get(),
+        missCount.get(),
         stats1.getNumEntries() + stats2.getNumEntries(),
         stats1.getSizeInBytes() + stats2.getSizeInBytes(),
         stats1.getNumEvictions() + stats2.getNumEvictions(),

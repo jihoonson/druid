@@ -25,10 +25,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import org.apache.druid.java.util.common.Pair;
-import org.apache.druid.java.util.common.concurrent.Execs;
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -41,7 +38,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 @RunWith(Parameterized.class)
@@ -56,23 +52,10 @@ public class CombiningSequenceTest
   }
 
   private final int yieldEvery;
-  private ExecutorService exec;
 
   public CombiningSequenceTest(int yieldEvery)
   {
     this.yieldEvery = yieldEvery;
-  }
-
-  @Before
-  public void setup()
-  {
-    exec = Execs.multiThreaded(4, "parallel-merge-combine-sequence-test");
-  }
-
-  @After
-  public void teardown()
-  {
-    exec.shutdown();
   }
 
   @Test

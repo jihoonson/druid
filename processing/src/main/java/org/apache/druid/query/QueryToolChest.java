@@ -45,15 +45,7 @@ public abstract class QueryToolChest<ResultType, QueryType extends Query<ResultT
    *
    * @return a QueryRunner that potentially merges the stream of ordered ResultType objects
    */
-  public QueryRunner<ResultType> mergeResults(QueryRunner<ResultType> runner)
-  {
-    return mergeResults(runner, null);
-  }
-
-  public QueryRunner<ResultType> mergeResults(QueryRunner<ResultType> runner, String id)
-  {
-    return mergeResults(runner);
-  }
+  public abstract QueryRunner<ResultType> mergeResults(QueryRunner<ResultType> runner);
 
   public Ordering<ResultType> getOrdering(QueryType query)
   {

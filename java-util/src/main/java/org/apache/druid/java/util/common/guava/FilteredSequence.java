@@ -41,9 +41,10 @@ public class FilteredSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorFactory)
+  public <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
   {
-    return baseSequence.accumulate(initValue, new FilteringAccumulator<>(pred, accumulator), () -> new FilteringAccumulator<>(pred, accumulatorFactory.get()));
+    return baseSequence.accumulate(initValue, new FilteringAccumulator<>(pred, accumulator), () -> new FilteringAccumulator<>(pred, accumulatorSupplier
+        .get()));
   }
 
   @Override

@@ -57,9 +57,9 @@ public class TestSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorFactory)
+  public <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
   {
-    return base.accumulate(initValue, accumulator, accumulatorFactory);
+    return base.accumulate(initValue, accumulator, accumulatorSupplier);
   }
 
   @Override

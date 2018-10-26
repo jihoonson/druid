@@ -34,13 +34,10 @@ import org.apache.druid.guice.http.DruidHttpClientConfig;
 import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
-import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.guava.Sequence;
-import org.apache.druid.java.util.common.guava.Yielder;
-import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.query.DefaultGenericQueryMetricsFactory;
 import org.apache.druid.query.DefaultQueryRunnerFactoryConglomerate;
 import org.apache.druid.query.DruidProcessingConfig;
@@ -99,10 +96,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ForkJoinPool;
 
 public class CachingClusteredClientParallelMergeTest
 {
@@ -301,16 +296,14 @@ public class CachingClusteredClientParallelMergeTest
 
     final ObjectMapper objectMapper = new DefaultObjectMapper();
     client = new CachingClusteredClient(
-        conglomerate,
         toolChestWarehouse,
         serverView,
         MapCache.create(1024),
         objectMapper,
-        new ForkJoinPool(),
-        Execs.multiThreaded(2, "caching-clustered-client-parallel-merge-test"),
         new ForegroundCachePopulator(objectMapper, new CachePopulatorStats(), 1024),
         new CacheConfig(),
-        new DruidHttpClientConfig()
+        new DruidHttpClientConfig(),
+        Execs.multiThreaded(2, "caching-clustered-client-parallel-merge-test")
     );
   }
 

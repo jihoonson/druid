@@ -229,13 +229,12 @@ public class GroupByStrategyV2 implements GroupByStrategy
   public Sequence<Row> mergeResults(
       final QueryRunner<Row> baseRunner,
       final GroupByQuery query,
-      String id,
       final Map<String, Object> responseContext
   )
   {
     // Merge streams using ResultMergeQueryRunner, then apply postaggregators, then apply limit (which may
     // involve materialization)
-    final ResultMergeQueryRunner<Row> mergingQueryRunner = new ResultMergeQueryRunner<Row>(baseRunner, id)
+    final ResultMergeQueryRunner<Row> mergingQueryRunner = new ResultMergeQueryRunner<Row>(baseRunner)
     {
       @Override
       protected Ordering<Row> makeOrdering(Query<Row> queryParam)
@@ -370,7 +369,7 @@ public class GroupByStrategyV2 implements GroupByStrategy
                   grouperSupplier
               );
             }
-          }, query, null, null),
+          }, query, null),
           () -> Lists.reverse(closeOnExit).forEach(closeable -> CloseQuietly.close(closeable))
       );
     }
@@ -445,7 +444,7 @@ public class GroupByStrategyV2 implements GroupByStrategy
                     grouperSupplier
                 );
               }
-            }, subtotalQuery, null, null),
+            }, subtotalQuery, null),
             subtotalQuery
                              )
         );

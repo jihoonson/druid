@@ -39,9 +39,10 @@ public class MappedSequence<T, Out> implements Sequence<Out>
   }
 
   @Override
-  public <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, Out> accumulator, Supplier<Accumulator<OutType, Out>> accumulatorFactory)
+  public <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, Out> accumulator, Supplier<Accumulator<OutType, Out>> accumulatorSupplier)
   {
-    return baseSequence.accumulate(initValue, new MappingAccumulator<>(fn, accumulator), () -> new MappingAccumulator<>(fn, accumulatorFactory.get()));
+    return baseSequence.accumulate(initValue, new MappingAccumulator<>(fn, accumulator), () -> new MappingAccumulator<>(fn, accumulatorSupplier
+        .get()));
   }
 
   @Override

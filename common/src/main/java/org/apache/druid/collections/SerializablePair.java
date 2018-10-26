@@ -31,17 +31,15 @@ public class SerializablePair<T1, T2> extends Pair<T1, T2>
     super(lhs, rhs);
   }
 
-  @Override
   @JsonProperty
   public T1 getLhs()
   {
-    return super.getLhs();
+    return lhs;
   }
 
-  @Override
   @JsonProperty
   public T2 getRhs()
   {
-    return super.getRhs();
+    return rhs;
   }
 }

@@ -112,7 +112,6 @@ public class GroupByStrategyV1 implements GroupByStrategy
   public Sequence<Row> mergeResults(
       final QueryRunner<Row> baseRunner,
       final GroupByQuery query,
-      String id,
       final Map<String, Object> responseContext
   )
   {

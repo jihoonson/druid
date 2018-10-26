@@ -19,47 +19,29 @@
 
 package org.apache.druid.java.util.common.guava;
 
-import org.junit.Assert;
+import junit.framework.Assert;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 
 /**
  */
 public class SequenceTestHelper
 {
-
   public static void testAll(Sequence<Integer> seq, List<Integer> nums) throws IOException
-  {
-    testAll(() -> seq, nums);
-  }
-
-  public static void testAll(Supplier<Sequence<Integer>> seq, List<Integer> nums) throws IOException
   {
     testAll("", seq, nums);
   }
 
   public static void testAll(String prefix, Sequence<Integer> seq, List<Integer> nums) throws IOException
   {
-    testAll(prefix, () -> seq, nums);
-  }
-
-  public static void testAll(String prefix, Supplier<Sequence<Integer>> seq, List<Integer> nums) throws IOException
-  {
     testAccumulation(prefix, seq, nums);
     testYield(prefix, seq, nums);
   }
 
   public static void testYield(final String prefix, Sequence<Integer> seq, final List<Integer> nums) throws IOException
-  {
-    testYield(prefix, () -> seq, nums);
-  }
-
-  public static void testYield(final String prefix, Supplier<Sequence<Integer>> seq, final List<Integer> nums)
-      throws IOException
   {
     testYield(prefix, 3, seq, nums);
     testYield(prefix, 1, seq, nums);
@@ -72,19 +54,9 @@ public class SequenceTestHelper
       final List<Integer> nums
   ) throws IOException
   {
-    testYield(prefix, numToTake, () -> seq, nums);
-  }
-
-  public static void testYield(
-      final String prefix,
-      final int numToTake,
-      Supplier<Sequence<Integer>> seq,
-      final List<Integer> nums
-  ) throws IOException
-  {
     Iterator<Integer> numsIter = nums.iterator();
-    Yielder<Integer> yielder = seq.get().toYielder(
-        () ->0,
+    Yielder<Integer> yielder = seq.toYielder(
+        () -> 0,
         new YieldingAccumulator<Integer, Integer>()
         {
           final Iterator<Integer> valsIter = nums.iterator();
@@ -125,20 +97,15 @@ public class SequenceTestHelper
     yielder.close();
   }
 
-  public static void testAccumulation(final String prefix, Sequence<Integer> seq, final List<Integer> nums)
-  {
-    testAccumulation(prefix, () -> seq, nums);
-  }
 
-  public static void testAccumulation(final String prefix, Supplier<Sequence<Integer>> seq, final List<Integer> nums)
+  public static void testAccumulation(final String prefix, Sequence<Integer> seq, final List<Integer> nums)
   {
     int expectedSum = 0;
     for (Integer num : nums) {
       expectedSum += num;
     }
 
-
-    int sum = seq.get().accumulate(
+    int sum = seq.accumulate(
         () -> 0,
         new Accumulator<Integer, Integer>()
         {

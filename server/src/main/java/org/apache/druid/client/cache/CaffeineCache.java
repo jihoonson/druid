@@ -25,22 +25,19 @@ import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.apache.druid.java.util.common.Pair;
-import org.apache.druid.java.util.common.logger.Logger;
-import org.apache.druid.java.util.emitter.service.ServiceEmitter;
-import org.apache.druid.java.util.emitter.service.ServiceMetricEvent;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
+import org.apache.druid.java.util.common.logger.Logger;
+import org.apache.druid.java.util.emitter.service.ServiceEmitter;
+import org.apache.druid.java.util.emitter.service.ServiceMetricEvent;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
-import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 
 public class CaffeineCache implements org.apache.druid.client.cache.Cache
 {
@@ -106,21 +103,6 @@ public class CaffeineCache implements org.apache.druid.client.cache.Cache
     // The assumption here is that every value is accessed at least once. Materializing here ensures deserialize is only
     // called *once* per value.
     return ImmutableMap.copyOf(Maps.transformValues(cache.getAllPresent(keys), this::deserialize));
-  }
-
-  @Override
-  public Stream<Pair<NamedKey, Optional<byte[]>>> getBulk(Stream<NamedKey> keys)
-  {
-    return keys.map(
-        k -> Pair.of(
-            k,
-            Optional.ofNullable(
-                cache.getIfPresent(k)
-            ).map(
-                this::deserialize
-            )
-        )
-    );
   }
 
   // This is completely racy with put. Any values missed should be evicted later anyways. So no worries.

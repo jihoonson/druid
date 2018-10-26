@@ -51,8 +51,8 @@ import org.apache.druid.client.cache.CachePopulatorStats;
 import org.apache.druid.client.cache.ForegroundCachePopulator;
 import org.apache.druid.client.cache.MapCache;
 import org.apache.druid.client.selector.HighestPriorityTierSelectorStrategy;
-import org.apache.druid.client.selector.RemoteDruidServer;
 import org.apache.druid.client.selector.RandomServerSelectorStrategy;
+import org.apache.druid.client.selector.RemoteDruidServer;
 import org.apache.druid.client.selector.ServerSelector;
 import org.apache.druid.data.input.MapBasedRow;
 import org.apache.druid.data.input.Row;
@@ -70,15 +70,12 @@ import org.apache.druid.java.util.common.granularity.PeriodGranularity;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.java.util.common.guava.FunctionalIterable;
 import org.apache.druid.java.util.common.guava.MergeIterable;
-import org.apache.druid.java.util.common.guava.MergeSequence;
-import org.apache.druid.java.util.common.guava.MergeWorkTask;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.guava.nary.TrinaryFn;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.query.BySegmentResultValueClass;
 import org.apache.druid.query.DataSource;
-import org.apache.druid.query.DefaultQueryRunnerFactoryConglomerate;
 import org.apache.druid.query.Druids;
 import org.apache.druid.query.FinalizeResultsQueryRunner;
 import org.apache.druid.query.Query;
@@ -164,13 +161,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.Spliterator;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
-import java.util.stream.Stream;
 
 /**
  */
@@ -555,9 +549,9 @@ public class CachingClusteredClientTest
 
     final Map<String, Object> context = new HashMap<>();
     final Cache cache = EasyMock.createStrictMock(Cache.class);
-    final Capture<Stream<Cache.NamedKey>> cacheKeyCapture = EasyMock.newCapture();
+    final Capture<Iterable<Cache.NamedKey>> cacheKeyCapture = EasyMock.newCapture();
     EasyMock.expect(cache.getBulk(EasyMock.capture(cacheKeyCapture)))
-            .andReturn(Stream.empty())
+            .andReturn(ImmutableMap.of())
             .once();
     EasyMock.replay(cache);
     client = makeClient(new ForegroundCachePopulator(JSON_MAPPER, new CachePopulatorStats(), -1), cache, limit);
@@ -575,14 +569,14 @@ public class CachingClusteredClientTest
     getDefaultQueryRunner().run(QueryPlus.wrap(query), context);
 
     Assert.assertTrue("Capture cache keys", cacheKeyCapture.hasCaptured());
-    Assert.assertTrue("Cache key below limit", cacheKeyCapture.getValue().count() <= limit);
+    Assert.assertTrue("Cache key below limit", ImmutableList.copyOf(cacheKeyCapture.getValue()).size() <= limit);
 
     EasyMock.verify(cache);
 
     EasyMock.reset(cache);
     cacheKeyCapture.reset();
     EasyMock.expect(cache.getBulk(EasyMock.capture(cacheKeyCapture)))
-            .andReturn(Stream.empty())
+            .andReturn(ImmutableMap.of())
             .once();
     EasyMock.replay(cache);
     client = makeClient(new ForegroundCachePopulator(JSON_MAPPER, new CachePopulatorStats(), -1), cache, 0);
@@ -596,10 +590,12 @@ public class CachingClusteredClientTest
     EasyMock.replay(runner, serverView);
 
     getDefaultQueryRunner().run(QueryPlus.wrap(query), context);
+    EasyMock.verify(cache);
+    EasyMock.verify(dataSegment);
 
     EasyMock.verify(cache, dataSegment, serverView, runner);
     Assert.assertTrue("Capture cache keys", cacheKeyCapture.hasCaptured());
-    Assert.assertTrue("Cache Keys empty", cacheKeyCapture.getValue().count() == 0);
+    Assert.assertTrue("Cache Keys empty", ImmutableList.copyOf(cacheKeyCapture.getValue()).isEmpty());
   }
 
   @Test
@@ -962,7 +958,7 @@ public class CachingClusteredClientTest
   }
 
 
-//  @Test
+  @Test
   @SuppressWarnings("unchecked")
   public void testTopNCachingEmptyResults()
   {
@@ -1036,7 +1032,7 @@ public class CachingClusteredClientTest
     );
   }
 
-//  @Test
+  @Test
   public void testTopNOnPostAggMetricCaching()
   {
     final TopNQueryBuilder builder = new TopNQueryBuilder()
@@ -2641,9 +2637,6 @@ public class CachingClusteredClientTest
   )
   {
     return new CachingClusteredClient(
-        new DefaultQueryRunnerFactoryConglomerate(
-            QueryRunnerTestHelper.DEFAULT_CONGLOMERATE_MAP
-        ),
         WAREHOUSE,
         new TimelineServerView()
         {
@@ -2678,8 +2671,6 @@ public class CachingClusteredClientTest
         },
         cache,
         JSON_MAPPER,
-        ForkJoinPool.commonPool(),
-        Execs.multiThreaded(2, "parallel-merge-comine-sequence-test"),
         cachePopulator,
         new CacheConfig()
         {
@@ -2713,7 +2704,8 @@ public class CachingClusteredClientTest
           {
             return 0L;
           }
-        }
+        },
+        Execs.multiThreaded(2, "parallel-merge-comine-sequence-test")
     );
   }
 
@@ -3114,122 +3106,5 @@ public class CachingClusteredClientTest
     return (queryPlus, responseContext) -> client
         .getQueryRunnerForIntervals(queryPlus.getQuery(), queryPlus.getQuery().getIntervals())
         .run(queryPlus, responseContext);
-  }
-
-  @Test
-  public void testSpliterator()
-  {
-    {
-      // populate cache selectively
-      final Druids.TimeseriesQueryBuilder builder = Druids.newTimeseriesQueryBuilder()
-                                                          .dataSource(DATA_SOURCE)
-                                                          .intervals(SEG_SPEC)
-                                                          .filters(DIM_FILTER)
-                                                          .granularity(GRANULARITY)
-                                                          .aggregators(AGGS)
-                                                          .postAggregators(POST_AGGS)
-                                                          .context(CONTEXT);
-
-      QueryRunner runner = new FinalizeResultsQueryRunner(
-          getDefaultQueryRunner(),
-          new TimeseriesQueryQueryToolChest(
-              QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator()
-          )
-      );
-
-      testQueryCaching(
-          runner,
-          1,
-          true,
-          builder.build(),
-          Intervals.of("2011-01-01/2011-01-02"), makeTimeResults(DateTimes.of("2011-01-01"), 50, 5000),
-          Intervals.of("2011-01-02/2011-01-03"), makeTimeResults(DateTimes.of("2011-01-02"), 30, 6000),
-          Intervals.of("2011-01-04/2011-01-05"), makeTimeResults(DateTimes.of("2011-01-04"), 23, 85312),
-
-          Intervals.of("2011-01-05/2011-01-10"),
-          makeTimeResults(
-              DateTimes.of("2011-01-05"), 85, 102,
-              DateTimes.of("2011-01-06"), 412, 521,
-              DateTimes.of("2011-01-07"), 122, 21894,
-              DateTimes.of("2011-01-08"), 5, 20,
-              DateTimes.of("2011-01-09"), 18, 521
-          ),
-
-          Intervals.of("2011-01-05/2011-01-10"),
-          makeTimeResults(
-              DateTimes.of("2011-01-05T01"), 80, 100,
-              DateTimes.of("2011-01-06T01"), 420, 520,
-              DateTimes.of("2011-01-07T01"), 12, 2194,
-              DateTimes.of("2011-01-08T01"), 59, 201,
-              DateTimes.of("2011-01-09T01"), 181, 52
-          )
-      );
-    }
-    final Druids.TimeseriesQueryBuilder builder = Druids
-        .newTimeseriesQueryBuilder()
-        .dataSource(DATA_SOURCE)
-        .intervals(SEG_SPEC)
-        .filters(DIM_FILTER)
-        .granularity(GRANULARITY)
-        .aggregators(AGGS)
-        .postAggregators(POST_AGGS)
-        .context(CONTEXT);
-
-
-    final HashMap<String, Object> context = new HashMap<>();
-    final TimeseriesQuery query = builder
-        .intervals("2011-01-01/2011-01-10")
-        .aggregators(RENAMED_AGGS)
-        .postAggregators(RENAMED_POST_AGGS)
-        .build()
-        .withOverriddenContext(Collections.singletonMap("populateCache", "false"));
-
-    final Stream<Sequence<Result<TimeseriesResultValue>>> results = client.run(
-        QueryPlus.wrap(query),
-        context,
-        stringServerSelectorTimelineLookup -> stringServerSelectorTimelineLookup
-    );
-
-    final Spliterator<Sequence<Result<TimeseriesResultValue>>> spliterator = results.spliterator();
-
-    Assert.assertNotNull(spliterator);
-    final int characteristics = spliterator.characteristics();
-    Assert.assertEquals(characteristics & Spliterator.SIZED, Spliterator.SIZED);
-    Assert.assertEquals(characteristics & Spliterator.SUBSIZED, Spliterator.SUBSIZED);
-    final ArrayList<Sequence<Result<TimeseriesResultValue>>> sequences = new ArrayList<>();
-    spliterator.forEachRemaining(sequences::add);
-    Assert.assertFalse(sequences.isEmpty());
-
-
-    final Sequence<Result<TimeseriesResultValue>> parallelMergeResults = MergeWorkTask.parallelMerge(
-        "",
-        client.run(
-            QueryPlus.wrap(query),
-            context,
-            stringServerSelectorTimelineLookup -> stringServerSelectorTimelineLookup
-        ).parallel(),
-        s -> new MergeSequence<>(query.getResultOrdering(), Sequences.fromStream(s)),
-        1,
-        ForkJoinPool.commonPool()
-    );
-
-    TestHelper.assertExpectedResults(
-        makeRenamedTimeResults(
-            DateTimes.of("2011-0execution time1-01"), 50, 5000,
-            DateTimes.of("2011-01-02"), 30, 6000,
-            DateTimes.of("2011-01-04"), 23, 85312,
-            DateTimes.of("2011-01-05"), 85, 102,
-            DateTimes.of("2011-01-05T01"), 80, 100,
-            DateTimes.of("2011-01-06"), 412, 521,
-            DateTimes.of("2011-01-06T01"), 420, 520,
-            DateTimes.of("2011-01-07"), 122, 21894,
-            DateTimes.of("2011-01-07T01"), 12, 2194,
-            DateTimes.of("2011-01-08"), 5, 20,
-            DateTimes.of("2011-01-08T01"), 59, 201,
-            DateTimes.of("2011-01-09"), 18, 521,
-            DateTimes.of("2011-01-09T01"), 181, 52
-        ),
-        parallelMergeResults
-    );
   }
 }

@@ -19,6 +19,7 @@
 
 package org.apache.druid.client.cache;
 
+import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Supplier;
@@ -26,8 +27,16 @@ import com.google.common.base.Suppliers;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
+import org.apache.druid.collections.ResourceHolder;
+import org.apache.druid.collections.StupidResourceHolder;
+import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.logger.Logger;
+import org.apache.druid.java.util.emitter.service.ServiceEmitter;
+import org.apache.druid.java.util.emitter.service.ServiceMetricEvent;
+import org.apache.druid.java.util.metrics.AbstractMonitor;
 import net.spy.memcached.AddrUtil;
 import net.spy.memcached.ConnectionFactory;
 import net.spy.memcached.ConnectionFactoryBuilder;
@@ -41,14 +50,6 @@ import net.spy.memcached.metrics.MetricType;
 import net.spy.memcached.ops.LinkedOperationQueueFactory;
 import net.spy.memcached.ops.OperationQueueFactory;
 import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.druid.collections.ResourceHolder;
-import org.apache.druid.collections.StupidResourceHolder;
-import org.apache.druid.java.util.common.Pair;
-import org.apache.druid.java.util.common.StringUtils;
-import org.apache.druid.java.util.common.logger.Logger;
-import org.apache.druid.java.util.emitter.service.ServiceEmitter;
-import org.apache.druid.java.util.emitter.service.ServiceMetricEvent;
-import org.apache.druid.java.util.metrics.AbstractMonitor;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -56,12 +57,9 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -71,9 +69,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public class MemcachedCache implements Cache
 {
@@ -529,35 +524,59 @@ public class MemcachedCache implements Cache
     return value;
   }
 
-
-  Map<String, Object> getCacheMap(Collection<String> keys)
+  @Override
+  public Map<NamedKey, byte[]> getBulk(Iterable<NamedKey> keys)
   {
-    if (keys.isEmpty()) {
-      return Collections.emptyMap();
-    }
-    // Hold onto the client until the future is fetched
     try (ResourceHolder<MemcachedClientIF> clientHolder = client.get()) {
-      final BulkFuture<Map<String, Object>> future;
+      Map<String, NamedKey> keyLookup = Maps.uniqueIndex(
+          keys,
+          new Function<NamedKey, String>()
+          {
+            @Override
+            public String apply(
+                @Nullable NamedKey input
+            )
+            {
+              return computeKeyHash(memcachedPrefix, input);
+            }
+          }
+      );
+
+      Map<NamedKey, byte[]> results = Maps.newHashMap();
+
+      BulkFuture<Map<String, Object>> future;
       try {
-        future = clientHolder.get().asyncGetBulk(keys);
+        future = clientHolder.get().asyncGetBulk(keyLookup.keySet());
       }
       catch (IllegalStateException e) {
         // operation did not get queued in time (queue is full)
         errorCount.incrementAndGet();
         log.warn(e, "Unable to queue cache operation");
-        return Collections.emptyMap();
+        return results;
       }
 
       try {
-        final Map<String, Object> some = future.getSome(timeout, TimeUnit.MILLISECONDS);
+        Map<String, Object> some = future.getSome(timeout, TimeUnit.MILLISECONDS);
 
         if (future.isTimeout()) {
           future.cancel(false);
           timeoutCount.incrementAndGet();
         }
-        missCount.addAndGet(keys.size() - some.size());
+        missCount.addAndGet(keyLookup.size() - some.size());
         hitCount.addAndGet(some.size());
-        return some;
+
+        for (Map.Entry<String, Object> entry : some.entrySet()) {
+          final NamedKey key = keyLookup.get(entry.getKey());
+          final byte[] value = (byte[]) entry.getValue();
+          if (value != null) {
+            results.put(
+                key,
+                deserializeValue(key, value)
+            );
+          }
+        }
+
+        return results;
       }
       catch (InterruptedException e) {
         Thread.currentThread().interrupt();
@@ -566,42 +585,9 @@ public class MemcachedCache implements Cache
       catch (ExecutionException e) {
         errorCount.incrementAndGet();
         log.warn(e, "Exception pulling item from cache");
-        return Collections.emptyMap();
+        return results;
       }
     }
-  }
-
-  @Override
-  public Stream<Pair<NamedKey, Optional<byte[]>>> getBulk(Stream<NamedKey> keys)
-  {
-    final List<Pair<NamedKey, String>> materializedKeys = keys.map(
-        k -> Pair.of(k, computeKeyHash(memcachedPrefix, k))
-    ).collect(
-        Collectors.toList()
-    );
-    final Map<String, Object> some = getCacheMap(
-        materializedKeys
-            .stream()
-            .map(Pair::getRhs)
-            .collect(Collectors.toList())
-    );
-    return materializedKeys.stream().map(k -> {
-      final NamedKey key = k.getLhs();
-      final String cacheKey = k.getRhs();
-      return Pair.of(
-          key,
-          Optional.ofNullable(some.get(cacheKey))
-                  .map(val -> deserializeValue(key, (byte[]) val))
-      );
-    });
-  }
-
-  @Override
-  public Map<NamedKey, byte[]> getBulk(Iterable<NamedKey> keys)
-  {
-    return getBulk(StreamSupport.stream(keys.spliterator(), false))
-        .filter(s -> s.getRhs().isPresent())
-        .collect(Collectors.toMap(Pair::getLhs, s -> s.getRhs().get()));
   }
 
   @Override

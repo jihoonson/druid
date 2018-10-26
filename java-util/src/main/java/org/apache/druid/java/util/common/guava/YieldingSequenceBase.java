@@ -29,9 +29,10 @@ import java.util.function.Supplier;
 public abstract class YieldingSequenceBase<T> implements Sequence<T>
 {
   @Override
-  public <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorFactory)
+  public <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
   {
-    Yielder<OutType> yielder = toYielder(initValue, YieldingAccumulators.fromAccumulator(accumulator), () -> YieldingAccumulators.fromAccumulator(accumulatorFactory.get()));
+    Yielder<OutType> yielder = toYielder(initValue, YieldingAccumulators.fromAccumulator(accumulator), () -> YieldingAccumulators.fromAccumulator(
+        accumulatorSupplier.get()));
 
     try {
       return yielder.get();

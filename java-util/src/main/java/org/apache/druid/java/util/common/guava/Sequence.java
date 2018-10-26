@@ -52,7 +52,7 @@ public interface Sequence<T>
    *
    * @return accumulated value.
    */
-  <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorFactory);
+  <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier);
 
   default <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator)
   {

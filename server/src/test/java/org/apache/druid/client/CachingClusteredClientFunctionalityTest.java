@@ -43,12 +43,10 @@ import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.query.DataSource;
-import org.apache.druid.query.DefaultQueryRunnerFactoryConglomerate;
 import org.apache.druid.query.Druids;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
-import org.apache.druid.query.QueryRunnerTestHelper;
 import org.apache.druid.query.QueryToolChestWarehouse;
 import org.apache.druid.query.aggregation.CountAggregatorFactory;
 import org.apache.druid.query.select.SelectQueryConfig;
@@ -72,7 +70,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 
 /**
  */
@@ -258,9 +255,6 @@ public class CachingClusteredClientFunctionalityTest
   )
   {
     return new CachingClusteredClient(
-        new DefaultQueryRunnerFactoryConglomerate(
-            QueryRunnerTestHelper.DEFAULT_CONGLOMERATE_MAP
-        ),
         WAREHOUSE,
         new TimelineServerView()
         {
@@ -295,8 +289,6 @@ public class CachingClusteredClientFunctionalityTest
         },
         cache,
         OBJECT_MAPPER,
-        ForkJoinPool.commonPool(),
-        Execs.multiThreaded(2, "caching-clustered-client-functionality-test"),
         cachePopulator,
         new CacheConfig()
         {
@@ -330,7 +322,8 @@ public class CachingClusteredClientFunctionalityTest
           {
             return 0L;
           }
-        }
+        },
+        Execs.multiThreaded(2, "caching-clustered-client-functionality-test")
     );
   }
 

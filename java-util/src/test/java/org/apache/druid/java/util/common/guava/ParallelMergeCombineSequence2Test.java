@@ -95,7 +95,7 @@ public class ParallelMergeCombineSequence2Test
       for (int j = 0; j < size; j++) {
         pairs.add(new IntPair(random.nextInt(10000), random.nextInt(500)));
       }
-      pairs.sort(Comparator.comparing(Pair::getLhs));
+      pairs.sort(Comparator.comparing(pair -> pair.lhs));
       sequences.add(Sequences.simple(pairs));
     }
 

@@ -19,7 +19,6 @@
 
 package org.apache.druid.common.utils;
 
-import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.JodaUtils;
 import org.joda.time.Duration;
@@ -31,7 +30,6 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeoutException;
 
 /**
  */
@@ -144,37 +142,5 @@ public class JodaUtilsTest
   {
     final Period period = Intervals.ETERNITY.toDuration().toPeriod();
     Assert.assertEquals(Long.MAX_VALUE, period.getMinutes());
-  }
-
-  @Test(expected = TimeoutException.class)
-  public void testDeadlinePassed() throws TimeoutException
-  {
-    JodaUtils.timeoutForDeadline(DateTimes.nowUtc().minus(1));
-  }
-
-  @Test(expected = TimeoutException.class)
-  public void testDeadlineMinInstant() throws TimeoutException
-  {
-    JodaUtils.timeoutForDeadline(DateTimes.utc(JodaUtils.MIN_INSTANT));
-  }
-
-  @Test
-  public void testDeadlineMaxInstant() throws TimeoutException
-  {
-    final long ms = JodaUtils.timeoutForDeadline(DateTimes.utc(JodaUtils.MAX_INSTANT));
-    Assert.assertTrue(ms > 0);
-  }
-
-  @Test(expected = TimeoutException.class)
-  public void testDeadlineLongMin() throws TimeoutException
-  {
-    JodaUtils.timeoutForDeadline(DateTimes.utc(Long.MIN_VALUE));
-  }
-
-  @Test
-  public void testDeadlineLongMax() throws TimeoutException
-  {
-    final long ms = JodaUtils.timeoutForDeadline(DateTimes.utc(Long.MAX_VALUE));
-    Assert.assertTrue(ms > 0);
   }
 }

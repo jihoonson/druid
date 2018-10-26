@@ -74,7 +74,7 @@ public class SpecificSegmentQueryRunnerTest
             return new Sequence()
             {
               @Override
-              public Object accumulate(Supplier initValue, Accumulator accumulator, Supplier supplier)
+              public Object accumulate(Supplier initValue, Accumulator accumulator, Supplier accumulatorSupplier)
               {
                 throw new SegmentMissingException("FAILSAUCE");
               }

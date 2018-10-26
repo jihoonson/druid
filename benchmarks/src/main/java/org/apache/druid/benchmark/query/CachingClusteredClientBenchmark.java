@@ -56,13 +56,13 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.Row;
 import org.apache.druid.guice.http.DruidHttpClientConfig;
 import org.apache.druid.jackson.DefaultObjectMapper;
+import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.math.expr.ExprMacroTable;
 import org.apache.druid.offheap.OffheapBufferGenerator;
 import org.apache.druid.query.DataSource;
-import org.apache.druid.query.DefaultQueryRunnerFactoryConglomerate;
 import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.FluentQueryRunnerBuilder;
 import org.apache.druid.query.MapQueryToolChestWarehouse;
@@ -89,7 +89,6 @@ import org.apache.druid.segment.IndexIO;
 import org.apache.druid.segment.IndexMergerV9;
 import org.apache.druid.segment.IndexSpec;
 import org.apache.druid.segment.QueryableIndex;
-import org.apache.druid.segment.QueryableIndexSegment;
 import org.apache.druid.segment.column.ColumnConfig;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
@@ -126,7 +125,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -341,20 +339,16 @@ public class CachingClusteredClientBenchmark
     }
 
     cachingClusteredClient = new CachingClusteredClient(
-        new DefaultQueryRunnerFactoryConglomerate(
-            ImmutableMap.of(GroupByQuery.class, factory)
-        ),
         new MapQueryToolChestWarehouse(
             ImmutableMap.of(GroupByQuery.class, queryQueryToolChest)
         ),
         serverView,
         MapCache.create(0),
         JSON_MAPPER,
-        ForkJoinPool.commonPool(),
-        ForkJoinPool.commonPool(),
         new ForegroundCachePopulator(JSON_MAPPER, new CachePopulatorStats(), 0),
         new CacheConfig(),
-        new DruidHttpClientConfig()
+        new DruidHttpClientConfig(),
+        Execs.multiThreaded(numServers, "caching-clustered-client-benchmark")
     );
   }
 

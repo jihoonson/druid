@@ -112,7 +112,7 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
   }
 
   @Override
-  public QueryRunner<Row> mergeResults(final QueryRunner<Row> runner, String id)
+  public QueryRunner<Row> mergeResults(final QueryRunner<Row> runner)
   {
     return new QueryRunner<Row>()
     {
@@ -128,7 +128,6 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
           return initAndMergeGroupByResults(
               groupByQuery,
               runner,
-              id,
               responseContext
           );
         }
@@ -152,7 +151,6 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
   private Sequence<Row> initAndMergeGroupByResults(
       final GroupByQuery query,
       QueryRunner<Row> runner,
-      String id,
       Map<String, Object> context
   )
   {
@@ -165,7 +163,6 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
             query,
             resource,
             runner,
-            id,
             context
         ),
         resource
@@ -177,7 +174,6 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
       final GroupByQuery query,
       GroupByQueryResource resource,
       QueryRunner<Row> runner,
-      String id,
       Map<String, Object> context
   )
   {
@@ -220,7 +216,6 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
           ),
           resource,
           runner,
-          id,
           context
       );
 
@@ -257,10 +252,10 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
         return groupByStrategy.processSubtotalsSpec(
             query,
             resource,
-            groupByStrategy.mergeResults(runner, query.withSubtotalsSpec(null), id, context)
+            groupByStrategy.mergeResults(runner, query.withSubtotalsSpec(null), context)
         );
       } else {
-        return groupByStrategy.applyPostProcessing(groupByStrategy.mergeResults(runner, query, id, context), query);
+        return groupByStrategy.applyPostProcessing(groupByStrategy.mergeResults(runner, query, context), query);
       }
     }
   }

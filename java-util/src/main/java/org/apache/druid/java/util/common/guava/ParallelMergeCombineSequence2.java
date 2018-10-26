@@ -22,8 +22,8 @@ import com.google.common.collect.Ordering;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
 import org.apache.druid.java.util.common.guava.nary.BinaryFn;
-import org.apache.druid.java.util.common.logger.Logger;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -38,8 +38,6 @@ import java.util.function.Supplier;
 
 public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
 {
-  private static final Logger log = new Logger(ParallelMergeCombineSequence2.class);
-
   private final ExecutorService exec;
   private final List<? extends Sequence<T>> baseSequences;
   private final Ordering<T> ordering;
@@ -69,7 +67,7 @@ public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
       Supplier<OutType> initValueSupplier, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> yieldingAccumulatorSupplier
   )
   {
-    final List<Sequence<OutType>> finalSequences = new ArrayList<>();
+    final List<Sequence<T>> finalSequences = new ArrayList<>();
 
     for (int i = 0; i < baseSequences.size(); i += batchSize) {
       final Sequence<? extends Sequence<T>> subSequences = Sequences.simple(
@@ -77,15 +75,14 @@ public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
       );
       final CombiningSequence<T> combiningSequence = CombiningSequence.create(new MergeSequence<>(ordering, subSequences), ordering, mergeFn);
 
-      final BlockingQueue<OutType> queue = new ArrayBlockingQueue<>(queueSize);
-      final OutType sentinel = (OutType) new Object();
+      final BlockingQueue<ValueHolder> queue = new ArrayBlockingQueue<>(queueSize);
 
       Future future = exec.submit(() -> {
         combiningSequence.accumulate(
             () -> queue,
             (theQueue, v) -> {
               try {
-                if (!theQueue.offer((OutType) v, 5, TimeUnit.SECONDS)) {
+                if (!theQueue.offer(new ValueHolder(v), 5, TimeUnit.SECONDS)) { // TODO: probably this causes cache corruption ...??
                   throw new RuntimeException(new TimeoutException(StringUtils.format("Can't off to the queue[%s] in 5 sec", System.identityHashCode(queue))));
                 }
               }
@@ -96,7 +93,7 @@ public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
             }
         );
         try {
-          if (!queue.offer(sentinel, 5, TimeUnit.SECONDS)) {
+          if (!queue.offer(new ValueHolder(null), 5, TimeUnit.SECONDS)) {
             throw new RuntimeException(new TimeoutException(StringUtils.format("Can't offer to the queue[%s] in 5 sec", System.identityHashCode(queue))));
           }
         }
@@ -105,38 +102,27 @@ public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
         }
       });
 
-//      queue.addAll(combiningSequence.toList().stream().map(v -> (OutType) v).collect(Collectors.toList()));
-
-//      combiningSequence.accumulate(
-//          () -> queue,
-//          (theQueue, v) -> {
-//            theQueue.add((OutType) v);
-//            return theQueue;
-//          }
-//      );
-
-//      queue.add((OutType) sentinel);
-
       finalSequences.add(
           new BaseSequence<>(
-              new IteratorMaker<OutType, Iterator<OutType>>()
+              new IteratorMaker<T, Iterator<T>>()
               {
                 @Override
-                public Iterator<OutType> make()
+                public Iterator<T> make()
                 {
-                  return new Iterator<OutType>()
+                  return new Iterator<T>()
                   {
-                    private OutType nextVal;
+                    private T nextVal;
 
                     @Override
                     public boolean hasNext()
                     {
                       try {
-                        nextVal = queue.poll(5, TimeUnit.SECONDS);
-                        if (nextVal == null) {
+                        final ValueHolder holder = queue.poll(5, TimeUnit.SECONDS);
+                        if (holder == null) {
                           throw new RuntimeException(new TimeoutException(StringUtils.format("Can't poll from the queue[%s] in 5 sec", System.identityHashCode(queue))));
                         }
-                        return nextVal != sentinel;
+                        nextVal = holder.val;
+                        return nextVal != null;
                       }
                       catch (InterruptedException e) {
                         throw new RuntimeException(e);
@@ -144,7 +130,7 @@ public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
                     }
 
                     @Override
-                    public OutType next()
+                    public T next()
                     {
                       return nextVal;
                     }
@@ -152,7 +138,7 @@ public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
                 }
 
                 @Override
-                public void cleanup(Iterator<OutType> iterFromMake)
+                public void cleanup(Iterator<T> iterFromMake)
                 {
                   try {
                     future.get();
@@ -167,14 +153,20 @@ public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
     }
 
     return CombiningSequence.create(
-        new MergeSequence<>(ordering, Sequences.fromStream(finalSequences.stream().map(seq -> (Sequence<T>) seq))),
+        new MergeSequence<>(ordering, Sequences.simple(finalSequences)),
         ordering,
         mergeFn
     ).toYielder(initValueSupplier, statefulAccumulator);
+  }
 
-//    return new MergeSequence<>(ordering, Sequences.fromStream(finalSequences.stream().map(seq -> (Sequence<T>) seq)))
-//        .toYielder(initValueSupplier, statefulAccumulator);
+  private class ValueHolder
+  {
+    @Nullable
+    private final T val;
 
-//    return new MergeSequence<>(ordering, Sequences.simple(baseSequences)).toYielder(initValueSupplier, statefulAccumulator, yieldingAccumulatorSupplier);
+    private ValueHolder(T val)
+    {
+      this.val = val;
+    }
   }
 }

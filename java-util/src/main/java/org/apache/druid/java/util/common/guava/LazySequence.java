@@ -35,9 +35,9 @@ public class LazySequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(java.util.function.Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, java.util.function.Supplier<Accumulator<OutType, T>> accumulatorFactory)
+  public <OutType> OutType accumulate(java.util.function.Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, java.util.function.Supplier<Accumulator<OutType, T>> accumulatorSupplier)
   {
-    return provider.get().accumulate(initValue, accumulator, accumulatorFactory);
+    return provider.get().accumulate(initValue, accumulator, accumulatorSupplier);
   }
 
   @Override
