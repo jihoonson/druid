@@ -45,24 +45,10 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator)
+  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator)
   {
-//    PriorityQueue<Yielder<T>> pQueue = new PriorityQueue<>(
-//        32,
-//        ordering.onResultOf(
-//            new Function<Yielder<T>, T>()
-//            {
-//              @Override
-//              public T apply(Yielder<T> input)
-//              {
-//                return input.get();
-//              }
-//            }
-//        )
-//    );
-
     PriorityQueue<Yielder<T>> pQueue = baseSequences.accumulate(
-        () -> new PriorityQueue<>(
+        new PriorityQueue<>(
             32,
             ordering.onResultOf(
                 new Function<Yielder<T>, T>()
@@ -77,7 +63,7 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
         ),
         (queue, in) -> {
           final Yielder<T> yielder = in.toYielder(
-              () -> null,
+              null,
               new YieldingAccumulator<T, T>()
               {
                 @Override
@@ -104,7 +90,7 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
         }
     );
 
-    return makeYielder(pQueue, initValue.get(), statefulAccumulator);
+    return makeYielder(pQueue, initValue, statefulAccumulator);
   }
 
   private <OutType> Yielder<OutType> makeYielder(

@@ -602,7 +602,7 @@ public class IncrementalIndexTest
                     Sequence<Result<TimeseriesResultValue>> sequence = runner.run(QueryPlus.wrap(query), context);
 
                     Double[] results = sequence.accumulate(
-                        () -> new Double[0],
+                        new Double[0],
                         new Accumulator<Double[], Result<TimeseriesResultValue>>()
                         {
                           @Override

@@ -131,7 +131,7 @@ public class ConcatSequenceTest
     Assert.assertEquals(
         9,
         seq.accumulate(
-            () -> 1,
+            1,
             new Accumulator<Integer, Integer>()
             {
               @Override
@@ -147,7 +147,7 @@ public class ConcatSequenceTest
     Assert.assertEquals(1, closedCount[0]);
 
     final Yielder<Integer> yielder = seq.toYielder(
-        () -> 1,
+        1,
         new YieldingAccumulator<Integer, Integer>()
         {
           @Override
@@ -257,7 +257,7 @@ public class ConcatSequenceTest
     );
 
     Yielder<Integer> yielder = seq.toYielder(
-        () -> null,
+        null,
         new YieldingAccumulator<Integer, Integer>()
         {
           @Override

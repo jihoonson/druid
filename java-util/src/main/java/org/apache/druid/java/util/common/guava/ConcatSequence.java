@@ -39,24 +39,24 @@ public class ConcatSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(Supplier<OutType> initValue, final Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
+  public <OutType> OutType accumulate(OutType initValue, final Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
   {
     return baseSequences.accumulate(
         initValue,
-        (accumulated, in) -> in.accumulate(() -> accumulated, accumulator),
-        () -> (accumulated, in) -> in.accumulate(() -> accumulated, accumulatorSupplier.get())
+        (accumulated, in) -> in.accumulate(accumulated, accumulator),
+        () -> (accumulated, in) -> in.accumulate(accumulated, accumulatorSupplier.get())
     );
   }
 
   @Override
   public <OutType> Yielder<OutType> toYielder(
-      final Supplier<OutType> initValue,
+      final OutType initValue,
       YieldingAccumulator<OutType, T> statefulAccumulator,
       final Supplier<YieldingAccumulator<OutType, T>> accumulator
   )
   {
     Yielder<Sequence<T>> yielderYielder = baseSequences.toYielder(
-        () -> null,
+        null,
         new YieldingAccumulator<Sequence<T>, Sequence<T>>()
         {
           @Override
@@ -69,7 +69,7 @@ public class ConcatSequence<T> implements Sequence<T>
     );
 
     try {
-      return makeYielder(yielderYielder, initValue.get(), statefulAccumulator);
+      return makeYielder(yielderYielder, initValue, statefulAccumulator);
     }
     catch (Throwable t) {
       try {
@@ -90,7 +90,7 @@ public class ConcatSequence<T> implements Sequence<T>
   {
     while (!yielderYielder.isDone()) {
       final OutType yielderInitVal = initValue;
-      Yielder<OutType> yielder = yielderYielder.get().toYielder(() -> yielderInitVal, accumulator);
+      Yielder<OutType> yielder = yielderYielder.get().toYielder(yielderInitVal, accumulator);
       if (accumulator.yielded()) {
         return wrapYielder(yielder, yielderYielder, accumulator);
       }

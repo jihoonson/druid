@@ -152,7 +152,7 @@ public class GroupByRowProcessor
     final Accumulator<AggregateResult, Row> accumulator = pair.rhs;
     closeOnExit.add(grouper);
 
-    final AggregateResult retVal = filteredSequence.accumulate(() -> AggregateResult.ok(), accumulator);
+    final AggregateResult retVal = filteredSequence.accumulate(AggregateResult.ok(), accumulator);
     if (!retVal.isOk()) {
       throw new ResourceLimitExceededException(retVal.getReason());
     }

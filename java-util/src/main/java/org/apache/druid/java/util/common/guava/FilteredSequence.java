@@ -41,14 +41,14 @@ public class FilteredSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
+  public <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
   {
     return baseSequence.accumulate(initValue, new FilteringAccumulator<>(pred, accumulator), () -> new FilteringAccumulator<>(pred, accumulatorSupplier
         .get()));
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator)
+  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator)
   {
     final FilteringYieldingAccumulator<OutType, T> filteringAccumulator = new FilteringYieldingAccumulator<>(
         pred, statefulAccumulator

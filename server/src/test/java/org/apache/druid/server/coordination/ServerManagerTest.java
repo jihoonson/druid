@@ -715,7 +715,7 @@ public class ServerManagerTest
 
     @Override
     public <OutType> Yielder<OutType> toYielder(
-        final Supplier<OutType> initValue, YieldingAccumulator<OutType, T> statefulAccumulator, final Supplier<YieldingAccumulator<OutType, T>> accumulator
+        final OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, final Supplier<YieldingAccumulator<OutType, T>> accumulator
     )
     {
       notifyLatch.countDown();

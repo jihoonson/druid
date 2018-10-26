@@ -140,7 +140,7 @@ public abstract class DruidRel<T extends DruidRel> extends AbstractRelNode imple
       public void run()
       {
         runQuery().accumulate(
-            () -> implementor.interpreter.sink(DruidRel.this),
+            implementor.interpreter.sink(DruidRel.this),
             new Accumulator<Sink, Object[]>()
             {
               @Override

@@ -66,7 +66,7 @@ public class RetryQueryRunner<T> implements QueryRunner<T>
     {
       @Override
       public <OutType> Yielder<OutType> toYielder(
-          Supplier<OutType> initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator
+          OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulator
       )
       {
         List<SegmentDescriptor> missingSegments = getMissingSegments(context);

@@ -56,7 +56,7 @@ public class SequenceTestHelper
   {
     Iterator<Integer> numsIter = nums.iterator();
     Yielder<Integer> yielder = seq.toYielder(
-        () -> 0,
+        0,
         new YieldingAccumulator<Integer, Integer>()
         {
           final Iterator<Integer> valsIter = nums.iterator();
@@ -106,7 +106,7 @@ public class SequenceTestHelper
     }
 
     int sum = seq.accumulate(
-        () -> 0,
+        0,
         new Accumulator<Integer, Integer>()
         {
           final Iterator<Integer> valsIter = nums.iterator();
@@ -128,7 +128,7 @@ public class SequenceTestHelper
     boolean exceptionThrown = false;
     try {
       seq.accumulate(
-          () -> 1,
+          1,
           new Accumulator<Integer, Integer>()
           {
             @Override
@@ -150,7 +150,7 @@ public class SequenceTestHelper
     Yielder<Integer> yielder = null;
     try {
       yielder = seq.toYielder(
-          () -> 1,
+          1,
           new YieldingAccumulator<Integer, Integer>()
           {
             @Override

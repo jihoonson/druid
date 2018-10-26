@@ -82,9 +82,9 @@ public class LimitedSequenceTest
         )
     ).limit(5);
 
-    Assert.assertEquals(10, seq.accumulate(() -> 0, new IntAdditionAccumulator()).intValue());
+    Assert.assertEquals(10, seq.accumulate(0, new IntAdditionAccumulator()).intValue());
     Assert.assertEquals(10, accumulated.get());
-    Assert.assertEquals(10, seq.accumulate(() -> 0, new IntAdditionAccumulator()).intValue());
+    Assert.assertEquals(10, seq.accumulate(0, new IntAdditionAccumulator()).intValue());
     Assert.assertEquals(20, accumulated.get());
   }
 

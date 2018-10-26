@@ -656,7 +656,7 @@ public class AggregationTestHelper implements Closeable
         try {
           Sequence<Row> resultSeq = baseRunner.run(queryPlus, Maps.newHashMap());
           final Yielder yielder = resultSeq.toYielder(
-              () -> null,
+              null,
               new YieldingAccumulator()
               {
                 @Override

@@ -236,7 +236,7 @@ public class CombiningSequenceTest
     Assert.assertEquals(expected, merged);
 
     Yielder<Pair<Integer, Integer>> yielder = seq.toYielder(
-        () -> null,
+        null,
         new YieldingAccumulator<Pair<Integer, Integer>, Pair<Integer, Integer>>()
         {
           int count = 0;

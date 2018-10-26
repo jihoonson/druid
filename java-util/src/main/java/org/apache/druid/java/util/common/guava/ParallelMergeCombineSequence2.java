@@ -64,7 +64,7 @@ public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
 
   @Override
   public <OutType> Yielder<OutType> toYielder(
-      Supplier<OutType> initValueSupplier, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> yieldingAccumulatorSupplier
+      OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> yieldingAccumulatorSupplier
   )
   {
     final List<Sequence<T>> finalSequences = new ArrayList<>();
@@ -79,7 +79,7 @@ public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
 
       Future future = exec.submit(() -> {
         combiningSequence.accumulate(
-            () -> queue,
+            queue,
             (theQueue, v) -> {
               try {
                 if (!theQueue.offer(new ValueHolder(v), 5, TimeUnit.SECONDS)) { // TODO: probably this causes cache corruption ...??
@@ -156,7 +156,7 @@ public class ParallelMergeCombineSequence2<T> extends YieldingSequenceBase<T>
         new MergeSequence<>(ordering, Sequences.simple(finalSequences)),
         ordering,
         mergeFn
-    ).toYielder(initValueSupplier, statefulAccumulator);
+    ).toYielder(initValue, statefulAccumulator);
   }
 
   private class ValueHolder

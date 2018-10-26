@@ -52,9 +52,9 @@ public interface Sequence<T>
    *
    * @return accumulated value.
    */
-  <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier);
+  <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier);
 
-  default <OutType> OutType accumulate(Supplier<OutType> initValue, Accumulator<OutType, T> accumulator)
+  default <OutType> OutType accumulate(OutType initValue, Accumulator<OutType, T> accumulator)
   {
     return accumulate(initValue, accumulator, () -> accumulator);
   }
@@ -70,11 +70,11 @@ public interface Sequence<T>
    *
    * @see Yielder
    */
-  <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValueSupplier, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulatorSupplier);
+  <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, Supplier<YieldingAccumulator<OutType, T>> accumulatorSupplier);
 
-  default <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValueSupplier, YieldingAccumulator<OutType, T> statefulAccumulator)
+  default <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator)
   {
-    return toYielder(initValueSupplier, statefulAccumulator, () -> statefulAccumulator);
+    return toYielder(initValue, statefulAccumulator, () -> statefulAccumulator);
   }
 
   default <U> Sequence<U> map(Function<? super T, ? extends U> mapper)
@@ -84,7 +84,7 @@ public interface Sequence<T>
 
   default List<T> toList()
   {
-    return accumulate(() -> new ArrayList<>(), Accumulators.list(), () -> Accumulators.list());
+    return accumulate(new ArrayList<>(), Accumulators.list(), () -> Accumulators.list());
   }
 
   default Sequence<T> limit(int limit)

@@ -103,7 +103,7 @@ public class MergeSequenceBenchmark
         Sequences.simple(partialMerged)
     );
     Integer accumulate = mergeSequence.accumulate(
-        () -> 0, new Accumulator<Integer, Integer>()
+        0, new Accumulator<Integer, Integer>()
         {
           @Override
           public Integer accumulate(Integer accumulated, Integer in)
@@ -124,7 +124,7 @@ public class MergeSequenceBenchmark
   {
     MergeSequence<Integer> mergeSequence = new MergeSequence(Ordering.<Integer>natural(), Sequences.simple(sequences));
     Integer accumulate = mergeSequence.accumulate(
-        () -> 0, new Accumulator<Integer, Integer>()
+        0, new Accumulator<Integer, Integer>()
         {
           @Override
           public Integer accumulate(Integer accumulated, Integer in)

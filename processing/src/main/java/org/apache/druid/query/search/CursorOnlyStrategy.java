@@ -20,6 +20,7 @@
 package org.apache.druid.query.search;
 
 import com.google.common.collect.ImmutableList;
+import it.unimi.dsi.fastutil.objects.Object2IntRBTreeMap;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.query.ColumnSelectorPlus;
 import org.apache.druid.query.dimension.DimensionSpec;
@@ -30,7 +31,6 @@ import org.apache.druid.segment.DimensionHandlerUtils;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.segment.StorageAdapter;
 import org.apache.druid.segment.VirtualColumns;
-import it.unimi.dsi.fastutil.objects.Object2IntRBTreeMap;
 import org.joda.time.Interval;
 
 import java.util.Arrays;
@@ -97,12 +97,11 @@ public class CursorOnlyStrategy extends SearchStrategy
           null
       );
 
-      final Object2IntRBTreeMap<SearchHit> retVal = cursors.accumulate(
-          () -> {
-            final Object2IntRBTreeMap<SearchHit> map = new Object2IntRBTreeMap<>(query.getSort().getComparator());
-            map.defaultReturnValue(0);
-            return map;
-          },
+      final Object2IntRBTreeMap<SearchHit> retVal = new Object2IntRBTreeMap<>(query.getSort().getComparator());
+      retVal.defaultReturnValue(0);
+
+      cursors.accumulate(
+          retVal,
           (map, cursor) -> {
             if (map.size() >= limit) {
               return map;

@@ -490,7 +490,7 @@ public class DumpSegment extends GuiceRunnable
 
   private static <T> void evaluateSequenceForSideEffects(final Sequence<T> sequence)
   {
-    sequence.accumulate(() -> null, (accumulated, in) -> null);
+    sequence.accumulate(null, (accumulated, in) -> null);
   }
 
   private static class ListObjectSelector implements ColumnValueSelector

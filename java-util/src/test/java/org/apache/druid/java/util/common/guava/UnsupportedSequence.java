@@ -27,7 +27,7 @@ public class UnsupportedSequence implements Sequence<Integer>
 {
   @Override
   public <OutType> OutType accumulate(
-      Supplier<OutType> initValue, Accumulator<OutType, Integer> accumulator, Supplier<Accumulator<OutType, Integer>> accumulatorSupplier
+      OutType initValue, Accumulator<OutType, Integer> accumulator, Supplier<Accumulator<OutType, Integer>> accumulatorSupplier
   )
   {
     throw new UnsupportedOperationException();
@@ -35,7 +35,7 @@ public class UnsupportedSequence implements Sequence<Integer>
 
   @Override
   public <OutType> Yielder<OutType> toYielder(
-      Supplier<OutType> initValue, YieldingAccumulator<OutType, Integer> statefulAccumulator, Supplier<YieldingAccumulator<OutType, Integer>> accumulator
+      OutType initValue, YieldingAccumulator<OutType, Integer> statefulAccumulator, Supplier<YieldingAccumulator<OutType, Integer>> accumulator
   )
   {
     throw new UnsupportedOperationException();

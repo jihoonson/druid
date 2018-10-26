@@ -54,38 +54,38 @@ public class CombiningSequence<T> implements Sequence<T>
   }
 
   @Override
-  public <OutType> OutType accumulate(Supplier<OutType> initValue, final Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
+  public <OutType> OutType accumulate(OutType initValue, final Accumulator<OutType, T> accumulator, Supplier<Accumulator<OutType, T>> accumulatorSupplier)
   {
-    final CombiningAccumulator<OutType> combiningAccumulator = new CombiningAccumulator<>(initValue.get(), accumulator);
+    final CombiningAccumulator<OutType> combiningAccumulator = new CombiningAccumulator<>(initValue, accumulator);
     final T lastValue = baseSequence.accumulate(
-        () -> null,
+        null,
         combiningAccumulator,
-        () -> new CombiningAccumulator<>(initValue.get(), accumulatorSupplier.get())
+        () -> new CombiningAccumulator<>(initValue, accumulatorSupplier.get())
     );
     if (combiningAccumulator.accumulatedSomething()) {
       return accumulator.accumulate(combiningAccumulator.retVal, lastValue);
     } else {
-      return initValue.get();
+      return initValue;
     }
   }
 
   @Override
-  public <OutType> Yielder<OutType> toYielder(Supplier<OutType> initValue, YieldingAccumulator<OutType, T> statefulAccumulator, final Supplier<YieldingAccumulator<OutType, T>> accumulator)
+  public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> statefulAccumulator, final Supplier<YieldingAccumulator<OutType, T>> accumulator)
   {
     final CombiningYieldingAccumulator<OutType, T> combiningAccumulator = new CombiningYieldingAccumulator<>(
         ordering,
         mergeFn,
         statefulAccumulator
     );
-    combiningAccumulator.setRetVal(initValue.get());
+    combiningAccumulator.setRetVal(initValue);
 
-    Yielder<T> baseYielder = baseSequence.toYielder(() -> null, combiningAccumulator, () -> {
+    Yielder<T> baseYielder = baseSequence.toYielder(null, combiningAccumulator, () -> {
       final CombiningYieldingAccumulator<OutType, T> subAccumulator = new CombiningYieldingAccumulator<>(
           ordering,
           mergeFn,
           accumulator.get()
       );
-      subAccumulator.setRetVal(initValue.get());
+      subAccumulator.setRetVal(initValue);
       return subAccumulator;
     });
 
