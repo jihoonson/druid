@@ -19,10 +19,15 @@
 package org.apache.druid.client.selector;
 
 import org.apache.druid.client.DruidServer;
+import org.apache.druid.query.QueryRunner;
 
-public interface QueryableDruidServer<T>
+/**
+ * Interface to represent a single server which can participate in query processing. The main implementation is
+ * {@link RemoteDruidServer}.
+ */
+public interface QueryableDruidServer<T extends QueryRunner>
 {
   DruidServer getServer();
 
-  T getClient();
+  T getQueryRunner();
 }

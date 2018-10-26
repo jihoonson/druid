@@ -42,7 +42,7 @@ public class RemoteDruidServer implements QueryableDruidServer<DirectDruidClient
   }
 
   @Override
-  public DirectDruidClient getClient()
+  public DirectDruidClient getQueryRunner()
   {
     return client;
   }

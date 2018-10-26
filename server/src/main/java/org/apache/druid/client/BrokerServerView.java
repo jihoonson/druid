@@ -294,7 +294,7 @@ public class BrokerServerView implements TimelineServerView
         log.error("WTF?! No QueryableDruidServer found for %s", server.getName());
         return null;
       }
-      return queryableDruidServer.getClient();
+      return queryableDruidServer.getQueryRunner();
     }
   }
 

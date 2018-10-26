@@ -117,7 +117,7 @@ public class TestTimelineServerView implements TimelineServerView
     }
 
     @Override
-    public TestQueryRunner getClient()
+    public TestQueryRunner getQueryRunner()
     {
       return queryRunner;
     }

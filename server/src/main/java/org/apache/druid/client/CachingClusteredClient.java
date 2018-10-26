@@ -306,7 +306,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
                 query.getResultOrdering(),
                 mergeFn,
                 mergeBatch,
-                query.getContextValue("queueSize", 10240) // TODO: add to queryContexts
+                query.getContextValue("queueSize", 10240) // TODO: add to queryContexts and rename
             ),
             query.getResultOrdering(),
             mergeFn

@@ -146,6 +146,8 @@ public class CachingClusteredClientBenchmark
   @Param({"4", "2", "0"})
   private int intermediateMergeBatchThreshold;
 
+  // TODO: queueSize?
+
   private static final Logger log = new Logger(CachingClusteredClientBenchmark.class);
   private static final String DATA_SOURCE = "ds";
   private static final int RNG_SEED = 9999;
@@ -198,9 +200,6 @@ public class CachingClusteredClientBenchmark
         "sumLongSequential"
     ));
 
-    // # of results: 498794
-    // 83556 without dimUniform
-    // 252881 without dimSequential
     final GroupByQuery.Builder builder = GroupByQuery
         .builder()
         .setDataSource(DATA_SOURCE)
@@ -208,7 +207,6 @@ public class CachingClusteredClientBenchmark
         .setDimensions(
             new DefaultDimensionSpec("dimUniform", null),
             new DefaultDimensionSpec("dimZipf", null)
-//            new DefaultDimensionSpec("dimSequential", null)
         )
         .setAggregatorSpecs(queryAggs)
         .setGranularity(Granularity.fromString(queryGranularity));
@@ -387,8 +385,6 @@ public class CachingClusteredClientBenchmark
     Sequence<Row> queryResult = theRunner.run(QueryPlus.wrap(query), Maps.newHashMap());
     List<Row> results = queryResult.toList();
 
-    log.info("# of results: " + results.size());
-
     for (Row result : results) {
       blackhole.consume(result);
     }
@@ -447,7 +443,7 @@ public class CachingClusteredClientBenchmark
     public <T> QueryRunner<T> getQueryRunner(DruidServer server)
     {
       final SingleSegmentDruidServer queryableDruidServer = Preconditions.checkNotNull(servers.get(server), "server");
-      return (QueryRunner<T>) queryableDruidServer.getClient();
+      return (QueryRunner<T>) queryableDruidServer.getQueryRunner();
     }
 
     @Override
@@ -491,7 +487,7 @@ public class CachingClusteredClientBenchmark
     }
 
     @Override
-    public SimpleQueryRunner getClient()
+    public SimpleQueryRunner getQueryRunner()
     {
       return runner;
     }
