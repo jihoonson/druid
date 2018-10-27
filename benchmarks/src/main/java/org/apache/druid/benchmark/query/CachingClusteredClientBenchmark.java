@@ -59,8 +59,6 @@ import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Sequence;
-import org.apache.druid.java.util.common.guava.Yielder;
-import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.math.expr.ExprMacroTable;
 import org.apache.druid.offheap.OffheapBufferGenerator;
@@ -380,7 +378,7 @@ public class CachingClusteredClientBenchmark
   @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
-  public void queryMultiQueryableIndex(Blackhole blackhole)
+  public void groupByQuery(Blackhole blackhole)
   {
     setupQuery();
     QueryToolChest<Row, Query<Row>> toolChest = (QueryToolChest<Row, Query<Row>>) factory.getToolchest();
@@ -401,6 +399,8 @@ public class CachingClusteredClientBenchmark
       blackhole.consume(result);
     }
   }
+
+  // TODO: other query types
 
   private IncrementalIndex makeIncIndex(boolean withRollup)
   {

@@ -38,7 +38,7 @@ public class ConnectionCountServerSelectorStrategy implements ServerSelectorStra
   public QueryableDruidServer pick(Set<QueryableDruidServer> servers, DataSegment segment)
   {
     return Collections.min(
-        servers.stream().map(server -> (RemoteDruidServer)server).collect(Collectors.toSet()),
+        servers.stream().map(server -> (RemoteDruidServer) server).collect(Collectors.toSet()),
         comparator
     );
   }
@@ -53,9 +53,12 @@ public class ConnectionCountServerSelectorStrategy implements ServerSelectorStra
     }
     return Ordering
         .from(comparator)
-        .leastOf(servers.stream().map(server -> (RemoteDruidServer)server).collect(Collectors.toSet()), numServersToPick)
+        .leastOf(
+            servers.stream().map(server -> (RemoteDruidServer) server).collect(Collectors.toSet()),
+            numServersToPick
+        )
         .stream()
-        .map(server -> (QueryableDruidServer)server)
+        .map(server -> (QueryableDruidServer) server)
         .collect(Collectors.toList());
   }
 }
