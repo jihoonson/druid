@@ -307,7 +307,8 @@ public class CachingClusteredClient implements QuerySegmentWalker
                 query.getResultOrdering(),
                 mergeFn,
                 mergeDegree,
-                QueryContexts.getBrokerParallelMergeQueueSize(query)
+                QueryContexts.getBrokerParallelMergeQueueSize(query),
+                QueryContexts.getTimeout(query)
             ),
             query.getResultOrdering(),
             mergeFn

@@ -380,7 +380,7 @@ public class CachingClusteredClientBenchmark
   @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
-  public void queryMultiQueryableIndex(Blackhole blackhole) throws IOException
+  public void queryMultiQueryableIndex(Blackhole blackhole)
   {
     setupQuery();
     QueryToolChest<Row, Query<Row>> toolChest = (QueryToolChest<Row, Query<Row>>) factory.getToolchest();
@@ -392,16 +392,6 @@ public class CachingClusteredClientBenchmark
         .applyPostMergeDecoration();
 
     Sequence<Row> queryResult = theRunner.run(QueryPlus.wrap(query), Maps.newHashMap());
-
-//    Yielder<Row> yielder = queryResult.each();
-//
-//    while (!yielder.isDone()) {
-//      final Row row = yielder.get();
-//      blackhole.consume(row);
-//      yielder.next(null);
-//    }
-//
-//    yielder.close();
 
     List<Row> results = queryResult.toList();
 

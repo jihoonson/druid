@@ -129,7 +129,8 @@ public class ParallelMergeCombineSequenceTest
         ordering,
         mergeFn,
         2,
-        10240
+        10240,
+        1000
     );
 
     Yielder<IntPair> combiningYielder = Yielders.each(combiningSequence);

@@ -81,59 +81,14 @@ public abstract class CachingClusteredClientParallelMergeTestBase
   private static final String VERSION = "version";
   private static final int NUM_SERVERS = 3;
 
-  private final long s = System.currentTimeMillis();
-  private final Random random = new Random(s);
+  private final Random random = new Random(System.currentTimeMillis());
 
   private CachingClusteredClient client;
   private QueryToolChestWarehouse toolChestWarehouse;
 
-//  @Parameterized.Parameters
-//  public static Collection<Object[]> getParameters()
-//  {
-//    return ImmutableList.of(
-//        new Object[]{
-//            new GroupByQuery(
-//                new TableDataSource(DATA_SOURCE),
-//                new MultipleIntervalSegmentSpec(Collections.singletonList(Intervals.of("2018-01-01/2018-01-07"))),
-//                VirtualColumns.EMPTY,
-//                null,
-//                Granularities.ALL,
-//                ImmutableList.of(new DefaultDimensionSpec("dim1", "dim1"), new DefaultDimensionSpec("dim2", "dim2")),
-//                ImmutableList.of(
-//                    new LongSumAggregatorFactory("cnt", "cnt"),
-//                    new DoubleMaxAggregatorFactory("double_max", "double_met")
-//                ),
-//                null,
-//                null,
-//                null,
-//                null,
-//                ImmutableMap.of(QueryContexts.BROKER_PARALLEL_MERGE_DEGREE, 2)
-//            ),
-//            new GroupByQuery(
-//                new TableDataSource(DATA_SOURCE),
-//                new MultipleIntervalSegmentSpec(Collections.singletonList(Intervals.of("2018-01-01/2018-01-07"))),
-//                VirtualColumns.EMPTY,
-//                null,
-//                Granularities.ALL,
-//                ImmutableList.of(new DefaultDimensionSpec("dim1", "dim1"), new DefaultDimensionSpec("dim2", "dim2")),
-//                ImmutableList.of(
-//                    new LongSumAggregatorFactory("cnt", "cnt"),
-//                    new DoubleMaxAggregatorFactory("double_max", "double_met")
-//                ),
-//                null,
-//                null,
-//                null,
-//                null,
-//                Collections.emptyMap()
-//            )
-//        }
-//    );
-//  }
-
   @Before
   public void setup()
   {
-    System.out.println(s);
     final QueryRunnerFactoryConglomerate conglomerate = new DefaultQueryRunnerFactoryConglomerate(
         ImmutableMap.<Class<? extends Query>, QueryRunnerFactory>builder()
             .put(
@@ -297,9 +252,6 @@ public abstract class CachingClusteredClientParallelMergeTestBase
     );
     final Sequence result = runQuery(testQuery);
     final Sequence expected = runQuery(expectedQuery);
-
-//    System.out.println(expected.toList());
-//    System.out.println(result.toList());
 
     Assert.assertEquals(expected.toList(), result.toList());
   }

@@ -19,7 +19,6 @@
 package org.apache.druid.java.util.common.guava;
 
 import com.google.common.collect.Ordering;
-import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
 import org.apache.druid.java.util.common.guava.nary.BinaryFn;
 
@@ -43,6 +42,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
   private final BinaryFn<T, T, T> mergeFn;
   private final int mergeDegree;
   private final int queueSize;
+  private final long timeout;
 
   public ParallelMergeCombineSequence(
       ExecutorService exec,
@@ -50,7 +50,8 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
       Ordering<T> ordering,
       BinaryFn<T, T, T> mergeFn,
       int mergeDegree,
-      int queueSize
+      int queueSize,
+      long timeout
   )
   {
     this.exec = exec;
@@ -59,6 +60,18 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
     this.mergeFn = mergeFn;
     this.mergeDegree = mergeDegree;
     this.queueSize = queueSize;
+    this.timeout = timeout;
+  }
+
+  private void addToQueue(BlockingQueue<ValueHolder> queue, ValueHolder holder) throws InterruptedException
+  {
+    if (timeout == 0) {
+      queue.put(holder);
+    } else {
+      if (!queue.offer(holder, timeout, TimeUnit.MILLISECONDS)) {
+        throw new RuntimeException(new TimeoutException());
+      }
+    }
   }
 
   @Override
@@ -83,9 +96,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
             queue,
             (theQueue, v) -> {
               try {
-                if (!theQueue.offer(new ValueHolder(v), 5, TimeUnit.SECONDS)) { // TODO: probably this causes cache corruption ...??
-                  throw new RuntimeException(new TimeoutException(StringUtils.format("Can't off to the queue[%s] in 5 sec", System.identityHashCode(queue))));
-                }
+                addToQueue(theQueue, new ValueHolder(v));
               }
               catch (InterruptedException e) {
                 throw new RuntimeException(e);
@@ -94,9 +105,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
             }
         );
         try {
-          if (!queue.offer(new ValueHolder(null), 5, TimeUnit.SECONDS)) {
-            throw new RuntimeException(new TimeoutException(StringUtils.format("Can't offer to the queue[%s] in 5 sec", System.identityHashCode(queue))));
-          }
+          addToQueue(queue, new ValueHolder(null));
         }
         catch (InterruptedException e) {
           throw new RuntimeException(e);
@@ -118,9 +127,15 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
                     public boolean hasNext()
                     {
                       try {
-                        final ValueHolder holder = queue.poll(5, TimeUnit.SECONDS);
+                        final ValueHolder holder;
+                        if (timeout == 0) {
+                          holder = queue.take();
+                        } else {
+                          holder = queue.poll(timeout, TimeUnit.MILLISECONDS);
+                        }
+
                         if (holder == null) {
-                          throw new RuntimeException(new TimeoutException(StringUtils.format("Can't poll from the queue[%s] in 5 sec", System.identityHashCode(queue))));
+                          throw new RuntimeException(new TimeoutException());
                         }
                         nextVal = holder.val;
                         return nextVal != null;
