@@ -298,6 +298,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
       final int mergeDegree = QueryContexts.getBrokerParallelMergeDegree(query);
 
       if (mergeDegree > 1) {
+        log.info("parallel merge");
         final BinaryFn<T, T, T> mergeFn = toolChest.createMergeFn(query);
         return CombiningSequence.create(
             new ParallelMergeCombineSequence<>(
@@ -312,6 +313,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
             mergeFn
         );
       } else {
+        log.info("sequential merge");
         return Sequences
             .simple(sequencesByInterval)
             .flatMerge(seq -> seq, query.getResultOrdering());

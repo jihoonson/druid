@@ -18,27 +18,28 @@
  */
 package org.apache.druid.client;
 
-import org.apache.druid.data.input.Row;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
+import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 
+import java.util.List;
 import java.util.Map;
 
-public class TestQueryRunner implements QueryRunner<Row>
+public class TestQueryRunner<T> implements QueryRunner<T>
 {
-  private final Sequence<Row> sequence;
+  private static final Logger log = new Logger(TestQueryRunner.class);
 
-  public TestQueryRunner(Iterable<Row> iterable)
+  private final Sequence<T> sequence;
+
+  public TestQueryRunner(List<T> iterable)
   {
     sequence = Sequences.simple(iterable);
   }
 
   @Override
-  public Sequence<Row> run(
-      QueryPlus<Row> queryPlus, Map<String, Object> responseContext
-  )
+  public Sequence<T> run(QueryPlus<T> queryPlus, Map<String, Object> responseContext)
   {
     return sequence;
   }

@@ -41,7 +41,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
   private final List<? extends Sequence<T>> baseSequences;
   private final Ordering<T> ordering;
   private final BinaryFn<T, T, T> mergeFn;
-  private final int batchSize;
+  private final int mergeDegree;
   private final int queueSize;
 
   public ParallelMergeCombineSequence(
@@ -49,7 +49,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
       List<? extends Sequence<? extends T>> baseSequences,
       Ordering<T> ordering,
       BinaryFn<T, T, T> mergeFn,
-      int batchSize,
+      int mergeDegree,
       int queueSize
   )
   {
@@ -57,7 +57,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
     this.baseSequences = (List<? extends Sequence<T>>) baseSequences;
     this.ordering = ordering;
     this.mergeFn = mergeFn;
-    this.batchSize = batchSize;
+    this.mergeDegree = mergeDegree;
     this.queueSize = queueSize;
   }
 
@@ -67,6 +67,8 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
   )
   {
     final List<Sequence<T>> finalSequences = new ArrayList<>();
+
+    final int batchSize = (int) Math.ceil(baseSequences.size() / (double) mergeDegree);
 
     for (int i = 0; i < baseSequences.size(); i += batchSize) {
       final Sequence<? extends Sequence<T>> subSequences = Sequences.simple(
@@ -163,7 +165,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
     @Nullable
     private final T val;
 
-    private ValueHolder(T val)
+    private ValueHolder(@Nullable T val)
     {
       this.val = val;
     }
