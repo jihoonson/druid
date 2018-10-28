@@ -39,35 +39,40 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
   private final ExecutorService exec;
   private final List<? extends Sequence<T>> baseSequences;
   private final Ordering<T> ordering;
-  private final BinaryFn<T, T, T> mergeFn;
-  private final int mergeDegree;
+  private final BinaryFn<T, T, T> combineFn;
+  private final int combineDegree;
   private final int queueSize;
-  private final long timeout;
+  private final boolean hasTimeout;
+  private final long timeoutAt;
 
   public ParallelMergeCombineSequence(
       ExecutorService exec,
       List<? extends Sequence<? extends T>> baseSequences,
       Ordering<T> ordering,
-      BinaryFn<T, T, T> mergeFn,
-      int mergeDegree,
+      BinaryFn<T, T, T> combineFn,
+      int combineDegree,
       int queueSize,
+      boolean hasTimeout,
       long timeout
   )
   {
     this.exec = exec;
     this.baseSequences = (List<? extends Sequence<T>>) baseSequences;
     this.ordering = ordering;
-    this.mergeFn = mergeFn;
-    this.mergeDegree = mergeDegree;
+    this.combineFn = combineFn;
+    this.combineDegree = combineDegree;
     this.queueSize = queueSize;
-    this.timeout = timeout;
+    this.hasTimeout = hasTimeout;
+    this.timeoutAt = System.currentTimeMillis() + timeout;
   }
 
-  private void addToQueue(BlockingQueue<ValueHolder> queue, ValueHolder holder) throws InterruptedException
+  private void addToQueue(BlockingQueue<ValueHolder> queue, ValueHolder holder)
+      throws InterruptedException
   {
-    if (timeout == 0) {
+    if (!hasTimeout) {
       queue.put(holder);
     } else {
+      final long timeout = timeoutAt - System.currentTimeMillis();
       if (!queue.offer(holder, timeout, TimeUnit.MILLISECONDS)) {
         throw new RuntimeException(new TimeoutException());
       }
@@ -79,8 +84,9 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
   {
     final List<Sequence<T>> finalSequences = new ArrayList<>();
 
-    final int batchSize = (int) Math.ceil(baseSequences.size() / (double) mergeDegree);
+    final int batchSize = (int) Math.ceil(baseSequences.size() / (double) combineDegree);
 
+    // TODO: hierarchical combine...
     for (int i = 0; i < baseSequences.size(); i += batchSize) {
       final Sequence<? extends Sequence<T>> subSequences = Sequences.simple(
           baseSequences.subList(i, Math.min(i + batchSize, baseSequences.size()))
@@ -88,7 +94,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
       final CombiningSequence<T> combiningSequence = CombiningSequence.create(
           new MergeSequence<>(ordering, subSequences),
           ordering,
-          mergeFn
+          combineFn
       );
 
       final BlockingQueue<ValueHolder> queue = new ArrayBlockingQueue<>(queueSize);
@@ -98,6 +104,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
             queue,
             (theQueue, v) -> {
               try {
+
                 addToQueue(theQueue, new ValueHolder(v));
               }
               catch (InterruptedException e) {
@@ -130,9 +137,10 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
                     {
                       try {
                         final ValueHolder holder;
-                        if (timeout == 0) {
+                        if (!hasTimeout) {
                           holder = queue.take();
                         } else {
+                          final long timeout = timeoutAt - System.currentTimeMillis();
                           holder = queue.poll(timeout, TimeUnit.MILLISECONDS);
                         }
 
@@ -173,7 +181,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
     return CombiningSequence.create(
         new MergeSequence<>(ordering, Sequences.simple(finalSequences)),
         ordering,
-        mergeFn
+        combineFn
     ).toYielder(initValue, accumulator);
   }
 

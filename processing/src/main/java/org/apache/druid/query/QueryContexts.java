@@ -36,8 +36,8 @@ public class QueryContexts
   public static final String MAX_QUEUED_BYTES_KEY = "maxQueuedBytes";
   public static final String DEFAULT_TIMEOUT_KEY = "defaultTimeout";
   public static final String CHUNK_PERIOD_KEY = "chunkPeriod";
-  public static final String BROKER_PARALLEL_MERGE_DEGREE = "brokerParallelMergeDegree";
-  public static final String BROKER_PARALLEL_MERGE_QUEUE_SIZE = "brokerParallelMergeQueueSize";
+  public static final String BROKER_PARALLEL_COMBINE_DEGREE = "brokerParallelCombineDegree";
+  public static final String BROKER_PARALLEL_COMBINE_QUEUE_SIZE = "brokerParallelCombineQueueSize";
 
   public static final boolean DEFAULT_BY_SEGMENT = false;
   public static final boolean DEFAULT_POPULATE_CACHE = true;
@@ -46,8 +46,8 @@ public class QueryContexts
   public static final boolean DEFAULT_USE_RESULTLEVEL_CACHE = true;
   public static final int DEFAULT_PRIORITY = 0;
   public static final int DEFAULT_UNCOVERED_INTERVALS_LIMIT = 0;
-  public static final int DEFAULT_BROKER_PARALLEL_MERGE_DEGREE = 1;
-  public static final int DEFAULT_BROKER_PARALLEL_MERGE_QUEUE_SIZE = 10240;
+  public static final int DEFAULT_BROKER_PARALLEL_COMBINE_DEGREE = 1;
+  public static final int DEFAULT_BROKER_PARALLEL_COMBINE_QUEUE_SIZE = 10240;
   public static final long DEFAULT_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(5);
   public static final long NO_TIMEOUT = 0;
 
@@ -176,25 +176,29 @@ public class QueryContexts
     }
   }
 
-  public static <T> int getBrokerParallelMergeDegree(Query<T> query)
+  public static <T> int getBrokerParallelCombineDegree(Query<T> query)
   {
-    final int mergeDegree = parseInt(query, BROKER_PARALLEL_MERGE_DEGREE, DEFAULT_BROKER_PARALLEL_MERGE_DEGREE);
+    final int combineDegree = parseInt(query, BROKER_PARALLEL_COMBINE_DEGREE, DEFAULT_BROKER_PARALLEL_COMBINE_DEGREE);
     Preconditions.checkArgument(
-        mergeDegree > 0,
+        combineDegree > 0,
         "%s should be positive, but [%s]",
-        BROKER_PARALLEL_MERGE_DEGREE,
-        mergeDegree
+        BROKER_PARALLEL_COMBINE_DEGREE,
+        combineDegree
     );
-    return mergeDegree;
+    return combineDegree;
   }
 
-  public static <T> int getBrokerParallelMergeQueueSize(Query<T> query)
+  public static <T> int getBrokerParallelCombineQueueSize(Query<T> query)
   {
-    final int queueSize = parseInt(query, BROKER_PARALLEL_MERGE_QUEUE_SIZE, DEFAULT_BROKER_PARALLEL_MERGE_QUEUE_SIZE);
+    final int queueSize = parseInt(
+        query,
+        BROKER_PARALLEL_COMBINE_QUEUE_SIZE,
+        DEFAULT_BROKER_PARALLEL_COMBINE_QUEUE_SIZE
+    );
     Preconditions.checkArgument(
         queueSize > 0,
         "%s should be positive, but [%s]",
-        BROKER_PARALLEL_MERGE_QUEUE_SIZE,
+        BROKER_PARALLEL_COMBINE_QUEUE_SIZE,
         queueSize
     );
     return queueSize;

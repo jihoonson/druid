@@ -130,6 +130,7 @@ public class ParallelMergeCombineSequenceTest
         mergeFn,
         2,
         10240,
+        true,
         1000
     );
 

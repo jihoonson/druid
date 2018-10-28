@@ -248,7 +248,7 @@ public abstract class CachingClusteredClientParallelMergeTestBase
   void runAndVerify(Query expectedQuery)
   {
     final Query testQuery = expectedQuery.withOverriddenContext(
-        ImmutableMap.of(QueryContexts.BROKER_PARALLEL_MERGE_DEGREE, 2)
+        ImmutableMap.of(QueryContexts.BROKER_PARALLEL_COMBINE_DEGREE, 2)
     );
     final Sequence result = runQuery(testQuery);
     final Sequence expected = runQuery(expectedQuery);

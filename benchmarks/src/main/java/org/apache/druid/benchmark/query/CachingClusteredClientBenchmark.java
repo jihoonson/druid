@@ -208,9 +208,9 @@ public class CachingClusteredClientBenchmark
         .setGranularity(Granularity.fromString(queryGranularity))
         .setContext(
             ImmutableMap.of(
-                QueryContexts.BROKER_PARALLEL_MERGE_DEGREE,
+                QueryContexts.BROKER_PARALLEL_COMBINE_DEGREE,
                 brokerParallelMergeDegree,
-                QueryContexts.BROKER_PARALLEL_MERGE_QUEUE_SIZE,
+                QueryContexts.BROKER_PARALLEL_COMBINE_QUEUE_SIZE,
                 brokerParallelMergeQueueSize
             )
         )
