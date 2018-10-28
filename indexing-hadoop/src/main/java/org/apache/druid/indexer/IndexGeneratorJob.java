@@ -32,6 +32,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import org.apache.commons.io.FileUtils;
 import org.apache.druid.common.guava.ThreadRenamingRunnable;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.Row;
@@ -55,7 +56,6 @@ import org.apache.druid.segment.indexing.TuningConfigs;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
-import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -286,7 +286,7 @@ public class IndexGeneratorJob implements Jobby
 
     IncrementalIndex newIndex = new IncrementalIndex.Builder()
         .setIndexSchema(indexSchema)
-        .setReportParseExceptions(!tuningConfig.isIgnoreInvalidRows())
+        .setReportParseExceptions(!tuningConfig.isIgnoreInvalidRows()) // only used by OffHeapIncrementalIndex
         .setMaxRowCount(tuningConfig.getRowFlushBoundary())
         .setMaxBytesInMemory(TuningConfigs.getMaxBytesInMemoryOrDefault(tuningConfig.getMaxBytesInMemory()))
         .buildOnheap();
@@ -334,8 +334,7 @@ public class IndexGeneratorJob implements Jobby
     @Override
     protected void innerMap(
         InputRow inputRow,
-        Context context,
-        boolean reportParseExceptions
+        Context context
     ) throws IOException, InterruptedException
     {
       // Group by bucket, sort by timestamp
@@ -421,11 +420,9 @@ public class IndexGeneratorJob implements Jobby
     }
 
     @Override
-    protected void reduce(
-        final BytesWritable key, Iterable<BytesWritable> values, final Context context
-    ) throws IOException, InterruptedException
+    protected void reduce(final BytesWritable key, Iterable<BytesWritable> values, final Context context)
+        throws IOException, InterruptedException
     {
-
       Iterator<BytesWritable> iter = values.iterator();
       BytesWritable first = iter.next();
 
@@ -588,9 +585,8 @@ public class IndexGeneratorJob implements Jobby
         final ProgressIndicator progressIndicator
     ) throws IOException
     {
-      return HadoopDruidIndexerConfig.INDEX_MERGER_V9.persist(
-          index, interval, file, config.getIndexSpec(), progressIndicator, null
-      );
+      return HadoopDruidIndexerConfig.INDEX_MERGER_V9
+          .persist(index, interval, file, config.getIndexSpec(), progressIndicator, null);
     }
 
     protected File mergeQueryableIndex(
@@ -601,9 +597,8 @@ public class IndexGeneratorJob implements Jobby
     ) throws IOException
     {
       boolean rollup = config.getSchema().getDataSchema().getGranularitySpec().isRollup();
-      return HadoopDruidIndexerConfig.INDEX_MERGER_V9.mergeQueryableIndex(
-          indexes, rollup, aggs, file, config.getIndexSpec(), progressIndicator, null
-      );
+      return HadoopDruidIndexerConfig.INDEX_MERGER_V9
+          .mergeQueryableIndex(indexes, rollup, aggs, file, config.getIndexSpec(), progressIndicator, null);
     }
 
     @Override
@@ -625,9 +620,8 @@ public class IndexGeneratorJob implements Jobby
     }
 
     @Override
-    protected void reduce(
-        BytesWritable key, Iterable<BytesWritable> values, final Context context
-    ) throws IOException, InterruptedException
+    protected void reduce(BytesWritable key, Iterable<BytesWritable> values, final Context context)
+        throws IOException, InterruptedException
     {
       SortableBytes keyBytes = SortableBytes.fromBytesWritable(key);
       Bucket bucket = Bucket.fromGroupKey(keyBytes.getGroupKey()).lhs;
@@ -776,9 +770,7 @@ public class IndexGeneratorJob implements Jobby
 
           log.info("starting merge of intermediate persisted segments.");
           long mergeStartTime = System.currentTimeMillis();
-          mergedBase = mergeQueryableIndex(
-              indexes, aggregators, new File(baseFlushFile, "merged"), progressIndicator
-          );
+          mergedBase = mergeQueryableIndex(indexes, aggregators, new File(baseFlushFile, "merged"), progressIndicator);
           log.info(
               "finished merge of intermediate persisted segments. time taken [%d] ms.",
               (System.currentTimeMillis() - mergeStartTime)

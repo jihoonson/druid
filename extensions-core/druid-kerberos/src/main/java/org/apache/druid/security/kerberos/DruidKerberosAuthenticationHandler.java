@@ -19,8 +19,8 @@
 
 package org.apache.druid.security.kerberos;
 
-import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.hadoop.security.authentication.client.AuthenticationException;
 import org.apache.hadoop.security.authentication.server.AuthenticationToken;
 import org.apache.hadoop.security.authentication.server.KerberosAuthenticationHandler;
@@ -91,8 +91,7 @@ public class DruidKerberosAuthenticationHandler extends KerberosAuthenticationHa
       // specifically configured
       final String[] spnegoPrincipals;
       if ("*".equals(principal)) {
-        spnegoPrincipals = KerberosUtil.getPrincipalNames(
-            keytab, Pattern.compile("HTTP/.*"));
+        spnegoPrincipals = KerberosUtil.getPrincipalNames(keytab, Pattern.compile("HTTP/.*"));
         if (spnegoPrincipals.length == 0) {
           throw new ServletException("Principals do not exist in the keytab");
         }

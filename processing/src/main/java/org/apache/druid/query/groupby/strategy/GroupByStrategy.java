@@ -32,6 +32,7 @@ import org.apache.druid.query.groupby.GroupByQueryQueryToolChest;
 import org.apache.druid.query.groupby.resource.GroupByQueryResource;
 import org.apache.druid.segment.StorageAdapter;
 
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
@@ -69,42 +70,29 @@ public interface GroupByStrategy
       GroupByQueryQueryToolChest toolChest
   );
 
+  @Nullable
   default BinaryFn<Row, Row, Row> createMergeFn(Query<Row> query)
   {
     return null;
   }
 
-  Sequence<Row> mergeResults(
-      QueryRunner<Row> baseRunner,
-      GroupByQuery query,
-      Map<String, Object> responseContext
-  );
+  Sequence<Row> mergeResults(QueryRunner<Row> baseRunner, GroupByQuery query, Map<String, Object> responseContext);
 
-  Sequence<Row> applyPostProcessing(
-      Sequence<Row> results,
-      GroupByQuery query
-  );
+  Sequence<Row> applyPostProcessing(Sequence<Row> results, GroupByQuery query);
 
   Sequence<Row> processSubqueryResult(
       GroupByQuery subquery,
       GroupByQuery query,
       GroupByQueryResource resource,
-      Sequence<Row> subqueryResult
+      Sequence<Row> subqueryResult,
+      boolean wasQueryPushedDown
   );
 
-  Sequence<Row> processSubtotalsSpec(
-      GroupByQuery query,
-      GroupByQueryResource resource,
-      Sequence<Row> queryResult
-  );
+  Sequence<Row> processSubtotalsSpec(GroupByQuery query, GroupByQueryResource resource, Sequence<Row> queryResult);
 
-  QueryRunner<Row> mergeRunners(
-      ListeningExecutorService exec,
-      Iterable<QueryRunner<Row>> queryRunners
-  );
+  QueryRunner<Row> mergeRunners(ListeningExecutorService exec, Iterable<QueryRunner<Row>> queryRunners);
 
-  Sequence<Row> process(
-      GroupByQuery query,
-      StorageAdapter storageAdapter
-  );
+  Sequence<Row> process(GroupByQuery query, StorageAdapter storageAdapter);
+
+  boolean supportsNestedQueryPushDown();
 }

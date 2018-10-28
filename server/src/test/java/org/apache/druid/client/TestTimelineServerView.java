@@ -33,7 +33,9 @@ import org.apache.druid.timeline.TimelineLookup;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
 
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -56,7 +58,10 @@ public class TestTimelineServerView implements TimelineServerView
 
   void addSegmentToServer(DruidServer server, DataSegment segment)
   {
-    final ServerSelector selector = selectors.computeIfAbsent(segment.getIdentifier(), k -> new ServerSelector(segment, tierSelectorStrategy));
+    final ServerSelector selector = selectors.computeIfAbsent(
+        segment.getIdentifier(),
+        k -> new ServerSelector(segment, tierSelectorStrategy)
+    );
     selector.addServerAndUpdateSegment(servers.get(server), segment);
     timelines.computeIfAbsent(segment.getDataSource(), k -> new VersionedIntervalTimeline<>(Ordering.natural()))
              .add(segment.getInterval(), segment.getVersion(), segment.getShardSpec().createChunk(selector));
@@ -71,6 +76,12 @@ public class TestTimelineServerView implements TimelineServerView
   }
 
   @Override
+  public List<ImmutableDruidServer> getDruidServers()
+  {
+    return Collections.emptyList();
+  }
+
+  @Override
   public <T> QueryRunner<T> getQueryRunner(DruidServer server)
   {
     final TestDruidServer queryableDruidServer = Preconditions.checkNotNull(servers.get(server), "server");
@@ -78,25 +89,21 @@ public class TestTimelineServerView implements TimelineServerView
   }
 
   @Override
-  public void registerTimelineCallback(
-      Executor exec, TimelineCallback callback
-  )
+  public void registerTimelineCallback(Executor exec, TimelineCallback callback)
   {
-
+    // do nothing
   }
 
   @Override
-  public void registerServerRemovedCallback(
-      Executor exec, ServerRemovedCallback callback
-  )
+  public void registerServerRemovedCallback(Executor exec, ServerRemovedCallback callback)
   {
-
+    // do nothing
   }
 
   @Override
   public void registerSegmentCallback(Executor exec, SegmentCallback callback)
   {
-
+    // do nothing
   }
 
   private static class TestDruidServer implements QueryableDruidServer<TestQueryRunner>

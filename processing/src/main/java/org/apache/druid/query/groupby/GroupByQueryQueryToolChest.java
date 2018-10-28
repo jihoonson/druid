@@ -124,11 +124,7 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
 
         final GroupByQuery groupByQuery = (GroupByQuery) queryPlus.getQuery();
         if (strategySelector.strategize(groupByQuery).doMergeResults(groupByQuery)) {
-          return initAndMergeGroupByResults(
-              groupByQuery,
-              runner,
-              responseContext
-          );
+          return initAndMergeGroupByResults(groupByQuery, runner, responseContext);
         }
         return runner.run(queryPlus, responseContext);
       }
@@ -150,21 +146,26 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
     final GroupByStrategy groupByStrategy = strategySelector.strategize(query);
     final GroupByQueryResource resource = groupByStrategy.prepareResource(query, false);
 
-    return Sequences.withBaggage(
-        mergeGroupByResults(
-            groupByStrategy,
-            query,
-            resource,
-            runner,
-            context
-        ),
-        resource
-    );
+    return Sequences.withBaggage(mergeGroupByResults(groupByStrategy, query, resource, runner, context), resource);
   }
 
   private Sequence<Row> mergeGroupByResults(
       GroupByStrategy groupByStrategy,
       final GroupByQuery query,
+      GroupByQueryResource resource,
+      QueryRunner<Row> runner,
+      Map<String, Object> context
+  )
+  {
+    if (isNestedQueryPushDown(query, groupByStrategy)) {
+      return mergeResultsWithNestedQueryPushDown(groupByStrategy, query, resource, runner, context);
+    }
+    return mergeGroupByResultsWithoutPushDown(groupByStrategy, query, resource, runner, context);
+  }
+
+  private Sequence<Row> mergeGroupByResultsWithoutPushDown(
+      GroupByStrategy groupByStrategy,
+      GroupByQuery query,
       GroupByQueryResource resource,
       QueryRunner<Row> runner,
       Map<String, Object> context
@@ -212,31 +213,21 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
           context
       );
 
-      final Sequence<Row> finalizingResults;
-      if (QueryContexts.isFinalize(subquery, false)) {
-        finalizingResults = new MappedSequence<>(
-            subqueryResult,
-            makePreComputeManipulatorFn(
-                subquery,
-                MetricManipulatorFns.finalizing()
-            )::apply
-        );
-      } else {
-        finalizingResults = subqueryResult;
-      }
+      final Sequence<Row> finalizingResults = finalizeSubqueryResults(subqueryResult, subquery);
 
       if (query.getSubtotalsSpec() != null) {
         return groupByStrategy.processSubtotalsSpec(
             query,
             resource,
-            groupByStrategy.processSubqueryResult(subquery, query, resource, finalizingResults)
+            groupByStrategy.processSubqueryResult(subquery, query, resource, finalizingResults, false)
         );
       } else {
         return groupByStrategy.applyPostProcessing(groupByStrategy.processSubqueryResult(
             subquery,
             query,
             resource,
-            finalizingResults
+            finalizingResults,
+            false
         ), query);
       }
 
@@ -251,6 +242,69 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<Row, GroupByQuery
         return groupByStrategy.applyPostProcessing(groupByStrategy.mergeResults(runner, query, context), query);
       }
     }
+  }
+
+  private Sequence<Row> mergeResultsWithNestedQueryPushDown(
+      GroupByStrategy groupByStrategy,
+      GroupByQuery query,
+      GroupByQueryResource resource,
+      QueryRunner<Row> runner,
+      Map<String, Object> context
+  )
+  {
+    Sequence<Row> pushDownQueryResults = groupByStrategy.mergeResults(runner, query, context);
+    final Sequence<Row> finalizedResults = finalizeSubqueryResults(pushDownQueryResults, query);
+    GroupByQuery rewrittenQuery = rewriteNestedQueryForPushDown(query);
+    return groupByStrategy.applyPostProcessing(groupByStrategy.processSubqueryResult(
+        query,
+        rewrittenQuery,
+        resource,
+        finalizedResults,
+        true
+    ), query);
+  }
+
+  /**
+   * Rewrite the aggregator and dimension specs since the push down nested query will return
+   * results with dimension and aggregation specs of the original nested query.
+   */
+  @VisibleForTesting
+  GroupByQuery rewriteNestedQueryForPushDown(GroupByQuery query)
+  {
+    return query.withAggregatorSpecs(Lists.transform(query.getAggregatorSpecs(), (agg) -> agg.getCombiningFactory()))
+                .withDimensionSpecs(Lists.transform(
+                    query.getDimensions(),
+                    (dim) -> new DefaultDimensionSpec(
+                        dim.getOutputName(),
+                        dim.getOutputName(),
+                        dim.getOutputType()
+                    )
+                ));
+  }
+
+  private Sequence<Row> finalizeSubqueryResults(Sequence<Row> subqueryResult, GroupByQuery subquery)
+  {
+    final Sequence<Row> finalizingResults;
+    if (QueryContexts.isFinalize(subquery, false)) {
+      finalizingResults = new MappedSequence<>(
+          subqueryResult,
+          makePreComputeManipulatorFn(
+              subquery,
+              MetricManipulatorFns.finalizing()
+          )::apply
+      );
+    } else {
+      finalizingResults = subqueryResult;
+    }
+    return finalizingResults;
+  }
+
+  public static boolean isNestedQueryPushDown(GroupByQuery q, GroupByStrategy strategy)
+  {
+    return q.getDataSource() instanceof QueryDataSource
+           && q.getContextBoolean(GroupByQueryConfig.CTX_KEY_FORCE_PUSH_DOWN_NESTED_QUERY, false)
+           && q.getSubtotalsSpec() == null
+           && strategy.supportsNestedQueryPushDown();
   }
 
   @Override

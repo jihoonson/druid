@@ -62,6 +62,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Comparator;
@@ -215,7 +216,8 @@ public class CachingClusteredClientFunctionalityTest
 
               @Override
               public QueryableDruidServer pick(
-                  Int2ObjectRBTreeMap<Set<QueryableDruidServer>> prioritizedServers, DataSegment segment
+                  Int2ObjectRBTreeMap<Set<QueryableDruidServer>> prioritizedServers,
+                  DataSegment segment
               )
               {
                 return new RemoteDruidServer(
@@ -267,6 +269,13 @@ public class CachingClusteredClientFunctionalityTest
           public VersionedIntervalTimeline<String, ServerSelector> getTimeline(DataSource dataSource)
           {
             return timeline;
+          }
+
+          @Nullable
+          @Override
+          public List<ImmutableDruidServer> getDruidServers()
+          {
+            throw new UnsupportedOperationException();
           }
 
           @Override

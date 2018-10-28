@@ -29,13 +29,14 @@ import com.google.inject.Module;
 import com.google.inject.Provides;
 import com.google.inject.name.Names;
 import io.airlift.airline.Command;
+import org.apache.curator.framework.CuratorFramework;
 import org.apache.druid.audit.AuditManager;
 import org.apache.druid.client.CoordinatorServerView;
 import org.apache.druid.client.HttpServerInventoryViewResource;
 import org.apache.druid.client.coordinator.Coordinator;
 import org.apache.druid.client.indexing.HttpIndexingServiceClient;
 import org.apache.druid.client.indexing.IndexingServiceClient;
-import org.apache.druid.discovery.DruidNodeDiscoveryProvider;
+import org.apache.druid.discovery.NodeType;
 import org.apache.druid.guice.ConditionalMultibind;
 import org.apache.druid.guice.ConfigProvider;
 import org.apache.druid.guice.Jerseys;
@@ -66,7 +67,6 @@ import org.apache.druid.server.coordinator.LoadQueueTaskMaster;
 import org.apache.druid.server.coordinator.helper.DruidCoordinatorHelper;
 import org.apache.druid.server.coordinator.helper.DruidCoordinatorSegmentKiller;
 import org.apache.druid.server.coordinator.helper.DruidCoordinatorSegmentMerger;
-import org.apache.druid.server.coordinator.helper.DruidCoordinatorVersionConverter;
 import org.apache.druid.server.http.ClusterResource;
 import org.apache.druid.server.http.CoordinatorCompactionConfigsResource;
 import org.apache.druid.server.http.CoordinatorDynamicConfigsResource;
@@ -86,7 +86,6 @@ import org.apache.druid.server.initialization.jetty.JettyServerInitializer;
 import org.apache.druid.server.lookup.cache.LookupCoordinatorManager;
 import org.apache.druid.server.lookup.cache.LookupCoordinatorManagerConfig;
 import org.apache.druid.server.router.TieredBrokerConfig;
-import org.apache.curator.framework.CuratorFramework;
 import org.eclipse.jetty.server.Server;
 
 import java.util.ArrayList;
@@ -209,10 +208,6 @@ public class CliCoordinator extends ServerRunnable
                 Predicates.equalTo("true"),
                 DruidCoordinatorSegmentMerger.class
             ).addConditionBinding(
-                "druid.coordinator.conversion.on",
-                Predicates.equalTo("true"),
-                DruidCoordinatorVersionConverter.class
-            ).addConditionBinding(
                 "druid.coordinator.kill.on",
                 Predicates.equalTo("true"),
                 DruidCoordinatorSegmentKiller.class
@@ -222,12 +217,11 @@ public class CliCoordinator extends ServerRunnable
                 DruidCoordinatorCleanupPendingSegments.class
             );
 
-            binder.bind(DiscoverySideEffectsProvider.Child.class).annotatedWith(Coordinator.class).toProvider(
-                new DiscoverySideEffectsProvider(
-                    DruidNodeDiscoveryProvider.NODE_TYPE_COORDINATOR,
-                    ImmutableList.of()
-                )
-            ).in(LazySingleton.class);
+            binder
+                .bind(DiscoverySideEffectsProvider.Child.class)
+                .annotatedWith(Coordinator.class)
+                .toProvider(new DiscoverySideEffectsProvider(NodeType.COORDINATOR, ImmutableList.of()))
+                .in(LazySingleton.class);
             LifecycleModule.registerKey(binder, Key.get(DiscoverySideEffectsProvider.Child.class, Coordinator.class));
           }
 
@@ -243,8 +237,13 @@ public class CliCoordinator extends ServerRunnable
           )
           {
             return new LoadQueueTaskMaster(
-                curator, jsonMapper, factory.create(1, "Master-PeonExec--%d"),
-                Executors.newSingleThreadExecutor(), config, httpClient, zkPaths
+                curator,
+                jsonMapper,
+                factory.create(1, "Master-PeonExec--%d"),
+                Executors.newSingleThreadExecutor(),
+                config,
+                httpClient,
+                zkPaths
             );
           }
         }

@@ -35,12 +35,12 @@ import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.inject.Inject;
-import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.guice.ManageLifecycle;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.lifecycle.LifecycleStart;
 import org.apache.druid.java.util.common.lifecycle.LifecycleStop;
+import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.segment.loading.SegmentLoaderConfig;
 import org.apache.druid.segment.loading.SegmentLoadingException;
 import org.apache.druid.server.SegmentManager;
@@ -274,7 +274,9 @@ public class SegmentLoadDropHandler implements DataSegmentChangeHandler
         catch (IOException e) {
           removeSegment(segment, callback, false);
           throw new SegmentLoadingException(
-              e, "Failed to write to disk segment info cache file[%s]", segmentInfoCacheFile
+              e,
+              "Failed to write to disk segment info cache file[%s]",
+              segmentInfoCacheFile
           );
         }
       }

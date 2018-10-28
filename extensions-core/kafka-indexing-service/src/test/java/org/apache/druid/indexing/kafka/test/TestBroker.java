@@ -22,10 +22,10 @@ package org.apache.druid.indexing.kafka.test;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.io.Files;
-import org.apache.druid.java.util.common.StringUtils;
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServer;
 import org.apache.commons.io.FileUtils;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
@@ -110,9 +110,9 @@ public class TestBroker implements Closeable
     return props;
   }
 
-  public Map<String, String> consumerProperties()
+  public Map<String, Object> consumerProperties()
   {
-    final Map<String, String> props = Maps.newHashMap();
+    final Map<String, Object> props = Maps.newHashMap();
     props.put("bootstrap.servers", StringUtils.format("localhost:%d", getPort()));
     props.put("key.deserializer", ByteArrayDeserializer.class.getName());
     props.put("value.deserializer", ByteArrayDeserializer.class.getName());

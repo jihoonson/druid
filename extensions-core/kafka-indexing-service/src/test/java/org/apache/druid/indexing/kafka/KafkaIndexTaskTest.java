@@ -36,6 +36,7 @@ import com.google.common.io.Files;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import org.apache.curator.test.TestingCluster;
 import org.apache.druid.client.cache.CacheConfig;
 import org.apache.druid.client.cache.CachePopulatorStats;
 import org.apache.druid.client.cache.MapCache;
@@ -63,6 +64,7 @@ import org.apache.druid.indexing.common.TestUtils;
 import org.apache.druid.indexing.common.actions.LocalTaskActionClientFactory;
 import org.apache.druid.indexing.common.actions.TaskActionClientFactory;
 import org.apache.druid.indexing.common.actions.TaskActionToolbox;
+import org.apache.druid.indexing.common.actions.TaskAuditLogConfig;
 import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.common.config.TaskStorageConfig;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
@@ -138,7 +140,6 @@ import org.apache.druid.server.DruidNode;
 import org.apache.druid.server.coordination.DataSegmentServerAnnouncer;
 import org.apache.druid.server.coordination.ServerType;
 import org.apache.druid.timeline.DataSegment;
-import org.apache.curator.test.TestingCluster;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.easymock.EasyMock;
@@ -485,7 +486,7 @@ public class KafkaIndexTaskTest
         kafkaProducer.send(record).get();
       }
     }
-    Map<String, String> consumerProps = kafkaServer.consumerProperties();
+    Map<String, Object> consumerProps = kafkaServer.consumerProperties();
     consumerProps.put("max.poll.records", "1");
 
     final KafkaPartitions startPartitions = new KafkaPartitions(topic, ImmutableMap.of(0, 0L, 1, 0L));
@@ -580,7 +581,7 @@ public class KafkaIndexTaskTest
         kafkaProducer.send(records.get(i)).get();
       }
 
-      Map<String, String> consumerProps = kafkaServer.consumerProperties();
+      Map<String, Object> consumerProps = kafkaServer.consumerProperties();
       consumerProps.put("max.poll.records", "1");
 
       final KafkaPartitions startPartitions = new KafkaPartitions(topic, ImmutableMap.of(0, 0L, 1, 0L));
@@ -697,7 +698,7 @@ public class KafkaIndexTaskTest
         kafkaProducer.send(record).get();
       }
     }
-    Map<String, String> consumerProps = kafkaServer.consumerProperties();
+    Map<String, Object> consumerProps = kafkaServer.consumerProperties();
     consumerProps.put("max.poll.records", "1");
 
     final KafkaPartitions startPartitions = new KafkaPartitions(topic, ImmutableMap.of(0, 0L, 1, 0L));
@@ -2026,7 +2027,8 @@ public class KafkaIndexTaskTest
         context,
         null,
         null,
-        rowIngestionMetersFactory
+        rowIngestionMetersFactory,
+        objectMapper
     );
     task.setPollRetryMs(POLL_RETRY_MS);
     return task;
@@ -2072,7 +2074,8 @@ public class KafkaIndexTaskTest
         context,
         null,
         null,
-        rowIngestionMetersFactory
+        rowIngestionMetersFactory,
+        objectMapper
     );
     task.setPollRetryMs(POLL_RETRY_MS);
     return task;
@@ -2099,9 +2102,7 @@ public class KafkaIndexTaskTest
     )
     {
       @Override
-      public <T> QueryRunner<T> decorate(
-          QueryRunner<T> delegate, QueryToolChest<T, ? extends Query<T>> toolChest
-      )
+      public <T> QueryRunner<T> decorate(QueryRunner<T> delegate, QueryToolChest<T, ? extends Query<T>> toolChest)
       {
         return delegate;
       }
@@ -2194,13 +2195,16 @@ public class KafkaIndexTaskTest
     );
     final TaskActionClientFactory taskActionClientFactory = new LocalTaskActionClientFactory(
         taskStorage,
-        taskActionToolbox
+        taskActionToolbox,
+        new TaskAuditLogConfig(false)
     );
     final SegmentHandoffNotifierFactory handoffNotifierFactory = dataSource -> new SegmentHandoffNotifier()
     {
       @Override
       public boolean registerSegmentHandoffCallback(
-          SegmentDescriptor descriptor, Executor exec, Runnable handOffRunnable
+          SegmentDescriptor descriptor,
+          Executor exec,
+          Runnable handOffRunnable
       )
       {
         if (doHandoff) {
@@ -2330,7 +2334,7 @@ public class KafkaIndexTaskTest
     );
     IndexIO indexIO = new TestUtils().getTestIndexIO();
     QueryableIndex index = indexIO.loadIndex(outputLocation);
-    DictionaryEncodedColumn<String> theColumn = index.getColumn(column).getDictionaryEncoding();
+    DictionaryEncodedColumn<String> theColumn = (DictionaryEncodedColumn<String>) index.getColumnHolder(column).getColumn();
     List<String> values = Lists.newArrayList();
     for (int i = 0; i < theColumn.length(); i++) {
       int id = theColumn.getSingleValueRow(i);

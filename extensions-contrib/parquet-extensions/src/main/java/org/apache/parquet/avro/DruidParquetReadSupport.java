@@ -23,11 +23,11 @@ package org.apache.parquet.avro;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.druid.data.input.impl.DimensionSchema;
 import org.apache.druid.indexer.HadoopDruidIndexerConfig;
 import org.apache.druid.query.aggregation.AggregatorFactory;
-import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.parquet.hadoop.api.InitContext;
@@ -95,8 +95,10 @@ public class DruidParquetReadSupport extends AvroReadSupport<GenericRecord>
 
   @Override
   public RecordMaterializer<GenericRecord> prepareForRead(
-      Configuration configuration, Map<String, String> keyValueMetaData,
-      MessageType fileSchema, ReadContext readContext
+      Configuration configuration,
+      Map<String, String> keyValueMetaData,
+      MessageType fileSchema,
+      ReadContext readContext
   )
   {
     MessageType parquetSchema = readContext.getRequestedSchema();

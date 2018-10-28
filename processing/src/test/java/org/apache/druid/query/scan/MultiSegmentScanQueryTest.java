@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.io.CharSource;
 import com.google.common.util.concurrent.MoreExecutors;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.guava.MergeSequence;
@@ -42,8 +44,6 @@ import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NoneShardSpec;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
 import org.joda.time.Interval;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -218,13 +218,14 @@ public class MultiSegmentScanQueryTest
         new QueryRunner<ScanResultValue>() {
           @Override
           public Sequence<ScanResultValue> run(
-              QueryPlus<ScanResultValue> queryPlus, Map<String, Object> responseContext
+              QueryPlus<ScanResultValue> queryPlus,
+              Map<String, Object> responseContext
           )
           {
             // simulate results back from 2 historicals
             List<Sequence<ScanResultValue>> sequences = Lists.newArrayListWithExpectedSize(2);
-            sequences.add(factory.createRunner(segment0).run(queryPlus, new HashMap<String, Object>()));
-            sequences.add(factory.createRunner(segment1).run(queryPlus, new HashMap<String, Object>()));
+            sequences.add(factory.createRunner(segment0).run(queryPlus, new HashMap<>()));
+            sequences.add(factory.createRunner(segment1).run(queryPlus, new HashMap<>()));
             return new MergeSequence<>(
                 queryPlus.getQuery().getResultOrdering(),
                 Sequences.simple(sequences)

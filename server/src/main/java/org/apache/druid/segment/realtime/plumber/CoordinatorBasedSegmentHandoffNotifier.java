@@ -23,8 +23,8 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import org.apache.druid.client.ImmutableSegmentLoadInfo;
 import org.apache.druid.client.coordinator.CoordinatorClient;
-import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.query.SegmentDescriptor;
 import org.apache.druid.server.coordination.DruidServerMetadata;
@@ -60,9 +60,7 @@ public class CoordinatorBasedSegmentHandoffNotifier implements SegmentHandoffNot
   }
 
   @Override
-  public boolean registerSegmentHandoffCallback(
-      SegmentDescriptor descriptor, Executor exec, Runnable handOffRunnable
-  )
+  public boolean registerSegmentHandoffCallback(SegmentDescriptor descriptor, Executor exec, Runnable handOffRunnable)
   {
     log.info("Adding SegmentHandoffCallback for dataSource[%s] Segment[%s]", dataSource, descriptor);
     Pair<Executor, Runnable> prev = handOffCallbacks.putIfAbsent(

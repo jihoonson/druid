@@ -30,6 +30,7 @@ import com.google.inject.Injector;
 import com.google.inject.Key;
 import com.google.inject.Module;
 import com.google.inject.util.Modules;
+import org.apache.commons.io.FileUtils;
 import org.apache.druid.curator.CuratorModule;
 import org.apache.druid.curator.discovery.DiscoveryModule;
 import org.apache.druid.guice.AWSModule;
@@ -47,7 +48,6 @@ import org.apache.druid.guice.LifecycleModule;
 import org.apache.druid.guice.LocalDataStorageDruidModule;
 import org.apache.druid.guice.MetadataConfigModule;
 import org.apache.druid.guice.ModulesConfig;
-import org.apache.druid.guice.ParsersModule;
 import org.apache.druid.guice.ServerModule;
 import org.apache.druid.guice.ServerViewModule;
 import org.apache.druid.guice.StartupLoggingModule;
@@ -70,7 +70,7 @@ import org.apache.druid.server.initialization.AuthenticatorMapperModule;
 import org.apache.druid.server.initialization.AuthorizerMapperModule;
 import org.apache.druid.server.initialization.jetty.JettyServerModule;
 import org.apache.druid.server.metrics.MetricsModule;
-import org.apache.commons.io.FileUtils;
+import org.apache.druid.server.security.TLSCertificateCheckerModule;
 import org.eclipse.aether.artifact.DefaultArtifact;
 
 import java.io.File;
@@ -370,6 +370,7 @@ public class Initialization
         new Log4jShutterDownerModule(),
         new DruidAuthModule(),
         new LifecycleModule(),
+        TLSCertificateCheckerModule.class,
         EmitterModule.class,
         HttpClientModule.global(),
         HttpClientModule.escalatedGlobal(),
@@ -394,7 +395,6 @@ public class Initialization
         new CoordinatorDiscoveryModule(),
         new LocalDataStorageDruidModule(),
         new FirehoseModule(),
-        new ParsersModule(),
         new JavaScriptModule(),
         new AuthenticatorModule(),
         new AuthenticatorMapperModule(),

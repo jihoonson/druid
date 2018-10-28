@@ -70,6 +70,7 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.RetryUtils;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.emitter.EmittingLogger;
@@ -128,6 +129,7 @@ public class KafkaSupervisor implements Supervisor
   private static final long MINIMUM_GET_OFFSET_PERIOD_MILLIS = 5000;
   private static final long INITIAL_GET_OFFSET_DELAY_MILLIS = 15000;
   private static final long INITIAL_EMIT_LAG_METRIC_DELAY_MILLIS = 25000;
+  private static final int MAX_INITIALIZATION_RETRIES = 20;
   private static final CopyOnWriteArrayList EMPTY_LIST = Lists.newCopyOnWriteArrayList();
 
   public static final String IS_INCREMENTAL_HANDOFF_SUPPORTED = "IS_INCREMENTAL_HANDOFF_SUPPORTED";
@@ -258,8 +260,12 @@ public class KafkaSupervisor implements Supervisor
   private boolean listenerRegistered = false;
   private long lastRunTime;
 
+  private int initRetryCounter = 0;
+
   private volatile DateTime firstRunTime;
   private volatile KafkaConsumer consumer;
+
+  private volatile boolean lifecycleStarted = false;
   private volatile boolean started = false;
   private volatile boolean stopped = false;
   private volatile Map<Integer, Long> latestOffsetsFromKafka;
@@ -358,73 +364,48 @@ public class KafkaSupervisor implements Supervisor
   public void start()
   {
     synchronized (stateChangeLock) {
-      Preconditions.checkState(!started, "already started");
+      Preconditions.checkState(!lifecycleStarted, "already started");
       Preconditions.checkState(!exec.isShutdown(), "already stopped");
 
+      // Try normal initialization first, if that fails then schedule periodic initialization retries
       try {
-        consumer = getKafkaConsumer();
-
-        exec.submit(
-            () -> {
-              try {
-                while (!Thread.currentThread().isInterrupted()) {
-                  final Notice notice = notices.take();
-
-                  try {
-                    notice.handle();
-                  }
-                  catch (Throwable e) {
-                    log.makeAlert(e, "KafkaSupervisor[%s] failed to handle notice", dataSource)
-                       .addData("noticeClass", notice.getClass().getSimpleName())
-                       .emit();
-                  }
-                }
-              }
-              catch (InterruptedException e) {
-                log.info("KafkaSupervisor[%s] interrupted, exiting", dataSource);
-              }
-            }
-        );
-        firstRunTime = DateTimes.nowUtc().plus(ioConfig.getStartDelay());
-        scheduledExec.scheduleAtFixedRate(
-            buildRunTask(),
-            ioConfig.getStartDelay().getMillis(),
-            Math.max(ioConfig.getPeriod().getMillis(), MAX_RUN_FREQUENCY_MILLIS),
-            TimeUnit.MILLISECONDS
-        );
-
-        reportingExec.scheduleAtFixedRate(
-            updateCurrentAndLatestOffsets(),
-            ioConfig.getStartDelay().getMillis() + INITIAL_GET_OFFSET_DELAY_MILLIS, // wait for tasks to start up
-            Math.max(
-                tuningConfig.getOffsetFetchPeriod().getMillis(), MINIMUM_GET_OFFSET_PERIOD_MILLIS
-            ),
-            TimeUnit.MILLISECONDS
-        );
-
-        reportingExec.scheduleAtFixedRate(
-            emitLag(),
-            ioConfig.getStartDelay().getMillis() + INITIAL_EMIT_LAG_METRIC_DELAY_MILLIS, // wait for tasks to start up
-            monitorSchedulerConfig.getEmitterPeriod().getMillis(),
-            TimeUnit.MILLISECONDS
-        );
-
-        started = true;
-        log.info(
-            "Started KafkaSupervisor[%s], first run in [%s], with spec: [%s]",
-            dataSource,
-            ioConfig.getStartDelay(),
-            spec.toString()
-        );
+        tryInit();
       }
       catch (Exception e) {
-        if (consumer != null) {
-          consumer.close();
+        if (!started) {
+          log.warn("First initialization attempt failed for KafkaSupervisor[%s], starting retries...", dataSource);
+
+          exec.submit(
+              () -> {
+                try {
+                  RetryUtils.retry(
+                      () -> {
+                        tryInit();
+                        return 0;
+                      },
+                      (throwable) -> {
+                        return !started;
+                      },
+                      0,
+                      MAX_INITIALIZATION_RETRIES,
+                      null,
+                      null
+                  );
+                }
+                catch (Exception e2) {
+                  log.makeAlert(
+                      "Failed to initialize after %s retries, aborting. Please resubmit the supervisor spec to restart this supervisor [%s]",
+                      MAX_INITIALIZATION_RETRIES,
+                      supervisorId
+                  ).emit();
+                  throw new RuntimeException(e2);
+                }
+              }
+          );
         }
-        log.makeAlert(e, "Exception starting KafkaSupervisor[%s]", dataSource)
-           .emit();
-        throw Throwables.propagate(e);
       }
+
+      lifecycleStarted = true;
     }
   }
 
@@ -432,7 +413,7 @@ public class KafkaSupervisor implements Supervisor
   public void stop(boolean stopGracefully)
   {
     synchronized (stateChangeLock) {
-      Preconditions.checkState(started, "not started");
+      Preconditions.checkState(lifecycleStarted, "lifecycle not started");
 
       log.info("Beginning shutdown of KafkaSupervisor[%s]", dataSource);
 
@@ -440,37 +421,39 @@ public class KafkaSupervisor implements Supervisor
         scheduledExec.shutdownNow(); // stop recurring executions
         reportingExec.shutdownNow();
 
-        Optional<TaskRunner> taskRunner = taskMaster.getTaskRunner();
-        if (taskRunner.isPresent()) {
-          taskRunner.get().unregisterListener(supervisorId);
-        }
-
-        // Stopping gracefully will synchronize the end offsets of the tasks and signal them to publish, and will block
-        // until the tasks have acknowledged or timed out. We want this behavior when we're explicitly shut down through
-        // the API, but if we shut down for other reasons (e.g. we lose leadership) we want to just stop and leave the
-        // tasks as they are.
-        synchronized (stopLock) {
-          if (stopGracefully) {
-            log.info("Posting GracefulShutdownNotice, signalling managed tasks to complete and publish");
-            notices.add(new GracefulShutdownNotice());
-          } else {
-            log.info("Posting ShutdownNotice");
-            notices.add(new ShutdownNotice());
+        if (started) {
+          Optional<TaskRunner> taskRunner = taskMaster.getTaskRunner();
+          if (taskRunner.isPresent()) {
+            taskRunner.get().unregisterListener(supervisorId);
           }
 
-          long shutdownTimeoutMillis = tuningConfig.getShutdownTimeout().getMillis();
-          long endTime = System.currentTimeMillis() + shutdownTimeoutMillis;
-          while (!stopped) {
-            long sleepTime = endTime - System.currentTimeMillis();
-            if (sleepTime <= 0) {
-              log.info("Timed out while waiting for shutdown (timeout [%,dms])", shutdownTimeoutMillis);
-              stopped = true;
-              break;
+          // Stopping gracefully will synchronize the end offsets of the tasks and signal them to publish, and will block
+          // until the tasks have acknowledged or timed out. We want this behavior when we're explicitly shut down through
+          // the API, but if we shut down for other reasons (e.g. we lose leadership) we want to just stop and leave the
+          // tasks as they are.
+          synchronized (stopLock) {
+            if (stopGracefully) {
+              log.info("Posting GracefulShutdownNotice, signalling managed tasks to complete and publish");
+              notices.add(new GracefulShutdownNotice());
+            } else {
+              log.info("Posting ShutdownNotice");
+              notices.add(new ShutdownNotice());
             }
-            stopLock.wait(sleepTime);
+
+            long shutdownTimeoutMillis = tuningConfig.getShutdownTimeout().getMillis();
+            long endTime = System.currentTimeMillis() + shutdownTimeoutMillis;
+            while (!stopped) {
+              long sleepTime = endTime - System.currentTimeMillis();
+              if (sleepTime <= 0) {
+                log.info("Timed out while waiting for shutdown (timeout [%,dms])", shutdownTimeoutMillis);
+                stopped = true;
+                break;
+              }
+              stopLock.wait(sleepTime);
+            }
           }
+          log.info("Shutdown notice handled");
         }
-        log.info("Shutdown notice handled");
 
         taskClient.close();
         workerExec.shutdownNow();
@@ -783,9 +766,9 @@ public class KafkaSupervisor implements Supervisor
         // defend against consecutive reset requests from replicas
         // as well as the case where the metadata store do not have an entry for the reset partitions
         boolean doReset = false;
-        for (Map.Entry<Integer, Long> resetPartitionOffset : resetKafkaMetadata.getKafkaPartitions()
-                                                                               .getPartitionOffsetMap()
-                                                                               .entrySet()) {
+        for (Entry<Integer, Long> resetPartitionOffset : resetKafkaMetadata.getKafkaPartitions()
+                                                                           .getPartitionOffsetMap()
+                                                                           .entrySet()) {
           final Long partitionOffsetInMetadataStore = currentMetadata == null
                                                       ? null
                                                       : currentMetadata.getKafkaPartitions()
@@ -866,7 +849,7 @@ public class KafkaSupervisor implements Supervisor
     // checkTaskDuration() will be triggered. This is better than just telling these tasks to publish whatever they
     // have, as replicas that are supposed to publish the same segment may not have read the same set of offsets.
     for (TaskGroup taskGroup : taskGroups.values()) {
-      for (Map.Entry<String, TaskData> entry : taskGroup.tasks.entrySet()) {
+      for (Entry<String, TaskData> entry : taskGroup.tasks.entrySet()) {
         if (taskInfoProvider.getTaskLocation(entry.getKey()).equals(TaskLocation.unknown())) {
           killTask(entry.getKey());
         } else {
@@ -914,7 +897,7 @@ public class KafkaSupervisor implements Supervisor
   {
     StringBuilder sb = new StringBuilder();
 
-    for (Map.Entry<Integer, Long> entry : startPartitions.entrySet()) {
+    for (Entry<Integer, Long> entry : startPartitions.entrySet()) {
       sb.append(StringUtils.format("+%d(%d)", entry.getKey(), entry.getValue()));
     }
     String partitionOffsetStr = sb.toString().substring(1);
@@ -941,6 +924,93 @@ public class KafkaSupervisor implements Supervisor
     return Joiner.on("_").join("index_kafka", dataSource, hashCode);
   }
 
+  @VisibleForTesting
+  protected void tryInit()
+  {
+    synchronized (stateChangeLock) {
+      if (started) {
+        log.warn("SUpervisor was already started, skipping init");
+        return;
+      }
+
+      if (stopped) {
+        log.warn("Supervisor was already stopped, skipping init.");
+        return;
+      }
+
+      try {
+        consumer = getKafkaConsumer();
+
+        exec.submit(
+            () -> {
+              try {
+                long pollTimeout = Math.max(ioConfig.getPeriod().getMillis(), MAX_RUN_FREQUENCY_MILLIS);
+                while (!Thread.currentThread().isInterrupted() && !stopped) {
+                  final Notice notice = notices.poll(pollTimeout, TimeUnit.MILLISECONDS);
+                  if (notice == null) {
+                    continue;
+                  }
+
+                  try {
+                    notice.handle();
+                  }
+                  catch (Throwable e) {
+                    log.makeAlert(e, "KafkaSupervisor[%s] failed to handle notice", dataSource)
+                       .addData("noticeClass", notice.getClass().getSimpleName())
+                       .emit();
+                  }
+                }
+              }
+              catch (InterruptedException e) {
+                log.info("KafkaSupervisor[%s] interrupted, exiting", dataSource);
+              }
+            }
+        );
+        firstRunTime = DateTimes.nowUtc().plus(ioConfig.getStartDelay());
+        scheduledExec.scheduleAtFixedRate(
+            buildRunTask(),
+            ioConfig.getStartDelay().getMillis(),
+            Math.max(ioConfig.getPeriod().getMillis(), MAX_RUN_FREQUENCY_MILLIS),
+            TimeUnit.MILLISECONDS
+        );
+
+        reportingExec.scheduleAtFixedRate(
+            updateCurrentAndLatestOffsets(),
+            ioConfig.getStartDelay().getMillis() + INITIAL_GET_OFFSET_DELAY_MILLIS, // wait for tasks to start up
+            Math.max(
+                tuningConfig.getOffsetFetchPeriod().getMillis(), MINIMUM_GET_OFFSET_PERIOD_MILLIS
+            ),
+            TimeUnit.MILLISECONDS
+        );
+
+        reportingExec.scheduleAtFixedRate(
+            emitLag(),
+            ioConfig.getStartDelay().getMillis() + INITIAL_EMIT_LAG_METRIC_DELAY_MILLIS, // wait for tasks to start up
+            monitorSchedulerConfig.getEmitterPeriod().getMillis(),
+            TimeUnit.MILLISECONDS
+        );
+
+        started = true;
+        log.info(
+            "Started KafkaSupervisor[%s], first run in [%s], with spec: [%s]",
+            dataSource,
+            ioConfig.getStartDelay(),
+            spec.toString()
+        );
+      }
+      catch (Exception e) {
+        if (consumer != null) {
+          consumer.close();
+        }
+        initRetryCounter++;
+        log.makeAlert(e, "Exception starting KafkaSupervisor[%s]", dataSource)
+           .emit();
+
+        throw new RuntimeException(e);
+      }
+    }
+  }
+
   private KafkaConsumer<byte[], byte[]> getKafkaConsumer()
   {
     final Properties props = new Properties();
@@ -948,7 +1018,7 @@ public class KafkaSupervisor implements Supervisor
     props.setProperty("metadata.max.age.ms", "10000");
     props.setProperty("group.id", StringUtils.format("kafka-supervisor-%s", RealtimeIndexTask.makeRandomId()));
 
-    props.putAll(ioConfig.getConsumerProperties());
+    KafkaIndexTask.addConsumerPropertiesFromConfig(props, sortingMapper, ioConfig.getConsumerProperties());
 
     props.setProperty("enable.auto.commit", "false");
 
@@ -964,13 +1034,13 @@ public class KafkaSupervisor implements Supervisor
 
   private void updatePartitionDataFromKafka()
   {
-    Map<String, List<PartitionInfo>> topics;
+    List<PartitionInfo> partitions;
     try {
       synchronized (consumerLock) {
-        topics = consumer.listTopics(); // updates the consumer's list of partitions from the brokers
+        partitions = consumer.partitionsFor(ioConfig.getTopic());
       }
     }
-    catch (Exception e) { // calls to the consumer throw NPEs when the broker doesn't respond
+    catch (Exception e) {
       log.warn(
           e,
           "Unable to get partition data from Kafka for brokers [%s], are the brokers up?",
@@ -979,10 +1049,6 @@ public class KafkaSupervisor implements Supervisor
       return;
     }
 
-    List<PartitionInfo> partitions = topics.get(ioConfig.getTopic());
-    if (partitions == null) {
-      log.warn("No such topic [%s] found, list of discovered topics [%s]", ioConfig.getTopic(), topics.keySet());
-    }
     int numPartitions = (partitions != null ? partitions.size() : 0);
 
     log.debug("Found [%d] Kafka partitions for topic [%s]", numPartitions, ioConfig.getTopic());
@@ -1073,7 +1139,7 @@ public class KafkaSupervisor implements Supervisor
                           // existing) so that the next tasks will start reading from where this task left off
                           Map<Integer, Long> publishingTaskEndOffsets = taskClient.getEndOffsets(taskId);
 
-                          for (Map.Entry<Integer, Long> entry : publishingTaskEndOffsets.entrySet()) {
+                          for (Entry<Integer, Long> entry : publishingTaskEndOffsets.entrySet()) {
                             Integer partition = entry.getKey();
                             Long offset = entry.getValue();
                             ConcurrentHashMap<Integer, Long> partitionOffsets = partitionGroups.get(
@@ -1380,7 +1446,7 @@ public class KafkaSupervisor implements Supervisor
 
     // update status (and startTime if unknown) of current tasks in taskGroups
     for (TaskGroup group : taskGroups.values()) {
-      for (Map.Entry<String, TaskData> entry : group.tasks.entrySet()) {
+      for (Entry<String, TaskData> entry : group.tasks.entrySet()) {
         final String taskId = entry.getKey();
         final TaskData taskData = entry.getValue();
 
@@ -1423,7 +1489,7 @@ public class KafkaSupervisor implements Supervisor
     // update status of pending completion tasks in pendingCompletionTaskGroups
     for (List<TaskGroup> taskGroups : pendingCompletionTaskGroups.values()) {
       for (TaskGroup group : taskGroups) {
-        for (Map.Entry<String, TaskData> entry : group.tasks.entrySet()) {
+        for (Entry<String, TaskData> entry : group.tasks.entrySet()) {
           entry.getValue().status = taskStorage.getStatus(entry.getKey()).get();
         }
       }
@@ -1446,7 +1512,7 @@ public class KafkaSupervisor implements Supervisor
     final List<ListenableFuture<Map<Integer, Long>>> futures = Lists.newArrayList();
     final List<Integer> futureGroupIds = Lists.newArrayList();
 
-    for (Map.Entry<Integer, TaskGroup> entry : taskGroups.entrySet()) {
+    for (Entry<Integer, TaskGroup> entry : taskGroups.entrySet()) {
       Integer groupId = entry.getKey();
       TaskGroup group = entry.getValue();
 
@@ -1479,7 +1545,7 @@ public class KafkaSupervisor implements Supervisor
         pendingCompletionTaskGroups.computeIfAbsent(groupId, k -> new CopyOnWriteArrayList<>()).add(group);
 
         // set endOffsets as the next startOffsets
-        for (Map.Entry<Integer, Long> entry : endOffsets.entrySet()) {
+        for (Entry<Integer, Long> entry : endOffsets.entrySet()) {
           partitionGroups.get(groupId).put(entry.getKey(), entry.getValue());
         }
       } else {
@@ -1505,9 +1571,9 @@ public class KafkaSupervisor implements Supervisor
   {
     if (finalize) {
       // 1) Check if any task completed (in which case we're done) and kill unassigned tasks
-      Iterator<Map.Entry<String, TaskData>> i = taskGroup.tasks.entrySet().iterator();
+      Iterator<Entry<String, TaskData>> i = taskGroup.tasks.entrySet().iterator();
       while (i.hasNext()) {
-        Map.Entry<String, TaskData> taskEntry = i.next();
+        Entry<String, TaskData> taskEntry = i.next();
         String taskId = taskEntry.getKey();
         TaskData task = taskEntry.getValue();
 
@@ -1569,7 +1635,7 @@ public class KafkaSupervisor implements Supervisor
                 taskGroup.tasks.remove(taskId);
 
               } else { // otherwise build a map of the highest offsets seen
-                for (Map.Entry<Integer, Long> offset : result.entrySet()) {
+                for (Entry<Integer, Long> offset : result.entrySet()) {
                   if (!endOffsets.containsKey(offset.getKey())
                       || endOffsets.get(offset.getKey()).compareTo(offset.getValue()) < 0) {
                     endOffsets.put(offset.getKey(), offset.getValue());
@@ -1647,7 +1713,7 @@ public class KafkaSupervisor implements Supervisor
   {
     List<ListenableFuture<?>> futures = Lists.newArrayList();
 
-    for (Map.Entry<Integer, CopyOnWriteArrayList<TaskGroup>> pendingGroupList : pendingCompletionTaskGroups.entrySet()) {
+    for (Entry<Integer, CopyOnWriteArrayList<TaskGroup>> pendingGroupList : pendingCompletionTaskGroups.entrySet()) {
 
       boolean stopTasksInTaskGroup = false;
       Integer groupId = pendingGroupList.getKey();
@@ -1728,9 +1794,9 @@ public class KafkaSupervisor implements Supervisor
   private void checkCurrentTaskState() throws ExecutionException, InterruptedException, TimeoutException
   {
     List<ListenableFuture<?>> futures = Lists.newArrayList();
-    Iterator<Map.Entry<Integer, TaskGroup>> iTaskGroups = taskGroups.entrySet().iterator();
+    Iterator<Entry<Integer, TaskGroup>> iTaskGroups = taskGroups.entrySet().iterator();
     while (iTaskGroups.hasNext()) {
-      Map.Entry<Integer, TaskGroup> taskGroupEntry = iTaskGroups.next();
+      Entry<Integer, TaskGroup> taskGroupEntry = iTaskGroups.next();
       Integer groupId = taskGroupEntry.getKey();
       TaskGroup taskGroup = taskGroupEntry.getValue();
 
@@ -1742,9 +1808,9 @@ public class KafkaSupervisor implements Supervisor
 
       log.debug("Task group [%d] pre-pruning: %s", groupId, taskGroup.taskIds());
 
-      Iterator<Map.Entry<String, TaskData>> iTasks = taskGroup.tasks.entrySet().iterator();
+      Iterator<Entry<String, TaskData>> iTasks = taskGroup.tasks.entrySet().iterator();
       while (iTasks.hasNext()) {
-        Map.Entry<String, TaskData> task = iTasks.next();
+        Entry<String, TaskData> task = iTasks.next();
         String taskId = task.getKey();
         TaskData taskData = task.getValue();
 
@@ -1817,7 +1883,7 @@ public class KafkaSupervisor implements Supervisor
 
     // iterate through all the current task groups and make sure each one has the desired number of replica tasks
     boolean createdTask = false;
-    for (Map.Entry<Integer, TaskGroup> entry : taskGroups.entrySet()) {
+    for (Entry<Integer, TaskGroup> entry : taskGroups.entrySet()) {
       TaskGroup taskGroup = entry.getValue();
       Integer groupId = entry.getKey();
 
@@ -1848,7 +1914,7 @@ public class KafkaSupervisor implements Supervisor
     }
     TaskGroup group = taskGroups.get(groupId);
 
-    Map<String, String> consumerProperties = Maps.newHashMap(ioConfig.getConsumerProperties());
+    Map<String, Object> consumerProperties = Maps.newHashMap(ioConfig.getConsumerProperties());
     DateTime minimumMessageTime = taskGroups.get(groupId).minimumMessageTime.orNull();
     DateTime maximumMessageTime = taskGroups.get(groupId).maximumMessageTime.orNull();
 
@@ -1890,7 +1956,8 @@ public class KafkaSupervisor implements Supervisor
           context,
           null,
           null,
-          rowIngestionMetersFactory
+          rowIngestionMetersFactory,
+          sortingMapper
       );
 
       Optional<TaskQueue> taskQueue = taskMaster.getTaskQueue();
@@ -1910,7 +1977,7 @@ public class KafkaSupervisor implements Supervisor
   private ImmutableMap<Integer, Long> generateStartingOffsetsForPartitionGroup(int groupId)
   {
     ImmutableMap.Builder<Integer, Long> builder = ImmutableMap.builder();
-    for (Map.Entry<Integer, Long> entry : partitionGroups.get(groupId).entrySet()) {
+    for (Entry<Integer, Long> entry : partitionGroups.get(groupId).entrySet()) {
       Integer partition = entry.getKey();
       Long offset = entry.getValue();
 
@@ -2035,7 +2102,7 @@ public class KafkaSupervisor implements Supervisor
     }
 
     final List<ListenableFuture<Void>> futures = Lists.newArrayList();
-    for (Map.Entry<String, TaskData> entry : taskGroup.tasks.entrySet()) {
+    for (Entry<String, TaskData> entry : taskGroup.tasks.entrySet()) {
       final String taskId = entry.getKey();
       final TaskData taskData = entry.getValue();
       if (taskData.status == null) {
@@ -2121,16 +2188,16 @@ public class KafkaSupervisor implements Supervisor
 
     try {
       for (TaskGroup taskGroup : taskGroups.values()) {
-        for (Map.Entry<String, TaskData> entry : taskGroup.tasks.entrySet()) {
+        for (Entry<String, TaskData> entry : taskGroup.tasks.entrySet()) {
           String taskId = entry.getKey();
           @Nullable
           DateTime startTime = entry.getValue().startTime;
           Map<Integer, Long> currentOffsets = entry.getValue().currentOffsets;
           Long remainingSeconds = null;
           if (startTime != null) {
-            remainingSeconds = Math.max(
-                0, ioConfig.getTaskDuration().getMillis() - (System.currentTimeMillis() - startTime.getMillis())
-            ) / 1000;
+            long elapsedMillis = System.currentTimeMillis() - startTime.getMillis();
+            long remainingMillis = Math.max(0, ioConfig.getTaskDuration().getMillis() - elapsedMillis);
+            remainingSeconds = TimeUnit.MILLISECONDS.toSeconds(remainingMillis);
           }
 
           taskReports.add(
@@ -2149,7 +2216,7 @@ public class KafkaSupervisor implements Supervisor
 
       for (List<TaskGroup> taskGroups : pendingCompletionTaskGroups.values()) {
         for (TaskGroup taskGroup : taskGroups) {
-          for (Map.Entry<String, TaskData> entry : taskGroup.tasks.entrySet()) {
+          for (Entry<String, TaskData> entry : taskGroup.tasks.entrySet()) {
             String taskId = entry.getKey();
             @Nullable
             DateTime startTime = entry.getValue().startTime;
@@ -2192,16 +2259,17 @@ public class KafkaSupervisor implements Supervisor
   private void updateLatestOffsetsFromKafka()
   {
     synchronized (consumerLock) {
-      final Map<String, List<PartitionInfo>> topics = consumer.listTopics();
+      final List<PartitionInfo> partitionInfoList = consumer.partitionsFor(ioConfig.getTopic());
 
-      if (topics == null || !topics.containsKey(ioConfig.getTopic())) {
+      if (partitionInfoList == null || partitionInfoList.size() == 0) {
         throw new ISE("Could not retrieve partitions for topic [%s]", ioConfig.getTopic());
       }
 
-      final Set<TopicPartition> topicPartitions = topics.get(ioConfig.getTopic())
-                                                        .stream()
-                                                        .map(x -> new TopicPartition(x.topic(), x.partition()))
-                                                        .collect(Collectors.toSet());
+      final Set<TopicPartition> topicPartitions = partitionInfoList
+          .stream()
+          .map(x -> new TopicPartition(x.topic(), x.partition()))
+          .collect(Collectors.toSet());
+
       consumer.assign(topicPartitions);
       consumer.seekToEnd(topicPartitions);
 
@@ -2218,7 +2286,7 @@ public class KafkaSupervisor implements Supervisor
         .stream()
         .flatMap(taskGroup -> taskGroup.tasks.entrySet().stream())
         .flatMap(taskData -> taskData.getValue().currentOffsets.entrySet().stream())
-        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Long::max));
+        .collect(Collectors.toMap(Entry::getKey, Entry::getValue, Long::max));
   }
 
   private Map<Integer, Long> getLagPerPartition(Map<Integer, Long> currentOffsets)
@@ -2228,7 +2296,7 @@ public class KafkaSupervisor implements Supervisor
         .stream()
         .collect(
             Collectors.toMap(
-                Map.Entry::getKey,
+                Entry::getKey,
                 e -> latestOffsetsFromKafka != null
                      && latestOffsetsFromKafka.get(e.getKey()) != null
                      && e.getValue() != null
@@ -2348,21 +2416,21 @@ public class KafkaSupervisor implements Supervisor
     }
 
     for (int groupId : pendingCompletionTaskGroups.keySet()) {
-      TaskGroup group = taskGroups.get(groupId);
-      for (String taskId : group.taskIds()) {
-        futures.add(
-            Futures.transform(
-                taskClient.getMovingAveragesAsync(taskId),
-                (Function<Map<String, Object>, StatsFromTaskResult>) (currentStats) -> {
-                  return new StatsFromTaskResult(
+      List<TaskGroup> pendingGroups = pendingCompletionTaskGroups.get(groupId);
+      for (TaskGroup pendingGroup : pendingGroups) {
+        for (String taskId : pendingGroup.taskIds()) {
+          futures.add(
+              Futures.transform(
+                  taskClient.getMovingAveragesAsync(taskId),
+                  (Function<Map<String, Object>, StatsFromTaskResult>) (currentStats) -> new StatsFromTaskResult(
                       groupId,
                       taskId,
                       currentStats
-                  );
-                }
-            )
-        );
-        groupAndTaskIds.add(new Pair<>(groupId, taskId));
+                  )
+              )
+          );
+          groupAndTaskIds.add(new Pair<>(groupId, taskId));
+        }
       }
     }
 
@@ -2379,6 +2447,50 @@ public class KafkaSupervisor implements Supervisor
     }
 
     return allStats;
+  }
+
+  @VisibleForTesting
+  void addTaskGroupToActivelyReadingTaskGroup(
+      int taskGroupId,
+      ImmutableMap<Integer, Long> partitionOffsets,
+      Optional<DateTime> minMsgTime,
+      Optional<DateTime> maxMsgTime,
+      Set<String> tasks
+  )
+  {
+    TaskGroup group = new TaskGroup(
+        taskGroupId,
+        partitionOffsets,
+        minMsgTime,
+        maxMsgTime
+    );
+    group.tasks.putAll(tasks.stream().collect(Collectors.toMap(x -> x, x -> new TaskData())));
+    if (taskGroups.putIfAbsent(taskGroupId, group) != null) {
+      throw new ISE(
+          "trying to add taskGroup with ID [%s] to actively reading task groups, but group already exists.",
+          taskGroupId
+      );
+    }
+  }
+
+  @VisibleForTesting
+  void addTaskGroupToPendingCompletionTaskGroup(
+      int taskGroupId,
+      ImmutableMap<Integer, Long> partitionOffsets,
+      Optional<DateTime> minMsgTime,
+      Optional<DateTime> maxMsgTime,
+      Set<String> tasks
+  )
+  {
+    TaskGroup group = new TaskGroup(
+        taskGroupId,
+        partitionOffsets,
+        minMsgTime,
+        maxMsgTime
+    );
+    group.tasks.putAll(tasks.stream().collect(Collectors.toMap(x -> x, x -> new TaskData())));
+    pendingCompletionTaskGroups.computeIfAbsent(taskGroupId, x -> new CopyOnWriteArrayList<>())
+                               .add(group);
   }
 
   @VisibleForTesting
@@ -2436,4 +2548,31 @@ public class KafkaSupervisor implements Supervisor
     }
   }
 
+  // exposed for testing for visibility into initialization state
+  @VisibleForTesting
+  public boolean isStarted()
+  {
+    return started;
+  }
+
+  // exposed for testing for visibility into initialization state
+  @VisibleForTesting
+  public boolean isLifecycleStarted()
+  {
+    return lifecycleStarted;
+  }
+
+  // exposed for testing for visibility into initialization state
+  @VisibleForTesting
+  public int getInitRetryCounter()
+  {
+    return initRetryCounter;
+  }
+
+  // exposed for testing to allow "bootstrap.servers" to be changed after supervisor is created
+  @VisibleForTesting
+  public KafkaSupervisorIOConfig getIoConfig()
+  {
+    return ioConfig;
+  }
 }

@@ -45,10 +45,10 @@ import org.apache.druid.discovery.DataNodeService;
 import org.apache.druid.discovery.DruidNodeAnnouncer;
 import org.apache.druid.discovery.LookupNodeService;
 import org.apache.druid.indexer.TaskState;
+import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.Counters;
 import org.apache.druid.indexing.common.SegmentLoaderFactory;
 import org.apache.druid.indexing.common.TaskLock;
-import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.TaskToolboxFactory;
 import org.apache.druid.indexing.common.TestUtils;
@@ -57,6 +57,7 @@ import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.SegmentInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClientFactory;
 import org.apache.druid.indexing.common.actions.TaskActionToolbox;
+import org.apache.druid.indexing.common.actions.TaskAuditLogConfig;
 import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.common.config.TaskStorageConfig;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
@@ -441,11 +442,11 @@ public class TaskLifecycleTest
       {
         return new SegmentHandoffNotifier()
         {
-
-
           @Override
           public boolean registerSegmentHandoffCallback(
-              SegmentDescriptor descriptor, Executor exec, Runnable handOffRunnable
+              SegmentDescriptor descriptor,
+              Executor exec,
+              Runnable handOffRunnable
           )
           {
             handOffCallbacks.put(descriptor, new Pair<>(exec, handOffRunnable));
@@ -538,7 +539,8 @@ public class TaskLifecycleTest
             emitter,
             EasyMock.createMock(SupervisorManager.class),
             new Counters()
-        )
+        ),
+        new TaskAuditLogConfig(true)
     );
     File tmpDir = temporaryFolder.newFolder();
     taskConfig = new TaskConfig(tmpDir.toString(), null, null, 50000, null, false, null, null);
@@ -636,7 +638,7 @@ public class TaskLifecycleTest
         tb,
         taskConfig,
         emitter,
-        new DruidNode("dummy", "dummy", 10000, null, true, false),
+        new DruidNode("dummy", "dummy", false, 10000, null, true, false),
         new ServerConfig()
     );
   }
@@ -686,6 +688,7 @@ public class TaskLifecycleTest
             new IndexTuningConfig(
                 10000,
                 10,
+                null,
                 null,
                 null,
                 null,
@@ -766,6 +769,7 @@ public class TaskLifecycleTest
             new IndexTuningConfig(
                 10000,
                 10,
+                null,
                 null,
                 null,
                 null,
@@ -1153,6 +1157,7 @@ public class TaskLifecycleTest
             new IndexTuningConfig(
                 10000,
                 10,
+                null,
                 null,
                 null,
                 null,

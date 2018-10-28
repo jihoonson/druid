@@ -17,7 +17,7 @@ When a rule is updated, the change may not be reflected until the next time the 
 Load Rules
 ----------
 
-Load rules indicate how many replicas of a segment should exist in a server tier.
+Load rules indicate how many replicas of a segment should exist in a server tier. **Please note**: If a Load rule is used to retain only data from a certain interval or period, it must be accompanied by a Drop rule. If a Drop rule is not included, data not within the specified interval or period will be retained by the default rule (loadForever).
 
 ### Forever Load Rule
 
@@ -128,6 +128,22 @@ Period drop rules are of the form:
 * `period` - A JSON Object representing ISO-8601 Periods
 
 The interval of a segment will be compared against the specified period. The period is from some time in the past to the current time. The rule matches if the period contains the interval.
+
+### Period Drop Before Rule
+
+Period drop before rules are of the form:
+
+```json
+{
+  "type" : "dropBeforeByPeriod",
+  "period" : "P1M"
+}
+```
+
+* `type` - this should always be "dropBeforeByPeriod"
+* `period` - A JSON Object representing ISO-8601 Periods
+
+The interval of a segment will be compared against the specified period. The period is from some time in the past to the current time. The rule matches if the interval before the period. If you just want to retain recent data, you can use this rule to drop the old data that before a specified period and add a `loadForever` rule to follow it. Notes, `dropBeforeByPeriod + loadForever` is equivalent to `loadByPeriod(includeFuture = true) + dropForever`.
 
 Broadcast Rules
 ---------------

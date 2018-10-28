@@ -79,9 +79,7 @@ public class SpecificSegmentQueryRunnerTest
               }
 
               @Override
-              public Yielder<Object> toYielder(
-                  Object initValue, YieldingAccumulator accumulator
-              )
+              public Yielder<Object> toYielder(Object initValue, YieldingAccumulator accumulator)
               {
                 throw new SegmentMissingException("FAILSAUCE");
               }

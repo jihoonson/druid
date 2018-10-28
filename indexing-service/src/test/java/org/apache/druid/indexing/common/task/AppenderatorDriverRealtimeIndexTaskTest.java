@@ -62,6 +62,7 @@ import org.apache.druid.indexing.common.TestUtils;
 import org.apache.druid.indexing.common.actions.LocalTaskActionClientFactory;
 import org.apache.druid.indexing.common.actions.TaskActionClientFactory;
 import org.apache.druid.indexing.common.actions.TaskActionToolbox;
+import org.apache.druid.indexing.common.actions.TaskAuditLogConfig;
 import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.common.config.TaskStorageConfig;
 import org.apache.druid.indexing.common.index.RealtimeAppenderatorIngestionSpec;
@@ -1498,7 +1499,9 @@ public class AppenderatorDriverRealtimeIndexTaskTest
 
       @Override
       public SegmentPublishResult announceHistoricalSegments(
-          Set<DataSegment> segments, DataSourceMetadata startMetadata, DataSourceMetadata endMetadata
+          Set<DataSegment> segments,
+          DataSourceMetadata startMetadata,
+          DataSourceMetadata endMetadata
       ) throws IOException
       {
         SegmentPublishResult result = super.announceHistoricalSegments(segments, startMetadata, endMetadata);
@@ -1526,7 +1529,8 @@ public class AppenderatorDriverRealtimeIndexTaskTest
     );
     final TaskActionClientFactory taskActionClientFactory = new LocalTaskActionClientFactory(
         taskStorage,
-        taskActionToolbox
+        taskActionToolbox,
+        new TaskAuditLogConfig(false)
     );
     IntervalChunkingQueryRunnerDecorator queryRunnerDecorator = new IntervalChunkingQueryRunnerDecorator(
         null,
@@ -1535,9 +1539,7 @@ public class AppenderatorDriverRealtimeIndexTaskTest
     )
     {
       @Override
-      public <T> QueryRunner<T> decorate(
-          QueryRunner<T> delegate, QueryToolChest<T, ? extends Query<T>> toolChest
-      )
+      public <T> QueryRunner<T> decorate(QueryRunner<T> delegate, QueryToolChest<T, ? extends Query<T>> toolChest)
       {
         return delegate;
       }
@@ -1559,7 +1561,9 @@ public class AppenderatorDriverRealtimeIndexTaskTest
     {
       @Override
       public boolean registerSegmentHandoffCallback(
-          SegmentDescriptor descriptor, Executor exec, Runnable handOffRunnable
+          SegmentDescriptor descriptor,
+          Executor exec,
+          Runnable handOffRunnable
       )
       {
         handOffCallbacks.put(descriptor, new Pair<>(exec, handOffRunnable));

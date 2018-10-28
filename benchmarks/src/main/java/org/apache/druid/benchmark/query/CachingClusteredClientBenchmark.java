@@ -37,6 +37,7 @@ import org.apache.druid.benchmark.datagen.BenchmarkSchemaInfo;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemas;
 import org.apache.druid.client.CachingClusteredClient;
 import org.apache.druid.client.DruidServer;
+import org.apache.druid.client.ImmutableDruidServer;
 import org.apache.druid.client.SimpleQueryRunner;
 import org.apache.druid.client.TimelineServerView;
 import org.apache.druid.client.cache.CacheConfig;
@@ -90,7 +91,6 @@ import org.apache.druid.segment.IndexIO;
 import org.apache.druid.segment.IndexMergerV9;
 import org.apache.druid.segment.IndexSpec;
 import org.apache.druid.segment.QueryableIndex;
-import org.apache.druid.segment.column.ColumnConfig;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
 import org.apache.druid.segment.writeout.OffHeapMemorySegmentWriteOutMediumFactory;
@@ -178,15 +178,7 @@ public class CachingClusteredClientBenchmark
     );
     INDEX_IO = new IndexIO(
         JSON_MAPPER,
-        OffHeapMemorySegmentWriteOutMediumFactory.instance(),
-        new ColumnConfig()
-        {
-          @Override
-          public int columnCacheSizeBytes()
-          {
-            return 0;
-          }
-        }
+        () -> 0
     );
     INDEX_MERGER_V9 = new IndexMergerV9(JSON_MAPPER, INDEX_IO, OffHeapMemorySegmentWriteOutMediumFactory.instance());
   }
@@ -195,7 +187,9 @@ public class CachingClusteredClientBenchmark
   {
     BenchmarkSchemaInfo basicSchema = BenchmarkSchemas.SCHEMA_MAP.get("basic");
 
-    QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(Collections.singletonList(basicSchema.getDataInterval()));
+    QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(
+        Collections.singletonList(basicSchema.getDataInterval())
+    );
     List<AggregatorFactory> queryAggs = new ArrayList<>();
     queryAggs.add(new LongSumAggregatorFactory(
         "sumLongSequential",
@@ -431,13 +425,26 @@ public class CachingClusteredClientBenchmark
 
     void addServer(DruidServer server, DataSegment dataSegment, QueryableIndex queryableIndex)
     {
-      servers.put(server, new SingleSegmentDruidServer(server, new SimpleQueryRunner((QueryRunnerFactory<Row, Query<Row>>) factory, dataSegment.getIdentifier(), queryableIndex)));
+      servers.put(
+          server,
+          new SingleSegmentDruidServer(
+              server,
+              new SimpleQueryRunner(
+                  (QueryRunnerFactory<Row, Query<Row>>) factory,
+                  dataSegment.getIdentifier(),
+                  queryableIndex
+              )
+          )
+      );
       addSegmentToServer(server, dataSegment);
     }
 
     void addSegmentToServer(DruidServer server, DataSegment segment)
     {
-      final ServerSelector selector = selectors.computeIfAbsent(segment.getIdentifier(), k -> new ServerSelector(segment, tierSelectorStrategy));
+      final ServerSelector selector = selectors.computeIfAbsent(
+          segment.getIdentifier(),
+          k -> new ServerSelector(segment, tierSelectorStrategy)
+      );
       selector.addServerAndUpdateSegment(servers.get(server), segment);
       timelines.computeIfAbsent(segment.getDataSource(), k -> new VersionedIntervalTimeline<>(Ordering.natural()))
                .add(segment.getInterval(), segment.getVersion(), segment.getShardSpec().createChunk(selector));
@@ -452,6 +459,12 @@ public class CachingClusteredClientBenchmark
     }
 
     @Override
+    public List<ImmutableDruidServer> getDruidServers()
+    {
+      return Collections.emptyList();
+    }
+
+    @Override
     public <T> QueryRunner<T> getQueryRunner(DruidServer server)
     {
       final SingleSegmentDruidServer queryableDruidServer = Preconditions.checkNotNull(servers.get(server), "server");
@@ -459,25 +472,21 @@ public class CachingClusteredClientBenchmark
     }
 
     @Override
-    public void registerTimelineCallback(
-        Executor exec, TimelineCallback callback
-    )
+    public void registerTimelineCallback(Executor exec, TimelineCallback callback)
     {
-
+      // do nothing
     }
 
     @Override
-    public void registerServerRemovedCallback(
-        Executor exec, ServerRemovedCallback callback
-    )
+    public void registerServerRemovedCallback(Executor exec, ServerRemovedCallback callback)
     {
-
+      // do nothing
     }
 
     @Override
     public void registerSegmentCallback(Executor exec, SegmentCallback callback)
     {
-
+      // do nothing
     }
   }
 
@@ -526,7 +535,9 @@ public class CachingClusteredClientBenchmark
         "version",
         Collections.emptyMap(),
         Lists.newArrayList(queryableIndex.getAvailableDimensions().iterator()),
-        Arrays.stream(queryableIndex.getMetadata().getAggregators()).map(AggregatorFactory::getName).collect(Collectors.toList()),
+        Arrays.stream(queryableIndex.getMetadata().getAggregators())
+              .map(AggregatorFactory::getName)
+              .collect(Collectors.toList()),
         new NumberedShardSpec(seq, 0),
         0,
         size

@@ -22,12 +22,12 @@ package org.apache.druid.curator.inventory;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.primitives.Ints;
-import org.apache.druid.curator.CuratorTestBase;
-import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.CuratorEvent;
 import org.apache.curator.framework.api.CuratorEventType;
 import org.apache.curator.framework.api.CuratorListener;
+import org.apache.druid.curator.CuratorTestBase;
+import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.Watcher;
 import org.junit.After;
@@ -62,8 +62,11 @@ public class CuratorInventoryManagerTest extends CuratorTestBase
   public void testSanity() throws Exception
   {
     final MapStrategy strategy = new MapStrategy();
-    CuratorInventoryManager<Map<String, Integer>, Integer> manager = new CuratorInventoryManager<Map<String, Integer>, Integer>(
-        curator, new StringInventoryManagerConfig("/container", "/inventory"), exec, strategy
+    CuratorInventoryManager<Map<String, Integer>, Integer> manager = new CuratorInventoryManager<>(
+        curator,
+        new StringInventoryManagerConfig("/container", "/inventory"),
+        exec,
+        strategy
     );
 
     curator.start();
