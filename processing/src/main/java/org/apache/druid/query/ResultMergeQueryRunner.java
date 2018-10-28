@@ -46,7 +46,9 @@ public abstract class ResultMergeQueryRunner<T> extends BySegmentSkippingQueryRu
   {
     Query<T> query = queryPlus.getQuery();
     return CombiningSequence.create(
-        baseRunner.run(queryPlus, context), makeOrdering(query), mergeFnGenerator.apply(query)
+        baseRunner.run(queryPlus, context),
+        makeOrdering(query),
+        mergeFnGenerator.apply(query)
     );
   }
 

@@ -70,6 +70,9 @@ public interface GroupByStrategy
       GroupByQueryQueryToolChest toolChest
   );
 
+  /**
+   * See {@link org.apache.druid.query.QueryToolChest#createMergeFn(Query)}.
+   */
   @Nullable
   default BinaryFn<Row, Row, Row> createMergeFn(Query<Row> query)
   {
