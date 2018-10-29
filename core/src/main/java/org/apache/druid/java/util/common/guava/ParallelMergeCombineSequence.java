@@ -19,8 +19,10 @@
 package org.apache.druid.java.util.common.guava;
 
 import com.google.common.collect.Ordering;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
 import org.apache.druid.java.util.common.guava.nary.BinaryFn;
+import org.apache.druid.query.ParallelCombines;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -37,7 +39,7 @@ import java.util.concurrent.TimeoutException;
 public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 {
   private final ExecutorService exec;
-  private final List<? extends Sequence<T>> baseSequences;
+  private final List<Sequence<T>> baseSequences;
   private final Ordering<T> ordering;
   private final BinaryFn<T, T, T> combineFn;
   private final int combineDegree;
@@ -57,7 +59,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
   )
   {
     this.exec = exec;
-    this.baseSequences = (List<? extends Sequence<T>>) baseSequences;
+    this.baseSequences = (List<Sequence<T>>) baseSequences;
     this.ordering = ordering;
     this.combineFn = combineFn;
     this.combineDegree = combineDegree;
@@ -82,107 +84,109 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
   @Override
   public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
   {
-    final List<Sequence<T>> finalSequences = new ArrayList<>();
+    final Pair<Sequence<T>, List<Future>> rootAndFutures = ParallelCombines.buildCombineTree(
+        baseSequences,
+        combineDegree,
+        combineDegree,
+        this::runCombine
+    );
 
-    final int batchSize = (int) Math.ceil(baseSequences.size() / (double) combineDegree);
+    // Ignore futures since they are handled in the generated BaseSequence.IteratorMaker.cleanup().
+    return rootAndFutures.lhs.toYielder(initValue, accumulator);
+  }
 
-    // TODO: hierarchical combine...
-    for (int i = 0; i < baseSequences.size(); i += batchSize) {
-      final Sequence<? extends Sequence<T>> subSequences = Sequences.simple(
-          baseSequences.subList(i, Math.min(i + batchSize, baseSequences.size()))
-      );
-      final CombiningSequence<T> combiningSequence = CombiningSequence.create(
-          new MergeSequence<>(ordering, subSequences),
-          ordering,
-          combineFn
-      );
-
-      final BlockingQueue<ValueHolder> queue = new ArrayBlockingQueue<>(queueSize);
-
-      Future future = exec.submit(() -> {
-        combiningSequence.accumulate(
-            queue,
-            (theQueue, v) -> {
-              try {
-
-                addToQueue(theQueue, new ValueHolder(v));
-              }
-              catch (InterruptedException e) {
-                throw new RuntimeException(e);
-              }
-              return theQueue;
-            }
-        );
-        try {
-          addToQueue(queue, new ValueHolder(null));
-        }
-        catch (InterruptedException e) {
-          throw new RuntimeException(e);
-        }
-      });
-
-      finalSequences.add(
-          new BaseSequence<>(
-              new IteratorMaker<T, Iterator<T>>()
-              {
-                @Override
-                public Iterator<T> make()
-                {
-                  return new Iterator<T>()
-                  {
-                    private T nextVal;
-
-                    @Override
-                    public boolean hasNext()
-                    {
-                      try {
-                        final ValueHolder holder;
-                        if (!hasTimeout) {
-                          holder = queue.take();
-                        } else {
-                          final long timeout = timeoutAt - System.currentTimeMillis();
-                          holder = queue.poll(timeout, TimeUnit.MILLISECONDS);
-                        }
-
-                        if (holder == null) {
-                          throw new RuntimeException(new TimeoutException());
-                        }
-                        nextVal = holder.val;
-                        return nextVal != null;
-                      }
-                      catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                      }
-                    }
-
-                    @Override
-                    public T next()
-                    {
-                      return nextVal;
-                    }
-                  };
-                }
-
-                @Override
-                public void cleanup(Iterator<T> iterFromMake)
-                {
-                  try {
-                    future.get();
-                  }
-                  catch (InterruptedException | ExecutionException e) {
-                    throw new RuntimeException(e);
-                  }
-                }
-              }
-          )
-      );
-    }
-
-    return CombiningSequence.create(
-        new MergeSequence<>(ordering, Sequences.simple(finalSequences)),
+  private Pair<Sequence<T>, Future> runCombine(List<Sequence<T>> sequenceList)
+  {
+    final Sequence<? extends Sequence<T>> sequences = Sequences.simple(sequenceList);
+    final CombiningSequence<T> combiningSequence = CombiningSequence.create(
+        new MergeSequence<>(ordering, sequences),
         ordering,
         combineFn
-    ).toYielder(initValue, accumulator);
+    );
+
+    final BlockingQueue<ValueHolder> queue = new ArrayBlockingQueue<>(queueSize);
+
+    // AbstractPrioritizedCallable
+    final Future future = exec.submit(() -> {
+      combiningSequence.accumulate(
+          queue,
+          (theQueue, v) -> {
+            try {
+              addToQueue(theQueue, new ValueHolder(v));
+            }
+            catch (InterruptedException e) {
+              throw new RuntimeException(e);
+            }
+            return theQueue;
+          }
+      );
+      try {
+        addToQueue(queue, new ValueHolder(null));
+      }
+      catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+    });
+
+    final Sequence<T> backgroundCombineSequence =  new BaseSequence<>(
+        new IteratorMaker<T, Iterator<T>>()
+        {
+          @Override
+          public Iterator<T> make()
+          {
+            return new Iterator<T>()
+            {
+              private T nextVal;
+
+              @Override
+              public boolean hasNext()
+              {
+                try {
+                  final ValueHolder holder;
+                  if (!hasTimeout) {
+                    holder = queue.take();
+                  } else {
+                    final long timeout = timeoutAt - System.currentTimeMillis();
+                    holder = queue.poll(timeout, TimeUnit.MILLISECONDS);
+                  }
+
+                  if (holder == null) {
+                    throw new RuntimeException(new TimeoutException());
+                  }
+                  nextVal = holder.val;
+                  return nextVal != null;
+                }
+                catch (InterruptedException e) {
+                  throw new RuntimeException(e);
+                }
+              }
+
+              @Override
+              public T next()
+              {
+                return nextVal;
+              }
+            };
+          }
+
+          @Override
+          public void cleanup(Iterator<T> iterFromMake)
+          {
+            try {
+              if (future.isDone()) {
+                future.get();
+              } else {
+                future.cancel(true);
+              }
+            }
+            catch (InterruptedException | ExecutionException e) {
+              throw new RuntimeException(e);
+            }
+          }
+        }
+    );
+
+    return Pair.of(backgroundCombineSequence, future);
   }
 
   private class ValueHolder

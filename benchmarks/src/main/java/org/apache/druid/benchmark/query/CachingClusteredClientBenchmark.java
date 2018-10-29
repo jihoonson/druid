@@ -28,7 +28,6 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import com.google.common.io.Files;
 import org.apache.commons.io.FileUtils;
@@ -64,15 +63,20 @@ import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.math.expr.ExprMacroTable;
 import org.apache.druid.offheap.OffheapBufferGenerator;
 import org.apache.druid.query.DataSource;
+import org.apache.druid.query.DefaultQueryRunnerFactoryConglomerate;
 import org.apache.druid.query.DruidProcessingConfig;
+import org.apache.druid.query.Druids;
 import org.apache.druid.query.FluentQueryRunnerBuilder;
-import org.apache.druid.query.MapQueryToolChestWarehouse;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryRunnerFactory;
+import org.apache.druid.query.QueryRunnerFactoryConglomerate;
+import org.apache.druid.query.QueryRunnerTestHelper;
 import org.apache.druid.query.QueryToolChest;
+import org.apache.druid.query.QueryToolChestWarehouse;
+import org.apache.druid.query.Result;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
@@ -82,11 +86,23 @@ import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.GroupByQueryEngine;
 import org.apache.druid.query.groupby.GroupByQueryQueryToolChest;
 import org.apache.druid.query.groupby.GroupByQueryRunnerFactory;
+import org.apache.druid.query.groupby.GroupByQueryRunnerTest;
 import org.apache.druid.query.groupby.strategy.GroupByStrategySelector;
 import org.apache.druid.query.groupby.strategy.GroupByStrategyV1;
 import org.apache.druid.query.groupby.strategy.GroupByStrategyV2;
 import org.apache.druid.query.spec.MultipleIntervalSegmentSpec;
 import org.apache.druid.query.spec.QuerySegmentSpec;
+import org.apache.druid.query.timeseries.TimeseriesQuery;
+import org.apache.druid.query.timeseries.TimeseriesQueryEngine;
+import org.apache.druid.query.timeseries.TimeseriesQueryQueryToolChest;
+import org.apache.druid.query.timeseries.TimeseriesQueryRunnerFactory;
+import org.apache.druid.query.timeseries.TimeseriesResultValue;
+import org.apache.druid.query.topn.TopNQuery;
+import org.apache.druid.query.topn.TopNQueryBuilder;
+import org.apache.druid.query.topn.TopNQueryConfig;
+import org.apache.druid.query.topn.TopNQueryQueryToolChest;
+import org.apache.druid.query.topn.TopNQueryRunnerFactory;
+import org.apache.druid.query.topn.TopNResultValue;
 import org.apache.druid.segment.IndexIO;
 import org.apache.druid.segment.IndexMergerV9;
 import org.apache.druid.segment.IndexSpec;
@@ -118,7 +134,6 @@ import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -160,13 +175,14 @@ public class CachingClusteredClientBenchmark
   private Map<DataSegment, QueryableIndex> queryableIndexes;
 
   private SimpleServerView serverView;
-  private QueryRunnerFactory<Row, ? extends Query<Row>> factory;
+  private QueryToolChestWarehouse toolChestWarehouse;
+  private QueryRunnerFactoryConglomerate conglomerate;
   private CachingClusteredClient cachingClusteredClient;
 
   private BenchmarkSchemaInfo schemaInfo;
   private File tmpDir;
 
-  private GroupByQuery query;
+  private Query query;
 
   static {
     JSON_MAPPER = new DefaultObjectMapper();
@@ -183,18 +199,56 @@ public class CachingClusteredClientBenchmark
     INDEX_MERGER_V9 = new IndexMergerV9(JSON_MAPPER, INDEX_IO, OffHeapMemorySegmentWriteOutMediumFactory.instance());
   }
 
-  private void setupQuery()
+  private void setupTimeseriesQuery()
   {
     BenchmarkSchemaInfo basicSchema = BenchmarkSchemas.SCHEMA_MAP.get("basic");
 
     QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(
         Collections.singletonList(basicSchema.getDataInterval())
     );
-    List<AggregatorFactory> queryAggs = new ArrayList<>();
-    queryAggs.add(new LongSumAggregatorFactory(
-        "sumLongSequential",
-        "sumLongSequential"
-    ));
+
+    query = Druids.newTimeseriesQueryBuilder()
+                  .dataSource(DATA_SOURCE)
+                  .intervals(intervalSpec)
+                  .aggregators(new LongSumAggregatorFactory("sumLongSequential", "sumLongSequential"))
+                  .granularity(Granularity.fromString(queryGranularity))
+                  .build();
+  }
+
+  private void setupTopNQuery()
+  {
+    BenchmarkSchemaInfo basicSchema = BenchmarkSchemas.SCHEMA_MAP.get("basic");
+
+    QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(
+        Collections.singletonList(basicSchema.getDataInterval())
+    );
+
+    query = new TopNQueryBuilder()
+        .dataSource(DATA_SOURCE)
+        .intervals(intervalSpec)
+        .dimension(new DefaultDimensionSpec("dimUniform", null))
+        .aggregators(new LongSumAggregatorFactory("sumLongSequential", "sumLongSequential"))
+        .granularity(Granularity.fromString(queryGranularity))
+        .metric("sumLongSequential")
+        .threshold(20480)
+        .context(
+            ImmutableMap.of(
+                QueryContexts.BROKER_PARALLEL_COMBINE_DEGREE,
+                brokerParallelMergeDegree,
+                QueryContexts.BROKER_PARALLEL_COMBINE_QUEUE_SIZE,
+                brokerParallelMergeQueueSize
+            )
+        )
+        .build();
+  }
+
+  private void setupGroupByQuery()
+  {
+    BenchmarkSchemaInfo basicSchema = BenchmarkSchemas.SCHEMA_MAP.get("basic");
+
+    QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(
+        Collections.singletonList(basicSchema.getDataInterval())
+    );
 
     query = GroupByQuery
         .builder()
@@ -204,7 +258,7 @@ public class CachingClusteredClientBenchmark
             new DefaultDimensionSpec("dimUniform", null),
             new DefaultDimensionSpec("dimZipf", null)
         )
-        .setAggregatorSpecs(queryAggs)
+        .setAggregatorSpecs(new LongSumAggregatorFactory("sumLongSequential", "sumLongSequential"))
         .setGranularity(Granularity.fromString(queryGranularity))
         .setContext(
             ImmutableMap.of(
@@ -315,15 +369,79 @@ public class CachingClusteredClientBenchmark
         )
     );
 
-    final GroupByQueryQueryToolChest queryQueryToolChest = new GroupByQueryQueryToolChest(
-        strategySelector,
-        QueryBenchmarkUtil.NoopIntervalChunkingQueryRunnerDecorator()
+    conglomerate = new DefaultQueryRunnerFactoryConglomerate(
+        ImmutableMap.<Class<? extends Query>, QueryRunnerFactory>builder()
+            .put(
+                TimeseriesQuery.class,
+                new TimeseriesQueryRunnerFactory(
+                    new TimeseriesQueryQueryToolChest(
+                        QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator()
+                    ),
+                    new TimeseriesQueryEngine(),
+                    QueryRunnerTestHelper.NOOP_QUERYWATCHER
+                )
+            )
+            .put(
+                TopNQuery.class,
+                new TopNQueryRunnerFactory(
+                    new StupidPool<>(
+                        "TopNQueryRunnerFactory-bufferPool",
+                        () -> ByteBuffer.allocate(10 * 1024 * 1024)
+                    ),
+                    new TopNQueryQueryToolChest(
+                        new TopNQueryConfig(),
+                        QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator()
+                    ),
+                    QueryRunnerTestHelper.NOOP_QUERYWATCHER
+                )
+            )
+            .put(
+                GroupByQuery.class,
+                makeGroupByQueryRunnerFactory(
+                    GroupByQueryRunnerTest.DEFAULT_MAPPER,
+                    new GroupByQueryConfig()
+                    {
+                      @Override
+                      public String getDefaultStrategy()
+                      {
+                        return GroupByStrategySelector.STRATEGY_V2;
+                      }
+                    },
+                    new DruidProcessingConfig()
+                    {
+                      @Override
+                      public String getFormatString()
+                      {
+                        return null;
+                      }
+
+                      @Override
+                      public int intermediateComputeSizeBytes()
+                      {
+                        return 10 * 1024 * 1024;
+                      }
+
+                      @Override
+                      public int getNumMergeBuffers()
+                      {
+                        // Need 3 buffers for CalciteQueryTest.testDoubleNestedGroupby.
+                        // Two buffers for the broker and one for the queryable
+                        return 3;
+                      }
+                    }
+                )
+            )
+            .build()
     );
 
-    factory = new GroupByQueryRunnerFactory(
-        strategySelector,
-        queryQueryToolChest
-    );
+    toolChestWarehouse = new QueryToolChestWarehouse()
+    {
+      @Override
+      public <T, QueryType extends Query<T>> QueryToolChest<T, QueryType> getToolChest(final QueryType query)
+      {
+        return conglomerate.findFactory(query).getToolchest();
+      }
+    };
 
     serverView = new SimpleServerView();
     int serverSuffx = 1;
@@ -336,9 +454,7 @@ public class CachingClusteredClientBenchmark
     }
 
     cachingClusteredClient = new CachingClusteredClient(
-        new MapQueryToolChestWarehouse(
-            ImmutableMap.of(GroupByQuery.class, queryQueryToolChest)
-        ),
+        toolChestWarehouse,
         serverView,
         MapCache.create(0),
         JSON_MAPPER,
@@ -346,6 +462,48 @@ public class CachingClusteredClientBenchmark
         new CacheConfig(),
         new DruidHttpClientConfig(),
         Execs.multiThreaded(numServers, "caching-clustered-client-benchmark")
+    );
+  }
+
+  private static GroupByQueryRunnerFactory makeGroupByQueryRunnerFactory(
+      final ObjectMapper mapper,
+      final GroupByQueryConfig config,
+      final DruidProcessingConfig processingConfig
+  )
+  {
+    final Supplier<GroupByQueryConfig> configSupplier = Suppliers.ofInstance(config);
+    final NonBlockingPool<ByteBuffer> bufferPool = new StupidPool<>(
+        "GroupByQueryEngine-bufferPool",
+        () -> ByteBuffer.allocateDirect(processingConfig.intermediateComputeSizeBytes())
+    );
+    final BlockingPool<ByteBuffer> mergeBufferPool = new DefaultBlockingPool<>(
+        () -> ByteBuffer.allocateDirect(processingConfig.intermediateComputeSizeBytes()),
+        processingConfig.getNumMergeBuffers()
+    );
+    final GroupByStrategySelector strategySelector = new GroupByStrategySelector(
+        configSupplier,
+        new GroupByStrategyV1(
+            configSupplier,
+            new GroupByQueryEngine(configSupplier, bufferPool),
+            QueryRunnerTestHelper.NOOP_QUERYWATCHER,
+            bufferPool
+        ),
+        new GroupByStrategyV2(
+            processingConfig,
+            configSupplier,
+            bufferPool,
+            mergeBufferPool,
+            mapper,
+            QueryRunnerTestHelper.NOOP_QUERYWATCHER
+        )
+    );
+    final GroupByQueryQueryToolChest toolChest = new GroupByQueryQueryToolChest(
+        strategySelector,
+        QueryRunnerTestHelper.sameThreadIntervalChunkingQueryRunnerDecorator()
+    );
+    return new GroupByQueryRunnerFactory(
+        strategySelector,
+        toolChest
     );
   }
 
@@ -372,29 +530,56 @@ public class CachingClusteredClientBenchmark
   @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
+  public void timeseriesQuery(Blackhole blackhole)
+  {
+    setupTimeseriesQuery();
+    final List<Result<TimeseriesResultValue>> results = runQuery();
+
+    for (Result<TimeseriesResultValue> result : results) {
+      blackhole.consume(result);
+    }
+  }
+
+  @Benchmark
+  @BenchmarkMode(Mode.AverageTime)
+  @OutputTimeUnit(TimeUnit.MICROSECONDS)
+  public void topNQuery(Blackhole blackhole)
+  {
+    setupTopNQuery();
+    final List<Result<TopNResultValue>> results = runQuery();
+
+    for (Result<TopNResultValue> result : results) {
+      blackhole.consume(result);
+    }
+  }
+
+  @Benchmark
+  @BenchmarkMode(Mode.AverageTime)
+  @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void groupByQuery(Blackhole blackhole)
   {
-    setupQuery();
-    QueryToolChest<Row, Query<Row>> toolChest = (QueryToolChest<Row, Query<Row>>) factory.getToolchest();
-
-    QueryRunner<Row> theRunner = new FluentQueryRunnerBuilder<>(toolChest)
-        .create(cachingClusteredClient.getQueryRunnerForIntervals(query, query.getIntervals()))
-        .applyPreMergeDecoration()
-        .mergeResults()
-        .applyPostMergeDecoration();
-
-    Sequence<Row> queryResult = theRunner.run(QueryPlus.wrap(query), Maps.newHashMap());
-
-    List<Row> results = queryResult.toList();
-
-    log.info("# of results: " + results.size());
+    setupGroupByQuery();
+    final List<Row> results = runQuery();
 
     for (Row result : results) {
       blackhole.consume(result);
     }
   }
 
-  // TODO: other query types
+  private <T> List<T> runQuery()
+  {
+    //noinspection unchecked
+    QueryRunner<T> theRunner = new FluentQueryRunnerBuilder<>(toolChestWarehouse.getToolChest(query))
+        .create(cachingClusteredClient.getQueryRunnerForIntervals(query, query.getIntervals()))
+        .applyPreMergeDecoration()
+        .mergeResults()
+        .applyPostMergeDecoration();
+
+    //noinspection unchecked
+    Sequence<T> queryResult = theRunner.run(QueryPlus.wrap(query), new HashMap<>());
+
+    return queryResult.toList();
+  }
 
   private IncrementalIndex makeIncIndex(boolean withRollup)
   {
@@ -430,7 +615,7 @@ public class CachingClusteredClientBenchmark
           new SingleSegmentDruidServer(
               server,
               new SimpleQueryRunner(
-                  (QueryRunnerFactory<Row, Query<Row>>) factory,
+                  conglomerate,
                   dataSegment.getIdentifier(),
                   queryableIndex
               )

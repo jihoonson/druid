@@ -92,20 +92,6 @@ public abstract class CachingClusteredClientParallelMergeTestBase
     final QueryRunnerFactoryConglomerate conglomerate = new DefaultQueryRunnerFactoryConglomerate(
         ImmutableMap.<Class<? extends Query>, QueryRunnerFactory>builder()
             .put(
-                SelectQuery.class,
-                new SelectQueryRunnerFactory(
-                    new SelectQueryQueryToolChest(
-                        TestHelper.makeJsonMapper(),
-                        QueryRunnerTestHelper.NoopIntervalChunkingQueryRunnerDecorator(),
-                        Suppliers.ofInstance(
-                            new SelectQueryConfig(true)
-                        )
-                    ),
-                    new SelectQueryEngine(),
-                    QueryRunnerTestHelper.NOOP_QUERYWATCHER
-                )
-            )
-            .put(
                 TimeseriesQuery.class,
                 new TimeseriesQueryRunnerFactory(
                     new TimeseriesQueryQueryToolChest(
@@ -120,14 +106,7 @@ public abstract class CachingClusteredClientParallelMergeTestBase
                 new TopNQueryRunnerFactory(
                     new CloseableStupidPool<>(
                         "TopNQueryRunnerFactory-bufferPool",
-                        new Supplier<ByteBuffer>()
-                        {
-                          @Override
-                          public ByteBuffer get()
-                          {
-                            return ByteBuffer.allocate(10 * 1024 * 1024);
-                          }
-                        }
+                        () -> ByteBuffer.allocate(10 * 1024 * 1024)
                     ),
                     new TopNQueryQueryToolChest(
                         new TopNQueryConfig(),
