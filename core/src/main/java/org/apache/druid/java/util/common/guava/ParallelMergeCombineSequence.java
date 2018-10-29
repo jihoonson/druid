@@ -25,7 +25,6 @@ import org.apache.druid.java.util.common.guava.nary.BinaryFn;
 import org.apache.druid.query.ParallelCombines;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -128,7 +127,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
       }
     });
 
-    final Sequence<T> backgroundCombineSequence =  new BaseSequence<>(
+    final Sequence<T> backgroundCombineSequence = new BaseSequence<>(
         new IteratorMaker<T, Iterator<T>>()
         {
           @Override
