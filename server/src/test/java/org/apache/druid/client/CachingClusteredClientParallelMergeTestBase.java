@@ -71,7 +71,7 @@ public abstract class CachingClusteredClientParallelMergeTestBase
   static final String DATA_SOURCE = "test";
 
   private static final String VERSION = "version";
-  private static final int NUM_SERVERS = 3;
+  private static final int NUM_SERVERS = 5;
 
   private final Random random = new Random(System.currentTimeMillis());
 
@@ -81,6 +81,35 @@ public abstract class CachingClusteredClientParallelMergeTestBase
   @Before
   public void setup()
   {
+    final DruidProcessingConfig processingConfig = new DruidProcessingConfig()
+    {
+      @Override
+      public String getFormatString()
+      {
+        return null;
+      }
+
+      @Override
+      public int intermediateComputeSizeBytes()
+      {
+        return 10 * 1024 * 1024;
+      }
+
+      @Override
+      public int getNumMergeBuffers()
+      {
+        // Need 3 buffers for CalciteQueryTest.testDoubleNestedGroupby.
+        // Two buffers for the broker and one for the queryable
+        return 3;
+      }
+
+      @Override
+      public int getNumThreads()
+      {
+        return 2;
+      }
+    };
+
     final QueryRunnerFactoryConglomerate conglomerate = new DefaultQueryRunnerFactoryConglomerate(
         ImmutableMap.<Class<? extends Query>, QueryRunnerFactory>builder()
             .put(
@@ -120,28 +149,7 @@ public abstract class CachingClusteredClientParallelMergeTestBase
                             return GroupByStrategySelector.STRATEGY_V2;
                           }
                         },
-                        new DruidProcessingConfig()
-                        {
-                          @Override
-                          public String getFormatString()
-                          {
-                            return null;
-                          }
-
-                          @Override
-                          public int intermediateComputeSizeBytes()
-                          {
-                            return 10 * 1024 * 1024;
-                          }
-
-                          @Override
-                          public int getNumMergeBuffers()
-                          {
-                            // Need 3 buffers for CalciteQueryTest.testDoubleNestedGroupby.
-                            // Two buffers for the broker and one for the queryable
-                            return 3;
-                          }
-                        }
+                        processingConfig
                     ).lhs
             )
             .build()
@@ -182,7 +190,8 @@ public abstract class CachingClusteredClientParallelMergeTestBase
         new ForegroundCachePopulator(objectMapper, new CachePopulatorStats(), 1024),
         new CacheConfig(),
         new DruidHttpClientConfig(),
-        Execs.multiThreaded(2, "caching-clustered-client-parallel-merge-test")
+        Execs.multiThreaded(processingConfig.getNumThreads(), "caching-clustered-client-parallel-merge-test"),
+        processingConfig
     );
   }
 

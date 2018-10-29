@@ -20,7 +20,6 @@ package org.apache.druid.benchmark.query;
 
 import com.fasterxml.jackson.databind.InjectableValues.Std;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
@@ -61,7 +60,6 @@ import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.math.expr.ExprMacroTable;
-import org.apache.druid.offheap.OffheapBufferGenerator;
 import org.apache.druid.query.DataSource;
 import org.apache.druid.query.DefaultQueryRunnerFactoryConglomerate;
 import org.apache.druid.query.DruidProcessingConfig;
@@ -150,13 +148,16 @@ import java.util.stream.Collectors;
 @Measurement(iterations = 30)
 public class CachingClusteredClientBenchmark
 {
-  @Param({"8"})
+  @Param({"16"})
   private int numServers;
 
-  @Param({"100000"})
+  @Param({"2"})
+  private int numProcessingThreads;
+
+  @Param({"75000"})
   private int rowsPerSegment;
 
-  @Param({"all"})
+  @Param({"day", "all"})
   private String queryGranularity;
 
   @Param({"4", "2", "1"})
@@ -320,54 +321,34 @@ public class CachingClusteredClientBenchmark
       index.close();
     }
 
-    NonBlockingPool<ByteBuffer> bufferPool = new StupidPool<>(
-        "GroupByBenchmark-computeBufferPool",
-        new OffheapBufferGenerator("compute", 250_000_000),
-        0,
-        Integer.MAX_VALUE
-    );
-
-    // limit of 2 is required since we simulate both historical merge and broker merge in the same process
-    BlockingPool<ByteBuffer> mergePool = new DefaultBlockingPool<>(
-        new OffheapBufferGenerator("merge", 250_000_000),
-        2
-    );
-    final GroupByQueryConfig groupByQueryConfig = new GroupByQueryConfig();
-
-    DruidProcessingConfig druidProcessingConfig = new DruidProcessingConfig()
+    final DruidProcessingConfig processingConfig = new DruidProcessingConfig()
     {
-      @Override
-      public int getNumThreads()
-      {
-        // Used by "v2" strategy for concurrencyHint
-        return 1;
-      }
-
       @Override
       public String getFormatString()
       {
         return null;
       }
-    };
 
-    final Supplier<GroupByQueryConfig> configSupplier = Suppliers.ofInstance(groupByQueryConfig);
-    final GroupByStrategySelector strategySelector = new GroupByStrategySelector(
-        configSupplier,
-        new GroupByStrategyV1(
-            configSupplier,
-            new GroupByQueryEngine(configSupplier, bufferPool),
-            QueryBenchmarkUtil.NOOP_QUERYWATCHER,
-            bufferPool
-        ),
-        new GroupByStrategyV2(
-            druidProcessingConfig,
-            configSupplier,
-            bufferPool,
-            mergePool,
-            new ObjectMapper(new SmileFactory()),
-            QueryBenchmarkUtil.NOOP_QUERYWATCHER
-        )
-    );
+      @Override
+      public int intermediateComputeSizeBytes()
+      {
+        return 10 * 1024 * 1024;
+      }
+
+      @Override
+      public int getNumMergeBuffers()
+      {
+        // Need 3 buffers for CalciteQueryTest.testDoubleNestedGroupby.
+        // Two buffers for the broker and one for the queryable
+        return 3;
+      }
+
+      @Override
+      public int getNumThreads()
+      {
+        return numProcessingThreads;
+      }
+    };
 
     conglomerate = new DefaultQueryRunnerFactoryConglomerate(
         ImmutableMap.<Class<? extends Query>, QueryRunnerFactory>builder()
@@ -407,28 +388,7 @@ public class CachingClusteredClientBenchmark
                         return GroupByStrategySelector.STRATEGY_V2;
                       }
                     },
-                    new DruidProcessingConfig()
-                    {
-                      @Override
-                      public String getFormatString()
-                      {
-                        return null;
-                      }
-
-                      @Override
-                      public int intermediateComputeSizeBytes()
-                      {
-                        return 10 * 1024 * 1024;
-                      }
-
-                      @Override
-                      public int getNumMergeBuffers()
-                      {
-                        // Need 3 buffers for CalciteQueryTest.testDoubleNestedGroupby.
-                        // Two buffers for the broker and one for the queryable
-                        return 3;
-                      }
-                    }
+                    processingConfig
                 )
             )
             .build()
@@ -461,7 +421,8 @@ public class CachingClusteredClientBenchmark
         new ForegroundCachePopulator(JSON_MAPPER, new CachePopulatorStats(), 0),
         new CacheConfig(),
         new DruidHttpClientConfig(),
-        Execs.multiThreaded(numServers, "caching-clustered-client-benchmark")
+        Execs.multiThreaded(processingConfig.getNumThreads(), "caching-clustered-client-benchmark"),
+        processingConfig
     );
   }
 

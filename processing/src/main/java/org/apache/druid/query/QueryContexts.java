@@ -36,6 +36,7 @@ public class QueryContexts
   public static final String MAX_QUEUED_BYTES_KEY = "maxQueuedBytes";
   public static final String DEFAULT_TIMEOUT_KEY = "defaultTimeout";
   public static final String CHUNK_PERIOD_KEY = "chunkPeriod";
+  public static final String NUM_BROKER_PARALLEL_COMBINE_THREADS = "numBrokerParallelCombineThreads";
   public static final String BROKER_PARALLEL_COMBINE_DEGREE = "brokerParallelCombineDegree";
   public static final String BROKER_PARALLEL_COMBINE_QUEUE_SIZE = "brokerParallelCombineQueueSize";
 
@@ -176,16 +177,27 @@ public class QueryContexts
     }
   }
 
+  private static int checkPositive(String propertyName, int val)
+  {
+    Preconditions.checkArgument(
+        val > 0,
+        "%s should be positive, but [%s]",
+        propertyName,
+        val
+    );
+    return val;
+  }
+
+  public static <T> int getNumBrokerParallelCombineThreads(Query<T> query, int defaultNumThreads)
+  {
+    final int numThreads = parseInt(query, NUM_BROKER_PARALLEL_COMBINE_THREADS, defaultNumThreads);
+    return checkPositive(NUM_BROKER_PARALLEL_COMBINE_THREADS, numThreads);
+  }
+
   public static <T> int getBrokerParallelCombineDegree(Query<T> query)
   {
     final int combineDegree = parseInt(query, BROKER_PARALLEL_COMBINE_DEGREE, DEFAULT_BROKER_PARALLEL_COMBINE_DEGREE);
-    Preconditions.checkArgument(
-        combineDegree > 0,
-        "%s should be positive, but [%s]",
-        BROKER_PARALLEL_COMBINE_DEGREE,
-        combineDegree
-    );
-    return combineDegree;
+    return checkPositive(BROKER_PARALLEL_COMBINE_DEGREE, combineDegree);
   }
 
   public static <T> int getBrokerParallelCombineQueueSize(Query<T> query)
@@ -195,13 +207,7 @@ public class QueryContexts
         BROKER_PARALLEL_COMBINE_QUEUE_SIZE,
         DEFAULT_BROKER_PARALLEL_COMBINE_QUEUE_SIZE
     );
-    Preconditions.checkArgument(
-        queueSize > 0,
-        "%s should be positive, but [%s]",
-        BROKER_PARALLEL_COMBINE_QUEUE_SIZE,
-        queueSize
-    );
-    return queueSize;
+    return checkPositive(BROKER_PARALLEL_COMBINE_QUEUE_SIZE, queueSize);
   }
 
   public static <T> long getMaxQueuedBytes(Query<T> query, long defaultValue)

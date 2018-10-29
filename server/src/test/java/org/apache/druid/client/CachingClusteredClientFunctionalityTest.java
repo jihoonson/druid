@@ -43,6 +43,7 @@ import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.query.DataSource;
+import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.Druids;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryPlus;
@@ -325,14 +326,29 @@ public class CachingClusteredClientFunctionalityTest
             return mergeLimit;
           }
         },
-        new DruidHttpClientConfig() {
+        new DruidHttpClientConfig()
+        {
           @Override
           public long getMaxQueuedBytes()
           {
             return 0L;
           }
         },
-        Execs.multiThreaded(2, "caching-clustered-client-functionality-test")
+        Execs.multiThreaded(2, "caching-clustered-client-functionality-test"),
+        new DruidProcessingConfig()
+        {
+          @Override
+          public String getFormatString()
+          {
+            return null;
+          }
+
+          @Override
+          public int getNumThreads()
+          {
+            return 2;
+          }
+        }
     );
   }
 

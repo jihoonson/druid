@@ -57,6 +57,7 @@ import org.apache.druid.java.util.common.guava.nary.BinaryFn;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.BySegmentResultValueClass;
 import org.apache.druid.query.CacheStrategy;
+import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryPlus;
@@ -106,6 +107,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
   private final CacheConfig cacheConfig;
   private final DruidHttpClientConfig httpClientConfig;
   private final ExecutorService processingPool;
+  private final DruidProcessingConfig processingConfig;
 
   @Inject
   public CachingClusteredClient(
@@ -116,7 +118,8 @@ public class CachingClusteredClient implements QuerySegmentWalker
       CachePopulator cachePopulator,
       CacheConfig cacheConfig,
       @Client DruidHttpClientConfig httpClientConfig,
-      @Processing ExecutorService processingPool
+      @Processing ExecutorService processingPool,
+      DruidProcessingConfig processingConfig
   )
   {
     this.warehouse = warehouse;
@@ -127,6 +130,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
     this.cacheConfig = cacheConfig;
     this.httpClientConfig = httpClientConfig;
     this.processingPool = processingPool;
+    this.processingConfig = processingConfig;
 
     if (cacheConfig.isQueryCacheable(Query.GROUP_BY) && (cacheConfig.isUseCache() || cacheConfig.isPopulateCache())) {
       log.warn(
@@ -308,7 +312,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
                 sequencesByInterval,
                 query.getResultOrdering(),
                 mergeFn,
-                combineDegree,
+                QueryContexts.getNumBrokerParallelCombineThreads(query, processingConfig.getNumThreads()),
                 QueryContexts.getBrokerParallelCombineQueueSize(query),
                 QueryContexts.hasTimeout(query),
                 QueryContexts.getTimeout(query)

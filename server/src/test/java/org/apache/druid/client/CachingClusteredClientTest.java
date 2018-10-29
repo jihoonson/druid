@@ -76,6 +76,7 @@ import org.apache.druid.java.util.common.guava.nary.TrinaryFn;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.query.BySegmentResultValueClass;
 import org.apache.druid.query.DataSource;
+import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.Druids;
 import org.apache.druid.query.FinalizeResultsQueryRunner;
 import org.apache.druid.query.Query;
@@ -2720,14 +2721,29 @@ public class CachingClusteredClientTest
             return mergeLimit;
           }
         },
-        new DruidHttpClientConfig() {
+        new DruidHttpClientConfig()
+        {
           @Override
           public long getMaxQueuedBytes()
           {
             return 0L;
           }
         },
-        Execs.multiThreaded(2, "parallel-merge-comine-sequence-test")
+        Execs.multiThreaded(2, "parallel-merge-comine-sequence-test"),
+        new DruidProcessingConfig()
+        {
+          @Override
+          public String getFormatString()
+          {
+            return null;
+          }
+
+          @Override
+          public int getNumThreads()
+          {
+            return 2;
+          }
+        }
     );
   }
 

@@ -27,6 +27,7 @@ import org.apache.druid.query.ParallelCombines;
 import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
@@ -37,11 +38,14 @@ import java.util.concurrent.TimeoutException;
 
 public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 {
+  // TODO: forkJoinPool? it's better to handle the potential deadlock which can be caused when
+  // 1) # of threads to be executed is larger than the pool size, and
+  // 2) the queue size is usually smaller than the number of intermediate aggregates
   private final ExecutorService exec;
   private final List<Sequence<T>> baseSequences;
   private final Ordering<T> ordering;
   private final BinaryFn<T, T, T> combineFn;
-  private final int combineDegree;
+  private final int numAvailableThreads;
   private final int queueSize;
   private final boolean hasTimeout;
   private final long timeoutAt;
@@ -51,7 +55,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
       List<? extends Sequence<? extends T>> baseSequences,
       Ordering<T> ordering,
       BinaryFn<T, T, T> combineFn,
-      int combineDegree,
+      int numAvailableThreads,
       int queueSize,
       boolean hasTimeout,
       long timeout
@@ -61,7 +65,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
     this.baseSequences = (List<Sequence<T>>) baseSequences;
     this.ordering = ordering;
     this.combineFn = combineFn;
-    this.combineDegree = combineDegree;
+    this.numAvailableThreads = numAvailableThreads;
     this.queueSize = queueSize;
     this.hasTimeout = hasTimeout;
     this.timeoutAt = System.currentTimeMillis() + timeout;
@@ -83,6 +87,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
   @Override
   public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
   {
+    final int combineDegree = (int) Math.ceil(baseSequences.size() / (double) numAvailableThreads);
     final Pair<Sequence<T>, List<Future>> rootAndFutures = ParallelCombines.buildCombineTree(
         baseSequences,
         combineDegree,
@@ -105,7 +110,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 
     final BlockingQueue<ValueHolder> queue = new ArrayBlockingQueue<>(queueSize);
 
-    // AbstractPrioritizedCallable
+    // TODO: AbstractPrioritizedCallable
     final Future future = exec.submit(() -> {
       combiningSequence.accumulate(
           queue,
@@ -163,6 +168,9 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
               @Override
               public T next()
               {
+                if (nextVal == null) {
+                  throw new NoSuchElementException();
+                }
                 return nextVal;
               }
             };
