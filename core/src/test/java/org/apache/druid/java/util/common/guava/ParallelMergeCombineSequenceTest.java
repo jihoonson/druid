@@ -136,7 +136,8 @@ public class ParallelMergeCombineSequenceTest
         resourcePool.takeBatch(2),
         10240,
         true,
-        1000
+        1000,
+        0
     );
 
     Yielder<IntPair> combiningYielder = Yielders.each(combiningSequence);

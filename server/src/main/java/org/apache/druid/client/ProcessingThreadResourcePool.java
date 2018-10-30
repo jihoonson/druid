@@ -29,12 +29,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 
-class ProcessingThreadsManager
+/**
+ * A pool to coordinate callers which contend with each other to get thread resources. This class just provides a
+ * logical coordination and the real thread pool should be maintained separately.
+ * This can be improved to consider query priority in the future.
+ */
+class ProcessingThreadResourcePool
 {
   private final ReentrantLock lock = new ReentrantLock();
   private final BlockingPool<ThreadResource> resourcePool;
 
-  ProcessingThreadsManager(int poolSize)
+  ProcessingThreadResourcePool(int poolSize)
   {
     this.resourcePool = new DefaultBlockingPool<>(ThreadResource::new, poolSize);
   }

@@ -18,7 +18,10 @@
  */
 package org.apache.druid.query;
 
-// TODO: doc
+/**
+ * This class can be used to represent a single thread resource when multiple callers contend with each other to get
+ * thread resources. See org.apache.druid.client.ProcessingThreadResourcePool as an example.
+ */
 public class ThreadResource
 {
 }

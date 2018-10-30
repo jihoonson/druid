@@ -34,7 +34,7 @@ import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import com.google.inject.Inject;
 import org.apache.commons.codec.binary.Base64;
-import org.apache.druid.client.ProcessingThreadsManager.ReserveResult;
+import org.apache.druid.client.ProcessingThreadResourcePool.ReserveResult;
 import org.apache.druid.client.cache.Cache;
 import org.apache.druid.client.cache.CacheConfig;
 import org.apache.druid.client.cache.CachePopulator;
@@ -109,7 +109,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
   private final CacheConfig cacheConfig;
   private final DruidHttpClientConfig httpClientConfig;
   private final ExecutorService processingPool;
-  private final ProcessingThreadsManager processingThreadsManager;
+  private final ProcessingThreadResourcePool processingThreadResourcePool;
 
   @Inject
   public CachingClusteredClient(
@@ -132,7 +132,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
     this.cacheConfig = cacheConfig;
     this.httpClientConfig = httpClientConfig;
     this.processingPool = processingPool;
-    this.processingThreadsManager = new ProcessingThreadsManager(processingConfig.getNumThreads());
+    this.processingThreadResourcePool = new ProcessingThreadResourcePool(processingConfig.getNumThreads());
 
     if (cacheConfig.isQueryCacheable(Query.GROUP_BY) && (cacheConfig.isUseCache() || cacheConfig.isPopulateCache())) {
       log.warn(
@@ -304,16 +304,15 @@ public class CachingClusteredClient implements QuerySegmentWalker
 
     Sequence<T> merge(List<Sequence<T>> sequencesByInterval)
     {
-      final int combineDegree = QueryContexts.getBrokerParallelCombineDegree(query);
+      final int numParallelCombineThreads = QueryContexts.getNumBrokerParallelCombineThreads(query);
 
-      if (combineDegree > 1) {
+      if (numParallelCombineThreads > 0 || numParallelCombineThreads == QueryContexts.NUM_CURRENT_AVAILABLE_THREADS) {
         try {
-          final int numRequiredThreads = QueryContexts.getNumBrokerParallelCombineThreads(query);
-          final ReserveResult reserveResult = processingThreadsManager.reserve(query, numRequiredThreads);
+          final ReserveResult reserveResult = processingThreadResourcePool.reserve(query, numParallelCombineThreads);
           if (!reserveResult.isOk()) {
             throw new ISE(
                 "Not enough processing threads. The query needs [%d] threads, but only [%d] were available",
-                numRequiredThreads,
+                numParallelCombineThreads,
                 reserveResult.getNumAvailableResources()
             );
           }
@@ -327,7 +326,8 @@ public class CachingClusteredClient implements QuerySegmentWalker
                   reserveResult.getResources(),
                   QueryContexts.getBrokerParallelCombineQueueSize(query),
                   QueryContexts.hasTimeout(query),
-                  QueryContexts.getTimeout(query)
+                  QueryContexts.getTimeout(query),
+                  QueryContexts.getPriority(query)
               ),
               query.getResultOrdering(),
               mergeFn
@@ -336,10 +336,12 @@ public class CachingClusteredClient implements QuerySegmentWalker
         catch (InterruptedException e) {
           throw new RuntimeException(e);
         }
-      } else {
+      } else if (numParallelCombineThreads == QueryContexts.NO_PARALLEL_COMBINE_THREADS) {
         return Sequences
             .simple(sequencesByInterval)
             .flatMerge(seq -> seq, query.getResultOrdering());
+      } else {
+        throw new ISE("Unknown value for [%s]", QueryContexts.NUM_BROKER_PARALLEL_COMBINE_THREADS);
       }
     }
 

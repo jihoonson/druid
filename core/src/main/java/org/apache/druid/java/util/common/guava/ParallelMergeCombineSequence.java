@@ -25,6 +25,7 @@ import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
 import org.apache.druid.java.util.common.guava.nary.BinaryFn;
 import org.apache.druid.query.ParallelCombines;
+import org.apache.druid.query.PrioritizedRunnable;
 import org.apache.druid.query.ThreadResource;
 
 import javax.annotation.Nullable;
@@ -52,6 +53,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
   private final int queueSize;
   private final boolean hasTimeout;
   private final long timeoutAt;
+  private final int queryPriority;
 
   public ParallelMergeCombineSequence(
       ExecutorService exec,
@@ -61,7 +63,8 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
       List<ReferenceCountingResourceHolder<ThreadResource>> processingThreadHolders,
       int queueSize,
       boolean hasTimeout,
-      long timeout
+      long timeout,
+      int queryPriority
   )
   {
     this.exec = exec;
@@ -72,6 +75,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
     this.queueSize = queueSize;
     this.hasTimeout = hasTimeout;
     this.timeoutAt = System.currentTimeMillis() + timeout;
+    this.queryPriority = queryPriority;
   }
 
   private void addToQueue(BlockingQueue<ValueHolder> queue, ValueHolder holder)
@@ -168,30 +172,42 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 
     final BlockingQueue<ValueHolder> queue = new ArrayBlockingQueue<>(queueSize);
 
-    // TODO: AbstractPrioritizedCallable
-    final Future future = exec.submit(() -> {
-      try {
-        combiningSequence.accumulate(
-            queue,
-            (theQueue, v) -> {
-              try {
-                addToQueue(theQueue, new ValueHolder(v));
-              }
-              catch (InterruptedException e) {
-                throw new RuntimeException(e);
-              }
-              return theQueue;
+    final Future future = exec.submit(
+        new PrioritizedRunnable()
+        {
+          @Override
+          public int getPriority()
+          {
+            return queryPriority;
+          }
+
+          @Override
+          public void run()
+          {
+            try {
+              combiningSequence.accumulate(
+                  queue,
+                  (theQueue, v) -> {
+                    try {
+                      addToQueue(theQueue, new ValueHolder(v));
+                    }
+                    catch (InterruptedException e) {
+                      throw new RuntimeException(e);
+                    }
+                    return theQueue;
+                  }
+              );
+              addToQueue(queue, new ValueHolder(null));
             }
-        );
-        addToQueue(queue, new ValueHolder(null));
-      }
-      catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-      finally {
-        processingThreadHolder.close();
-      }
-    });
+            catch (InterruptedException e) {
+              throw new RuntimeException(e);
+            }
+            finally {
+              processingThreadHolder.close();
+            }
+          }
+        }
+    );
 
     final Sequence<T> backgroundCombineSequence = new BaseSequence<>(
         new IteratorMaker<T, Iterator<T>>()

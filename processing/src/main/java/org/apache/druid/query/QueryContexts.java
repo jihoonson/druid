@@ -37,7 +37,6 @@ public class QueryContexts
   public static final String DEFAULT_TIMEOUT_KEY = "defaultTimeout";
   public static final String CHUNK_PERIOD_KEY = "chunkPeriod";
   public static final String NUM_BROKER_PARALLEL_COMBINE_THREADS = "numBrokerParallelCombineThreads";
-  public static final String BROKER_PARALLEL_COMBINE_DEGREE = "brokerParallelCombineDegree";
   public static final String BROKER_PARALLEL_COMBINE_QUEUE_SIZE = "brokerParallelCombineQueueSize";
 
   public static final boolean DEFAULT_BY_SEGMENT = false;
@@ -47,10 +46,10 @@ public class QueryContexts
   public static final boolean DEFAULT_USE_RESULTLEVEL_CACHE = true;
   public static final int DEFAULT_PRIORITY = 0;
   public static final int DEFAULT_UNCOVERED_INTERVALS_LIMIT = 0;
-  public static final int DEFAULT_BROKER_PARALLEL_COMBINE_DEGREE = 1;
   public static final int DEFAULT_BROKER_PARALLEL_COMBINE_QUEUE_SIZE = 10240;
   public static final long DEFAULT_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(5);
   public static final long NO_TIMEOUT = 0;
+  public static final int NO_PARALLEL_COMBINE_THREADS = 0;
   public static final int NUM_CURRENT_AVAILABLE_THREADS = -1;
 
   public static <T> boolean isBySegment(Query<T> query)
@@ -190,17 +189,11 @@ public class QueryContexts
   }
 
   /**
-   * Return the configured number of combine threads if any. Others {@link #NUM_CURRENT_AVAILABLE_THREADS}.
+   * Return the configured number of combine threads if any. Others {@link #NO_PARALLEL_COMBINE_THREADS}.
    */
   public static <T> int getNumBrokerParallelCombineThreads(Query<T> query)
   {
-    return parseInt(query, NUM_BROKER_PARALLEL_COMBINE_THREADS, NUM_CURRENT_AVAILABLE_THREADS);
-  }
-
-  public static <T> int getBrokerParallelCombineDegree(Query<T> query)
-  {
-    final int combineDegree = parseInt(query, BROKER_PARALLEL_COMBINE_DEGREE, DEFAULT_BROKER_PARALLEL_COMBINE_DEGREE);
-    return checkPositive(BROKER_PARALLEL_COMBINE_DEGREE, combineDegree);
+    return parseInt(query, NUM_BROKER_PARALLEL_COMBINE_THREADS, NO_PARALLEL_COMBINE_THREADS);
   }
 
   public static <T> int getBrokerParallelCombineQueueSize(Query<T> query)

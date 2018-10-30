@@ -160,9 +160,6 @@ public class CachingClusteredClientBenchmark
   @Param({"day", "all"})
   private String queryGranularity;
 
-  @Param({"4", "2", "1"})
-  private int brokerParallelMergeDegree;
-
   @Param({"5120", "10240", "20480"})
   private int brokerParallelMergeQueueSize;
 
@@ -213,6 +210,14 @@ public class CachingClusteredClientBenchmark
                   .intervals(intervalSpec)
                   .aggregators(new LongSumAggregatorFactory("sumLongSequential", "sumLongSequential"))
                   .granularity(Granularity.fromString(queryGranularity))
+                  .context(
+                      ImmutableMap.of(
+                          QueryContexts.NUM_BROKER_PARALLEL_COMBINE_THREADS,
+                          QueryContexts.NUM_CURRENT_AVAILABLE_THREADS,
+                          QueryContexts.BROKER_PARALLEL_COMBINE_QUEUE_SIZE,
+                          brokerParallelMergeQueueSize
+                      )
+                  )
                   .build();
   }
 
@@ -234,8 +239,8 @@ public class CachingClusteredClientBenchmark
         .threshold(20480)
         .context(
             ImmutableMap.of(
-                QueryContexts.BROKER_PARALLEL_COMBINE_DEGREE,
-                brokerParallelMergeDegree,
+                QueryContexts.NUM_BROKER_PARALLEL_COMBINE_THREADS,
+                QueryContexts.NUM_CURRENT_AVAILABLE_THREADS,
                 QueryContexts.BROKER_PARALLEL_COMBINE_QUEUE_SIZE,
                 brokerParallelMergeQueueSize
             )
@@ -263,8 +268,8 @@ public class CachingClusteredClientBenchmark
         .setGranularity(Granularity.fromString(queryGranularity))
         .setContext(
             ImmutableMap.of(
-                QueryContexts.BROKER_PARALLEL_COMBINE_DEGREE,
-                brokerParallelMergeDegree,
+                QueryContexts.NUM_BROKER_PARALLEL_COMBINE_THREADS,
+                QueryContexts.NUM_CURRENT_AVAILABLE_THREADS,
                 QueryContexts.BROKER_PARALLEL_COMBINE_QUEUE_SIZE,
                 brokerParallelMergeQueueSize
             )
