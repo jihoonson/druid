@@ -34,6 +34,9 @@ public interface BlockingPool<T>
    */
   int available();
 
+  /**
+   * Poll all available resources from the pool. If there's no available resource, it returns an empty list.
+   */
   List<ReferenceCountingResourceHolder<T>> pollAll();
 
   /**
