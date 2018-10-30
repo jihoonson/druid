@@ -38,6 +38,7 @@ import org.apache.druid.client.cache.CacheConfig;
 import org.apache.druid.client.cache.CachePopulator;
 import org.apache.druid.client.selector.QueryableDruidServer;
 import org.apache.druid.client.selector.ServerSelector;
+import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.guice.annotations.Client;
 import org.apache.druid.guice.annotations.Processing;
 import org.apache.druid.guice.annotations.Smile;
@@ -67,6 +68,7 @@ import org.apache.druid.query.QueryToolChest;
 import org.apache.druid.query.QueryToolChestWarehouse;
 import org.apache.druid.query.Result;
 import org.apache.druid.query.SegmentDescriptor;
+import org.apache.druid.query.ThreadResource;
 import org.apache.druid.query.aggregation.MetricManipulatorFns;
 import org.apache.druid.query.filter.DimFilterUtils;
 import org.apache.druid.query.spec.MultipleSpecificSegmentSpec;
@@ -303,11 +305,11 @@ public class CachingClusteredClient implements QuerySegmentWalker
       });
     }
 
-    Sequence<T> merge(List<Sequence<T>> sequencesByInterval)
+    private Sequence<T> merge(List<Sequence<T>> sequencesByInterval)
     {
       final int numParallelCombineThreads = QueryContexts.getNumBrokerParallelCombineThreads(query);
 
-      if (numParallelCombineThreads > 0 || numParallelCombineThreads == QueryContexts.NUM_CURRENT_AVAILABLE_THREADS) {
+      if (numParallelCombineThreads > 0) {
         final ReserveResult reserveResult = processingThreadResourcePool.reserve(query, numParallelCombineThreads);
         if (!reserveResult.isOk()) {
           throw new ISE(
@@ -316,29 +318,49 @@ public class CachingClusteredClient implements QuerySegmentWalker
               reserveResult.getNumAvailableResources()
           );
         }
-        final BinaryFn<T, T, T> mergeFn = toolChest.createMergeFn(query);
-        return CombiningSequence.create(
-            new ParallelMergeCombineSequence<>(
-                processingPool,
-                sequencesByInterval,
-                query.getResultOrdering(),
-                mergeFn,
-                reserveResult.getResources(),
-                QueryContexts.getBrokerParallelCombineQueueSize(query),
-                QueryContexts.hasTimeout(query),
-                QueryContexts.getTimeout(query),
-                QueryContexts.getPriority(query)
-            ),
-            query.getResultOrdering(),
-            mergeFn
-        );
+        return parallelMerge(sequencesByInterval, reserveResult.getResources());
+      } else if (numParallelCombineThreads == QueryContexts.NUM_CURRENT_AVAILABLE_THREADS) {
+        final ReserveResult reserveResult = processingThreadResourcePool.reserve(query, numParallelCombineThreads);
+        if (reserveResult.isOk()) {
+          return parallelMerge(sequencesByInterval, reserveResult.getResources());
+        } else {
+          return sequentialMerge(sequencesByInterval);
+        }
       } else if (numParallelCombineThreads == QueryContexts.NO_PARALLEL_COMBINE_THREADS) {
-        return Sequences
-            .simple(sequencesByInterval)
-            .flatMerge(seq -> seq, query.getResultOrdering());
+        return sequentialMerge(sequencesByInterval);
       } else {
         throw new ISE("Unknown value for [%s]", QueryContexts.NUM_BROKER_PARALLEL_COMBINE_THREADS);
       }
+    }
+
+    private Sequence<T> parallelMerge(
+        List<Sequence<T>> sequencesByInterval,
+        List<ReferenceCountingResourceHolder<ThreadResource>> threadResources
+    )
+    {
+      final BinaryFn<T, T, T> mergeFn = toolChest.createMergeFn(query);
+      return CombiningSequence.create(
+          new ParallelMergeCombineSequence<>(
+              processingPool,
+              sequencesByInterval,
+              query.getResultOrdering(),
+              mergeFn,
+              threadResources,
+              QueryContexts.getBrokerParallelCombineQueueSize(query),
+              QueryContexts.hasTimeout(query),
+              QueryContexts.getTimeout(query),
+              QueryContexts.getPriority(query)
+          ),
+          query.getResultOrdering(),
+          mergeFn
+      );
+    }
+
+    private Sequence<T> sequentialMerge(List<Sequence<T>> sequencesByInterval)
+    {
+      return Sequences
+          .simple(sequencesByInterval)
+          .flatMerge(seq -> seq, query.getResultOrdering());
     }
 
     private Set<ServerToSegment> computeSegmentsToQuery(TimelineLookup<String, ServerSelector> timeline)
