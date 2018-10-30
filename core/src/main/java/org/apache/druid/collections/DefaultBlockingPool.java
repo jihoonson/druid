@@ -83,6 +83,23 @@ public class DefaultBlockingPool<T> implements BlockingPool<T>
   }
 
   @Override
+  public List<ReferenceCountingResourceHolder<T>> pollAll()
+  {
+    checkInitialized();
+    final ReentrantLock lock = this.lock;
+    lock.lock();
+    try {
+      final List<T> list = new ArrayList<>(objects.size());
+      list.addAll(objects);
+      objects.clear();
+      return list.stream().map(this::wrapObject).collect(Collectors.toList());
+    }
+    finally {
+      lock.unlock();
+    }
+  }
+
+  @Override
   @Nullable
   public ReferenceCountingResourceHolder<T> take(final long timeoutMs)
   {

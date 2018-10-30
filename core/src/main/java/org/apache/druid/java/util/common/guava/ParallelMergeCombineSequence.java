@@ -40,6 +40,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 {
@@ -94,24 +95,35 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
   @Override
   public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
   {
-    final int combineDegree = findCombineDegree(processingThreadHolders.size(), baseSequences.size());
-    final Supplier<ReferenceCountingResourceHolder> processingThreadSupplier = new Supplier<ReferenceCountingResourceHolder>()
-    {
-      private int next = 0;
-      @Override
-      public ReferenceCountingResourceHolder get()
-      {
-        if (next < processingThreadHolders.size()) {
-          return processingThreadHolders.get(next++);
-        } else {
-          throw new ISE(
-              "WTH? current pointer[%d] is larger than available threads[%d]",
-              next,
-              processingThreadHolders.size()
-          );
-        }
-      }
-    };
+    final Pair<Integer, Integer> combineDegreeAndNumThreads = findCombineDegreeAndNumThreads(
+        processingThreadHolders.size(),
+        baseSequences.size()
+    );
+    final int combineDegree = combineDegreeAndNumThreads.lhs;
+    final int numThreads = combineDegreeAndNumThreads.rhs;
+    // Early release unnecessary processing threads
+    IntStream.range(0, processingThreadHolders.size() - numThreads)
+             .forEach(i -> processingThreadHolders.remove(0).close());
+
+    final Supplier<ReferenceCountingResourceHolder<ThreadResource>> processingThreadSupplier =
+        new Supplier<ReferenceCountingResourceHolder<ThreadResource>>()
+        {
+          private int next = 0;
+
+          @Override
+          public ReferenceCountingResourceHolder<ThreadResource> get()
+          {
+            if (next < processingThreadHolders.size()) {
+              return processingThreadHolders.get(next++);
+            } else {
+              throw new ISE(
+                  "WTH? current pointer[%d] is larger than available threads[%d]",
+                  next,
+                  processingThreadHolders.size()
+              );
+            }
+          }
+        };
 
     final Pair<Sequence<T>, List<Future>> rootAndFutures = ParallelCombines.buildCombineTree(
         baseSequences,
@@ -124,12 +136,12 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
     return rootAndFutures.lhs.toYielder(initValue, accumulator);
   }
 
-  private static int findCombineDegree(int numAvailableThreads, int numLeafNodes)
+  private static Pair<Integer, Integer> findCombineDegreeAndNumThreads(int numAvailableThreads, int numLeafNodes)
   {
     for (int combineDegree = MINIMUM_LEAF_COMBINE_DEGREE; combineDegree <= numLeafNodes; combineDegree++) {
       final int numRequiredThreads = computeNumRequiredThreads(numLeafNodes, combineDegree);
       if (numRequiredThreads <= numAvailableThreads) {
-        return combineDegree;
+        return Pair.of(combineDegree, numRequiredThreads);
       }
     }
 

@@ -307,35 +307,30 @@ public class CachingClusteredClient implements QuerySegmentWalker
       final int numParallelCombineThreads = QueryContexts.getNumBrokerParallelCombineThreads(query);
 
       if (numParallelCombineThreads > 0 || numParallelCombineThreads == QueryContexts.NUM_CURRENT_AVAILABLE_THREADS) {
-        try {
-          final ReserveResult reserveResult = processingThreadResourcePool.reserve(query, numParallelCombineThreads);
-          if (!reserveResult.isOk()) {
-            throw new ISE(
-                "Not enough processing threads. The query needs [%d] threads, but only [%d] were available",
-                numParallelCombineThreads,
-                reserveResult.getNumAvailableResources()
-            );
-          }
-          final BinaryFn<T, T, T> mergeFn = toolChest.createMergeFn(query);
-          return CombiningSequence.create(
-              new ParallelMergeCombineSequence<>(
-                  processingPool,
-                  sequencesByInterval,
-                  query.getResultOrdering(),
-                  mergeFn,
-                  reserveResult.getResources(),
-                  QueryContexts.getBrokerParallelCombineQueueSize(query),
-                  QueryContexts.hasTimeout(query),
-                  QueryContexts.getTimeout(query),
-                  QueryContexts.getPriority(query)
-              ),
-              query.getResultOrdering(),
-              mergeFn
+        final ReserveResult reserveResult = processingThreadResourcePool.reserve(query, numParallelCombineThreads);
+        if (!reserveResult.isOk()) {
+          throw new ISE(
+              "Not enough processing threads. The query needs [%d] threads, but only [%d] were available",
+              numParallelCombineThreads,
+              reserveResult.getNumAvailableResources()
           );
         }
-        catch (InterruptedException e) {
-          throw new RuntimeException(e);
-        }
+        final BinaryFn<T, T, T> mergeFn = toolChest.createMergeFn(query);
+        return CombiningSequence.create(
+            new ParallelMergeCombineSequence<>(
+                processingPool,
+                sequencesByInterval,
+                query.getResultOrdering(),
+                mergeFn,
+                reserveResult.getResources(),
+                QueryContexts.getBrokerParallelCombineQueueSize(query),
+                QueryContexts.hasTimeout(query),
+                QueryContexts.getTimeout(query),
+                QueryContexts.getPriority(query)
+            ),
+            query.getResultOrdering(),
+            mergeFn
+        );
       } else if (numParallelCombineThreads == QueryContexts.NO_PARALLEL_COMBINE_THREADS) {
         return Sequences
             .simple(sequencesByInterval)

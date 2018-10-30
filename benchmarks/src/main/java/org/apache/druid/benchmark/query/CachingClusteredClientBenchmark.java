@@ -148,16 +148,16 @@ import java.util.stream.Collectors;
 @Measurement(iterations = 30)
 public class CachingClusteredClientBenchmark
 {
-  @Param({"16"})
+  @Param({"8"})
   private int numServers;
 
-  @Param({"2"})
+  @Param({"4", "2", "1"})
   private int numProcessingThreads;
 
   @Param({"75000"})
   private int rowsPerSegment;
 
-  @Param({"day", "all"})
+  @Param({"all"})
   private String queryGranularity;
 
   @Param({"5120", "10240", "20480"})

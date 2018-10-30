@@ -34,6 +34,8 @@ public interface BlockingPool<T>
    */
   int available();
 
+  List<ReferenceCountingResourceHolder<T>> pollAll();
+
   /**
    * Take a resource from the pool, waiting up to the
    * specified wait time if necessary for an element to become available.

@@ -51,6 +51,12 @@ public final class DummyBlockingPool<T> implements BlockingPool<T>
   }
 
   @Override
+  public List<ReferenceCountingResourceHolder<T>> pollAll()
+  {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public ReferenceCountingResourceHolder<T> take(long timeoutMs)
   {
     throw new UnsupportedOperationException();

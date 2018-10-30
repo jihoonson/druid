@@ -25,9 +25,7 @@ import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.ThreadResource;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * A pool to coordinate callers which contend with each other to get thread resources. This class just provides a
@@ -36,7 +34,6 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 class ProcessingThreadResourcePool
 {
-  private final ReentrantLock lock = new ReentrantLock();
   private final BlockingPool<ThreadResource> resourcePool;
 
   ProcessingThreadResourcePool(int poolSize)
@@ -44,33 +41,19 @@ class ProcessingThreadResourcePool
     this.resourcePool = new DefaultBlockingPool<>(ThreadResource::new, poolSize);
   }
 
-  <T> ReserveResult reserve(Query<T> query, int n) throws InterruptedException
+  <T> ReserveResult reserve(Query<T> query, int n)
   {
     final boolean hasTimeout = QueryContexts.hasTimeout(query);
     final long timeout = QueryContexts.getTimeout(query);
 
-    lock.lockInterruptibly();
-
-    try {
-      if (n == QueryContexts.NUM_CURRENT_AVAILABLE_THREADS) {
-        final int availableResources = resourcePool.available();
-        if (availableResources > 1) {
-          final List<ReferenceCountingResourceHolder<ThreadResource>> reserved = hasTimeout
-                 ? resourcePool.takeBatch(availableResources, timeout)
-                 : resourcePool.takeBatch(availableResources);
-          return new ReserveResult(reserved, availableResources);
-        } else {
-          return new ReserveResult(Collections.emptyList(), 1);
-        }
-      } else {
-        return new ReserveResult(
-            hasTimeout ? resourcePool.takeBatch(n, timeout) : resourcePool.takeBatch(n),
-            resourcePool.available()
-        );
-      }
-    }
-    finally {
-      lock.unlock();
+    if (n == QueryContexts.NUM_CURRENT_AVAILABLE_THREADS) {
+      final List<ReferenceCountingResourceHolder<ThreadResource>> availableResources = resourcePool.pollAll();
+      return new ReserveResult(availableResources, availableResources.size());
+    } else {
+      return new ReserveResult(
+          hasTimeout ? resourcePool.takeBatch(n, timeout) : resourcePool.takeBatch(n),
+          resourcePool.available()
+      );
     }
   }
 

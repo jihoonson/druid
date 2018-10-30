@@ -72,6 +72,7 @@ public abstract class CachingClusteredClientParallelMergeTestBase
 
   private static final String VERSION = "version";
   private static final int NUM_SERVERS = 5;
+  private static final int NUM_THREADS = 2;
 
   private final Random random = new Random(System.currentTimeMillis());
 
@@ -106,7 +107,7 @@ public abstract class CachingClusteredClientParallelMergeTestBase
       @Override
       public int getNumThreads()
       {
-        return 2;
+        return NUM_THREADS;
       }
     };
 
@@ -228,7 +229,7 @@ public abstract class CachingClusteredClientParallelMergeTestBase
   void runAndVerify(Query expectedQuery)
   {
     final Query testQuery = expectedQuery.withOverriddenContext(
-        ImmutableMap.of(QueryContexts.BROKER_PARALLEL_COMBINE_DEGREE, 2)
+        ImmutableMap.of(QueryContexts.NUM_BROKER_PARALLEL_COMBINE_THREADS, QueryContexts.NUM_CURRENT_AVAILABLE_THREADS)
     );
     final Sequence result = runQuery(testQuery);
     final Sequence expected = runQuery(expectedQuery);

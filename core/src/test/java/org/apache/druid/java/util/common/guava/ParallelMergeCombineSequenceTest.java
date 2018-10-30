@@ -87,7 +87,7 @@ public class ParallelMergeCombineSequenceTest
     input.add(Sequences.simple(pairs2));
     input.add(Sequences.simple(pairs3));
 
-    assertResult(input, false);
+    assertResult(input);
   }
 
   @Test
@@ -104,10 +104,10 @@ public class ParallelMergeCombineSequenceTest
       sequences.add(Sequences.simple(pairs));
     }
 
-    assertResult(sequences, false);
+    assertResult(sequences);
   }
 
-  private void assertResult(List<Sequence<IntPair>> sequences, boolean debug)
+  private void assertResult(List<Sequence<IntPair>> sequences)
   {
     final Ordering<IntPair> ordering = Ordering.natural().onResultOf(p -> p.lhs);
     final BinaryFn<IntPair, IntPair, IntPair> mergeFn = (lhs, rhs) -> {
@@ -146,12 +146,6 @@ public class ParallelMergeCombineSequenceTest
     IntPair prev = null;
 
     while (!combiningYielder.isDone() && !parallelMergeCombineYielder.isDone()) {
-      if (debug) {
-        System.out.println("combine: "
-                           + combiningYielder.get()
-                           + ", parallelCombine: "
-                           + parallelMergeCombineYielder.get());
-      }
       Assert.assertEquals(combiningYielder.get(), parallelMergeCombineYielder.get());
       Assert.assertNotEquals(parallelMergeCombineYielder.get(), prev);
       prev = parallelMergeCombineYielder.get();
@@ -161,11 +155,12 @@ public class ParallelMergeCombineSequenceTest
 
     Assert.assertTrue(combiningYielder.isDone());
     Assert.assertTrue(parallelMergeCombineYielder.isDone());
+    Assert.assertEquals(2, resourcePool.available());
   }
   
   private static class IntPair extends Pair<Integer, Integer>
   {
-    public IntPair(@Nullable Integer lhs, @Nullable Integer rhs)
+    IntPair(@Nullable Integer lhs, @Nullable Integer rhs)
     {
       super(lhs, rhs);
     }
