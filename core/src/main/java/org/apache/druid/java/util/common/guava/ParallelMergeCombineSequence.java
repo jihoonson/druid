@@ -101,6 +101,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
     );
     final int combineDegree = combineDegreeAndNumThreads.lhs;
     final int numThreads = combineDegreeAndNumThreads.rhs;
+
     // Early release unnecessary processing threads
     IntStream.range(0, processingThreadHolders.size() - numThreads)
              .forEach(i -> processingThreadHolders.remove(0).close());

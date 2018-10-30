@@ -58,8 +58,8 @@ public class ParallelMergeCombineSequenceTest
     service.shutdown();
   }
 
-  @Test
-  public void testSimple()
+  @Test(timeout = 5000L)
+  public void testSimple() throws InterruptedException
   {
     List<IntPair> pairs1 = Arrays.asList(
         new IntPair(0, 6),
@@ -90,8 +90,8 @@ public class ParallelMergeCombineSequenceTest
     assertResult(input);
   }
 
-  @Test
-  public void teatRandom()
+  @Test(timeout = 5000L)
+  public void teatRandom() throws InterruptedException
   {
     final List<Sequence<IntPair>> sequences = new ArrayList<>();
     for (int i = 0; i < 7; i++) {
@@ -107,7 +107,7 @@ public class ParallelMergeCombineSequenceTest
     assertResult(sequences);
   }
 
-  private void assertResult(List<Sequence<IntPair>> sequences)
+  private void assertResult(List<Sequence<IntPair>> sequences) throws InterruptedException
   {
     final Ordering<IntPair> ordering = Ordering.natural().onResultOf(p -> p.lhs);
     final BinaryFn<IntPair, IntPair, IntPair> mergeFn = (lhs, rhs) -> {
@@ -155,6 +155,9 @@ public class ParallelMergeCombineSequenceTest
 
     Assert.assertTrue(combiningYielder.isDone());
     Assert.assertTrue(parallelMergeCombineYielder.isDone());
+    while (resourcePool.available() < 2) {
+      Thread.sleep(100);
+    }
     Assert.assertEquals(2, resourcePool.available());
   }
   
