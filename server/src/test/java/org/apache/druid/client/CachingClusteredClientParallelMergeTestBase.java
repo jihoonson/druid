@@ -58,6 +58,7 @@ import org.apache.druid.query.topn.TopNQueryRunnerFactory;
 import org.apache.druid.server.coordination.ServerType;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 
@@ -65,6 +66,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
 
 public abstract class CachingClusteredClientParallelMergeTestBase
 {
@@ -76,6 +78,7 @@ public abstract class CachingClusteredClientParallelMergeTestBase
 
   private final Random random = new Random(System.currentTimeMillis());
 
+  private ExecutorService executorService;
   private CachingClusteredClient client;
   private QueryToolChestWarehouse toolChestWarehouse;
 
@@ -183,6 +186,10 @@ public abstract class CachingClusteredClientParallelMergeTestBase
     );
 
     final ObjectMapper objectMapper = new DefaultObjectMapper();
+    executorService = Execs.multiThreaded(
+        processingConfig.getNumThreads(),
+        "caching-clustered-client-parallel-merge-test"
+    );
     client = new CachingClusteredClient(
         toolChestWarehouse,
         serverView,
@@ -191,9 +198,15 @@ public abstract class CachingClusteredClientParallelMergeTestBase
         new ForegroundCachePopulator(objectMapper, new CachePopulatorStats(), 1024),
         new CacheConfig(),
         new DruidHttpClientConfig(),
-        Execs.multiThreaded(processingConfig.getNumThreads(), "caching-clustered-client-parallel-merge-test"),
+        executorService,
         processingConfig
     );
+  }
+
+  @After
+  public void tearDown()
+  {
+    executorService.shutdown();
   }
 
   abstract void addServers(TestTimelineServerView serverView, int numServers, Random random);

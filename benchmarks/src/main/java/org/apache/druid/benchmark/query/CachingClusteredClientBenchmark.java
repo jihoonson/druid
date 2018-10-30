@@ -139,6 +139,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -176,6 +177,7 @@ public class CachingClusteredClientBenchmark
   private QueryToolChestWarehouse toolChestWarehouse;
   private QueryRunnerFactoryConglomerate conglomerate;
   private CachingClusteredClient cachingClusteredClient;
+  private ExecutorService processingPool;
 
   private BenchmarkSchemaInfo schemaInfo;
   private File tmpDir;
@@ -418,6 +420,7 @@ public class CachingClusteredClientBenchmark
       );
     }
 
+    processingPool = Execs.multiThreaded(processingConfig.getNumThreads(), "caching-clustered-client-benchmark");
     cachingClusteredClient = new CachingClusteredClient(
         toolChestWarehouse,
         serverView,
@@ -426,7 +429,7 @@ public class CachingClusteredClientBenchmark
         new ForegroundCachePopulator(JSON_MAPPER, new CachePopulatorStats(), 0),
         new CacheConfig(),
         new DruidHttpClientConfig(),
-        Execs.multiThreaded(processingConfig.getNumThreads(), "caching-clustered-client-benchmark"),
+        processingPool,
         processingConfig
     );
   }
@@ -486,6 +489,7 @@ public class CachingClusteredClientBenchmark
       if (tmpDir != null) {
         FileUtils.deleteDirectory(tmpDir);
       }
+      processingPool.shutdown();
     }
     catch (IOException e) {
       log.warn(e, "Failed to tear down, temp dir was: %s", tmpDir);
