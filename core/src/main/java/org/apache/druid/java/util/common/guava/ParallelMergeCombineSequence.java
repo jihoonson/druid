@@ -126,6 +126,11 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
           }
         };
 
+    // In the result combine tree, nodes and edges are processing threads and blocking queues, respectively.
+    // In the leaf nodes, processing threads read data from historicals and fill its blocking queue.
+    // In the intermediate nodes, processing threads read data from the blocking queues of the child nodes and fill
+    // its blocking queue.
+    // The HTTP thread reads the blocking queue of the root node.
     final Pair<Sequence<T>, List<Future>> rootAndFutures = ParallelCombines.buildCombineTree(
         baseSequences,
         combineDegree,
