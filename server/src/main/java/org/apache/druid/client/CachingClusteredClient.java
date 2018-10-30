@@ -34,6 +34,7 @@ import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import com.google.inject.Inject;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.druid.client.ProcessingThreadsManager.ReserveResult;
 import org.apache.druid.client.cache.Cache;
 import org.apache.druid.client.cache.CacheConfig;
 import org.apache.druid.client.cache.CachePopulator;
@@ -43,6 +44,7 @@ import org.apache.druid.guice.annotations.Client;
 import org.apache.druid.guice.annotations.Processing;
 import org.apache.druid.guice.annotations.Smile;
 import org.apache.druid.guice.http.DruidHttpClientConfig;
+import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
@@ -107,7 +109,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
   private final CacheConfig cacheConfig;
   private final DruidHttpClientConfig httpClientConfig;
   private final ExecutorService processingPool;
-  private final DruidProcessingConfig processingConfig;
+  private final ProcessingThreadsManager processingThreadsManager;
 
   @Inject
   public CachingClusteredClient(
@@ -130,7 +132,7 @@ public class CachingClusteredClient implements QuerySegmentWalker
     this.cacheConfig = cacheConfig;
     this.httpClientConfig = httpClientConfig;
     this.processingPool = processingPool;
-    this.processingConfig = processingConfig;
+    this.processingThreadsManager = new ProcessingThreadsManager(processingConfig.getNumThreads());
 
     if (cacheConfig.isQueryCacheable(Query.GROUP_BY) && (cacheConfig.isUseCache() || cacheConfig.isPopulateCache())) {
       log.warn(
@@ -305,21 +307,35 @@ public class CachingClusteredClient implements QuerySegmentWalker
       final int combineDegree = QueryContexts.getBrokerParallelCombineDegree(query);
 
       if (combineDegree > 1) {
-        final BinaryFn<T, T, T> mergeFn = toolChest.createMergeFn(query);
-        return CombiningSequence.create(
-            new ParallelMergeCombineSequence<>(
-                processingPool,
-                sequencesByInterval,
-                query.getResultOrdering(),
-                mergeFn,
-                QueryContexts.getNumBrokerParallelCombineThreads(query, processingConfig.getNumThreads()),
-                QueryContexts.getBrokerParallelCombineQueueSize(query),
-                QueryContexts.hasTimeout(query),
-                QueryContexts.getTimeout(query)
-            ),
-            query.getResultOrdering(),
-            mergeFn
-        );
+        try {
+          final int numRequiredThreads = QueryContexts.getNumBrokerParallelCombineThreads(query);
+          final ReserveResult reserveResult = processingThreadsManager.reserve(query, numRequiredThreads);
+          if (!reserveResult.isOk()) {
+            throw new ISE(
+                "Not enough processing threads. The query needs [%d] threads, but only [%d] were available",
+                numRequiredThreads,
+                reserveResult.getNumAvailableResources()
+            );
+          }
+          final BinaryFn<T, T, T> mergeFn = toolChest.createMergeFn(query);
+          return CombiningSequence.create(
+              new ParallelMergeCombineSequence<>(
+                  processingPool,
+                  sequencesByInterval,
+                  query.getResultOrdering(),
+                  mergeFn,
+                  reserveResult.getResources(),
+                  QueryContexts.getBrokerParallelCombineQueueSize(query),
+                  QueryContexts.hasTimeout(query),
+                  QueryContexts.getTimeout(query)
+              ),
+              query.getResultOrdering(),
+              mergeFn
+          );
+        }
+        catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
       } else {
         return Sequences
             .simple(sequencesByInterval)

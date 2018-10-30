@@ -70,10 +70,16 @@ public class DefaultBlockingPool<T> implements BlockingPool<T>
     return maxSize;
   }
 
-  @VisibleForTesting
-  public int getPoolSize()
+  @Override
+  public int available()
   {
-    return objects.size();
+    lock.lock();
+    try {
+      return objects.size();
+    }
+    finally {
+      lock.unlock();
+    }
   }
 
   @Override

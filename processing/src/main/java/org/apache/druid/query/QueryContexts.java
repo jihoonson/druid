@@ -51,6 +51,7 @@ public class QueryContexts
   public static final int DEFAULT_BROKER_PARALLEL_COMBINE_QUEUE_SIZE = 10240;
   public static final long DEFAULT_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(5);
   public static final long NO_TIMEOUT = 0;
+  public static final int NUM_CURRENT_AVAILABLE_THREADS = -1;
 
   public static <T> boolean isBySegment(Query<T> query)
   {
@@ -188,10 +189,12 @@ public class QueryContexts
     return val;
   }
 
-  public static <T> int getNumBrokerParallelCombineThreads(Query<T> query, int defaultNumThreads)
+  /**
+   * Return the configured number of combine threads if any. Others {@link #NUM_CURRENT_AVAILABLE_THREADS}.
+   */
+  public static <T> int getNumBrokerParallelCombineThreads(Query<T> query)
   {
-    final int numThreads = parseInt(query, NUM_BROKER_PARALLEL_COMBINE_THREADS, defaultNumThreads);
-    return checkPositive(NUM_BROKER_PARALLEL_COMBINE_THREADS, numThreads);
+    return parseInt(query, NUM_BROKER_PARALLEL_COMBINE_THREADS, NUM_CURRENT_AVAILABLE_THREADS);
   }
 
   public static <T> int getBrokerParallelCombineDegree(Query<T> query)

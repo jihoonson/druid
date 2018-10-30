@@ -24,7 +24,15 @@ import java.util.List;
 
 public interface BlockingPool<T>
 {
+  /**
+   * Returns the total pool size.
+   */
   int maxSize();
+
+  /**
+   * Returns the number of current available resources.
+   */
+  int available();
 
   /**
    * Take a resource from the pool, waiting up to the

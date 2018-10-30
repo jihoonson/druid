@@ -19,10 +19,13 @@
 package org.apache.druid.java.util.common.guava;
 
 import com.google.common.collect.Ordering;
+import org.apache.druid.collections.ReferenceCountingResourceHolder;
+import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
 import org.apache.druid.java.util.common.guava.nary.BinaryFn;
 import org.apache.druid.query.ParallelCombines;
+import org.apache.druid.query.ThreadResource;
 
 import javax.annotation.Nullable;
 import java.util.Iterator;
@@ -35,17 +38,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 {
-  // TODO: forkJoinPool? it's better to handle the potential deadlock which can be caused when
-  // 1) # of threads to be executed is larger than the pool size, and
-  // 2) the queue size is usually smaller than the number of intermediate aggregates
+  private static final int MINIMUM_LEAF_COMBINE_DEGREE = 2;
+
   private final ExecutorService exec;
   private final List<Sequence<T>> baseSequences;
   private final Ordering<T> ordering;
   private final BinaryFn<T, T, T> combineFn;
-  private final int numAvailableThreads;
+  private final List<ReferenceCountingResourceHolder<ThreadResource>> processingThreadHolders;
   private final int queueSize;
   private final boolean hasTimeout;
   private final long timeoutAt;
@@ -55,7 +58,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
       List<? extends Sequence<? extends T>> baseSequences,
       Ordering<T> ordering,
       BinaryFn<T, T, T> combineFn,
-      int numAvailableThreads,
+      List<ReferenceCountingResourceHolder<ThreadResource>> processingThreadHolders,
       int queueSize,
       boolean hasTimeout,
       long timeout
@@ -65,7 +68,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
     this.baseSequences = (List<Sequence<T>>) baseSequences;
     this.ordering = ordering;
     this.combineFn = combineFn;
-    this.numAvailableThreads = numAvailableThreads;
+    this.processingThreadHolders = processingThreadHolders;
     this.queueSize = queueSize;
     this.hasTimeout = hasTimeout;
     this.timeoutAt = System.currentTimeMillis() + timeout;
@@ -87,19 +90,74 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
   @Override
   public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
   {
-    final int combineDegree = (int) Math.ceil(baseSequences.size() / (double) numAvailableThreads);
+    final int combineDegree = findCombineDegree(processingThreadHolders.size(), baseSequences.size());
+    final Supplier<ReferenceCountingResourceHolder> processingThreadSupplier = new Supplier<ReferenceCountingResourceHolder>()
+    {
+      private int next = 0;
+      @Override
+      public ReferenceCountingResourceHolder get()
+      {
+        if (next < processingThreadHolders.size()) {
+          return processingThreadHolders.get(next++);
+        } else {
+          throw new ISE(
+              "WTH? current pointer[%d] is larger than available threads[%d]",
+              next,
+              processingThreadHolders.size()
+          );
+        }
+      }
+    };
+
     final Pair<Sequence<T>, List<Future>> rootAndFutures = ParallelCombines.buildCombineTree(
         baseSequences,
         combineDegree,
         combineDegree,
-        this::runCombine
+        sequences -> runCombine(processingThreadSupplier.get(), sequences)
     );
 
     // Ignore futures since they are handled in the generated BaseSequence.IteratorMaker.cleanup().
     return rootAndFutures.lhs.toYielder(initValue, accumulator);
   }
 
-  private Pair<Sequence<T>, Future> runCombine(List<Sequence<T>> sequenceList)
+  private static int findCombineDegree(int numAvailableThreads, int numLeafNodes)
+  {
+    for (int combineDegree = MINIMUM_LEAF_COMBINE_DEGREE; combineDegree <= numLeafNodes; combineDegree++) {
+      final int numRequiredThreads = computeNumRequiredThreads(numLeafNodes, combineDegree);
+      if (numRequiredThreads <= numAvailableThreads) {
+        return combineDegree;
+      }
+    }
+
+    throw new ISE(
+        "Cannot find a proper combine degree for the combining tree. "
+        + "Each node of the combining tree requires a single thread. "
+        + "Try increasing druid.processing.numThreads or "
+        + "reducing numBrokerParallelCombineThreads[%d] in the query context for a smaller tree",
+        numAvailableThreads
+    );
+  }
+
+  private static int computeNumRequiredThreads(int numChildNodes, int combineDegree)
+  {
+    // numChildrenForLastNode used to determine that the last node is needed for the current level.
+    // Please see buildCombineTree() for more details.
+    final int numChildrenForLastNode = numChildNodes % combineDegree;
+    final int numCurLevelNodes = numChildNodes / combineDegree + (numChildrenForLastNode > 1 ? 1 : 0);
+    final int numChildOfParentNodes = numCurLevelNodes + (numChildrenForLastNode == 1 ? 1 : 0);
+
+    if (numChildOfParentNodes == 1) {
+      return numCurLevelNodes;
+    } else {
+      return numCurLevelNodes +
+             computeNumRequiredThreads(numChildOfParentNodes, combineDegree);
+    }
+  }
+
+  private Pair<Sequence<T>, Future> runCombine(
+      ReferenceCountingResourceHolder processingThreadHolder,
+      List<Sequence<T>> sequenceList
+  )
   {
     final Sequence<? extends Sequence<T>> sequences = Sequences.simple(sequenceList);
     final CombiningSequence<T> combiningSequence = CombiningSequence.create(
@@ -112,23 +170,26 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 
     // TODO: AbstractPrioritizedCallable
     final Future future = exec.submit(() -> {
-      combiningSequence.accumulate(
-          queue,
-          (theQueue, v) -> {
-            try {
-              addToQueue(theQueue, new ValueHolder(v));
-            }
-            catch (InterruptedException e) {
-              throw new RuntimeException(e);
-            }
-            return theQueue;
-          }
-      );
       try {
+        combiningSequence.accumulate(
+            queue,
+            (theQueue, v) -> {
+              try {
+                addToQueue(theQueue, new ValueHolder(v));
+              }
+              catch (InterruptedException e) {
+                throw new RuntimeException(e);
+              }
+              return theQueue;
+            }
+        );
         addToQueue(queue, new ValueHolder(null));
       }
       catch (InterruptedException e) {
         throw new RuntimeException(e);
+      }
+      finally {
+        processingThreadHolder.close();
       }
     });
 
