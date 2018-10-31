@@ -861,6 +861,8 @@ public class TaskLockbox
   {
     giant.lock();
 
+    // TODO: reduce contention by checking dataSource and interval
+
     try {
       return action.perform(isTaskLocksValid(task, intervalToPartitionIds));
     }
@@ -875,9 +877,13 @@ public class TaskLockbox
         .entrySet()
         .stream()
         .allMatch(entry -> {
-          final List<TaskLockPosse> lockPosses = getOnlyTaskLockPosseContainingInterval(task, entry.getKey(), entry.getValue());
+          final List<TaskLockPosse> lockPosses = getOnlyTaskLockPosseContainingInterval(
+              task, entry.getKey(), entry.getValue()
+          );
           // Tasks cannot enter the critical section with a shared lock
-          return lockPosses.stream().allMatch(posse -> !posse.getTaskLock().isRevoked() && posse.getTaskLock().getType() != TaskLockType.SHARED);
+          return lockPosses.stream().allMatch(
+              posse -> !posse.getTaskLock().isRevoked() && posse.getTaskLock().getType() != TaskLockType.SHARED
+          );
         });
   }
 

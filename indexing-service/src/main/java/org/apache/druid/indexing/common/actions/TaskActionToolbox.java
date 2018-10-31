@@ -88,6 +88,8 @@ public class TaskActionToolbox
 
   public synchronized <T> T doSynchronized(Callable<T> callable)
   {
+    // TODO: reduce contention by checking dataSource and interval
+    // probably this needs to be move inside of TaskLockbox
     try {
       return callable.call();
     }
