@@ -23,7 +23,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
@@ -558,7 +557,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
       boolean incompleteOk
   )
   {
-    List<Interval> intervalsToRemove = Lists.newArrayList();
+    List<Interval> intervalsToRemove = new ArrayList<>();
     TimelineEntry removed = timeline.get(interval);
 
     if (removed == null) {

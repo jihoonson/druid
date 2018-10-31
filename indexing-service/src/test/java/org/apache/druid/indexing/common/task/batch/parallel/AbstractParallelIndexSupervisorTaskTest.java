@@ -21,7 +21,6 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.druid.client.indexing.IndexingServiceClient;
@@ -68,6 +67,7 @@ import org.junit.rules.TemporaryFolder;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -87,8 +87,8 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
       ),
       new DimensionsSpec(
           DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim")),
-          Lists.newArrayList(),
-          Lists.newArrayList()
+          new ArrayList<>(),
+          new ArrayList<>()
       ),
       null,
       Arrays.asList("ts", "dim", "val"),

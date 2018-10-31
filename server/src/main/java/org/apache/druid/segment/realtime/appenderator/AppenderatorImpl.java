@@ -30,7 +30,6 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
@@ -454,7 +453,7 @@ public class AppenderatorImpl implements Appenderator
         uncommitFuture.get();
 
         // Drop everything.
-        final List<ListenableFuture<?>> futures = Lists.newArrayList();
+        final List<ListenableFuture<?>> futures = new ArrayList<>();
         for (Map.Entry<SegmentIdentifier, Sink> entry : sinks.entrySet()) {
           futures.add(abandonSegment(entry.getKey(), entry.getValue(), true));
         }
@@ -484,8 +483,8 @@ public class AppenderatorImpl implements Appenderator
   {
     throwPersistErrorIfExists();
 
-    final Map<String, Integer> currentHydrants = Maps.newHashMap();
-    final List<Pair<FireHydrant, SegmentIdentifier>> indexesToPersist = Lists.newArrayList();
+    final Map<String, Integer> currentHydrants = new HashMap<>();
+    final List<Pair<FireHydrant, SegmentIdentifier>> indexesToPersist = new ArrayList<>();
     int numPersistedRows = 0;
     long bytesPersisted = 0L;
     for (SegmentIdentifier identifier : sinks.keySet()) {
@@ -547,7 +546,7 @@ public class AppenderatorImpl implements Appenderator
 
                 try {
                   commitLock.lock();
-                  final Map<String, Integer> commitHydrants = Maps.newHashMap();
+                  final Map<String, Integer> commitHydrants = new HashMap<>();
                   final Committed oldCommit = readCommit();
                   if (oldCommit != null) {
                     // merge current hydrants with existing hydrants
@@ -620,7 +619,7 @@ public class AppenderatorImpl implements Appenderator
         // segments.
         persistAll(committer),
         (Function<Object, SegmentsAndMetadata>) commitMetadata -> {
-          final List<DataSegment> dataSegments = Lists.newArrayList();
+          final List<DataSegment> dataSegments = new ArrayList<>();
 
           for (Map.Entry<SegmentIdentifier, Sink> entry : theSinks.entrySet()) {
             if (droppingSinks.contains(entry.getKey())) {
@@ -723,7 +722,7 @@ public class AppenderatorImpl implements Appenderator
       }
 
       final File mergedFile;
-      List<QueryableIndex> indexes = Lists.newArrayList();
+      List<QueryableIndex> indexes = new ArrayList<>();
       Closer closer = Closer.create();
       try {
         for (FireHydrant fireHydrant : sink) {
@@ -789,7 +788,7 @@ public class AppenderatorImpl implements Appenderator
 
     log.info("Shutting down...");
 
-    final List<ListenableFuture<?>> futures = Lists.newArrayList();
+    final List<ListenableFuture<?>> futures = new ArrayList<>();
     for (Map.Entry<SegmentIdentifier, Sink> entry : sinks.entrySet()) {
       futures.add(abandonSegment(entry.getKey(), entry.getValue(), false));
     }
@@ -1035,7 +1034,7 @@ public class AppenderatorImpl implements Appenderator
             (o1, o2) -> Ints.compare(Integer.parseInt(o1.getName()), Integer.parseInt(o2.getName()))
         );
 
-        List<FireHydrant> hydrants = Lists.newArrayList();
+        List<FireHydrant> hydrants = new ArrayList<>();
         for (File hydrantDir : sinkFiles) {
           final int hydrantNumber = Integer.parseInt(hydrantDir.getName());
 

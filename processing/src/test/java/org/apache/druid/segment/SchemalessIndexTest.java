@@ -24,7 +24,6 @@ import com.google.common.base.Function;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import org.apache.druid.data.input.MapBasedInputRow;
 import org.apache.druid.hll.HyperLogLogHash;
 import org.apache.druid.jackson.DefaultObjectMapper;
@@ -58,8 +57,10 @@ import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -86,11 +87,11 @@ public class SchemalessIndexTest
 
   private static final IndexSpec indexSpec = new IndexSpec();
 
-  private static final List<Map<String, Object>> events = Lists.newArrayList();
+  private static final List<Map<String, Object>> events = new ArrayList<>();
 
-  private static final Map<Integer, Map<Integer, QueryableIndex>> incrementalIndexes = Maps.newHashMap();
-  private static final Map<Integer, Map<Integer, QueryableIndex>> mergedIndexes = Maps.newHashMap();
-  private static final List<QueryableIndex> rowPersistedIndexes = Lists.newArrayList();
+  private static final Map<Integer, Map<Integer, QueryableIndex>> incrementalIndexes = new HashMap<>();
+  private static final Map<Integer, Map<Integer, QueryableIndex>> mergedIndexes = new HashMap<>();
+  private static final List<QueryableIndex> rowPersistedIndexes = new ArrayList<>();
 
   private static IncrementalIndex index = null;
   private static QueryableIndex mergedIndex = null;
@@ -137,7 +138,7 @@ public class SchemalessIndexTest
           return index;
         }
       } else {
-        entry = Maps.newHashMap();
+        entry = new HashMap<>();
         incrementalIndexes.put(index1, entry);
       }
 
@@ -165,7 +166,7 @@ public class SchemalessIndexTest
               .buildOnheap();
         }
 
-        final List<String> dims = Lists.newArrayList();
+        final List<String> dims = new ArrayList<>();
         for (final Map.Entry<String, Object> val : event.entrySet()) {
           if (!val.getKey().equalsIgnoreCase(TIMESTAMP) && !METRICS.contains(val.getKey())) {
             dims.add(val.getKey());
@@ -249,7 +250,7 @@ public class SchemalessIndexTest
           return index;
         }
       } else {
-        entry = Maps.newHashMap();
+        entry = new HashMap<>();
         mergedIndexes.put(index1, entry);
       }
 
@@ -299,7 +300,7 @@ public class SchemalessIndexTest
         mergedFile.mkdirs();
         mergedFile.deleteOnExit();
 
-        List<QueryableIndex> indexesToMerge = Lists.newArrayList();
+        List<QueryableIndex> indexesToMerge = new ArrayList<>();
         for (int index : indexes) {
           indexesToMerge.add(rowPersistedIndexes.get(index));
         }
@@ -364,7 +365,7 @@ public class SchemalessIndexTest
         for (final Map<String, Object> event : events) {
 
           final long timestamp = new DateTime(event.get(TIMESTAMP), ISOChronology.getInstanceUTC()).getMillis();
-          final List<String> dims = Lists.newArrayList();
+          final List<String> dims = new ArrayList<>();
           for (Map.Entry<String, Object> entry : event.entrySet()) {
             if (!entry.getKey().equalsIgnoreCase(TIMESTAMP) && !METRICS.contains(entry.getKey())) {
               dims.add(entry.getKey());
@@ -424,7 +425,7 @@ public class SchemalessIndexTest
       for (Object obj : events) {
         final Map<String, Object> event = jsonMapper.convertValue(obj, Map.class);
 
-        final List<String> dims = Lists.newArrayList();
+        final List<String> dims = new ArrayList<>();
         for (Map.Entry<String, Object> entry : event.entrySet()) {
           if (!entry.getKey().equalsIgnoreCase(TIMESTAMP) && !METRICS.contains(entry.getKey())) {
             dims.add(entry.getKey());
@@ -450,7 +451,7 @@ public class SchemalessIndexTest
 
   private List<File> makeFilesToMap(File tmpFile, Iterable<Pair<String, AggregatorFactory[]>> files) throws IOException
   {
-    List<File> filesToMap = Lists.newArrayList();
+    List<File> filesToMap = new ArrayList<>();
     for (Pair<String, AggregatorFactory[]> file : files) {
       IncrementalIndex index = makeIncrementalIndex(file.lhs, file.rhs);
       File theFile = new File(tmpFile, file.lhs);

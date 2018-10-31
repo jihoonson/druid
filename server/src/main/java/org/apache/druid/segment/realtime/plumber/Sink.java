@@ -24,8 +24,6 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
@@ -45,8 +43,10 @@ import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -69,7 +69,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
   private final long maxBytesInMemory;
   private final boolean reportParseExceptions;
   private final CopyOnWriteArrayList<FireHydrant> hydrants = new CopyOnWriteArrayList<FireHydrant>();
-  private final LinkedHashSet<String> dimOrder = Sets.newLinkedHashSet();
+  private final LinkedHashSet<String> dimOrder = new LinkedHashSet<>();
   private final AtomicInteger numRowsExcludingCurrIndex = new AtomicInteger();
   private volatile FireHydrant currHydrant;
   private volatile boolean writable = true;
@@ -254,7 +254,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
         interval,
         version,
         ImmutableMap.of(),
-        Lists.newArrayList(),
+        new ArrayList<>(),
         Lists.transform(
             Arrays.asList(schema.getAggregators()), new Function<AggregatorFactory, String>()
             {
@@ -368,7 +368,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
           if (!indexSchema.getDimensionsSpec().hasCustomDimensions()) {
             Map<String, ColumnCapabilitiesImpl> oldCapabilities;
             if (lastHydrant.hasSwapped()) {
-              oldCapabilities = Maps.newHashMap();
+              oldCapabilities = new HashMap<>();
               ReferenceCountingSegment segment = lastHydrant.getIncrementedSegment();
               try {
                 QueryableIndex oldIndex = segment.asQueryableIndex();

@@ -22,7 +22,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.io.Files;
 import org.apache.druid.data.input.impl.CSVParseSpec;
 import org.apache.druid.data.input.impl.DimensionsSpec;
@@ -88,8 +87,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
       ),
       new DimensionsSpec(
           DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim")),
-          Lists.newArrayList(),
-          Lists.newArrayList()
+          Collections.emptyList(),
+          Collections.emptyList()
       ),
       null,
       Arrays.asList("ts", "dim", "val"),
