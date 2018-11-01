@@ -849,9 +849,9 @@ public class TaskLockbox
    * The given action should be finished as soon as possible because all other methods in this class are blocked until
    * this method is finished.
    *
-   * @param task      task performing a critical action
-   * @param intervals intervals
-   * @param action    action to be performed inside of the critical section
+   * @param task                   task performing a critical action
+   * @param intervalToPartitionIds partitionIds which should be locked by task
+   * @param action                 action to be performed inside of the critical section
    */
   public <T> T doInCriticalSection(
       Task task,
