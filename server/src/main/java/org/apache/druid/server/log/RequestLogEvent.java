@@ -17,28 +17,15 @@
  * under the License.
  */
 
-package org.apache.druid.server.coordinator.rules;
+package org.apache.druid.server.log;
 
-import org.joda.time.DateTime;
-import org.joda.time.Interval;
-import org.joda.time.Period;
+import org.apache.druid.guice.annotations.PublicApi;
+import org.apache.druid.java.util.emitter.core.Event;
 
-public class Rules
+/**
+ * Marker subtype of events emitted from {@link EmittingRequestLogger}.
+ */
+@PublicApi
+public interface RequestLogEvent extends Event
 {
-  public static boolean eligibleForLoad(Interval src, Interval target)
-  {
-    return src.overlaps(target);
-  }
-
-  public static boolean eligibleForLoad(Period period, Interval interval, DateTime referenceTimestamp, boolean includeFuture)
-  {
-    final Interval currInterval = new Interval(period, referenceTimestamp);
-    if (includeFuture) {
-      return currInterval.getStartMillis() < interval.getEndMillis();
-    } else {
-      return eligibleForLoad(currInterval, interval);
-    }
-  }
-
-  private Rules() {}
 }
