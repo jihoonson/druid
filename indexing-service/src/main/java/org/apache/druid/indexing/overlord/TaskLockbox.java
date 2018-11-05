@@ -489,11 +489,7 @@ public class TaskLockbox
         // If they can't be reused, check lock priority and revoke existing locks if possible.
         final List<TaskLockPosse> reusablePosses = conflictPosses
             .stream()
-            .filter(posse -> matchGroupIdAndContainInterval(
-                posse.taskLock,
-                request.getGroupId(),
-                request.getInterval()
-            ))
+            .filter(posse -> posse.reusableFor(task, request))
             .collect(Collectors.toList());
 
         if (reusablePosses.size() == 0) {
@@ -1167,12 +1163,6 @@ public class TaskLockbox
     }
   }
 
-  private static boolean matchGroupIdAndContainInterval(TaskLock existingLock, String taskGroupId, Interval interval)
-  {
-    return existingLock.getInterval().contains(interval) &&
-           existingLock.getGroupId().equals(taskGroupId);
-  }
-
   private static boolean isAllSharedLocks(List<TaskLockPosse> lockPosses)
   {
     return lockPosses.stream()
@@ -1266,13 +1256,22 @@ public class TaskLockbox
 
     boolean addTask(Task task)
     {
-      Preconditions.checkArgument(
-          taskLock.getGroupId().equals(task.getGroupId()),
-          "groupId[%s] of task[%s] is different from the existing lockPosse's groupId[%s]",
-          task.getGroupId(),
-          task.getId(),
-          taskLock.getGroupId()
-      );
+      if (taskLock.getType() == TaskLockType.EXCLUSIVE) {
+        Preconditions.checkArgument(
+            taskLock.getGroupId().equals(task.getGroupId()),
+            "groupId[%s] of task[%s] is different from the existing lockPosse's groupId[%s]",
+            task.getGroupId(),
+            task.getId(),
+            taskLock.getGroupId()
+        );
+      } else if (taskLock.getType() == TaskLockType.FULLY_EXCLUSIVE) {
+        Preconditions.checkArgument(
+            taskIds.contains(task.getId()),
+            "[%s] lock can't be shared for task[%s]",
+            TaskLockType.FULLY_EXCLUSIVE,
+            task.getId()
+        );
+      }
       Preconditions.checkArgument(
           taskLock.getNonNullPriority() == task.getPriority(),
           "priority[%s] of task[%s] is different from the existing lockPosse's priority[%s]",
@@ -1298,6 +1297,28 @@ public class TaskLockbox
     boolean isTasksEmpty()
     {
       return taskIds.isEmpty();
+    }
+
+    boolean reusableFor(Task task, LockRequest request)
+    {
+      if (taskLock.getType() == request.getLockType()) {
+        switch (taskLock.getType()) {
+          case SHARED:
+            // All shared lock is not reusable. Instead, a new lock posse is created for all lock request.
+            // See createOrFindLockPosse().
+            return false;
+          case EXCLUSIVE:
+            return taskLock.getInterval().contains(request.getInterval()) &&
+                   taskLock.getGroupId().equals(request.getGroupId());
+          case FULLY_EXCLUSIVE:
+            return taskLock.getInterval().contains(request.getInterval()) &&
+                   taskIds.contains(task.getId());
+          default:
+            throw new ISE("Unknown lock type[%s]", taskLock.getType());
+        }
+      }
+
+      return false;
     }
 
     void forEachTask(Consumer<String> action)

@@ -67,8 +67,6 @@ public class SegmentAllocationCoordinator
   {
     final String dataSource = task.getDataSource();
 
-    // TODO: interval lock here.. we can't use taskLockbox because it allows for tasks of the same groupId to get the same lock at the same time
-
     final List<SegmentIdentifier> allocatedIds = new ArrayList<>(allocateSpecs.size());
     for (SegmentAllocateSpec spec : allocateSpecs) {
       final Interval interval = spec.interval;
