@@ -847,6 +847,8 @@ public class TaskLockboxTest
     );
   }
 
+  // TODO: test FULLY_EXCLUSIVE
+
   private Set<TaskLock> getAllLocks(List<Task> tasks)
   {
     return tasks.stream()

@@ -21,14 +21,12 @@ package org.apache.druid.metadata;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Sets;
 import com.google.common.hash.Hashing;
 import com.google.common.io.BaseEncoding;
 import com.google.inject.Inject;
@@ -77,7 +75,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  */
@@ -132,33 +132,11 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
                 intervals
             );
 
-            Set<DataSegment> segments = Sets.newHashSet(
-                Iterables.concat(
-                    Iterables.transform(
-                        Iterables.concat(
-                            Iterables.transform(
-                                intervals,
-                                new Function<Interval, Iterable<TimelineObjectHolder<String, DataSegment>>>()
-                                {
-                                  @Override
-                                  public Iterable<TimelineObjectHolder<String, DataSegment>> apply(Interval interval)
-                                  {
-                                    return timeline.lookup(interval);
-                                  }
-                                }
-                            )
-                        ),
-                        new Function<TimelineObjectHolder<String, DataSegment>, Iterable<DataSegment>>()
-                        {
-                          @Override
-                          public Iterable<DataSegment> apply(TimelineObjectHolder<String, DataSegment> input)
-                          {
-                            return input.getObject().payloads();
-                          }
-                        }
-                    )
-                )
-            );
+            Set<DataSegment> segments = intervals
+                .stream()
+                .flatMap(interval -> timeline.lookup(interval).stream())
+                .flatMap(holder -> StreamSupport.stream(holder.getObject().payloads().spliterator(), false))
+                .collect(Collectors.toSet());
 
             return new ArrayList<>(segments);
           }
@@ -475,7 +453,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       @Nullable final String previousSegmentId,
       final Interval interval,
       final String version,
-      final BiFunction<Integer, ObjectMapper, ShardSpec> shardSpecGenrator,
+      final Function<SegmentAllocationContext, ShardSpec> shardSpecGenrator,
       final boolean skipSegmentLineageCheck
   )
   {
@@ -514,7 +492,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       @Nullable final String previousSegmentId,
       final Interval interval,
       final String version,
-      final BiFunction<Integer, ObjectMapper, ShardSpec> shardSpecGenrator
+      final Function<SegmentAllocationContext, ShardSpec> shardSpecGenrator
   ) throws IOException
   {
     final String previousSegmentIdNotNull = previousSegmentId == null ? "" : previousSegmentId;
@@ -582,7 +560,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String sequenceName,
       final Interval interval,
       final String version,
-      final BiFunction<Integer, ObjectMapper, ShardSpec> shardSpecGenrator
+      final Function<SegmentAllocationContext, ShardSpec> shardSpecGenrator
   ) throws IOException
   {
     final CheckExistingSegmentIdResult result = checkAndGetExistingSegmentId(
@@ -837,7 +815,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String dataSource,
       final Interval interval,
       final String version,
-      final BiFunction<Integer, ObjectMapper, ShardSpec> shardSpecGenrator
+      final Function<SegmentAllocationContext, ShardSpec> shardSpecGenrator
   ) throws IOException
   {
     // Make up a pending segment based on existing segments and pending segments in the DB. This works
@@ -896,7 +874,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             interval,
             version,
 //            new NumberedShardSpec(partitionId, 0),
-            shardSpecGenrator.apply(0, jsonMapper),
+            shardSpecGenrator.apply(new SegmentAllocationContext(jsonMapper, null, 0)),
             null
         );
       } else if (!max.getInterval().equals(interval) || !max.getVersion().equals(version)) {
@@ -944,7 +922,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             dataSource,
             max.getInterval(),
             version,
-            shardSpecGenrator.apply(maxPartitions, jsonMapper),
+            shardSpecGenrator.apply(new SegmentAllocationContext(jsonMapper, maxPartitions, 0)),
             null
         );
       }

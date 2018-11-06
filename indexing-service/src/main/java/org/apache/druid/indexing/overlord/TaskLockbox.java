@@ -390,6 +390,16 @@ public class TaskLockbox
     }
   }
 
+  public LockResult getTimeChunkLock(
+      final TaskLockType lockType,
+      final Task task,
+      final Interval interval,
+      final long timeoutMs
+  ) throws InterruptedException
+  {
+    return lock(LockGranularity.TIME_CHUNK, lockType, task, interval, null, null, timeoutMs);
+  }
+
   @VisibleForTesting
   public LockResult tryTimeChunkLock(
       final TaskLockType lockType,
@@ -747,7 +757,7 @@ public class TaskLockbox
     private final int priority;
     private final boolean revoked;
 
-    private SegmentLockRequest(
+    public SegmentLockRequest(
         TaskLockType lockType,
         String groupId,
         String dataSource,
@@ -838,6 +848,66 @@ public class TaskLockbox
     }
   }
 
+  public LockResult reduceLock(
+      Task task,
+      LockRequest newLockRequest
+  )
+  {
+    giant.lock();
+
+    try {
+      if (!activeTasks.contains(task.getId())) {
+        throw new ISE("Cannot revoke lock for inactive task[%s]", task.getId());
+      }
+
+      // same ds
+      // smaller interval
+      // finer lock granularity
+      // requesting task should be a valid taskLockPosse
+      //   - the task itself for fully_exclusive and shared
+      //   - not for exclusive
+
+      final List<TaskLockPosse> lockPosses = findLockPossesContainingInterval(
+          newLockRequest.getDataSource(),
+          newLockRequest.getInterval()
+      ).stream().filter(lockPosse -> lockPosse.containsTask(task)).collect(Collectors.toList());
+
+      if (lockPosses.isEmpty()) {
+        throw new ISE(
+            "Can't find the lockPosse for task[%s], dataSource[%s], and interval[%s]",
+            task.getId(),
+            newLockRequest.getDataSource(),
+            newLockRequest.getInterval()
+        );
+      } else if (lockPosses.size() > 1) {
+        throw new ISE(
+            "WTH? there are [%d] lockPosses for task[%s], dataSource[%s], and interval[%s]",
+            lockPosses.size(),
+            task.getId(),
+            newLockRequest.getDataSource(),
+            newLockRequest.getInterval()
+        );
+      } else {
+        final TaskLockPosse foundPosse = lockPosses.get(0);
+
+        if (foundPosse.taskLock.isRevoked()) {
+          return LockResult.fail(true);
+        } else {
+          log.info("Reducing task lock[%s] for task[%s]", foundPosse.taskLock, task.getId());
+
+          final TaskLock newLock = newLockRequest.toLock();
+          replaceLock(task, foundPosse.taskLock, newLock);
+
+          log.info("Reduced old lock[%s] to new lock[%s]", foundPosse.taskLock, newLock);
+          return LockResult.ok(newLock);
+        }
+      }
+    }
+    finally {
+      giant.unlock();
+    }
+  }
+
   /**
    * Perform the given action with a guarantee that the locks of the task are not revoked in the middle of action.  This
    * method first checks that all locks for the given task and intervals are valid and perform the right action.
@@ -923,24 +993,28 @@ public class TaskLockbox
       if (lock.isRevoked()) {
         log.warn("TaskLock[%s] is already revoked", lock);
       } else {
-        final TaskLock revokedLock = lock.revokedCopy();
-        taskStorage.replaceLock(taskId, lock, revokedLock);
-
-        final List<TaskLockPosse> possesHolder = running.get(task.getDataSource()).get(lock.getInterval());
-        final TaskLockPosse foundPosse = possesHolder.stream()
-                                                     .filter(posse -> posse.getTaskLock().equals(lock))
-                                                     .findFirst()
-                                                     .orElseThrow(
-                                                         () -> new ISE("Failed to find lock posse for lock[%s]", lock)
-                                                     );
-        possesHolder.remove(foundPosse);
-        possesHolder.add(foundPosse.withTaskLock(revokedLock));
+        replaceLock(task, lock, lock.revokedCopy());
         log.info("Revoked taskLock[%s]", lock);
       }
     }
     finally {
       giant.unlock();
     }
+  }
+
+  private void replaceLock(Task task, TaskLock oldLock, TaskLock newLock)
+  {
+    taskStorage.replaceLock(task.getId(), oldLock, newLock);
+
+    final List<TaskLockPosse> possesHolder = running.get(task.getDataSource()).get(oldLock.getInterval());
+    final TaskLockPosse foundPosse = possesHolder.stream()
+                                                 .filter(posse -> posse.getTaskLock().equals(oldLock))
+                                                 .findFirst()
+                                                 .orElseThrow(
+                                                     () -> new ISE("Failed to find lock posse for lock[%s]", oldLock)
+                                                 );
+    possesHolder.remove(foundPosse);
+    possesHolder.add(foundPosse.withTaskLock(newLock));
   }
 
   /**

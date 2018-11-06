@@ -954,12 +954,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
       final Map<Interval, Integer> allocateSpec = shardSpecs.map
           .entrySet()
           .stream()
-          .collect(
-              Collectors.toMap(
-                  Entry::getKey,
-                  entry -> entry.getValue().size()
-              )
-          );
+          .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().size()));
 
       final List<SegmentIdentifier> segmentIds = toolbox.getTaskActionClient().submit(new SegmentBulkAllocateAction(allocateSpec, getId()));
       final Map<Interval, List<SegmentIdentifier>> intervalToIds = new HashMap<>();

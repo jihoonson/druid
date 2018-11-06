@@ -19,7 +19,6 @@
 
 package org.apache.druid.indexing.test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -36,7 +35,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataStorageCoordinator
 {
@@ -141,7 +140,7 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
       String previousSegmentId,
       Interval interval,
       String version,
-      final BiFunction<Integer, ObjectMapper, ShardSpec> shardSpecGenrator,
+      final Function<SegmentAllocationContext, ShardSpec> shardSpecGenrator,
       boolean skipSegmentLineageCheck
   )
   {
