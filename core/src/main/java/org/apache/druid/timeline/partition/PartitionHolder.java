@@ -21,6 +21,7 @@ package org.apache.druid.timeline.partition;
 
 import com.google.common.collect.Iterables;
 import org.apache.druid.timeline.Overshadowable;
+import org.apache.druid.timeline.PartitionChunkProvider;
 
 import java.util.Iterator;
 import java.util.List;
@@ -37,13 +38,15 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
 
   public PartitionHolder(PartitionChunk<T> initialChunk)
   {
-    this.overshadowChecker = new OvershadowChecker<>();
+    // TODO: proper provider
+    this.overshadowChecker = new OvershadowChecker<>(PartitionChunkProvider.<T>defaultProvider());
     add(initialChunk);
   }
 
   public PartitionHolder(List<PartitionChunk<T>> initialChunks)
   {
-    this.overshadowChecker = new OvershadowChecker<>();
+    // TODO: proper provider
+    this.overshadowChecker = new OvershadowChecker<>(PartitionChunkProvider.<T>defaultProvider());
     for (PartitionChunk<T> chunk : initialChunks) {
       add(chunk);
     }
@@ -122,13 +125,13 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
   @Override
   public Iterator<PartitionChunk<T>> iterator()
   {
-    return overshadowChecker.findVisibles().iterator();
+    return overshadowChecker.getVisibles().iterator();
   }
 
   @Override
   public Spliterator<PartitionChunk<T>> spliterator()
   {
-    return overshadowChecker.findVisibles().spliterator();
+    return overshadowChecker.getVisibles().spliterator();
   }
 
   public Iterable<T> payloads()

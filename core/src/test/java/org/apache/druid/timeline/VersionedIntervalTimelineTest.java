@@ -1710,6 +1710,10 @@ public class VersionedIntervalTimelineTest
     Assert.assertFalse(timeline.isOvershadowed(Intervals.of("2011-04-21/2011-04-22"), "0", new OvershadowableInteger(0, 1)));
   }
 
+  // TODO: test if the middle segment is missing (B among A <- B <- C)
+
+  // TODO: test fall back when the middle segment is missing
+
   private Pair<Interval, Pair<String, PartitionHolder<OvershadowableInteger>>> createExpected(
       String intervalString,
       String version,

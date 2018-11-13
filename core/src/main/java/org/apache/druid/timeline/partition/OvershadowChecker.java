@@ -18,9 +18,11 @@
  */
 package org.apache.druid.timeline.partition;
 
+import com.google.common.base.Preconditions;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.timeline.Overshadowable;
+import org.apache.druid.timeline.PartitionChunkProvider;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
@@ -28,6 +30,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -39,16 +42,17 @@ public class OvershadowChecker<T extends Overshadowable<T>>
 {
   private static final Logger log = new Logger(OvershadowChecker.class);
 
-  // TODO: sync all segment info periodically
-  private final Map<Integer, PartitionChunk<T>> allPartitionChunks;
+  private final Map<Integer, PartitionChunk<T>> knownPartitionChunks;
+  private final PartitionChunkProvider<T> extraPartitionProvider;
 //  private final Int2ObjectMap<SortedSet<Integer>> overshadowedMap;
 
   private final Map<Integer, PartitionChunk<T>> onlineSegments;
   private final Map<Integer, PartitionChunk<T>> visibleSegments;
 
-  public OvershadowChecker()
+  public OvershadowChecker(PartitionChunkProvider<T> extraPartitionProvider)
   {
-    this.allPartitionChunks = new HashMap<>();
+    this.knownPartitionChunks = new HashMap<>();
+    this.extraPartitionProvider = extraPartitionProvider;
 //    this.overshadowedMap = new Int2ObjectOpenHashMap<>();
     this.onlineSegments = new HashMap<>();
     this.visibleSegments = new HashMap<>();
@@ -56,15 +60,30 @@ public class OvershadowChecker<T extends Overshadowable<T>>
 
   public OvershadowChecker(OvershadowChecker<T> other)
   {
-    this.allPartitionChunks = new HashMap<>(other.allPartitionChunks);
+    this.knownPartitionChunks = new HashMap<>(other.knownPartitionChunks);
+    this.extraPartitionProvider = other.extraPartitionProvider;
 //    this.overshadowedMap = new Int2ObjectOpenHashMap<>(other.overshadowedMap);
     this.onlineSegments = new HashMap<>(other.onlineSegments);
     this.visibleSegments = new HashMap<>(other.visibleSegments);
   }
 
+  private Map<Integer, PartitionChunkCandidate> buildAllOnlineCandidates()
+  {
+    final Map<Integer, PartitionChunkCandidate> allPartitionChunks = new HashMap<>(toCandidates(onlineSegments, true));
+    allPartitionChunks.putAll(toCandidates(extraPartitionProvider.get(), false));
+    return allPartitionChunks;
+  }
+
+  private Map<Integer, PartitionChunkCandidate> toCandidates(Map<Integer, PartitionChunk<T>> map, boolean online)
+  {
+    return map.entrySet().stream().collect(
+        Collectors.toMap(Entry::getKey, entry -> new PartitionChunkCandidate(entry.getValue(), online))
+    );
+  }
+
   public void add(PartitionChunk<T> partitionChunk)
   {
-    final PartitionChunk<T> prevChunk = allPartitionChunks.put(partitionChunk.getChunkNumber(), partitionChunk);
+    final PartitionChunk<T> prevChunk = knownPartitionChunks.put(partitionChunk.getChunkNumber(), partitionChunk);
     if (prevChunk != null) {
 //      throw new ISE("Duplicate partitionId[%d]! prevChunk[%s], newChunk[%s]", partitionChunk.getChunkNumber(), prevChunk, partitionChunk);
       log.warn("prevChunk[%s] is overwritten by newChunk[%s] for partitionId[%d]", prevChunk, partitionChunk, partitionChunk.getChunkNumber());
@@ -76,7 +95,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
           .getObject()
           .getAtomicUpdateGroup()
           .stream()
-          .map(allPartitionChunks::get)
+          .map(knownPartitionChunks::get)
           .filter(Objects::nonNull)
           .allMatch(chunk -> overshadowedGroup.equals(new HashSet<>(chunk.getObject().getOvershadowedGroup())));
 
@@ -141,7 +160,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
 //      }
 //    }
 
-    final PartitionChunk<T> knownChunk = allPartitionChunks.get(partitionChunk.getChunkNumber());
+    final PartitionChunk<T> knownChunk = knownPartitionChunks.get(partitionChunk.getChunkNumber());
     if (knownChunk == null) {
       return null;
     }
@@ -159,7 +178,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
     visibleSegments.remove(partitionChunk.getChunkNumber());
     onlineSegments.remove(partitionChunk.getChunkNumber());
 
-    return allPartitionChunks.remove(partitionChunk.getChunkNumber());
+    return knownPartitionChunks.remove(partitionChunk.getChunkNumber());
   }
 
   private void tryVisibleToOnline(PartitionChunk<T> offlineSegmentChunk)
@@ -168,18 +187,24 @@ public class OvershadowChecker<T extends Overshadowable<T>>
       final T offlineSegment = offlineSegmentChunk.getObject();
       // find the latest visible atomic update group
       final Set<Integer> overshadowedPartitionIds = offlineSegment.getOvershadowedGroup();
-      final List<PartitionChunk<T>> onlineSegmentsInOvershadowedGroup = findAllOnlineSegmentsFor(overshadowedPartitionIds);
+      final List<PartitionChunkCandidate> onlineSegmentsInOvershadowedGroup = findAllOnlineSegmentsFor(overshadowedPartitionIds);
 
       if (!onlineSegmentsInOvershadowedGroup.isEmpty()) {
-        final List<PartitionChunk<T>> latestOnlineAtomicUpdateGroup = findLatestOnlineAtomicUpdateGroup(onlineSegmentsInOvershadowedGroup);
+        final List<PartitionChunkCandidate> latestOnlineAtomicUpdateGroup = findLatestOnlineAtomicUpdateGroup(onlineSegmentsInOvershadowedGroup);
+
+        // sanity check
+        Preconditions.checkState(
+            latestOnlineAtomicUpdateGroup.stream().allMatch(candidate -> candidate.online),
+            "WTH? entire latestOnlineAtomicUpdateGroup should be online"
+        );
 
         if (!latestOnlineAtomicUpdateGroup.isEmpty()) {
           // if found, replace the current atomicUpdateGroup with the latestOnlineAtomicUpdateGroup
           offlineSegment.getAtomicUpdateGroup()
                         .forEach(partitionId -> onlineSegments.put(partitionId, visibleSegments.remove(partitionId)));
-          latestOnlineAtomicUpdateGroup.forEach(chunk -> visibleSegments.put(
-              chunk.getChunkNumber(),
-              onlineSegments.remove(chunk.getChunkNumber())
+          latestOnlineAtomicUpdateGroup.forEach(candidate -> visibleSegments.put(
+              candidate.chunk.getChunkNumber(),
+              onlineSegments.remove(candidate.chunk.getChunkNumber())
           ));
         }
       }
@@ -187,35 +212,31 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   }
 
   // TODO: improve this: looks like the first if is unnecessary sometimes
-  private List<PartitionChunk<T>> findLatestOnlineAtomicUpdateGroup(List<PartitionChunk<T>> partitionChunks)
+  private List<PartitionChunkCandidate> findLatestOnlineAtomicUpdateGroup(List<PartitionChunkCandidate> candidates)
   {
-    if (partitionChunks.stream().flatMap(chunk -> chunk.getObject().getAtomicUpdateGroup().stream()).allMatch(onlineSegments::containsKey)) {
-      return partitionChunks;
+    if (candidates.stream().allMatch(candidate -> candidate.online)) {
+      return candidates;
     } else {
-      final Set<Integer> allOvershadowedGroupOfChunks = partitionChunks.stream()
-                                                                       .flatMap(chunk -> chunk.getObject().getOvershadowedGroup().stream())
-                                                                       .collect(Collectors.toSet());
+      final Set<Integer> allOvershadowedGroupOfChunks = candidates.stream()
+                                                                  .flatMap(candidate -> candidate.chunk.getObject().getOvershadowedGroup().stream())
+                                                                  .collect(Collectors.toSet());
 
       if (allOvershadowedGroupOfChunks.isEmpty()) {
         return Collections.emptyList();
       } else {
-        final List<PartitionChunk<T>> onlineSegmentsInAtomicUpdateGroup = findAllOnlineSegmentsFor(allOvershadowedGroupOfChunks);
-
-        if (!onlineSegmentsInAtomicUpdateGroup.isEmpty()) {
-          return onlineSegmentsInAtomicUpdateGroup;
-        } else {
-          return findLatestOnlineAtomicUpdateGroup(onlineSegmentsInAtomicUpdateGroup);
-        }
+        return findLatestOnlineAtomicUpdateGroup(findAllOnlineSegmentsFor(allOvershadowedGroupOfChunks));
       }
     }
   }
 
-  private List<PartitionChunk<T>> findAllOnlineSegmentsFor(Set<Integer> partitionIds)
+  private List<PartitionChunkCandidate> findAllOnlineSegmentsFor(Set<Integer> partitionIds)
   {
-    final List<PartitionChunk<T>> found = partitionIds.stream()
-                                                      .map(onlineSegments::get)
-                                                      .filter(Objects::nonNull)
-                                                      .collect(Collectors.toList());
+    final Map<Integer, PartitionChunkCandidate> candidates = buildAllOnlineCandidates();
+    final List<PartitionChunkCandidate> found = partitionIds.stream()
+//                                                      .map(onlineSegments::get)
+                                                            .map(candidates::get)
+                                                            .filter(Objects::nonNull)
+                                                            .collect(Collectors.toList());
     return found.size() == partitionIds.size() ? found : Collections.emptyList();
   }
 
@@ -242,7 +263,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
     return visibleSegments.get(partitionId);
   }
 
-  public SortedSet<PartitionChunk<T>> findVisibles()
+  public SortedSet<PartitionChunk<T>> getVisibles()
   {
     return new TreeSet<>(visibleSegments.values());
   }
@@ -257,7 +278,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
       return false;
     }
     OvershadowChecker<?> that = (OvershadowChecker<?>) o;
-    return Objects.equals(allPartitionChunks, that.allPartitionChunks) &&
+    return Objects.equals(knownPartitionChunks, that.knownPartitionChunks) &&
 //           Objects.equals(overshadowedMap, that.overshadowedMap) &&
            Objects.equals(onlineSegments, that.onlineSegments) &&
            Objects.equals(visibleSegments, that.visibleSegments);
@@ -266,17 +287,29 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   @Override
   public int hashCode()
   {
-    return Objects.hash(allPartitionChunks, onlineSegments, visibleSegments);
+    return Objects.hash(knownPartitionChunks, onlineSegments, visibleSegments);
   }
 
   @Override
   public String toString()
   {
     return "OvershadowChecker{" +
-           "allPartitionChunks=" + allPartitionChunks +
+           "knownPartitionChunks=" + knownPartitionChunks +
 //           ", overshadowedMap=" + overshadowedMap +
            ", onlineSegments=" + onlineSegments +
            ", visibleSegments=" + visibleSegments +
            '}';
+  }
+
+  private class PartitionChunkCandidate
+  {
+    private final PartitionChunk<T> chunk;
+    private final boolean online;
+
+    private PartitionChunkCandidate(PartitionChunk<T> chunk, boolean online)
+    {
+      this.chunk = chunk;
+      this.online = online;
+    }
   }
 }
