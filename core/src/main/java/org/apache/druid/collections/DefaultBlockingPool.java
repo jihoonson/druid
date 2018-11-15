@@ -73,6 +73,7 @@ public class DefaultBlockingPool<T> implements BlockingPool<T>
   @Override
   public int available()
   {
+    final ReentrantLock lock = this.lock;
     lock.lock();
     try {
       return objects.size();

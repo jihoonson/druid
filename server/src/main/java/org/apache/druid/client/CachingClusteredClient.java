@@ -329,7 +329,11 @@ public class CachingClusteredClient implements QuerySegmentWalker
       } else if (numParallelCombineThreads == QueryContexts.NO_PARALLEL_COMBINE_THREADS) {
         return sequentialMerge(sequencesByInterval);
       } else {
-        throw new ISE("Unknown value for [%s]", QueryContexts.NUM_BROKER_PARALLEL_COMBINE_THREADS);
+        throw new ISE(
+            "Unknown value[%d] for [%s]",
+            numParallelCombineThreads,
+            QueryContexts.NUM_BROKER_PARALLEL_COMBINE_THREADS
+        );
       }
     }
 

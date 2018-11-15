@@ -42,6 +42,15 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
+/**
+ * This sequence merges underlying {@link #baseSequences} and combines (aggregates) them in parallel.
+ * It creates a tree to merge and combine input streams in parallel, consisting of processing threads connected by
+ * blocking queues. In leaf nodes, the processing threads combines values from the {@link #baseSequences} and stores
+ * aggregates in its blocking queue. Intermediate threads reads values from the blocking queue of their children and
+ * stores computed aggregates its blocking queue. Finally, the caller thread of this class (usually it's an http thread
+ * in query processing) reads values from the queue of the root thread. Filling blocking queue and reading from it are
+ * done asynchronously.
+ */
 public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 {
   private static final int MINIMUM_LEAF_COMBINE_DEGREE = 2;
@@ -77,19 +86,6 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
     this.hasTimeout = hasTimeout;
     this.timeoutAt = System.currentTimeMillis() + timeout;
     this.queryPriority = queryPriority;
-  }
-
-  private void addToQueue(BlockingQueue<ValueHolder> queue, ValueHolder holder)
-      throws InterruptedException
-  {
-    if (!hasTimeout) {
-      queue.put(holder);
-    } else {
-      final long timeout = timeoutAt - System.currentTimeMillis();
-      if (!queue.offer(holder, timeout, TimeUnit.MILLISECONDS)) {
-        throw new RuntimeException(new TimeoutException());
-      }
-    }
   }
 
   @Override
@@ -128,9 +124,9 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 
     // In the result combine tree, nodes and edges are processing threads and blocking queues, respectively.
     // In the leaf nodes, processing threads read data from historicals and fill its blocking queue.
-    // In the intermediate nodes, processing threads read data from the blocking queues of the child nodes and fill
+    // In the intermediate nodes, processing threads read data from the blocking queues of their children and fill
     // its blocking queue.
-    // The HTTP thread reads the blocking queue of the root node.
+    // The caller thread reads the blocking queue of the root node.
     final Pair<Sequence<T>, List<Future>> rootAndFutures = ParallelCombines.buildCombineTree(
         baseSequences,
         combineDegree,
@@ -162,8 +158,8 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
 
   private static int computeNumRequiredThreads(int numChildNodes, int combineDegree)
   {
-    // numChildrenForLastNode used to determine that the last node is needed for the current level.
-    // Please see buildCombineTree() for more details.
+    // numChildNodes is used to determine that the last node is needed for the current level.
+    // Please see ParallelCombines.buildCombineTree() for more details.
     final int numChildrenForLastNode = numChildNodes % combineDegree;
     final int numCurLevelNodes = numChildNodes / combineDegree + (numChildrenForLastNode > 1 ? 1 : 0);
     final int numChildOfParentNodes = numCurLevelNodes + (numChildrenForLastNode == 1 ? 1 : 0);
@@ -215,6 +211,7 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
                     return theQueue;
                   }
               );
+              // add a null to indicate this is the last one
               addToQueue(queue, new ValueHolder(null));
             }
             catch (InterruptedException e) {
@@ -289,6 +286,19 @@ public class ParallelMergeCombineSequence<T> extends YieldingSequenceBase<T>
     );
 
     return Pair.of(backgroundCombineSequence, future);
+  }
+
+  private void addToQueue(BlockingQueue<ValueHolder> queue, ValueHolder holder)
+      throws InterruptedException
+  {
+    if (!hasTimeout) {
+      queue.put(holder);
+    } else {
+      final long timeout = timeoutAt - System.currentTimeMillis();
+      if (!queue.offer(holder, timeout, TimeUnit.MILLISECONDS)) {
+        throw new RuntimeException(new TimeoutException());
+      }
+    }
   }
 
   private class ValueHolder
