@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -44,23 +45,28 @@ public class LockResult
   private final TaskLock taskLock;
   private final boolean revoked;
 
-  public static LockResult ok(TaskLock taskLock)
+  @Nullable
+  private final SegmentIdentifier newSegmentId;
+
+  public static LockResult ok(TaskLock taskLock, SegmentIdentifier newSegmentId)
   {
-    return new LockResult(taskLock, false);
+    return new LockResult(taskLock, newSegmentId, false);
   }
 
   public static LockResult fail(boolean revoked)
   {
-    return new LockResult(null, revoked);
+    return new LockResult(null, null, revoked);
   }
 
   @JsonCreator
   public LockResult(
       @JsonProperty("taskLock") @Nullable TaskLock taskLock,
+      @JsonProperty("newSegmentId") @Nullable SegmentIdentifier newSegmentId,
       @JsonProperty("revoked") boolean revoked
   )
   {
     this.taskLock = taskLock;
+    this.newSegmentId = newSegmentId;
     this.revoked = revoked;
   }
 
@@ -68,6 +74,12 @@ public class LockResult
   public TaskLock getTaskLock()
   {
     return taskLock;
+  }
+
+  @JsonProperty("newSegmentId")
+  public SegmentIdentifier getNewSegmentId()
+  {
+    return newSegmentId;
   }
 
   @JsonProperty("revoked")

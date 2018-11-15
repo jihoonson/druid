@@ -22,16 +22,19 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
-import org.apache.druid.indexing.overlord.TaskLockbox.LockRequest;
-import org.apache.druid.indexing.overlord.TaskLockbox.SegmentLockRequest;
+import org.apache.druid.indexing.overlord.ExistingSegmentLockRequest;
+import org.apache.druid.indexing.overlord.LockRequest;
+import org.apache.druid.indexing.overlord.LockRequestTmp;
+import org.apache.druid.indexing.overlord.NewSegmentLockRequest;
+import org.apache.druid.java.util.common.ISE;
 import org.joda.time.Interval;
 
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
 /**
  * Lock for a single segment. Should be unique for (dataSource, interval, partitionId).
+ * TODO: rename to PartitionLock?
  */
 public class SegmentLock implements TaskLock
 {
@@ -39,10 +42,55 @@ public class SegmentLock implements TaskLock
   private final String groupId;
   private final String dataSource;
   private final Interval interval;
-  private final Set<Integer> partitionIds;
+  private final Set<Integer> partitionIds; // TODO: mutable???
   private final String version;
   private final int priority;
   private final boolean revoked;
+
+  public static SegmentLock from(LockRequestTmp request)
+  {
+    Preconditions.checkArgument(
+        request.getGranularity() == LockGranularity.SEGMENT,
+        "Invalid lockGranularity[%s]",
+        request.getGranularity()
+    );
+    Preconditions.checkArgument(!request.getPartitionIds().isEmpty(), "Empty partitionIds");
+    // Preferred version should be set for lock requests for existing segments
+    Preconditions.checkNotNull(request.getPreferredVersion(), "Null version");
+
+    return new SegmentLock(
+        request.getType(),
+        request.getGroupId(),
+        request.getDataSource(),
+        request.getInterval(),
+        request.getPartitionIds(),
+        request.getPreferredVersion(),
+        request.getPriority(),
+        request.isRevoked()
+    );
+  }
+
+  public static SegmentLock from(LockRequestTmp request, Set<Integer> partitionIds, String version)
+  {
+    Preconditions.checkArgument(
+        request.getGranularity() == LockGranularity.SEGMENT,
+        "Invalid lockGranularity[%s]",
+        request.getGranularity()
+    );
+    Preconditions.checkArgument(request.getPartitionIds().isEmpty(), "Non-empty partitionIds");
+    Preconditions.checkArgument(request.getPreferredVersion() == null, "Non-null version");
+
+    return new SegmentLock(
+        request.getType(),
+        request.getGroupId(),
+        request.getDataSource(),
+        request.getInterval(),
+        partitionIds,
+        version,
+        request.getPriority(),
+        request.isRevoked()
+    );
+  }
 
   @JsonCreator
   public SegmentLock(
@@ -56,6 +104,7 @@ public class SegmentLock implements TaskLock
       @JsonProperty("revoked") boolean revoked
   )
   {
+    Preconditions.checkArgument(!partitionIds.isEmpty(), "Empty partitionIds");
     this.type = Preconditions.checkNotNull(type, "type");
     this.groupId = Preconditions.checkNotNull(groupId, "groupId");
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
@@ -161,19 +210,27 @@ public class SegmentLock implements TaskLock
   @Override
   public boolean conflict(LockRequest request)
   {
-    if (request instanceof SegmentLockRequest) {
-      // Lock conflicts only if the interval is same and the partitionIds intersect.
-      final SegmentLockRequest segmentLockRequest = (SegmentLockRequest) request;
-
-      if (dataSource.equals(segmentLockRequest.getDataSource())
-          && interval.equals(segmentLockRequest.getInterval())) {
-        return !Sets.intersection(new HashSet<>(partitionIds), new HashSet<>(segmentLockRequest.getPartitionIds())).isEmpty();
+    if (request instanceof TimeChunkLock) {
+      // For different interval, all overlapping intervals cause conflict.
+      return dataSource.equals(request.getDataSource())
+             && interval.overlaps(request.getInterval());
+    } else if (request instanceof ExistingSegmentLockRequest) {
+      if (dataSource.equals(request.getDataSource())
+          && interval.equals(request.getInterval())) {
+        final ExistingSegmentLockRequest existingSegmentLockRequest = (ExistingSegmentLockRequest) request;
+        // Lock conflicts only if the interval is same and the partitionIds intersect.
+        return !Sets.intersection(partitionIds, existingSegmentLockRequest.getPartitionIds()).isEmpty();
+      } else {
+        // For different interval, all overlapping intervals cause conflict.
+        return dataSource.equals(request.getDataSource())
+               && interval.overlaps(request.getInterval());
       }
+    } else if (request instanceof NewSegmentLockRequest) {
+      // request for new segments doens't conflict with any locks because it allocates a new partitionId
+      return false;
+    } else {
+      throw new ISE("Unknown request type[%s]", request.getClass().getCanonicalName());
     }
-
-    // For different interval, all overlapping intervals cause conflict.
-    return dataSource.equals(request.getDataSource())
-           && interval.overlaps(request.getInterval());
   }
 
   @Override

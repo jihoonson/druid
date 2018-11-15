@@ -975,7 +975,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
           if (isExtendableShardSpecs(ioConfig, tuningConfig)) {
             shardSpecForPublishing = new NumberedShardSpec(
                 idsPerInterval.get(i).getShardSpec().getPartitionNum(),
-                shardSpecsPerInterval.size()
+                shardSpecsPerInterval.size() // TODO: this is wrong now
             );
           } else {
             shardSpecForPublishing = idsPerInterval.get(i).getShardSpec();

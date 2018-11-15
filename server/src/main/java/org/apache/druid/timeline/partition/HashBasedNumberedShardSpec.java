@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -43,20 +44,40 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   private static final List<String> DEFAULT_PARTITION_DIMENSIONS = ImmutableList.of();
 
   private final ObjectMapper jsonMapper;
+  private final int startPartition;
   @JsonIgnore
   private final List<String> partitionDimensions;
 
+  // TODO: check what's the valid partitions. is it (max existing partitionId) + # of new partitions?
+  // or just # of new partitions?
+  // or do we need a start partitionId?
+
   @JsonCreator
   public HashBasedNumberedShardSpec(
-      @JsonProperty("partitionNum") int partitionNum,
-      @JsonProperty("partitions") int partitions,
+      @JsonProperty("partitionNum") int partitionNum, // partitionId
+      @JsonProperty("startPartition") int startPartition, // backward compatible since old shard specs will fill this with 0
+      @JsonProperty("partitions") int partitions, // # of partitions
       @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
       @JacksonInject ObjectMapper jsonMapper
   )
   {
     super(partitionNum, partitions);
     this.jsonMapper = jsonMapper;
+    this.startPartition = startPartition;
     this.partitionDimensions = partitionDimensions == null ? DEFAULT_PARTITION_DIMENSIONS : partitionDimensions;
+    Preconditions.checkArgument(
+        partitionNum >= startPartition && partitionNum < startPartition + partitions,
+        "partitionNum[%s] should be in [%s, %s)",
+        partitionNum,
+        startPartition,
+        startPartition + partitions
+    );
+  }
+
+  @JsonProperty
+  public int getStartPartition()
+  {
+    return startPartition;
   }
 
   @JsonProperty("partitionDimensions")
@@ -68,7 +89,12 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   @Override
   public boolean isInChunk(long timestamp, InputRow inputRow)
   {
-    return (((long) hash(timestamp, inputRow)) - getPartitionNum()) % getPartitions() == 0;
+    return (((long) hash(timestamp, inputRow)) - getOrdinalPartition()) % getPartitions() == 0;
+  }
+
+  private int getOrdinalPartition()
+  {
+    return getPartitionNum() - startPartition;
   }
 
   protected int hash(long timestamp, InputRow inputRow)
@@ -105,6 +131,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   {
     return "HashBasedNumberedShardSpec{" +
            "partitionNum=" + getPartitionNum() +
+           ", startPartition=" + startPartition +
            ", partitions=" + getPartitions() +
            ", partitionDimensions=" + getPartitionDimensions() +
            '}';

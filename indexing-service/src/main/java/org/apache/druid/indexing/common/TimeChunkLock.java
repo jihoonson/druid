@@ -21,7 +21,8 @@ package org.apache.druid.indexing.common;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
-import org.apache.druid.indexing.overlord.TaskLockbox.LockRequest;
+import org.apache.druid.indexing.overlord.LockRequest;
+import org.apache.druid.indexing.overlord.LockRequestTmp;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -37,6 +38,24 @@ public class TimeChunkLock implements TaskLock
   @Nullable
   private final Integer priority;
   private final boolean revoked;
+
+  public static TimeChunkLock from(LockRequestTmp request)
+  {
+    Preconditions.checkArgument(
+        request.getGranularity() == LockGranularity.TIME_CHUNK,
+        "Invalid lockGranularity[%s]",
+        request.getGranularity()
+    );
+    return new TimeChunkLock(
+        request.getType(),
+        request.getGroupId(),
+        request.getDataSource(),
+        request.getInterval(),
+        request.getVersion(),
+        request.getPriority(),
+        request.isRevoked()
+    );
+  }
 
   @JsonCreator
   public TimeChunkLock(

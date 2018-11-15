@@ -118,7 +118,6 @@ public interface IndexerMetadataStorageCoordinator
       String previousSegmentId,
       Interval interval,
       String version,
-      final Function<SegmentAllocationContext, ShardSpec> shardSpecGenrator,// TODO: maxPartitionId, partitionId, objectMapper -> shardSpec
       boolean skipSegmentLineageCheck
   );
 

@@ -49,7 +49,6 @@ import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.PartitionChunk;
-import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 import org.skife.jdbi.v2.FoldController;
 import org.skife.jdbi.v2.Folder3;
@@ -75,7 +74,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -453,7 +451,6 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       @Nullable final String previousSegmentId,
       final Interval interval,
       final String version,
-      final Function<SegmentAllocationContext, ShardSpec> shardSpecGenrator,
       final boolean skipSegmentLineageCheck
   )
   {
@@ -469,15 +466,14 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
           public SegmentIdentifier withHandle(Handle handle) throws Exception
           {
             return skipSegmentLineageCheck ?
-                   allocatePendingSegment(handle, dataSource, sequenceName, interval, version, shardSpecGenrator) :
+                   allocatePendingSegment(handle, dataSource, sequenceName, interval, version) :
                    allocatePendingSegmentWithSegmentLineageCheck(
                        handle,
                        dataSource,
                        sequenceName,
                        previousSegmentId,
                        interval,
-                       version,
-                       shardSpecGenrator
+                       version
                    );
           }
         }
@@ -491,8 +487,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String sequenceName,
       @Nullable final String previousSegmentId,
       final Interval interval,
-      final String version,
-      final Function<SegmentAllocationContext, ShardSpec> shardSpecGenrator
+      final String version
   ) throws IOException
   {
     final String previousSegmentIdNotNull = previousSegmentId == null ? "" : previousSegmentId;
@@ -519,7 +514,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       return result.segmentIdentifier;
     }
 
-    final SegmentIdentifier newIdentifier = createNewSegment(handle, dataSource, interval, version, shardSpecGenrator);
+    final SegmentIdentifier newIdentifier = createNewSegment(handle, dataSource, interval, version);
     if (newIdentifier == null) {
       return null;
     }
@@ -559,8 +554,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String dataSource,
       final String sequenceName,
       final Interval interval,
-      final String version,
-      final Function<SegmentAllocationContext, ShardSpec> shardSpecGenrator
+      final String version
   ) throws IOException
   {
     final CheckExistingSegmentIdResult result = checkAndGetExistingSegmentId(
@@ -589,7 +583,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       return result.segmentIdentifier;
     }
 
-    final SegmentIdentifier newIdentifier = createNewSegment(handle, dataSource, interval, version, shardSpecGenrator);
+    final SegmentIdentifier newIdentifier = createNewSegment(handle, dataSource, interval, version);
     if (newIdentifier == null) {
       return null;
     }
@@ -814,8 +808,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final Handle handle,
       final String dataSource,
       final Interval interval,
-      final String version,
-      final Function<SegmentAllocationContext, ShardSpec> shardSpecGenrator
+      final String version
   ) throws IOException
   {
     // Make up a pending segment based on existing segments and pending segments in the DB. This works
@@ -873,8 +866,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             dataSource,
             interval,
             version,
-//            new NumberedShardSpec(partitionId, 0),
-            shardSpecGenrator.apply(new SegmentAllocationContext(jsonMapper, null, 0)),
+            new NumberedShardSpec(0, 0),
             null
         );
       } else if (!max.getInterval().equals(interval) || !max.getVersion().equals(version)) {
@@ -886,45 +878,35 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             max.getIdentifierAsString()
         );
         return null;
-//      } else if (max.getShardSpec() instanceof LinearShardSpec) {
-//        return new SegmentIdentifier(
-//            dataSource,
-//            max.getInterval(),
-//            version,
-//            new LinearShardSpec(partitionId),
-//            null
-//        );
-//      } else if (max.getShardSpec() instanceof NumberedShardSpec) {
-//        return new SegmentIdentifier(
-//            dataSource,
-//            max.getInterval(),
-//            version,
-//            new NumberedShardSpec(
-//                partitionId,
-//                ((NumberedShardSpec) max.getShardSpec()).getPartitions()
-//            ),
-//            null
-//        );
-      } else {
-//        log.warn(
-//            "Cannot allocate new segment for dataSource[%s], interval[%s], maxVersion[%s]: ShardSpec class[%s] used by [%s].",
-//            dataSource,
-//            interval,
-//            version,
-//            max.getShardSpec().getClass(),
-//            max.getIdentifierAsString()
-//        );
-//        return null;
-        final Integer maxPartitions = max.getShardSpec() instanceof NumberedShardSpec ?
-                                     ((NumberedShardSpec) max.getShardSpec()).getPartitions() :
-                                     0;
+      } else if (max.getShardSpec() instanceof LinearShardSpec) {
         return new SegmentIdentifier(
             dataSource,
             max.getInterval(),
             version,
-            shardSpecGenrator.apply(new SegmentAllocationContext(jsonMapper, maxPartitions, 0)),
+            new LinearShardSpec(max.getShardSpec().getPartitionNum() + 1),
             null
         );
+      } else if (max.getShardSpec() instanceof NumberedShardSpec) {
+        return new SegmentIdentifier(
+            dataSource,
+            max.getInterval(),
+            version,
+            new NumberedShardSpec(
+                max.getShardSpec().getPartitionNum() + 1,
+                ((NumberedShardSpec) max.getShardSpec()).getPartitions()
+            ),
+            null
+        );
+      } else {
+        log.warn(
+            "Cannot allocate new segment for dataSource[%s], interval[%s], maxVersion[%s]: ShardSpec class[%s] used by [%s].",
+            dataSource,
+            interval,
+            version,
+            max.getShardSpec().getClass(),
+            max.getIdentifierAsString()
+        );
+        return null;
       }
     }
   }

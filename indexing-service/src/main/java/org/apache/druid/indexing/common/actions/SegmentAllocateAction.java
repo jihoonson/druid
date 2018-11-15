@@ -24,15 +24,18 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
+import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.indexing.overlord.IndexerMetadataStorageCoordinator;
+import org.apache.druid.indexing.overlord.LockResult;
+import org.apache.druid.indexing.overlord.NewSegmentLockRequest;
 import org.apache.druid.java.util.common.IAE;
+import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
-import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
@@ -253,104 +256,58 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
       boolean logOnFail
   )
   {
-    log.debug(
-        "Trying to allocate pending segment for rowInterval[%s], segmentInterval[%s].",
-        rowInterval,
-        tryInterval
+    // This action is always used by appending tasks, which cannot change the segment granularity of existing
+    // dataSources. So, all lock requests should be segmentLock.
+    final LockResult lockResult = toolbox.getTaskLockbox().tryLock(
+        task,
+        new NewSegmentLockRequest(
+            TaskLockType.EXCLUSIVE,
+            task.getGroupId(),
+            dataSource,
+            tryInterval,
+            task.getPriority(),
+            1,
+            sequenceName,
+            previousSegmentId,
+            skipSegmentLineageCheck
+        )
     );
 
-    try {
-      return Iterables.getOnlyElement(
-          SegmentAllocationUtils.lockAndAllocateSegments(
-              toolbox,
-              task,
-              () -> sequenceName,
-              previousSegmentId,
-              tryInterval,
-              skipSegmentLineageCheck,
-              context -> new NumberedShardSpec(context.getPartitionId(), context.getNonNullMaxPartitions()),
-              1,
-              logOnFail
-          )
+    if (lockResult.isRevoked()) {
+      // We had acquired a lock but it was preempted by other locks
+      throw new ISE("The lock for interval[%s] is preempted and no longer valid", tryInterval);
+    }
+
+    if (lockResult.isOk()) {
+      final SegmentIdentifier identifier = lockResult.getNewSegmentId();
+      if (identifier != null) {
+        return identifier;
+      } else {
+        final String msg = StringUtils.format(
+            "Could not allocate pending segment for rowInterval[%s], segmentInterval[%s].",
+            rowInterval,
+            tryInterval
+        );
+        if (logOnFail) {
+          log.error(msg);
+        } else {
+          log.debug(msg);
+        }
+        return null;
+      }
+    } else {
+      final String msg = StringUtils.format(
+          "Could not acquire lock for rowInterval[%s], segmentInterval[%s].",
+          rowInterval,
+          tryInterval
       );
+      if (logOnFail) {
+        log.error(msg);
+      } else {
+        log.debug(msg);
+      }
+      return null;
     }
-    catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
-
-    // TODO: probably doInCriticalSection??
-//    return toolbox.doSynchronized(() -> {
-//      // TODO: maybe the task can pass the proper version since it gets input segments
-//      final Pair<String, Integer> maxVersionAndPartitionId = toolbox.getIndexerMetadataStorageCoordinator()
-//                                                                    .findMaxVersionAndAvailablePartitionId(
-//                                                                        dataSource,
-//                                                                        sequenceName,
-//                                                                        previousSegmentId,
-//                                                                        tryInterval,
-//                                                                        skipSegmentLineageCheck
-//                                                                    );
-//
-//      if (maxVersionAndPartitionId.lhs == null) {
-//        // TODO: log?
-//        return null;
-//      }
-//
-//      // This action is always used by appending tasks, which cannot change the segment granularity of existing
-//      // dataSources. So, all lock requests should be segmentLock.
-//      final LockResult lockResult = toolbox.getTaskLockbox().tryLock(
-//          LockGranularity.SEGMENT,
-//          TaskLockType.EXCLUSIVE,
-//          task,
-//          tryInterval,
-//          maxVersionAndPartitionId.lhs,
-//          Collections.singleton(maxVersionAndPartitionId.rhs)
-//      );
-//
-//      if (lockResult.isRevoked()) {
-//        // We had acquired a lock but it was preempted by other locks
-//        throw new ISE("The lock for interval[%s] is preempted and no longer valid", tryInterval);
-//      }
-//
-//      if (lockResult.isOk()) {
-//        final SegmentIdentifier identifier = toolbox.getIndexerMetadataStorageCoordinator().allocatePendingSegment(
-//            dataSource,
-//            sequenceName,
-//            previousSegmentId,
-//            tryInterval,
-//            maxVersionAndPartitionId.lhs,
-//            (maxPartitions, objectMapper) -> new NumberedShardSpec(maxVersionAndPartitionId.rhs, maxPartitions == null ? 0 : maxPartitions),
-//            skipSegmentLineageCheck
-//        );
-//        if (identifier != null) {
-//          return identifier;
-//        } else {
-//          final String msg = StringUtils.format(
-//              "Could not allocate pending segment for rowInterval[%s], segmentInterval[%s].",
-//              rowInterval,
-//              tryInterval
-//          );
-//          if (logOnFail) {
-//            log.error(msg);
-//          } else {
-//            log.debug(msg);
-//          }
-//          return null;
-//        }
-//      } else {
-//        final String msg = StringUtils.format(
-//            "Could not acquire lock for rowInterval[%s], segmentInterval[%s].",
-//            rowInterval,
-//            tryInterval
-//        );
-//        if (logOnFail) {
-//          log.error(msg);
-//        } else {
-//          log.debug(msg);
-//        }
-//        return null;
-//      }
-//    });
-
   }
 
   @Override

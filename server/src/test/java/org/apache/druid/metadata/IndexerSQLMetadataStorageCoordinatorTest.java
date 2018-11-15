@@ -852,7 +852,6 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         prevSegmentId,
         interval,
         version,
-        context -> new NumberedShardSpec(context.getPartitionId(), context.getNonNullMaxPartitions()),
         false
     );
   }
