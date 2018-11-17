@@ -41,11 +41,6 @@ public class SingleDimensionShardSpec implements ShardSpec
   private String end;
   private int partitionNum;
 
-  public SingleDimensionShardSpec()
-  {
-    this(null, null, null, -1);
-  }
-
   public SingleDimensionShardSpec(
       String dimension,
       String start,

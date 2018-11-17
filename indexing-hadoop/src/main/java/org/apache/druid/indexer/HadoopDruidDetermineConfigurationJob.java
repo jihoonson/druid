@@ -69,6 +69,7 @@ public class HadoopDruidDetermineConfigurationJob implements Jobby
                 new HadoopyShardSpec(
                     new HashBasedNumberedShardSpec(
                         i,
+                        0,
                         shardsPerInterval,
                         config.getPartitionsSpec().getPartitionDimensions(),
                         HadoopDruidIndexerConfig.JSON_MAPPER

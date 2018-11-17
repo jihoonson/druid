@@ -28,6 +28,8 @@ import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * This class represents the result of {@link TaskLockbox#tryTimeChunkLock(TaskLockType, Task, Interval)}. If the lock
@@ -44,29 +46,27 @@ public class LockResult
 {
   private final TaskLock taskLock;
   private final boolean revoked;
+  private final List<SegmentIdentifier> newSegmentIds;
 
-  @Nullable
-  private final SegmentIdentifier newSegmentId;
-
-  public static LockResult ok(TaskLock taskLock, SegmentIdentifier newSegmentId)
+  public static LockResult ok(TaskLock taskLock, List<SegmentIdentifier> newSegmentId)
   {
     return new LockResult(taskLock, newSegmentId, false);
   }
 
   public static LockResult fail(boolean revoked)
   {
-    return new LockResult(null, null, revoked);
+    return new LockResult(null, Collections.emptyList(), revoked);
   }
 
   @JsonCreator
   public LockResult(
       @JsonProperty("taskLock") @Nullable TaskLock taskLock,
-      @JsonProperty("newSegmentId") @Nullable SegmentIdentifier newSegmentId,
+      @JsonProperty("newSegmentIds") @Nullable List<SegmentIdentifier> newSegmentIds,
       @JsonProperty("revoked") boolean revoked
   )
   {
     this.taskLock = taskLock;
-    this.newSegmentId = newSegmentId;
+    this.newSegmentIds = newSegmentIds == null ? Collections.emptyList() : newSegmentIds;
     this.revoked = revoked;
   }
 
@@ -76,10 +76,10 @@ public class LockResult
     return taskLock;
   }
 
-  @JsonProperty("newSegmentId")
-  public SegmentIdentifier getNewSegmentId()
+  @JsonProperty("newSegmentIds")
+  public List<SegmentIdentifier> getNewSegmentIds()
   {
-    return newSegmentId;
+    return newSegmentIds;
   }
 
   @JsonProperty("revoked")

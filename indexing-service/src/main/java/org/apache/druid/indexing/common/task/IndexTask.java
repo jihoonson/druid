@@ -91,9 +91,12 @@ import org.apache.druid.server.security.Action;
 import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.NoneShardSpec;
+import org.apache.druid.timeline.partition.NoneShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.utils.CircularBuffer;
 import org.codehaus.plexus.util.FileUtils;
 import org.joda.time.Interval;
@@ -180,8 +183,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
 
   @JsonIgnore
   private final RowIngestionMeters buildSegmentsMeters;
-
-  private final Map<Interval, Set<Integer>> inputSegmentPartitionIds = new HashMap<>();
 
   @JsonCreator
   public IndexTask(
@@ -678,40 +679,43 @@ public class IndexTask extends AbstractTask implements ChatHandler
     }
   }
 
-  private static ShardSpecs createShardSpecWithoutInputScan(
+  private static Map<Interval, Integer> createShardSpecWithoutInputScan(
       ObjectMapper jsonMapper,
       GranularitySpec granularitySpec,
       IndexIOConfig ioConfig,
       IndexTuningConfig tuningConfig
   )
   {
-    final Map<Interval, List<ShardSpec>> shardSpecs = new HashMap<>();
+//    final Map<Interval, List<ShardSpec>> shardSpecs = new HashMap<>();
+    final Map<Interval, Integer> intervalToNumShards = new HashMap<>();
     final SortedSet<Interval> intervals = granularitySpec.bucketIntervals().get();
 
     if (isGuaranteedRollup(ioConfig, tuningConfig)) {
       // Overwrite mode, guaranteed rollup: shardSpecs must be known in advance.
       final int numShards = tuningConfig.getNumShards() == null ? 1 : tuningConfig.getNumShards();
-      final BiFunction<Integer, Integer, ShardSpec> shardSpecCreateFn = getShardSpecCreateFunction(
-          numShards,
-          tuningConfig.getPartitionDimensions(),
-          jsonMapper
-      );
+//      final ShardSpecFactory shardSpecFactory = getShardSpecCreateFunction(
+//          numShards,
+//          tuningConfig.getPartitionDimensions(),
+//          jsonMapper
+//      );
 
       for (Interval interval : intervals) {
-        final List<ShardSpec> intervalShardSpecs = IntStream.range(0, numShards)
-                                                            .mapToObj(
-                                                                shardId -> shardSpecCreateFn.apply(shardId, numShards)
-                                                            )
-                                                            .collect(Collectors.toList());
-        shardSpecs.put(interval, intervalShardSpecs);
+//        final List<ShardSpec> intervalShardSpecs = IntStream.range(0, numShards)
+//                                                            .mapToObj(
+//                                                                shardId -> shardSpecCreateFn.apply(shardId, numShards)
+//                                                            )
+//                                                            .collect(Collectors.toList());
+//        shardSpecs.put(interval, intervalShardSpecs);
+        intervalToNumShards.put(interval, numShards);
       }
     } else {
       for (Interval interval : intervals) {
-        shardSpecs.put(interval, ImmutableList.of());
+//        shardSpecs.put(interval, ImmutableList.of());
+        intervalToNumShards.put(interval, 0);
       }
     }
 
-    return new ShardSpecs(shardSpecs);
+    return intervalToNumShards;
   }
 
   private ShardSpecs createShardSpecsFromInput(
@@ -878,7 +882,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
     return hllCollectors;
   }
 
-  private static BiFunction<Integer, Integer, ShardSpec> getShardSpecCreateFunction(
+  private static ShardSpecFactory getShardSpecCreateFunction(
       Integer numShards,
       List<String> partitionDimensions,
       ObjectMapper jsonMapper
@@ -887,14 +891,16 @@ public class IndexTask extends AbstractTask implements ChatHandler
     Preconditions.checkNotNull(numShards, "numShards");
 
     if (numShards == 1) {
-      return (shardId, totalNumShards) -> NoneShardSpec.instance();
+//      return (shardId, totalNumShards) -> NoneShardSpec.instance();
+      return new NoneShardSpecFactory();
     } else {
-      return (shardId, totalNumShards) -> new HashBasedNumberedShardSpec(
-          shardId,
-          totalNumShards,
-          partitionDimensions,
-          jsonMapper
-      );
+//      return (shardId, totalNumShards) -> new HashBasedNumberedShardSpec(
+//          shardId,
+//          totalNumShards,
+//          partitionDimensions,
+//          jsonMapper
+//      );
+      return new HashBasedNumberedShardSpecFactory(partitionDimensions);
     }
   }
 
@@ -956,6 +962,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
           .stream()
           .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().size()));
 
+      // TODO: create shardSpec on the fly
       final List<SegmentIdentifier> segmentIds = toolbox.getTaskActionClient().submit(new SegmentBulkAllocateAction(allocateSpec, getId()));
       final Map<Interval, List<SegmentIdentifier>> intervalToIds = new HashMap<>();
       for (SegmentIdentifier id : segmentIds) {
@@ -1039,7 +1046,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
         final SegmentIdentifier segmentIdentifier = rawAllocator.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);
         return segmentIdentifier == null
                ? null
-               :segmentIdentifier.withOvershadowedGroup(inputSegmentPartitionIds.get(segmentIdentifier.getInterval()));
+               :segmentIdentifier.withOvershadowedGroup(getInputPartitionIdsFor(segmentIdentifier.getInterval()));
       }
     };
 

@@ -279,9 +279,13 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     }
 
     if (lockResult.isOk()) {
-      final SegmentIdentifier identifier = lockResult.getNewSegmentId();
-      if (identifier != null) {
-        return identifier;
+      final List<SegmentIdentifier> identifiers = lockResult.getNewSegmentIds();
+      if (!identifiers.isEmpty()) {
+        if (identifiers.size() == 1) {
+          return identifiers.get(0);
+        } else {
+          throw new ISE("WTH? multiple segmentIds[%s] are created?", identifiers);
+        }
       } else {
         final String msg = StringUtils.format(
             "Could not allocate pending segment for rowInterval[%s], segmentInterval[%s].",

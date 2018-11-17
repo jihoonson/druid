@@ -145,10 +145,11 @@ public class TaskLockbox
                                       ? savedTaskLock.withPriority(task.getPriority())
                                       : savedTaskLock;
 
-        final Pair<TaskLockPosse, SegmentIdentifier> taskLockPosse = verifyAndCreateOrFindLockPosse(
+        final Pair<TaskLockPosse, List<SegmentIdentifier>> taskLockPosse = verifyAndCreateOrFindLockPosse(
             task,
             savedTaskLockWithPriority
         );
+        Preconditions.checkState(taskLockPosse.rhs.isEmpty(), "This shouldn't create new ids");
         if (taskLockPosse != null) {
           taskLockPosse.lhs.addTask(task);
 
@@ -197,7 +198,7 @@ public class TaskLockbox
    * groupId, dataSource, and priority.
    */
   @Nullable
-  private Pair<TaskLockPosse, SegmentIdentifier> verifyAndCreateOrFindLockPosse(Task task, TaskLock taskLock)
+  private Pair<TaskLockPosse, List<SegmentIdentifier>> verifyAndCreateOrFindLockPosse(Task task, TaskLock taskLock)
   {
     giant.lock();
 
@@ -350,7 +351,7 @@ public class TaskLockbox
       }
       Preconditions.checkArgument(request.getInterval().toDurationMillis() > 0, "interval empty");
 
-      final Pair<TaskLockPosse, SegmentIdentifier> pair = createOrFindLockPosse(task, request);
+      final Pair<TaskLockPosse, List<SegmentIdentifier>> pair = createOrFindLockPosse(task, request);
       final TaskLockPosse posseToUse = pair.lhs;
       if (posseToUse != null && !posseToUse.getTaskLock().isRevoked()) {
         // Add to existing TaskLockPosse, if necessary
@@ -387,7 +388,7 @@ public class TaskLockbox
   }
 
   @Nullable
-  private Pair<TaskLockPosse, SegmentIdentifier> createOrFindLockPosse(Task task, LockRequest request)
+  private Pair<TaskLockPosse, List<SegmentIdentifier>> createOrFindLockPosse(Task task, LockRequest request)
   {
     giant.lock();
 
@@ -485,11 +486,11 @@ public class TaskLockbox
    * @return a new {@link TaskLockPosse}
    */
   // TODO: new class?
-  private Pair<TaskLockPosse, SegmentIdentifier> createNewTaskLockPosse(LockRequest request)
+  private Pair<TaskLockPosse, List<SegmentIdentifier>> createNewTaskLockPosse(LockRequest request)
   {
     giant.lock();
     try {
-      final Pair<TaskLock, SegmentIdentifier> pair = createLock(request);
+      final Pair<TaskLock, List<SegmentIdentifier>> pair = createLock(request);
       // TODO: how to return new segment identifier to the lock holder?
       final TaskLockPosse posseToUse = new TaskLockPosse(pair.lhs);
       running.computeIfAbsent(request.getDataSource(), k -> new TreeMap<>(Comparators.intervalsByStartThenEnd()))
@@ -503,39 +504,35 @@ public class TaskLockbox
     }
   }
 
-  private List<Pair<TaskLock, SegmentIdentifier>> createLock(LockRequest request)
+  private Pair<TaskLock, List<SegmentIdentifier>> createLock(LockRequest request)
   {
     if (request instanceof TimeChunkLockRequest) {
-      return Collections.singletonList(
-          Pair.of(
-              new TimeChunkLock(
-                  request.getType(),
-                  request.getGroupId(),
-                  request.getDataSource(),
-                  request.getInterval(),
-                  request.getVersion(),
-                  request.getPriority(),
-                  request.isRevoked()
-              ),
-              null
-          )
+      return Pair.of(
+          new TimeChunkLock(
+              request.getType(),
+              request.getGroupId(),
+              request.getDataSource(),
+              request.getInterval(),
+              request.getVersion(),
+              request.getPriority(),
+              request.isRevoked()
+          ),
+          Collections.emptyList()
       );
     } else if (request instanceof ExistingSegmentLockRequest) {
       final ExistingSegmentLockRequest existingSegmentLockRequest = (ExistingSegmentLockRequest) request;
-      return Collections.singletonList(
-          Pair.of(
-              new SegmentLock(
-                  existingSegmentLockRequest.getType(),
-                  existingSegmentLockRequest.getGroupId(),
-                  existingSegmentLockRequest.getDataSource(),
-                  existingSegmentLockRequest.getInterval(),
-                  existingSegmentLockRequest.getPartitionIds(),
-                  existingSegmentLockRequest.getVersion(),
-                  existingSegmentLockRequest.getPriority(),
-                  existingSegmentLockRequest.isRevoked()
-              ),
-              null
-          )
+      return Pair.of(
+          new SegmentLock(
+              existingSegmentLockRequest.getType(),
+              existingSegmentLockRequest.getGroupId(),
+              existingSegmentLockRequest.getDataSource(),
+              existingSegmentLockRequest.getInterval(),
+              existingSegmentLockRequest.getPartitionIds(),
+              existingSegmentLockRequest.getVersion(),
+              existingSegmentLockRequest.getPriority(),
+              existingSegmentLockRequest.isRevoked()
+          ),
+          Collections.emptyList()
       );
     } else if (request instanceof NewSegmentLockRequest) {
       final NewSegmentLockRequest newSegmentLockRequest = (NewSegmentLockRequest) request;
@@ -553,16 +550,11 @@ public class TaskLockbox
         );
       }
       final String version = newIds.get(0).getVersion();
-
-
-      new SegmentLock(
-          request.getType(),
-          request.getGroupId(),
-          request.getDataSource(),
-          request.getInterval(),
-          newIds.stream().map(id -> id.getShardSpec().getPartitionNum()).collect(Collectors.toSet()),
-
-      )
+      Preconditions.checkState(
+          newIds.stream().allMatch(id -> id.getVersion().equals(version)),
+          "WTH? new segmentIds have different version? [%s]",
+          newIds
+      );
 
       return Pair.of(
           new SegmentLock(
@@ -570,11 +562,11 @@ public class TaskLockbox
               request.getGroupId(),
               request.getDataSource(),
               request.getInterval(),
-              Collections.singleton(newSegmentIdentifier.getShardSpec().getPartitionNum()),
-              newSegmentIdentifier.getVersion(),
+              newIds.stream().map(id -> id.getShardSpec().getPartitionNum()).collect(Collectors.toSet()),
+              version,
               request.getPriority()
           ),
-          newSegmentIdentifier
+          newIds
       );
     } else {
       throw new ISE("Unknown request type[%s]", request.getClass().getCanonicalName());

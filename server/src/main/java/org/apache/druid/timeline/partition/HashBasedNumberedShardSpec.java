@@ -74,6 +74,17 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     );
   }
 
+  @VisibleForTesting
+  HashBasedNumberedShardSpec(
+      int partitionNum,
+      int partitions,
+      @Nullable List<String> partitionDimensions,
+      ObjectMapper jsonMapper
+  )
+  {
+    this(partitionNum, 0, partitions, partitionDimensions, jsonMapper);
+  }
+
   @JsonProperty
   public int getStartPartition()
   {
