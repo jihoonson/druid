@@ -21,11 +21,12 @@ package org.apache.druid.indexing.common.actions;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.indexing.overlord.LockRequest;
 import org.apache.druid.indexing.overlord.LockResult;
-import org.apache.druid.indexing.overlord.NewSegmentLockRequest;
+import org.apache.druid.indexing.overlord.LockRequestForNewSegment;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.joda.time.Interval;
@@ -40,15 +41,18 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
   // interval -> # of segments to allocate
   private final Map<Interval, Integer> allocateSpec;
   private final String baseSequenceName;
+  private final boolean changeSegmentGranularity;
 
   @JsonCreator
   public SegmentBulkAllocateAction(
       @JsonProperty("allocateSpec") Map<Interval, Integer> allocateSpec,
-      @JsonProperty("baseSequenceName") String baseSequenceName
+      @JsonProperty("baseSequenceName") String baseSequenceName,
+      @JsonProperty("changeSegmentGranularity") boolean changeSegmentGranularity
   )
   {
     this.allocateSpec = allocateSpec;
     this.baseSequenceName = baseSequenceName;
+    this.changeSegmentGranularity = changeSegmentGranularity;
   }
 
   @JsonProperty
@@ -79,7 +83,8 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
     for (Entry<Interval, Integer> entry : allocateSpec.entrySet()) {
       final Interval interval = entry.getKey();
       final int numSegmentsToAllocate = entry.getValue();
-      final LockRequest lockRequest = new NewSegmentLockRequest(
+      final LockRequest lockRequest = new LockRequestForNewSegment(
+          changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
           TaskLockType.EXCLUSIVE,
           task.getGroupId(),
           task.getDataSource(),

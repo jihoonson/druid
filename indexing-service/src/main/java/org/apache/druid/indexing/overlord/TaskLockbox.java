@@ -507,67 +507,28 @@ public class TaskLockbox
   private Pair<TaskLock, List<SegmentIdentifier>> createLock(LockRequest request)
   {
     if (request instanceof TimeChunkLockRequest) {
-      return Pair.of(
-          new TimeChunkLock(
-              request.getType(),
-              request.getGroupId(),
-              request.getDataSource(),
-              request.getInterval(),
-              request.getVersion(),
-              request.getPriority(),
-              request.isRevoked()
-          ),
-          Collections.emptyList()
-      );
+      return Pair.of(((TimeChunkLockRequest) request).toLock(), Collections.emptyList());
+
     } else if (request instanceof ExistingSegmentLockRequest) {
-      final ExistingSegmentLockRequest existingSegmentLockRequest = (ExistingSegmentLockRequest) request;
-      return Pair.of(
-          new SegmentLock(
-              existingSegmentLockRequest.getType(),
-              existingSegmentLockRequest.getGroupId(),
-              existingSegmentLockRequest.getDataSource(),
-              existingSegmentLockRequest.getInterval(),
-              existingSegmentLockRequest.getPartitionIds(),
-              existingSegmentLockRequest.getVersion(),
-              existingSegmentLockRequest.getPriority(),
-              existingSegmentLockRequest.isRevoked()
-          ),
-          Collections.emptyList()
-      );
-    } else if (request instanceof NewSegmentLockRequest) {
-      final NewSegmentLockRequest newSegmentLockRequest = (NewSegmentLockRequest) request;
-      final List<SegmentIdentifier> newIds = new ArrayList<>(newSegmentLockRequest.getNumNewSegments());
-      for (int i = 0; i < newSegmentLockRequest.getNumNewSegments(); i++) {
+      return Pair.of(((ExistingSegmentLockRequest) request).toLock(), Collections.emptyList());
+
+    } else if (request instanceof LockRequestForNewSegment) {
+      final LockRequestForNewSegment lockRequestForNewSegment = (LockRequestForNewSegment) request;
+      final List<SegmentIdentifier> newIds = new ArrayList<>(lockRequestForNewSegment.getNumNewSegments());
+      for (int i = 0; i < lockRequestForNewSegment.getNumNewSegments(); i++) {
         newIds.add(
             metadataStorageCoordinator.allocatePendingSegment(
-                newSegmentLockRequest.getDataSource(),
-                newSegmentLockRequest.getBaseSequenceName(),
-                newSegmentLockRequest.getPrevisousSegmentId(),
-                newSegmentLockRequest.getInterval(),
-                newSegmentLockRequest.getVersion(),
-                newSegmentLockRequest.isSkipSegmentLineageCheck()
+                lockRequestForNewSegment.getDataSource(),
+                lockRequestForNewSegment.getBaseSequenceName(),
+                lockRequestForNewSegment.getPrevisousSegmentId(),
+                lockRequestForNewSegment.getInterval(),
+                lockRequestForNewSegment.getVersion(),
+                lockRequestForNewSegment.isSkipSegmentLineageCheck()
             )
         );
       }
-      final String version = newIds.get(0).getVersion();
-      Preconditions.checkState(
-          newIds.stream().allMatch(id -> id.getVersion().equals(version)),
-          "WTH? new segmentIds have different version? [%s]",
-          newIds
-      );
 
-      return Pair.of(
-          new SegmentLock(
-              request.getType(),
-              request.getGroupId(),
-              request.getDataSource(),
-              request.getInterval(),
-              newIds.stream().map(id -> id.getShardSpec().getPartitionNum()).collect(Collectors.toSet()),
-              version,
-              request.getPriority()
-          ),
-          newIds
-      );
+      return Pair.of(lockRequestForNewSegment.toLock(newIds), newIds);
     } else {
       throw new ISE("Unknown request type[%s]", request.getClass().getCanonicalName());
     }

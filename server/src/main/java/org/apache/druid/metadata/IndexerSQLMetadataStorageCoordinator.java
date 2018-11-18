@@ -49,6 +49,8 @@ import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.PartitionChunk;
+import org.apache.druid.timeline.partition.ShardSpec;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 import org.skife.jdbi.v2.FoldController;
 import org.skife.jdbi.v2.Folder3;
@@ -808,6 +810,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final Handle handle,
       final String dataSource,
       final Interval interval,
+      final ShardSpecFactory shardSpecFactory,
       final String version
   ) throws IOException
   {
@@ -866,7 +869,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             dataSource,
             interval,
             version,
-            new NumberedShardSpec(0, 0),
+//            new NumberedShardSpec(0, 0),
+            shardSpecFactory.create(jsonMapper, 0, 0, 0),
             null
         );
       } else if (!max.getInterval().equals(interval) || !max.getVersion().equals(version)) {
@@ -878,35 +882,39 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             max.getIdentifierAsString()
         );
         return null;
-      } else if (max.getShardSpec() instanceof LinearShardSpec) {
-        return new SegmentIdentifier(
-            dataSource,
-            max.getInterval(),
-            version,
-            new LinearShardSpec(max.getShardSpec().getPartitionNum() + 1),
-            null
-        );
-      } else if (max.getShardSpec() instanceof NumberedShardSpec) {
-        return new SegmentIdentifier(
-            dataSource,
-            max.getInterval(),
-            version,
-            new NumberedShardSpec(
-                max.getShardSpec().getPartitionNum() + 1,
-                ((NumberedShardSpec) max.getShardSpec()).getPartitions()
-            ),
-            null
-        );
+//      } else if (max.getShardSpec() instanceof LinearShardSpec) {
+//        return new SegmentIdentifier(
+//            dataSource,
+//            max.getInterval(),
+//            version,
+//            new LinearShardSpec(max.getShardSpec().getPartitionNum() + 1),
+//            null
+//        );
+//      } else if (max.getShardSpec() instanceof NumberedShardSpec) {
+//        return new SegmentIdentifier(
+//            dataSource,
+//            max.getInterval(),
+//            version,
+//            new NumberedShardSpec(
+//                max.getShardSpec().getPartitionNum() + 1,
+//                ((NumberedShardSpec) max.getShardSpec()).getPartitions()
+//            ),
+//            null
+//        );
       } else {
-        log.warn(
-            "Cannot allocate new segment for dataSource[%s], interval[%s], maxVersion[%s]: ShardSpec class[%s] used by [%s].",
-            dataSource,
-            interval,
-            version,
-            max.getShardSpec().getClass(),
-            max.getIdentifierAsString()
-        );
-        return null;
+        final ShardSpec newShardSpec = shardSpecFactory.create(
+            jsonMapper,
+            max.getShardSpec().getPartitionNum() + 1,
+            )
+//        log.warn(
+//            "Cannot allocate new segment for dataSource[%s], interval[%s], maxVersion[%s]: ShardSpec class[%s] used by [%s].",
+//            dataSource,
+//            interval,
+//            version,
+//            max.getShardSpec().getClass(),
+//            max.getIdentifierAsString()
+//        );
+//        return null;
       }
     }
   }

@@ -18,19 +18,30 @@
  */
 package org.apache.druid.indexing.overlord;
 
+import com.google.common.base.Preconditions;
 import org.apache.druid.indexing.common.LockGranularity;
+import org.apache.druid.indexing.common.SegmentLock;
+import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
+import org.apache.druid.indexing.common.TimeChunkLock;
 import org.apache.druid.java.util.common.DateTimes;
+import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
+import java.util.List;
+import java.util.stream.Collectors;
 
-public class NewSegmentLockRequest implements LockRequest
+public class LockRequestForNewSegment implements LockRequest
 {
+  private final LockGranularity lockGranularity;
   private final TaskLockType lockType;
   private final String groupId;
   private final String dataSource;
   private final Interval interval;
+  private final ShardSpecFactory shardSpecFactory;
   private final int priority;
   private final int numNewSegments;
   private final String baseSequenceName;
@@ -38,22 +49,26 @@ public class NewSegmentLockRequest implements LockRequest
   private final String previsousSegmentId;
   private final boolean skipSegmentLineageCheck;
 
-  public NewSegmentLockRequest(
+  public LockRequestForNewSegment(
+      LockGranularity lockGranularity,
       TaskLockType lockType,
       String groupId,
       String dataSource,
       Interval interval,
+      ShardSpecFactory shardSpecFactory,
       int priority,
       int numNewSegments,
       String baseSequenceName,
-      String previsousSegmentId,
+      @Nullable String previsousSegmentId,
       boolean skipSegmentLineageCheck
   )
   {
+    this.lockGranularity = lockGranularity;
     this.lockType = lockType;
     this.groupId = groupId;
     this.dataSource = dataSource;
     this.interval = interval;
+    this.shardSpecFactory = shardSpecFactory;
     this.priority = priority;
     this.numNewSegments = numNewSegments;
     this.baseSequenceName = baseSequenceName;
@@ -64,7 +79,7 @@ public class NewSegmentLockRequest implements LockRequest
   @Override
   public LockGranularity getGranularity()
   {
-    return LockGranularity.SEGMENT;
+    return lockGranularity;
   }
 
   @Override
@@ -95,6 +110,11 @@ public class NewSegmentLockRequest implements LockRequest
   public int getPriority()
   {
     return priority;
+  }
+
+  public ShardSpecFactory getShardSpecFactory()
+  {
+    return shardSpecFactory;
   }
 
   @Override
@@ -130,14 +150,50 @@ public class NewSegmentLockRequest implements LockRequest
     return skipSegmentLineageCheck;
   }
 
+  public TaskLock toLock(List<SegmentIdentifier> newSegmentIds)
+  {
+    final String version = newSegmentIds.get(0).getVersion();
+    Preconditions.checkState(
+        newSegmentIds.stream().allMatch(id -> id.getVersion().equals(version)),
+        "WTH? new segmentIds have different version? [%s]",
+        newSegmentIds
+    );
+
+    switch (lockGranularity) {
+      case TIME_CHUNK:
+        return new TimeChunkLock(
+            lockType,
+            groupId,
+            dataSource,
+            interval,
+            version,
+            priority
+        );
+      case SEGMENT:
+        return new SegmentLock(
+            lockType,
+            groupId,
+            dataSource,
+            interval,
+            newSegmentIds.stream().map(id -> id.getShardSpec().getPartitionNum()).collect(Collectors.toSet()),
+            version,
+            priority
+        );
+      default:
+        throw new ISE("Unknown lockGranularity[%s]", lockGranularity);
+    }
+  }
+
   @Override
   public String toString()
   {
-    return "NewSegmentLockRequest{" +
-           "lockType=" + lockType +
+    return "LockRequestForNewSegment{" +
+           "lockGranularity=" + lockGranularity +
+           ", lockType=" + lockType +
            ", groupId='" + groupId + '\'' +
            ", dataSource='" + dataSource + '\'' +
            ", interval=" + interval +
+           ", shardSpecFactory=" + shardSpecFactory +
            ", priority=" + priority +
            ", numNewSegments=" + numNewSegments +
            ", baseSequenceName='" + baseSequenceName + '\'' +

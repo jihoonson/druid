@@ -78,6 +78,8 @@ public abstract class AbstractTask implements Task
 
   private boolean initializedLock;
 
+  private boolean changeSegmentGranularity;
+
   protected AbstractTask(String id, String dataSource, Map<String, Object> context)
   {
     this(id, null, null, dataSource, context);
@@ -234,6 +236,7 @@ public abstract class AbstractTask implements Task
 
       return tryLockWithSegments(client, segments);
     } else {
+      initializedLock = true;
       return true;
     }
   }
@@ -251,7 +254,8 @@ public abstract class AbstractTask implements Task
       }
 
       final List<Interval> intervals = segments.stream().map(DataSegment::getInterval).collect(Collectors.toList());
-      if (changeSegmentGranularity(intervals)) {
+      changeSegmentGranularity = changeSegmentGranularity(intervals);
+      if (changeSegmentGranularity) {
         for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
           final TaskLock lock = client.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval));
           if (lock == null) {
@@ -277,6 +281,7 @@ public abstract class AbstractTask implements Task
         return true;
       }
     } else {
+      initializedLock = true;
       return true;
     }
   }
@@ -321,14 +326,14 @@ public abstract class AbstractTask implements Task
       }
 
       final List<Interval> intervals = segments.stream().map(DataSegment::getInterval).collect(Collectors.toList());
-      if (changeSegmentGranularity(intervals)) {
+      changeSegmentGranularity = changeSegmentGranularity(intervals);
+      if (changeSegmentGranularity) {
         for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
           final TaskLock lock = client.submit(LockAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval, timeoutMs));
           if (lock == null) {
             throw new ISE("Failed to get a lock for interval[%s]", interval);
           }
         }
-        initializedLock = true;
       } else {
         for (DataSegment segment : segments) {
           inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new HashSet<>())
@@ -344,9 +349,15 @@ public abstract class AbstractTask implements Task
             throw new ISE("Failed to get a lock for interval[%s] and partitionIds[%s] with version[%s]", interval, partitionIds, segments.get(0).getVersion());
           }
         }
-        initializedLock = true;
       }
     }
+
+    initializedLock = true;
+  }
+
+  protected boolean isChangeSegmentGranularity()
+  {
+    return initializedLock && changeSegmentGranularity;
   }
 
   public TaskStatus success()

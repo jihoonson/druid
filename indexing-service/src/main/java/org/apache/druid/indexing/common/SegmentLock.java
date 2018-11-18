@@ -24,8 +24,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import org.apache.druid.indexing.overlord.ExistingSegmentLockRequest;
 import org.apache.druid.indexing.overlord.LockRequest;
+import org.apache.druid.indexing.overlord.LockRequestForNewSegment;
 import org.apache.druid.indexing.overlord.LockRequestTmp;
-import org.apache.druid.indexing.overlord.NewSegmentLockRequest;
 import org.apache.druid.java.util.common.ISE;
 import org.joda.time.Interval;
 
@@ -225,7 +225,7 @@ public class SegmentLock implements TaskLock
         return dataSource.equals(request.getDataSource())
                && interval.overlaps(request.getInterval());
       }
-    } else if (request instanceof NewSegmentLockRequest) {
+    } else if (request instanceof LockRequestForNewSegment) {
       // request for new segments doens't conflict with any locks because it allocates a new partitionId
       return false;
     } else {

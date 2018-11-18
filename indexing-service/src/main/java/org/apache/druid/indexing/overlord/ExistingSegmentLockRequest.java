@@ -19,6 +19,7 @@
 package org.apache.druid.indexing.overlord;
 
 import org.apache.druid.indexing.common.LockGranularity;
+import org.apache.druid.indexing.common.SegmentLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.joda.time.Interval;
 
@@ -107,6 +108,20 @@ public class ExistingSegmentLockRequest implements LockRequest
   public Set<Integer> getPartitionIds()
   {
     return partitionIds;
+  }
+
+  public SegmentLock toLock()
+  {
+    return new SegmentLock(
+        lockType,
+        groupId,
+        dataSource,
+        interval,
+        partitionIds,
+        version,
+        priority,
+        revoked
+    );
   }
 
   @Override

@@ -24,11 +24,12 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.indexing.overlord.IndexerMetadataStorageCoordinator;
+import org.apache.druid.indexing.overlord.LockRequestForNewSegment;
 import org.apache.druid.indexing.overlord.LockResult;
-import org.apache.druid.indexing.overlord.NewSegmentLockRequest;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
@@ -67,6 +68,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   private final String sequenceName;
   private final String previousSegmentId;
   private final boolean skipSegmentLineageCheck;
+  private final boolean changeSegmentGranularity;
 
   public SegmentAllocateAction(
       @JsonProperty("dataSource") String dataSource,
@@ -75,7 +77,8 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
       @JsonProperty("preferredSegmentGranularity") Granularity preferredSegmentGranularity,
       @JsonProperty("sequenceName") String sequenceName,
       @JsonProperty("previousSegmentId") String previousSegmentId,
-      @JsonProperty("skipSegmentLineageCheck") boolean skipSegmentLineageCheck
+      @JsonProperty("skipSegmentLineageCheck") boolean skipSegmentLineageCheck,
+      @JsonProperty("changeSegmentGranularity") boolean changeSegmentGranularity
   )
   {
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
@@ -88,6 +91,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     this.sequenceName = Preconditions.checkNotNull(sequenceName, "sequenceName");
     this.previousSegmentId = previousSegmentId;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
+    this.changeSegmentGranularity = changeSegmentGranularity;
   }
 
   @JsonProperty
@@ -130,6 +134,12 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   public boolean isSkipSegmentLineageCheck()
   {
     return skipSegmentLineageCheck;
+  }
+
+  @JsonProperty
+  public boolean isChangeSegmentGranularity()
+  {
+    return changeSegmentGranularity;
   }
 
   @Override
@@ -260,7 +270,8 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     // dataSources. So, all lock requests should be segmentLock.
     final LockResult lockResult = toolbox.getTaskLockbox().tryLock(
         task,
-        new NewSegmentLockRequest(
+        new LockRequestForNewSegment(
+            changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
             TaskLockType.EXCLUSIVE,
             task.getGroupId(),
             dataSource,
@@ -284,7 +295,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
         if (identifiers.size() == 1) {
           return identifiers.get(0);
         } else {
-          throw new ISE("WTH? multiple segmentIds[%s] are created?", identifiers);
+          throw new ISE("WTH? multiple segmentIds[%s] were created?", identifiers);
         }
       } else {
         final String msg = StringUtils.format(
@@ -330,7 +341,8 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
            ", preferredSegmentGranularity=" + preferredSegmentGranularity +
            ", sequenceName='" + sequenceName + '\'' +
            ", previousSegmentId='" + previousSegmentId + '\'' +
-           ", skipSegmentLineageCheck='" + skipSegmentLineageCheck + '\'' +
+           ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
+           ", changeSegmentGranularity=" + changeSegmentGranularity +
            '}';
   }
 }

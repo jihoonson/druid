@@ -450,12 +450,12 @@ public class IndexTask extends AbstractTask implements ChatHandler
       final IndexTuningConfig tuningConfig = ingestionSchema.tuningConfig;
       @Nullable final Integer targetPartitionSize = getValidTargetPartitionSize(tuningConfig);
       @Nullable final Long maxTotalRows = getValidMaxTotalRows(tuningConfig);
-      final ShardSpecs shardSpecs = determineShardSpecs(toolbox, firehoseFactory, firehoseTempDir, targetPartitionSize);
+      final Map<Interval, Integer> intervalToNumShards = determineShardSpecs(toolbox, firehoseFactory, firehoseTempDir, targetPartitionSize);
 
 //      initInputSegmentPartitionIds(toolbox.getTaskActionClient(), new TreeSet<>(shardSpecs.getIntervals()));
 
       // get locks for found shardSpec intervals
-      if (!isReady(toolbox.getTaskActionClient(), shardSpecs.getIntervals())) {
+      if (!isReady(toolbox.getTaskActionClient(), intervalToNumShards.keySet())) {
         throw new ISE("Failed to get a lock for segments");
       }
 
@@ -471,18 +471,14 @@ public class IndexTask extends AbstractTask implements ChatHandler
 //        versions = locks.entrySet().stream()
 //                        .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().getVersion()));
 
-        if (!tryLockWithIntervals(toolbox.getTaskActionClient(), shardSpecs.getIntervals())) {
-          throw new ISE("Failed to get locks for intervals[%s]", shardSpecs.getIntervals());
+        if (!tryLockWithIntervals(toolbox.getTaskActionClient(), intervalToNumShards.keySet())) {
+          throw new ISE("Failed to get locks for intervals[%s]", intervalToNumShards.keySet());
         }
 
         dataSchema = ingestionSchema.getDataSchema().withGranularitySpec(
             ingestionSchema.getDataSchema()
                            .getGranularitySpec()
-                           .withIntervals(
-                               JodaUtils.condenseIntervals(
-                                   shardSpecs.getIntervals()
-                               )
-                           )
+                           .withIntervals(JodaUtils.condenseIntervals(intervalToNumShards.keySet()))
         );
       } else {
 //        versions = getTaskLocks(toolbox.getTaskActionClient())
@@ -495,7 +491,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
       return generateAndPublishSegments(
           toolbox,
           dataSchema,
-          shardSpecs,
+          intervalToNumShards,
 //          versions,
           firehoseFactory,
           firehoseTempDir,
@@ -634,7 +630,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
    *
    * @return generated {@link ShardSpecs} representing a map of intervals and corresponding shard specs
    */
-  private ShardSpecs determineShardSpecs(
+  private Map<Interval, Integer> determineShardSpecs(
       final TaskToolbox toolbox,
       final FirehoseFactory firehoseFactory,
       final File firehoseTempDir,
@@ -658,7 +654,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
     if (!determineNumPartitions && !determineIntervals) {
       log.info("Skipping determine partition scan");
       return createShardSpecWithoutInputScan(
-          jsonMapper,
           granularitySpec,
           ioConfig,
           tuningConfig
@@ -680,7 +675,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
   }
 
   private static Map<Interval, Integer> createShardSpecWithoutInputScan(
-      ObjectMapper jsonMapper,
       GranularitySpec granularitySpec,
       IndexIOConfig ioConfig,
       IndexTuningConfig tuningConfig
@@ -711,14 +705,14 @@ public class IndexTask extends AbstractTask implements ChatHandler
     } else {
       for (Interval interval : intervals) {
 //        shardSpecs.put(interval, ImmutableList.of());
-        intervalToNumShards.put(interval, 0);
+        intervalToNumShards.put(interval, null);
       }
     }
 
     return intervalToNumShards;
   }
 
-  private ShardSpecs createShardSpecsFromInput(
+  private Map<Interval, Integer> createShardSpecsFromInput(
       ObjectMapper jsonMapper,
       IndexIngestionSpec ingestionSchema,
       FirehoseFactory firehoseFactory,
@@ -743,7 +737,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
         determineNumPartitions
     );
 
-    final Map<Interval, List<ShardSpec>> intervalToShardSpecs = new HashMap<>();
+    final Map<Interval, Integer> intervalToNumShards = new HashMap<>();
     final int defaultNumShards = tuningConfig.getNumShards() == null ? 1 : tuningConfig.getNumShards();
     for (final Map.Entry<Interval, Optional<HyperLogLogCollector>> entry : hllCollectors.entrySet()) {
       final Interval interval = entry.getKey();
@@ -763,25 +757,25 @@ public class IndexTask extends AbstractTask implements ChatHandler
 
       if (isGuaranteedRollup(ingestionSchema.getIOConfig(), ingestionSchema.getTuningConfig())) {
         // Overwrite mode, guaranteed rollup: shardSpecs must be known in advance.
-        final BiFunction<Integer, Integer, ShardSpec> shardSpecCreateFn = getShardSpecCreateFunction(
-            numShards,
-            tuningConfig.getPartitionDimensions(),
-            jsonMapper
-        );
+//        final BiFunction<Integer, Integer, ShardSpec> shardSpecCreateFn = getShardSpecCreateFunction(
+//            numShards,
+//            tuningConfig.getPartitionDimensions(),
+//            jsonMapper
+//        );
 
-        final List<ShardSpec> intervalShardSpecs = IntStream.range(0, numShards)
-                                                            .mapToObj(
-                                                                shardId -> shardSpecCreateFn.apply(shardId, numShards)
-                                                            ).collect(Collectors.toList());
+//        final List<ShardSpec> intervalShardSpecs = IntStream.range(0, numShards)
+//                                                            .mapToObj(
+//                                                                shardId -> shardSpecCreateFn.apply(shardId, numShards)
+//                                                            ).collect(Collectors.toList());
 
-        intervalToShardSpecs.put(interval, intervalShardSpecs);
+        intervalToNumShards.put(interval, numShards);
       } else {
-        intervalToShardSpecs.put(interval, ImmutableList.of());
+        intervalToNumShards.put(interval, null);
       }
     }
     log.info("Found intervals and shardSpecs in %,dms", System.currentTimeMillis() - determineShardSpecsStartMillis);
 
-    return new ShardSpecs(intervalToShardSpecs);
+    return intervalToNumShards;
   }
 
   private Map<Interval, Optional<HyperLogLogCollector>> collectIntervalsAndShardSpecs(
@@ -925,7 +919,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
   private TaskStatus generateAndPublishSegments(
       final TaskToolbox toolbox,
       final DataSchema dataSchema,
-      final ShardSpecs shardSpecs,
+      final Map<Interval, Integer> intervalToNumShards,
 //      final Map<Interval, String> versions,
       final FirehoseFactory firehoseFactory,
       final File firehoseTempDir,
@@ -957,13 +951,13 @@ public class IndexTask extends AbstractTask implements ChatHandler
       // Overwrite mode, guaranteed rollup: segments are all known in advance and there is one per sequenceName.
 
       final Map<String, SegmentIdentifier> lookup = new HashMap<>();
-      final Map<Interval, Integer> allocateSpec = shardSpecs.map
-          .entrySet()
-          .stream()
-          .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().size()));
+//      final Map<Interval, Integer> allocateSpec = shardSpecs.map
+//          .entrySet()
+//          .stream()
+//          .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().size()));
 
       // TODO: create shardSpec on the fly
-      final List<SegmentIdentifier> segmentIds = toolbox.getTaskActionClient().submit(new SegmentBulkAllocateAction(allocateSpec, getId()));
+      final List<SegmentIdentifier> segmentIds = toolbox.getTaskActionClient().submit(new SegmentBulkAllocateAction(intervalToNumShards, getId(), isChangeSegmentGranularity()));
       final Map<Interval, List<SegmentIdentifier>> intervalToIds = new HashMap<>();
       for (SegmentIdentifier id : segmentIds) {
         intervalToIds.computeIfAbsent(id.getInterval(), k -> new ArrayList<>()).add(id);
@@ -1007,7 +1001,8 @@ public class IndexTask extends AbstractTask implements ChatHandler
               schema.getGranularitySpec().getSegmentGranularity(),
               sequenceName,
               previousSegmentId,
-              skipSegmentLineageCheck
+              skipSegmentLineageCheck,
+              isChangeSegmentGranularity()
           )
       );
     } else {
@@ -1030,7 +1025,8 @@ public class IndexTask extends AbstractTask implements ChatHandler
                 schema.getGranularitySpec().getSegmentGranularity(),
                 StringUtils.format("%s_%d", sequenceName, suffix), // TODO: make the right sequenceName in the first place
                 null,
-                true
+                true,
+                isChangeSegmentGranularity()
             );
           }
       );

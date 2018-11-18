@@ -20,6 +20,7 @@ package org.apache.druid.indexing.overlord;
 
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLockType;
+import org.apache.druid.indexing.common.TimeChunkLock;
 import org.apache.druid.java.util.common.DateTimes;
 import org.joda.time.Interval;
 
@@ -101,6 +102,19 @@ public class TimeChunkLockRequest implements LockRequest
   public boolean isRevoked()
   {
     return revoked;
+  }
+
+  public TimeChunkLock toLock()
+  {
+    return new TimeChunkLock(
+        lockType,
+        groupId,
+        dataSource,
+        interval,
+        getVersion(),
+        priority,
+        revoked
+    );
   }
 
   @Override
