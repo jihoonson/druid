@@ -29,7 +29,6 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
@@ -120,7 +119,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -128,9 +126,6 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiFunction;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class IndexTask extends AbstractTask implements ChatHandler
 {
@@ -946,7 +941,9 @@ public class IndexTask extends AbstractTask implements ChatHandler
     final long pushTimeout = tuningConfig.getPushTimeout();
     final boolean isGuaranteedRollup = isGuaranteedRollup(ioConfig, tuningConfig);
 
-    final SegmentAllocator rawAllocator;
+    // TODO: refactoring this method
+    final SegmentAllocator segmentAllocator;
+    final ShardSpecs shardSpecs;
     if (isGuaranteedRollup) {
       // Overwrite mode, guaranteed rollup: segments are all known in advance and there is one per sequenceName.
 
@@ -957,41 +954,45 @@ public class IndexTask extends AbstractTask implements ChatHandler
 //          .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().size()));
 
       // TODO: create shardSpec on the fly
-      final List<SegmentIdentifier> segmentIds = toolbox.getTaskActionClient().submit(new SegmentBulkAllocateAction(intervalToNumShards, getId(), isChangeSegmentGranularity()));
+      final List<SegmentIdentifier> segmentIds = toolbox.getTaskActionClient().submit(new SegmentBulkAllocateAction(intervalToNumShards, getId(), isChangeSegmentGranularity(), tuningConfig.partitionDimensions, getAllInputPartitionIds()));
       final Map<Interval, List<SegmentIdentifier>> intervalToIds = new HashMap<>();
+      final Map<Interval, List<ShardSpec>> shardSpecMap = new HashMap<>();
       for (SegmentIdentifier id : segmentIds) {
         intervalToIds.computeIfAbsent(id.getInterval(), k -> new ArrayList<>()).add(id);
       }
       intervalToIds.values().forEach(ids -> ids.sort(Comparator.comparing(s -> s.getShardSpec().getPartitionNum())));
 
-      for (Map.Entry<Interval, List<ShardSpec>> entry : shardSpecs.getMap().entrySet()) {
+      for (Map.Entry<Interval, Integer> entry : intervalToNumShards.entrySet()) {
         final Interval interval = entry.getKey();
-        final List<ShardSpec> shardSpecsPerInterval = entry.getValue();
+        final int numShards = Preconditions.checkNotNull(entry.getValue(), "numShards for interval[%s]", interval);
         final List<SegmentIdentifier> idsPerInterval = intervalToIds.get(interval);
 
-        Preconditions.checkState(shardSpecsPerInterval.size() == idsPerInterval.size(), "TODO: probably map shadrdSpecPerInterval and idsPerInterval?");
+        Preconditions.checkState(numShards == idsPerInterval.size(), "TODO: probably map shadrdSpecPerInterval and idsPerInterval?");
 
-        for (int i = 0; i < shardSpecsPerInterval.size(); i++) {
+        for (int i = 0; i < numShards; i++) {
           final ShardSpec shardSpecForPublishing;
           if (isExtendableShardSpecs(ioConfig, tuningConfig)) {
             shardSpecForPublishing = new NumberedShardSpec(
                 idsPerInterval.get(i).getShardSpec().getPartitionNum(),
-                shardSpecsPerInterval.size() // TODO: this is wrong now
+                numShards // TODO: this is wrong now
             );
           } else {
             shardSpecForPublishing = idsPerInterval.get(i).getShardSpec();
           }
           final SegmentIdentifier segmentIdForPublishing = idsPerInterval.get(i).withShardSpec(shardSpecForPublishing);
 
-          lookup.put(getSequenceName(interval, shardSpecsPerInterval.get(i)), segmentIdForPublishing);
+          shardSpecMap.computeIfAbsent(interval, k -> new ArrayList<>()).add(shardSpecForPublishing);
+          lookup.put(getSequenceName(interval, idsPerInterval.get(i).getShardSpec()), segmentIdForPublishing);
         }
       }
+      shardSpecs = new ShardSpecs(shardSpecMap);
 
-      rawAllocator = (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> lookup.get(sequenceName);
+      segmentAllocator = (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> lookup.get(sequenceName);
     } else if (ioConfig.isAppendToExisting()) {
       // Append mode: Allocate segments as needed using Overlord APIs.
       // TODO: test this. does this work without the below intervalToCounter map?
-      rawAllocator = new ActionBasedSegmentAllocator(
+      final boolean changeSegmentGranularity = isChangeSegmentGranularity();
+      segmentAllocator = new ActionBasedSegmentAllocator(
           toolbox.getTaskActionClient(),
           dataSchema,
           (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SegmentAllocateAction(
@@ -1001,16 +1002,19 @@ public class IndexTask extends AbstractTask implements ChatHandler
               schema.getGranularitySpec().getSegmentGranularity(),
               sequenceName,
               previousSegmentId,
+              changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
               skipSegmentLineageCheck,
-              isChangeSegmentGranularity()
+              changeSegmentGranularity
           )
       );
+      shardSpecs = null;
     } else {
       // Overwrite mode, non-guaranteed rollup: We can make up our own segment ids but we don't know them in advance.
       // TODO: move this to appenderator?
       final Map<Interval, Integer> intervalToCounter = new HashMap<>();
+      final boolean changeSegmentGranularity = isChangeSegmentGranularity();
 
-      rawAllocator = new ActionBasedSegmentAllocator(
+      segmentAllocator = new ActionBasedSegmentAllocator(
           toolbox.getTaskActionClient(),
           dataSchema,
           (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
@@ -1025,26 +1029,28 @@ public class IndexTask extends AbstractTask implements ChatHandler
                 schema.getGranularitySpec().getSegmentGranularity(),
                 StringUtils.format("%s_%d", sequenceName, suffix), // TODO: make the right sequenceName in the first place
                 null,
+                changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
                 true,
                 isChangeSegmentGranularity()
             );
           }
       );
+      shardSpecs = null;
     }
 
-    final SegmentAllocator segmentAllocator = new SegmentAllocator()
-    {
-      @Override
-      public SegmentIdentifier allocate(
-          InputRow row, String sequenceName, String previousSegmentId, boolean skipSegmentLineageCheck
-      ) throws IOException
-      {
-        final SegmentIdentifier segmentIdentifier = rawAllocator.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);
-        return segmentIdentifier == null
-               ? null
-               :segmentIdentifier.withOvershadowedGroup(getInputPartitionIdsFor(segmentIdentifier.getInterval()));
-      }
-    };
+//    final SegmentAllocator segmentAllocator = new SegmentAllocator()
+//    {
+//      @Override
+//      public SegmentIdentifier allocate(
+//          InputRow row, String sequenceName, String previousSegmentId, boolean skipSegmentLineageCheck
+//      ) throws IOException
+//      {
+//        final SegmentIdentifier segmentIdentifier = rawAllocator.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);
+//        return segmentIdentifier == null
+//               ? null
+//               :segmentIdentifier.withOvershadowedGroup(getInputPartitionIdsFor(segmentIdentifier.getInterval()));
+//      }
+//    };
 
     final TransactionalSegmentPublisher publisher = (segments, commitMetadata) -> {
       final SegmentTransactionalInsertAction action = new SegmentTransactionalInsertAction(segments);

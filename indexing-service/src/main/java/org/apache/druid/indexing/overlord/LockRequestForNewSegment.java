@@ -32,6 +32,7 @@ import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class LockRequestForNewSegment implements LockRequest
@@ -47,6 +48,8 @@ public class LockRequestForNewSegment implements LockRequest
   private final String baseSequenceName;
   @Nullable
   private final String previsousSegmentId;
+  private final Set<Integer> overshadowingSegments;
+  private final boolean firstPartition;
   private final boolean skipSegmentLineageCheck;
 
   public LockRequestForNewSegment(
@@ -60,6 +63,8 @@ public class LockRequestForNewSegment implements LockRequest
       int numNewSegments,
       String baseSequenceName,
       @Nullable String previsousSegmentId,
+      Set<Integer> overshadowingSegments,
+      boolean firstPartition,
       boolean skipSegmentLineageCheck
   )
   {
@@ -73,6 +78,8 @@ public class LockRequestForNewSegment implements LockRequest
     this.numNewSegments = numNewSegments;
     this.baseSequenceName = baseSequenceName;
     this.previsousSegmentId = previsousSegmentId;
+    this.overshadowingSegments = overshadowingSegments;
+    this.firstPartition = firstPartition;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
   }
 
@@ -145,6 +152,16 @@ public class LockRequestForNewSegment implements LockRequest
     return numNewSegments;
   }
 
+  public Set<Integer> getOvershadowingSegments()
+  {
+    return overshadowingSegments;
+  }
+
+  public boolean isFirstPartition()
+  {
+    return firstPartition;
+  }
+
   public boolean isSkipSegmentLineageCheck()
   {
     return skipSegmentLineageCheck;
@@ -198,6 +215,8 @@ public class LockRequestForNewSegment implements LockRequest
            ", numNewSegments=" + numNewSegments +
            ", baseSequenceName='" + baseSequenceName + '\'' +
            ", previsousSegmentId='" + previsousSegmentId + '\'' +
+           ", overshadowingSegments=" + overshadowingSegments +
+           ", firstPartition=" + firstPartition +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
            '}';
   }

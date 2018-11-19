@@ -21,10 +21,12 @@ package org.apache.druid.indexing.overlord;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TimeChunkLock;
+import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.java.util.common.DateTimes;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
+import javax.validation.constraints.Null;
 
 public class TimeChunkLockRequest implements LockRequest
 {
@@ -36,6 +38,16 @@ public class TimeChunkLockRequest implements LockRequest
   private final String preferredVersion;
   private final int priority;
   private final boolean revoked;
+
+  public TimeChunkLockRequest(
+      TaskLockType lockType,
+      Task task,
+      Interval interval,
+      @Nullable String preferredVersion
+  )
+  {
+    this(lockType, task.getGroupId(), task.getDataSource(), interval, preferredVersion, task.getPriority(), false);
+  }
 
   public TimeChunkLockRequest(
       TaskLockType lockType,

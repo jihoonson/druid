@@ -225,16 +225,7 @@ public abstract class AbstractTask implements Task
     if (isOverwriteMode()) {
       final List<DataSegment> usedSegments = client.submit(new SegmentListUsedAction(getDataSource(), null, intervals));
 
-      // Create a timeline to find latest segments only
-      final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(usedSegments);
-      final List<DataSegment> segments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
-                                                 .stream()
-                                                 .map(TimelineObjectHolder::getObject)
-                                                 .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
-                                                 .map(PartitionChunk::getObject)
-                                                 .collect(Collectors.toList());
-
-      return tryLockWithSegments(client, segments);
+      return tryLockWithSegments(client, usedSegments);
     } else {
       initializedLock = true;
       return true;
@@ -253,7 +244,16 @@ public abstract class AbstractTask implements Task
         return true;
       }
 
+      // Create a timeline to find latest segments only
       final List<Interval> intervals = segments.stream().map(DataSegment::getInterval).collect(Collectors.toList());
+      final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(segments);
+      final List<DataSegment> realSegments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
+                                                 .stream()
+                                                 .map(TimelineObjectHolder::getObject)
+                                                 .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
+                                                 .map(PartitionChunk::getObject)
+                                                 .collect(Collectors.toList());
+
       changeSegmentGranularity = changeSegmentGranularity(intervals);
       if (changeSegmentGranularity) {
         for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
@@ -265,13 +265,13 @@ public abstract class AbstractTask implements Task
         initializedLock = true;
         return true;
       } else {
-        for (DataSegment segment : segments) {
+        for (DataSegment segment : realSegments) {
           inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new HashSet<>())
                                   .add(segment.getShardSpec().getPartitionNum());
         }
         for (Entry<Interval, Set<Integer>> entry : inputSegmentPartitionIds.entrySet()) {
           final TaskLock lock = client.submit(
-              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), segments.get(0).getVersion(), entry.getValue())
+              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), realSegments.get(0).getVersion(), entry.getValue())
           );
           if (lock == null) {
             return false;
@@ -396,6 +396,11 @@ public abstract class AbstractTask implements Task
   public int hashCode()
   {
     return Objects.hashCode(id, groupId, dataSource, context);
+  }
+
+  public Map<Interval, Set<Integer>> getAllInputPartitionIds()
+  {
+    return inputSegmentPartitionIds;
   }
 
   @Nullable

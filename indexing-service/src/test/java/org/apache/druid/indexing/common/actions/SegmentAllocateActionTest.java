@@ -48,6 +48,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.util.Collections;
+
 public class SegmentAllocateActionTest
 {
   @Rule
@@ -682,6 +684,8 @@ public class SegmentAllocateActionTest
         Granularities.HOUR,
         "s1",
         "prev",
+        Collections.emptySet(),
+        false,
         false
     );
 
@@ -715,6 +719,8 @@ public class SegmentAllocateActionTest
         preferredSegmentGranularity,
         sequenceName,
         sequencePreviousId,
+        Collections.emptySet(),
+        false,
         false
     );
     return action.perform(task, taskActionTestKit.getTaskActionToolbox());

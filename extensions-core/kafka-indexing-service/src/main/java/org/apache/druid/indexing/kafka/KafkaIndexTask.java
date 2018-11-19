@@ -66,6 +66,7 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.joda.time.Interval;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -285,7 +286,9 @@ public class KafkaIndexTask extends AbstractTask implements ChatHandler
                 schema.getGranularitySpec().getSegmentGranularity(),
                 sequenceName,
                 previousSegmentId,
-                skipSegmentLineageCheck
+                Collections.emptySet(),
+                skipSegmentLineageCheck,
+                false
             )
         ),
         toolbox.getSegmentHandoffNotifierFactory(),

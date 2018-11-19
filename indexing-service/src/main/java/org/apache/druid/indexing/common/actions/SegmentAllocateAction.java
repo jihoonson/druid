@@ -37,6 +37,7 @@ import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
@@ -67,6 +68,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   private final Granularity preferredSegmentGranularity;
   private final String sequenceName;
   private final String previousSegmentId;
+  private final Set<Integer> overshadowingSegments;
   private final boolean skipSegmentLineageCheck;
   private final boolean changeSegmentGranularity;
 
@@ -77,6 +79,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
       @JsonProperty("preferredSegmentGranularity") Granularity preferredSegmentGranularity,
       @JsonProperty("sequenceName") String sequenceName,
       @JsonProperty("previousSegmentId") String previousSegmentId,
+      @JsonProperty("overshadowingSegments") Set<Integer> overshadowingSegments,
       @JsonProperty("skipSegmentLineageCheck") boolean skipSegmentLineageCheck,
       @JsonProperty("changeSegmentGranularity") boolean changeSegmentGranularity
   )
@@ -90,6 +93,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     );
     this.sequenceName = Preconditions.checkNotNull(sequenceName, "sequenceName");
     this.previousSegmentId = previousSegmentId;
+    this.overshadowingSegments = overshadowingSegments;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
     this.changeSegmentGranularity = changeSegmentGranularity;
   }
@@ -128,6 +132,12 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   public String getPreviousSegmentId()
   {
     return previousSegmentId;
+  }
+
+  @JsonProperty
+  public Set<Integer> getOvershadowingSegments()
+  {
+    return overshadowingSegments;
   }
 
   @JsonProperty
@@ -231,7 +241,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
                                                    .collect(Collectors.toList());
     for (Interval tryInterval : tryIntervals) {
       if (tryInterval.contains(rowInterval)) {
-        final SegmentIdentifier identifier = tryAllocate(toolbox, task, tryInterval, rowInterval, false);
+        final SegmentIdentifier identifier = tryAllocate(toolbox, task, tryInterval, rowInterval, true, false);
         if (identifier != null) {
           return identifier;
         }
@@ -254,7 +264,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     } else {
       // If segment allocation failed here, it is highly likely an unrecoverable error. We log here for easier
       // debugging.
-      return tryAllocate(toolbox, task, usedSegment.getInterval(), rowInterval, true);
+      return tryAllocate(toolbox, task, usedSegment.getInterval(), rowInterval, false, true);
     }
   }
 
@@ -263,6 +273,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
       Task task,
       Interval tryInterval,
       Interval rowInterval,
+      boolean firstPartition,
       boolean logOnFail
   )
   {
@@ -276,10 +287,13 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
             task.getGroupId(),
             dataSource,
             tryInterval,
+            new NumberedShardSpecFactory(),
             task.getPriority(),
             1,
             sequenceName,
             previousSegmentId,
+            overshadowingSegments,
+            firstPartition,
             skipSegmentLineageCheck
         )
     );

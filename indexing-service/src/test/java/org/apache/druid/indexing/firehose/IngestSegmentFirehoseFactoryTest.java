@@ -126,6 +126,7 @@ public class IngestSegmentFirehoseFactoryTest
   private static final IndexMergerV9 INDEX_MERGER_V9;
   private static final IndexIO INDEX_IO;
   private static final TaskStorage TASK_STORAGE;
+  private static final IndexerSQLMetadataStorageCoordinator MDC;
   private static final TaskLockbox TASK_LOCKBOX;
   private static final Task TASK;
 
@@ -139,39 +140,7 @@ public class IngestSegmentFirehoseFactoryTest
         {
         }
     );
-    TASK_LOCKBOX = new TaskLockbox(TASK_STORAGE);
-    TASK = NoopTask.create();
-    TASK_LOCKBOX.add(TASK);
-  }
-
-  @Parameterized.Parameters(name = "{0}")
-  public static Collection<Object[]> constructorFeeder() throws IOException
-  {
-    final IndexSpec indexSpec = new IndexSpec();
-
-    final IncrementalIndexSchema schema = new IncrementalIndexSchema.Builder()
-        .withMinTimestamp(JodaUtils.MIN_INSTANT)
-        .withDimensionsSpec(ROW_PARSER)
-        .withMetrics(
-            new LongSumAggregatorFactory(METRIC_LONG_NAME, DIM_LONG_NAME),
-            new DoubleSumAggregatorFactory(METRIC_FLOAT_NAME, DIM_FLOAT_NAME)
-        )
-        .build();
-    final IncrementalIndex index = new IncrementalIndex.Builder()
-        .setIndexSchema(schema)
-        .setMaxRowCount(MAX_ROWS * MAX_SHARD_NUMBER)
-        .buildOnheap();
-
-    for (Integer i = 0; i < MAX_ROWS; ++i) {
-      index.add(ROW_PARSER.parseBatch(buildRow(i.longValue())).get(0));
-    }
-
-    if (!persistDir.mkdirs() && !persistDir.exists()) {
-      throw new IOE("Could not create directory at [%s]", persistDir.getAbsolutePath());
-    }
-    INDEX_MERGER_V9.persist(index, persistDir, indexSpec, null);
-
-    final IndexerSQLMetadataStorageCoordinator mdc = new IndexerSQLMetadataStorageCoordinator(null, null, null)
+    MDC = new IndexerSQLMetadataStorageCoordinator(null, null, null)
     {
       private final Set<DataSegment> published = new HashSet<>();
 
@@ -212,12 +181,44 @@ public class IngestSegmentFirehoseFactoryTest
         // do nothing
       }
     };
+    TASK_LOCKBOX = new TaskLockbox(TASK_STORAGE, MDC);
+    TASK = NoopTask.create();
+    TASK_LOCKBOX.add(TASK);
+  }
+
+  @Parameterized.Parameters(name = "{0}")
+  public static Collection<Object[]> constructorFeeder() throws IOException
+  {
+    final IndexSpec indexSpec = new IndexSpec();
+
+    final IncrementalIndexSchema schema = new IncrementalIndexSchema.Builder()
+        .withMinTimestamp(JodaUtils.MIN_INSTANT)
+        .withDimensionsSpec(ROW_PARSER)
+        .withMetrics(
+            new LongSumAggregatorFactory(METRIC_LONG_NAME, DIM_LONG_NAME),
+            new DoubleSumAggregatorFactory(METRIC_FLOAT_NAME, DIM_FLOAT_NAME)
+        )
+        .build();
+    final IncrementalIndex index = new IncrementalIndex.Builder()
+        .setIndexSchema(schema)
+        .setMaxRowCount(MAX_ROWS * MAX_SHARD_NUMBER)
+        .buildOnheap();
+
+    for (Integer i = 0; i < MAX_ROWS; ++i) {
+      index.add(ROW_PARSER.parseBatch(buildRow(i.longValue())).get(0));
+    }
+
+    if (!persistDir.mkdirs() && !persistDir.exists()) {
+      throw new IOE("Could not create directory at [%s]", persistDir.getAbsolutePath());
+    }
+    INDEX_MERGER_V9.persist(index, persistDir, indexSpec, null);
+
     final LocalTaskActionClientFactory tac = new LocalTaskActionClientFactory(
         TASK_STORAGE,
         new TaskActionToolbox(
             TASK_LOCKBOX,
             TASK_STORAGE,
-            mdc,
+            MDC,
             newMockEmitter(),
             EasyMock.createMock(SupervisorManager.class),
             new Counters()

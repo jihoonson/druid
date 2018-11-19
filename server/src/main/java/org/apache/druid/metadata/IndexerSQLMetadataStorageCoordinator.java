@@ -452,7 +452,11 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String sequenceName,
       @Nullable final String previousSegmentId,
       final Interval interval,
+      final ShardSpecFactory shardSpecFactory,
       final String version,
+      final int numPartitions,
+      final Set<Integer> overshadowingSegments,
+      final boolean firstPartition,
       final boolean skipSegmentLineageCheck
   )
   {
@@ -467,15 +471,29 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
           @Override
           public SegmentIdentifier withHandle(Handle handle) throws Exception
           {
-            return skipSegmentLineageCheck ?
-                   allocatePendingSegment(handle, dataSource, sequenceName, interval, version) :
-                   allocatePendingSegmentWithSegmentLineageCheck(
+            return skipSegmentLineageCheck
+                   ? allocatePendingSegment(
+                       handle,
+                       dataSource,
+                       sequenceName,
+                       interval,
+                       shardSpecFactory,
+                       version,
+                       numPartitions,
+                       overshadowingSegments,
+                       firstPartition
+                   )
+                   : allocatePendingSegmentWithSegmentLineageCheck(
                        handle,
                        dataSource,
                        sequenceName,
                        previousSegmentId,
                        interval,
-                       version
+                       shardSpecFactory,
+                       version,
+                       numPartitions,
+                       overshadowingSegments,
+                       firstPartition
                    );
           }
         }
@@ -489,7 +507,11 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String sequenceName,
       @Nullable final String previousSegmentId,
       final Interval interval,
-      final String version
+      final ShardSpecFactory shardSpecFactory,
+      final String version,
+      final int numPartitions,
+      final Set<Integer> overshadowingSegments,
+      final boolean firstPartition
   ) throws IOException
   {
     final String previousSegmentIdNotNull = previousSegmentId == null ? "" : previousSegmentId;
@@ -516,7 +538,16 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       return result.segmentIdentifier;
     }
 
-    final SegmentIdentifier newIdentifier = createNewSegment(handle, dataSource, interval, version);
+    final SegmentIdentifier newIdentifier = createNewSegment(
+        handle,
+        dataSource,
+        interval,
+        shardSpecFactory,
+        version,
+        numPartitions,
+        overshadowingSegments,
+        firstPartition
+    );
     if (newIdentifier == null) {
       return null;
     }
@@ -556,7 +587,11 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String dataSource,
       final String sequenceName,
       final Interval interval,
-      final String version
+      final ShardSpecFactory shardSpecFactory,
+      final String version,
+      final int numPartitions,
+      final Set<Integer> overshadowingSegments,
+      final boolean firstPartition
   ) throws IOException
   {
     final CheckExistingSegmentIdResult result = checkAndGetExistingSegmentId(
@@ -585,7 +620,16 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       return result.segmentIdentifier;
     }
 
-    final SegmentIdentifier newIdentifier = createNewSegment(handle, dataSource, interval, version);
+    final SegmentIdentifier newIdentifier = createNewSegment(
+        handle,
+        dataSource,
+        interval,
+        shardSpecFactory,
+        version,
+        numPartitions,
+        overshadowingSegments,
+        firstPartition
+    );
     if (newIdentifier == null) {
       return null;
     }
@@ -811,7 +855,10 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String dataSource,
       final Interval interval,
       final ShardSpecFactory shardSpecFactory,
-      final String version
+      final String version,
+      final int numPartitions,
+      final Set<Integer> overshadowingSegments,
+      final boolean firstPartition
   ) throws IOException
   {
     // Make up a pending segment based on existing segments and pending segments in the DB. This works
@@ -870,8 +917,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             interval,
             version,
 //            new NumberedShardSpec(0, 0),
-            shardSpecFactory.create(jsonMapper, 0, 0, 0),
-            null
+            shardSpecFactory.create(jsonMapper, 0, 0, numPartitions),
+            overshadowingSegments
         );
       } else if (!max.getInterval().equals(interval) || !max.getVersion().equals(version)) {
         log.warn(
@@ -902,10 +949,28 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
 //            null
 //        );
       } else {
+        final int newPartitionId = max.getShardSpec().getPartitionNum() + 1;
+        final int startPartitionId;
+        if (max.getShardSpec().supportStartPartition()) {
+          // TODO: comment
+          startPartitionId = firstPartition ? newPartitionId : max.getShardSpec().getStartPartitionId();
+        } else {
+          startPartitionId = 0;
+        }
+
         final ShardSpec newShardSpec = shardSpecFactory.create(
             jsonMapper,
-            max.getShardSpec().getPartitionNum() + 1,
-            )
+            newPartitionId,
+            startPartitionId,
+            numPartitions
+        );
+        return new SegmentIdentifier(
+            dataSource,
+            max.getInterval(),
+            version,
+            newShardSpec,
+            overshadowingSegments
+        );
 //        log.warn(
 //            "Cannot allocate new segment for dataSource[%s], interval[%s], maxVersion[%s]: ShardSpec class[%s] used by [%s].",
 //            dataSource,

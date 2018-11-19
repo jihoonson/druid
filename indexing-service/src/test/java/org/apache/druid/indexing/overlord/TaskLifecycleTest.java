@@ -530,7 +530,7 @@ public class TaskLifecycleTest
     Preconditions.checkNotNull(taskStorage);
     Preconditions.checkNotNull(emitter);
 
-    taskLockbox = new TaskLockbox(taskStorage);
+    taskLockbox = new TaskLockbox(taskStorage, mdc);
     tac = new LocalTaskActionClientFactory(
         taskStorage,
         new TaskActionToolbox(

@@ -2229,7 +2229,7 @@ public class KafkaIndexTaskTest
         derby.metadataTablesConfigSupplier().get(),
         derbyConnector
     );
-    taskLockbox = new TaskLockbox(taskStorage);
+    taskLockbox = new TaskLockbox(taskStorage, metadataStorageCoordinator);
     final TaskActionToolbox taskActionToolbox = new TaskActionToolbox(
         taskLockbox,
         taskStorage,

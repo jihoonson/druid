@@ -35,6 +35,7 @@ import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 import org.junit.Assert;
@@ -851,7 +852,11 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         sequenceName,
         prevSegmentId,
         interval,
+        new NumberedShardSpecFactory(),
         version,
+        0,
+        Collections.emptySet(),
+        false,
         false
     );
   }

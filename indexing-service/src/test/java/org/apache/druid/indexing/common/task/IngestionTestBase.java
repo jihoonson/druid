@@ -30,13 +30,16 @@ import org.apache.druid.indexing.common.actions.TaskActionToolbox;
 import org.apache.druid.indexing.common.actions.TaskAuditLogConfig;
 import org.apache.druid.indexing.common.config.TaskStorageConfig;
 import org.apache.druid.indexing.common.task.IndexTask.IndexTuningConfig;
-import org.apache.druid.indexing.overlord.HeapMemoryTaskStorage;
+import org.apache.druid.indexing.overlord.MetadataTaskStorage;
 import org.apache.druid.indexing.overlord.TaskLockbox;
 import org.apache.druid.indexing.overlord.TaskStorage;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.granularity.Granularities;
+import org.apache.druid.metadata.DerbyMetadataStorageActionHandlerFactory;
 import org.apache.druid.metadata.EntryExistsException;
 import org.apache.druid.metadata.IndexerSQLMetadataStorageCoordinator;
+import org.apache.druid.metadata.MetadataStorageTablesConfig;
+import org.apache.druid.metadata.SQLMetadataConnector;
 import org.apache.druid.metadata.TestDerbyConnector;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
@@ -63,11 +66,30 @@ public abstract class IngestionTestBase
 
   private final TestUtils testUtils = new TestUtils();
   private final ObjectMapper objectMapper = testUtils.getTestObjectMapper();
-  private final TaskStorage taskStorage = new HeapMemoryTaskStorage(new TaskStorageConfig(null));
-  private final TaskLockbox lockbox = new TaskLockbox(taskStorage);
+  private final TaskStorage taskStorage;
+  private final IndexerSQLMetadataStorageCoordinator storageCoordinator;
+  private final TaskLockbox lockbox;
 
   public IngestionTestBase()
   {
+    final SQLMetadataConnector connector = derbyConnectorRule.getConnector();
+    connector.createTaskTables();
+    final MetadataStorageTablesConfig tablesConfig = derbyConnectorRule.metadataTablesConfigSupplier().get();
+    taskStorage = new MetadataTaskStorage(
+        connector,
+        new TaskStorageConfig(null),
+        new DerbyMetadataStorageActionHandlerFactory(
+            connector,
+            tablesConfig,
+            objectMapper
+        )
+    );
+    storageCoordinator = new IndexerSQLMetadataStorageCoordinator(
+        objectMapper,
+        derbyConnectorRule.metadataTablesConfigSupplier().get(),
+        derbyConnectorRule.getConnector()
+    );
+    lockbox = new TaskLockbox(taskStorage, storageCoordinator);
   }
 
   public LocalTaskActionClient createActionClient(Task task)
@@ -103,11 +125,6 @@ public abstract class IngestionTestBase
 
   public TaskActionToolbox createTaskActionToolbox()
   {
-    final IndexerSQLMetadataStorageCoordinator storageCoordinator = new IndexerSQLMetadataStorageCoordinator(
-        objectMapper,
-        derbyConnectorRule.metadataTablesConfigSupplier().get(),
-        derbyConnectorRule.getConnector()
-    );
     storageCoordinator.start();
     return new TaskActionToolbox(
         lockbox,

@@ -69,7 +69,7 @@ import org.apache.druid.indexing.common.index.RealtimeAppenderatorTuningConfig;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.overlord.DataSourceMetadata;
-import org.apache.druid.indexing.overlord.HeapMemoryTaskStorage;
+import org.apache.druid.indexing.overlord.MetadataTaskStorage;
 import org.apache.druid.indexing.overlord.SegmentPublishResult;
 import org.apache.druid.indexing.overlord.TaskLockbox;
 import org.apache.druid.indexing.overlord.TaskStorage;
@@ -92,6 +92,7 @@ import org.apache.druid.java.util.emitter.core.NoopEmitter;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 import org.apache.druid.java.util.metrics.MonitorScheduler;
 import org.apache.druid.math.expr.ExprMacroTable;
+import org.apache.druid.metadata.DerbyMetadataStorageActionHandlerFactory;
 import org.apache.druid.metadata.EntryExistsException;
 import org.apache.druid.metadata.IndexerSQLMetadataStorageCoordinator;
 import org.apache.druid.metadata.TestDerbyConnector;
@@ -293,7 +294,7 @@ public class AppenderatorDriverRealtimeIndexTaskTest
 
     baseDir = tempFolder.newFolder();
     reportsFile = File.createTempFile("KafkaIndexTaskTestReports-" + System.currentTimeMillis(), "json");
-    makeToolboxFactory(baseDir);
+    makeToolboxFactory(derbyConnector, baseDir);
   }
 
   @After
@@ -1465,11 +1466,17 @@ public class AppenderatorDriverRealtimeIndexTaskTest
     );
   }
 
-  private void makeToolboxFactory(final File directory)
+  private void makeToolboxFactory(TestDerbyConnector connector, File directory)
   {
-    taskStorage = new HeapMemoryTaskStorage(new TaskStorageConfig(null));
-    taskLockbox = new TaskLockbox(taskStorage);
-
+    taskStorage = new MetadataTaskStorage(
+        connector,
+        new TaskStorageConfig(null),
+        new DerbyMetadataStorageActionHandlerFactory(
+            connector,
+            derbyConnectorRule.metadataTablesConfigSupplier().get(),
+            objectMapper
+        )
+    );
     publishedSegments = new CopyOnWriteArrayList<>();
 
     ObjectMapper mapper = new DefaultObjectMapper();
@@ -1517,6 +1524,8 @@ public class AppenderatorDriverRealtimeIndexTaskTest
         return result;
       }
     };
+
+    taskLockbox = new TaskLockbox(taskStorage, mdc);
     final TaskConfig taskConfig = new TaskConfig(directory.getPath(), null, null, 50000, null, false, null, null);
 
     final TaskActionToolbox taskActionToolbox = new TaskActionToolbox(

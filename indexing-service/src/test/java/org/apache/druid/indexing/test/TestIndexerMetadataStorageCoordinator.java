@@ -28,14 +28,13 @@ import org.apache.druid.indexing.overlord.SegmentPublishResult;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
-import org.apache.druid.timeline.partition.ShardSpec;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 
 public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataStorageCoordinator
 {
@@ -139,8 +138,11 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
       String sequenceName,
       String previousSegmentId,
       Interval interval,
+      ShardSpecFactory shardSpecFactory,
       String version,
-      final Function<SegmentAllocationContext, ShardSpec> shardSpecGenrator,
+      int numPartitions,
+      Set<Integer> overshadowingSegments,
+      boolean firstPartition,
       boolean skipSegmentLineageCheck
   )
   {

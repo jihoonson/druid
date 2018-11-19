@@ -285,6 +285,7 @@ public class ParallelIndexSubTask extends AbstractTask
     final DataSchema dataSchema = ingestionSchema.getDataSchema();
     final boolean explicitIntervals = dataSchema.getGranularitySpec().bucketIntervals().isPresent();
     final ParallelIndexIOConfig ioConfig = ingestionSchema.getIOConfig();
+    final boolean changeSegmentGranularity = isChangeSegmentGranularity();
     return new ActionBasedSegmentAllocator(
         toolbox.getTaskActionClient(),
         dataSchema,
@@ -297,7 +298,9 @@ public class ParallelIndexSubTask extends AbstractTask
                 schema.getGranularitySpec().getSegmentGranularity(),
                 sequenceName,
                 previousSegmentId,
-                skipSegmentLineageCheck
+                changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
+                skipSegmentLineageCheck,
+                changeSegmentGranularity
             )
         )
     );

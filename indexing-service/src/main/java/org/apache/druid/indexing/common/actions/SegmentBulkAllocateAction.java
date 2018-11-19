@@ -25,16 +25,19 @@ import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.indexing.overlord.LockRequest;
-import org.apache.druid.indexing.overlord.LockResult;
 import org.apache.druid.indexing.overlord.LockRequestForNewSegment;
+import org.apache.druid.indexing.overlord.LockResult;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.NoneShardSpecFactory;
 import org.joda.time.Interval;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentifier>>
 {
@@ -42,17 +45,23 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
   private final Map<Interval, Integer> allocateSpec;
   private final String baseSequenceName;
   private final boolean changeSegmentGranularity;
+  private final List<String> partitionDimensions;
+  private final Map<Interval, Set<Integer>> overshadowingSegments;
 
   @JsonCreator
   public SegmentBulkAllocateAction(
       @JsonProperty("allocateSpec") Map<Interval, Integer> allocateSpec,
       @JsonProperty("baseSequenceName") String baseSequenceName,
-      @JsonProperty("changeSegmentGranularity") boolean changeSegmentGranularity
+      @JsonProperty("changeSegmentGranularity") boolean changeSegmentGranularity,
+      @JsonProperty("partitionDimensions") List<String> partitionDimensions,
+      @JsonProperty("overshadowingSegments") Map<Interval, Set<Integer>> overshadowingSegments
   )
   {
     this.allocateSpec = allocateSpec;
     this.baseSequenceName = baseSequenceName;
     this.changeSegmentGranularity = changeSegmentGranularity;
+    this.partitionDimensions = partitionDimensions;
+    this.overshadowingSegments = overshadowingSegments;
   }
 
   @JsonProperty
@@ -65,6 +74,24 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
   public String getBaseSequenceName()
   {
     return baseSequenceName;
+  }
+
+  @JsonProperty
+  public boolean isChangeSegmentGranularity()
+  {
+    return changeSegmentGranularity;
+  }
+
+  @JsonProperty
+  public List<String> getPartitionDimensions()
+  {
+    return partitionDimensions;
+  }
+
+  @JsonProperty
+  public Map<Interval, Set<Integer>> getOvershadowingSegments()
+  {
+    return overshadowingSegments;
   }
 
   @Override
@@ -89,10 +116,13 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
           task.getGroupId(),
           task.getDataSource(),
           interval,
+          numSegmentsToAllocate == 1 ? new NoneShardSpecFactory() : new HashBasedNumberedShardSpecFactory(partitionDimensions),
           task.getPriority(),
           numSegmentsToAllocate,
           baseSequenceName,
           null,
+          overshadowingSegments.get(interval),
+          true,
           true
       );
       final LockResult lockResult = toolbox.getTaskLockbox().tryLock(task, lockRequest);
@@ -138,6 +168,9 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
     return "SegmentBulkAllocateAction{" +
            "allocateSpec=" + allocateSpec +
            ", baseSequenceName='" + baseSequenceName + '\'' +
+           ", changeSegmentGranularity=" + changeSegmentGranularity +
+           ", partitionDimensions=" + partitionDimensions +
+           ", overshadowingSegments=" + overshadowingSegments +
            '}';
   }
 }

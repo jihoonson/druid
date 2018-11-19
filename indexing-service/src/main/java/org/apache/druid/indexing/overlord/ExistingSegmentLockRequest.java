@@ -21,6 +21,7 @@ package org.apache.druid.indexing.overlord;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.SegmentLock;
 import org.apache.druid.indexing.common.TaskLockType;
+import org.apache.druid.indexing.common.task.Task;
 import org.joda.time.Interval;
 
 import java.util.Set;
@@ -35,6 +36,17 @@ public class ExistingSegmentLockRequest implements LockRequest
   private final String version;
   private final int priority;
   private final boolean revoked;
+
+  public ExistingSegmentLockRequest(
+      TaskLockType lockType,
+      Task task,
+      Interval interval,
+      Set<Integer> partitionIds,
+      String version
+  )
+  {
+    this(lockType, task.getGroupId(), task.getDataSource(), interval, partitionIds, version, task.getPriority(), false);
+  }
 
   public ExistingSegmentLockRequest(
       TaskLockType lockType,

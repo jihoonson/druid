@@ -438,7 +438,16 @@ public class TaskLockbox
           final TaskLockPosse foundPosse = reusablePosses.get(0);
           if (request.getType().equals(foundPosse.getTaskLock().getType()) &&
               request.getGranularity() == foundPosse.getTaskLock().getGranularity()) {
-            return Pair.of(foundPosse, null);
+            if (request instanceof LockRequestForNewSegment) {
+              Preconditions.checkState(
+                  request.getGranularity() == LockGranularity.TIME_CHUNK,
+                  "Only timeChunkLock allows reusing taskLockPosse for new segments, but lockRequest was [%s]",
+                  request
+              );
+              return Pair.of(foundPosse, createNewSegmentIds((LockRequestForNewSegment) request));
+            } else {
+              return Pair.of(foundPosse, null);
+            }
           } else {
             if (request.getType() != foundPosse.getTaskLock().getType()) {
               throw new ISE(
@@ -514,24 +523,34 @@ public class TaskLockbox
 
     } else if (request instanceof LockRequestForNewSegment) {
       final LockRequestForNewSegment lockRequestForNewSegment = (LockRequestForNewSegment) request;
-      final List<SegmentIdentifier> newIds = new ArrayList<>(lockRequestForNewSegment.getNumNewSegments());
-      for (int i = 0; i < lockRequestForNewSegment.getNumNewSegments(); i++) {
-        newIds.add(
-            metadataStorageCoordinator.allocatePendingSegment(
-                lockRequestForNewSegment.getDataSource(),
-                lockRequestForNewSegment.getBaseSequenceName(),
-                lockRequestForNewSegment.getPrevisousSegmentId(),
-                lockRequestForNewSegment.getInterval(),
-                lockRequestForNewSegment.getVersion(),
-                lockRequestForNewSegment.isSkipSegmentLineageCheck()
-            )
-        );
-      }
+      final List<SegmentIdentifier> newIds = createNewSegmentIds(lockRequestForNewSegment);
 
       return Pair.of(lockRequestForNewSegment.toLock(newIds), newIds);
     } else {
       throw new ISE("Unknown request type[%s]", request.getClass().getCanonicalName());
     }
+  }
+
+  private List<SegmentIdentifier> createNewSegmentIds(LockRequestForNewSegment request)
+  {
+    final List<SegmentIdentifier> newSegmentIds = new ArrayList<>(request.getNumNewSegments());
+    for (int i = 0; i < request.getNumNewSegments(); i++) {
+      newSegmentIds.add(
+          metadataStorageCoordinator.allocatePendingSegment(
+              request.getDataSource(),
+              request.getBaseSequenceName(),
+              request.getPrevisousSegmentId(),
+              request.getInterval(),
+              request.getShardSpecFactory(),
+              request.getVersion(),
+              request.getNumNewSegments(),
+              request.getOvershadowingSegments(),
+              i == 0 && request.isFirstPartition(),
+              request.isSkipSegmentLineageCheck()
+          )
+      );
+    }
+    return newSegmentIds;
   }
 
 //  public interface LockRequest

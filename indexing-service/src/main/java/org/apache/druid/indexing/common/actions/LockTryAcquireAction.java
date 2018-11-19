@@ -28,7 +28,10 @@ import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
+import org.apache.druid.indexing.overlord.ExistingSegmentLockRequest;
+import org.apache.druid.indexing.overlord.LockRequest;
 import org.apache.druid.indexing.overlord.LockResult;
+import org.apache.druid.indexing.overlord.TimeChunkLockRequest;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -125,7 +128,30 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
   @Override
   public TaskLock perform(Task task, TaskActionToolbox toolbox)
   {
-    final LockResult result = toolbox.getTaskLockbox().tryLock(granularity, type, task, interval, version, partitionIds);
+    final LockRequest request;
+    if (granularity == LockGranularity.TIME_CHUNK) {
+      request = new TimeChunkLockRequest(
+          type,
+          task.getGroupId(),
+          task.getDataSource(),
+          interval,
+          version,
+          task.getPriority(),
+          false
+      );
+    } else {
+      request = new ExistingSegmentLockRequest(
+          type,
+          task.getGroupId(),
+          task.getDataSource(),
+          interval,
+          partitionIds,
+          version,
+          task.getPriority(),
+          false
+      );
+    }
+    final LockResult result = toolbox.getTaskLockbox().tryLock(task, request);
     return result.isOk() ? result.getTaskLock() : null;
   }
 

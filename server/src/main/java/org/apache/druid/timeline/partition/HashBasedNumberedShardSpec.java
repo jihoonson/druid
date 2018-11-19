@@ -44,7 +44,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   private static final List<String> DEFAULT_PARTITION_DIMENSIONS = ImmutableList.of();
 
   private final ObjectMapper jsonMapper;
-  private final int startPartition;
+  private final int startPartitionId;
   @JsonIgnore
   private final List<String> partitionDimensions;
 
@@ -54,23 +54,23 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
 
   @JsonCreator
   public HashBasedNumberedShardSpec(
-      @JsonProperty("partitionNum") int partitionNum, // partitionId
-      @JsonProperty("startPartition") int startPartition, // backward compatible since old shard specs will fill this with 0
-      @JsonProperty("partitions") int partitions, // # of partitions
+      @JsonProperty("partitionNum") int partitionNum,// partitionId
+      @JsonProperty("startPartitionId") int startPartitionId,// backward compatible since old shard specs will fill this with 0
+      @JsonProperty("partitions") int partitions,// # of partitions
       @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
       @JacksonInject ObjectMapper jsonMapper
   )
   {
     super(partitionNum, partitions);
     this.jsonMapper = jsonMapper;
-    this.startPartition = startPartition;
+    this.startPartitionId = startPartitionId;
     this.partitionDimensions = partitionDimensions == null ? DEFAULT_PARTITION_DIMENSIONS : partitionDimensions;
     Preconditions.checkArgument(
-        partitionNum >= startPartition && partitionNum < startPartition + partitions,
+        partitionNum >= startPartitionId && partitionNum < startPartitionId + partitions,
         "partitionNum[%s] should be in [%s, %s)",
         partitionNum,
-        startPartition,
-        startPartition + partitions
+        startPartitionId,
+        startPartitionId + partitions
     );
   }
 
@@ -85,10 +85,17 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     this(partitionNum, 0, partitions, partitionDimensions, jsonMapper);
   }
 
-  @JsonProperty
-  public int getStartPartition()
+  @Override
+  public boolean supportStartPartition()
   {
-    return startPartition;
+    return false;
+  }
+
+  @Override
+  @JsonProperty("startPartitionId")
+  public int getStartPartitionId()
+  {
+    return startPartitionId;
   }
 
   @JsonProperty("partitionDimensions")
@@ -105,7 +112,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
 
   private int getOrdinalPartition()
   {
-    return getPartitionNum() - startPartition;
+    return getPartitionNum() - startPartitionId;
   }
 
   protected int hash(long timestamp, InputRow inputRow)
@@ -142,7 +149,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   {
     return "HashBasedNumberedShardSpec{" +
            "partitionNum=" + getPartitionNum() +
-           ", startPartition=" + startPartition +
+           ", startPartitionId=" + startPartitionId +
            ", partitions=" + getPartitions() +
            ", partitionDimensions=" + getPartitionDimensions() +
            '}';

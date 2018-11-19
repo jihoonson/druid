@@ -24,6 +24,7 @@ import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.ShardSpec;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -117,7 +118,11 @@ public interface IndexerMetadataStorageCoordinator
       String sequenceName,
       String previousSegmentId,
       Interval interval,
+      ShardSpecFactory shardSpecFactory,
       String version,
+      int numPartitions,
+      Set<Integer> overshadowingSegments,
+      boolean firstPartition,
       boolean skipSegmentLineageCheck
   );
 

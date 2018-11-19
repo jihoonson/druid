@@ -736,7 +736,9 @@ public class AppenderatorDriverRealtimeIndexTask extends AbstractTask implements
                 schema.getGranularitySpec().getSegmentGranularity(),
                 sequenceName,
                 previousSegmentId,
-                skipSegmentLineageCheck
+                Collections.emptySet(),
+                skipSegmentLineageCheck,
+                false
             )
         ),
         toolbox.getSegmentHandoffNotifierFactory(),
