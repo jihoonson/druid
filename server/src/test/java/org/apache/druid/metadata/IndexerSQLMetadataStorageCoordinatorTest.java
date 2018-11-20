@@ -33,6 +33,7 @@ import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
@@ -1067,5 +1068,43 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         ),
         visibleSegments.get(0)
     );
+  }
+
+  @Test
+  public void testAllocatePendingSegmentsForHashBasedNumberedShardSpec()
+  {
+    final ShardSpecFactory shardSpecFactory = new HashBasedNumberedShardSpecFactory(null);
+    final String dataSource = "ds";
+    final Interval interval = Intervals.of("2017-01-01/2017-02-01");
+
+    final SegmentIdentifier id1 = coordinator.allocatePendingSegment(
+        dataSource,
+        "seq",
+        null,
+        interval,
+        shardSpecFactory,
+        "version",
+        5,
+        Collections.emptySet(),
+        true,
+        true
+    );
+
+    System.out.println(id1);
+
+    final SegmentIdentifier id2 = coordinator.allocatePendingSegment(
+        dataSource,
+        "seq2",
+        null,
+        interval,
+        shardSpecFactory,
+        "version",
+        5,
+        Collections.emptySet(),
+        true,
+        true
+    );
+
+    System.out.println(id2);
   }
 }

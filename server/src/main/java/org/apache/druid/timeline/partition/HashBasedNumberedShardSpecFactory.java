@@ -22,18 +22,23 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
 {
+  @Nullable
   private final List<String> partitionDimensions;
 
   @JsonCreator
-  public HashBasedNumberedShardSpecFactory(@JsonProperty("partitionDimensions") List<String> partitionDimensions)
+  public HashBasedNumberedShardSpecFactory(
+      @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions
+  )
   {
     this.partitionDimensions = partitionDimensions;
   }
 
+  @Nullable
   @JsonProperty
   public List<String> getPartitionDimensions()
   {
