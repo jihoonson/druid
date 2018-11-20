@@ -32,10 +32,13 @@ import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.VersionedIntervalTimeline;
 import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.PartitionChunk;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 import org.junit.Assert;
@@ -53,6 +56,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public class IndexerSQLMetadataStorageCoordinatorTest
 {
@@ -839,74 +843,106 @@ public class IndexerSQLMetadataStorageCoordinatorTest
     Assert.assertEquals(0, metadataUpdateCounter.get());
   }
 
-  private SegmentIdentifier allocatePendingSegment(
-      final String dataSource,
-      final String sequenceName,
-      final String prevSegmentId,
-      final Interval interval,
-      final String version
-  )
+//  private SegmentIdentifier allocatePendingSegment(
+//      final String dataSource,
+//      final String sequenceName,
+//      final String prevSegmentId,
+//      final Interval interval,
+//      final String version
+//  )
+//  {
+//    return coordinator.allocatePendingSegment(
+//        dataSource,
+//        sequenceName,
+//        prevSegmentId,
+//        interval,
+//        new NumberedShardSpecFactory(),
+//        version,
+//        0,
+//        Collections.emptySet(),
+//        false,
+//        false
+//    );
+//  }
+
+  @Test
+  public void testAllocatePendingSegment()
   {
-    return coordinator.allocatePendingSegment(
+    final ShardSpecFactory shardSpecFactory = new NumberedShardSpecFactory();
+    final String dataSource = "ds";
+    final Interval interval = Intervals.of("2017-01-01/2017-02-01");
+    final SegmentIdentifier identifier = coordinator.allocatePendingSegment(
         dataSource,
-        sequenceName,
-        prevSegmentId,
+        "seq",
+        null,
         interval,
-        new NumberedShardSpecFactory(),
-        version,
+        shardSpecFactory,
+        "version",
         0,
         Collections.emptySet(),
         false,
         false
     );
-  }
-
-  @Test
-  public void testAllocatePendingSegment()
-  {
-    final String dataSource = "ds";
-    final Interval interval = Intervals.of("2017-01-01/2017-02-01");
-    final SegmentIdentifier identifier = allocatePendingSegment(dataSource, "seq", null, interval, "version");
 
     Assert.assertEquals("ds_2017-01-01T00:00:00.000Z_2017-02-01T00:00:00.000Z_version", identifier.toString());
 
-    final SegmentIdentifier identifier1 = allocatePendingSegment(
+    final SegmentIdentifier identifier1 = coordinator.allocatePendingSegment(
         dataSource,
         "seq",
         identifier.toString(),
         interval,
-        identifier.getVersion()
+        shardSpecFactory,
+        identifier.getVersion(),
+        0,
+        Collections.emptySet(),
+        false,
+        false
     );
 
     Assert.assertEquals("ds_2017-01-01T00:00:00.000Z_2017-02-01T00:00:00.000Z_version_1", identifier1.toString());
 
-    final SegmentIdentifier identifier2 = allocatePendingSegment(
+    final SegmentIdentifier identifier2 = coordinator.allocatePendingSegment(
         dataSource,
         "seq",
         identifier1.toString(),
         interval,
-        identifier1.getVersion()
+        shardSpecFactory,
+        identifier1.getVersion(),
+        0,
+        Collections.emptySet(),
+        false,
+        false
     );
 
     Assert.assertEquals("ds_2017-01-01T00:00:00.000Z_2017-02-01T00:00:00.000Z_version_2", identifier2.toString());
 
-    final SegmentIdentifier identifier3 = allocatePendingSegment(
+    final SegmentIdentifier identifier3 = coordinator.allocatePendingSegment(
         dataSource,
         "seq",
         identifier1.toString(),
         interval,
-        identifier1.getVersion()
+        shardSpecFactory,
+        identifier1.getVersion(),
+        0,
+        Collections.emptySet(),
+        false,
+        false
     );
 
     Assert.assertEquals("ds_2017-01-01T00:00:00.000Z_2017-02-01T00:00:00.000Z_version_2", identifier3.toString());
     Assert.assertEquals(identifier2, identifier3);
 
-    final SegmentIdentifier identifier4 = allocatePendingSegment(
+    final SegmentIdentifier identifier4 = coordinator.allocatePendingSegment(
         dataSource,
         "seq1",
         null,
         interval,
-        "version"
+        shardSpecFactory,
+        "version",
+        0,
+        Collections.emptySet(),
+        false,
+        false
     );
 
     Assert.assertEquals("ds_2017-01-01T00:00:00.000Z_2017-02-01T00:00:00.000Z_version_3", identifier4.toString());
@@ -915,6 +951,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   @Test
   public void testDeletePendingSegment() throws InterruptedException
   {
+    final ShardSpecFactory shardSpecFactory = new NumberedShardSpecFactory();
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
     String prevSegmentId = null;
@@ -922,12 +959,17 @@ public class IndexerSQLMetadataStorageCoordinatorTest
     final DateTime begin = DateTimes.nowUtc();
 
     for (int i = 0; i < 10; i++) {
-      final SegmentIdentifier identifier = allocatePendingSegment(
+      final SegmentIdentifier identifier = coordinator.allocatePendingSegment(
           dataSource,
           "seq",
           prevSegmentId,
           interval,
-          "version"
+          shardSpecFactory,
+          "version",
+          0,
+          Collections.emptySet(),
+          false,
+          false
       );
       prevSegmentId = identifier.toString();
     }
@@ -935,12 +977,17 @@ public class IndexerSQLMetadataStorageCoordinatorTest
 
     final DateTime secondBegin = DateTimes.nowUtc();
     for (int i = 0; i < 5; i++) {
-      final SegmentIdentifier identifier = allocatePendingSegment(
+      final SegmentIdentifier identifier = coordinator.allocatePendingSegment(
           dataSource,
           "seq",
           prevSegmentId,
           interval,
-          "version"
+          shardSpecFactory,
+          "version",
+          0,
+          Collections.emptySet(),
+          false,
+          false
       );
       prevSegmentId = identifier.toString();
     }
@@ -950,30 +997,75 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   }
 
   @Test
-  public void testTest() throws IOException
+  public void testAllocatePendingSegmentsWithOvershadowingSegments() throws IOException
   {
-    final DataSegment segment = new DataSegment(
-        "ds",
-        Intervals.of("2019/2020"),
-        "version",
-        Collections.emptyMap(),
-        ImmutableList.of("dim1", "dim2", "dim3"),
-        ImmutableList.of("met1", "met2"),
-        NoneShardSpec.instance(),
-        0,
-        10L,
-        ImmutableSet.of(1, 2),
-        ImmutableSet.of(0)
+    final ShardSpecFactory shardSpecFactory = new NumberedShardSpecFactory();
+    final String dataSource = "ds";
+    final Interval interval = Intervals.of("2017-01-01/2017-02-01");
+    String prevSegmentId = null;
+
+    for (int i = 0; i < 10; i++) {
+      final SegmentIdentifier identifier = coordinator.allocatePendingSegment(
+          dataSource,
+          "seq",
+          prevSegmentId,
+          interval,
+          shardSpecFactory,
+          "version",
+          0,
+          i < 1 ? Collections.emptySet() : ImmutableSet.of(i - 1),
+          false,
+          false
+      );
+      Assert.assertEquals(
+          StringUtils.format("ds_2017-01-01T00:00:00.000Z_2017-02-01T00:00:00.000Z_version%s", i == 0 ? "" : "_" + i),
+          identifier.toString()
+      );
+      prevSegmentId = identifier.toString();
+      final Set<DataSegment> toBeAnnounced = Collections.singleton(
+          new DataSegment(
+              identifier.getDataSource(),
+              identifier.getInterval(),
+              identifier.getVersion(),
+              null,
+              Collections.emptyList(),
+              Collections.emptyList(),
+              identifier.getShardSpec(),
+              0,
+              10L,
+              identifier.getOvershadowingSegments(),
+              null
+          )
+      );
+      final Set<DataSegment> announced = coordinator.announceHistoricalSegments(toBeAnnounced);
+
+      Assert.assertEquals(toBeAnnounced, announced);
+    }
+
+    final VersionedIntervalTimeline<String, DataSegment> timeline = VersionedIntervalTimeline
+        .forSegments(coordinator.getUsedSegmentsForInterval(dataSource, interval));
+
+    final List<DataSegment> visibleSegments = timeline
+        .lookup(interval)
+        .stream()
+        .flatMap(holder -> StreamSupport.stream(holder.getObject().spliterator(), false))
+        .map(PartitionChunk::getObject)
+        .collect(Collectors.toList());
+
+    Assert.assertEquals(1, visibleSegments.size());
+    Assert.assertEquals(
+        new DataSegment(
+            dataSource,
+            interval,
+            "version",
+            null,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            new NumberedShardSpec(9, 0),
+            0,
+            10L
+        ),
+        visibleSegments.get(0)
     );
-
-    final Set<DataSegment> announced = coordinator.announceHistoricalSegments(Collections.singleton(segment));
-    Assert.assertEquals(1, announced.size());
-    final DataSegment segment1 = announced.iterator().next();
-    Assert.assertEquals(segment.getOvershadowedGroup(), segment1.getOvershadowedGroup());
-    Assert.assertEquals(segment.getAtomicUpdateGroup(), segment1.getAtomicUpdateGroup());
-
-    final List<DataSegment> usedSegments = coordinator.getUsedSegmentsForInterval("ds", Intervals.of("2019/2020"));
-    Assert.assertEquals(segment.getOvershadowedGroup(), usedSegments.get(0).getOvershadowedGroup());
-    Assert.assertEquals(segment.getAtomicUpdateGroup(), usedSegments.get(0).getAtomicUpdateGroup());
   }
 }

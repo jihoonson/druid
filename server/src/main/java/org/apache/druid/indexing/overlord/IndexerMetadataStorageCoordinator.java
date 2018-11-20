@@ -19,20 +19,16 @@
 
 package org.apache.druid.indexing.overlord;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
-import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  */
@@ -85,13 +81,13 @@ public interface IndexerMetadataStorageCoordinator
    */
   Set<DataSegment> announceHistoricalSegments(Set<DataSegment> segments) throws IOException;
 
-  Pair<String, Integer> findMaxVersionAndAvailablePartitionId(
-      String dataSource,
-      String sequenceName,
-      String previousSegmentId,
-      Interval interval,
-      boolean skipSegmentLineageCheck
-  );
+//  Pair<String, Integer> findMaxVersionAndAvailablePartitionId(
+//      String dataSource,
+//      String sequenceName,
+//      String previousSegmentId,
+//      Interval interval,
+//      boolean skipSegmentLineageCheck
+//  );
 
   /**
    * Allocate a new pending segment in the pending segments table. This segment identifier will never be given out
@@ -125,42 +121,6 @@ public interface IndexerMetadataStorageCoordinator
       boolean firstPartition,
       boolean skipSegmentLineageCheck
   );
-
-  class SegmentAllocationContext
-  {
-    private final ObjectMapper objectMapper;
-    @Nullable
-    private final Integer maxPartitions;
-    private final int partitionId;
-
-    public SegmentAllocationContext(ObjectMapper objectMapper, Integer maxPartitions, int partitionId)
-    {
-      this.objectMapper = objectMapper;
-      this.maxPartitions = maxPartitions;
-      this.partitionId = partitionId;
-    }
-
-    public ObjectMapper getObjectMapper()
-    {
-      return objectMapper;
-    }
-
-    @Nullable
-    public Integer getMaxPartitions()
-    {
-      return maxPartitions;
-    }
-
-    public int getNonNullMaxPartitions()
-    {
-      return maxPartitions == null ? 0 : maxPartitions;
-    }
-
-    public int getPartitionId()
-    {
-      return partitionId;
-    }
-  }
 
   /**
    * Delete pending segments created in the given interval for the given dataSource from the pending segments table.

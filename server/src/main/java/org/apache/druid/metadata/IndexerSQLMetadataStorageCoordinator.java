@@ -350,101 +350,101 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
     }
   }
 
-  @Override
-  public Pair<String, Integer> findMaxVersionAndAvailablePartitionId(
-      String dataSource,
-      String sequenceName,
-      String previousSegmentId,
-      Interval interval,
-      boolean skipSegmentLineageCheck
-  )
-  {
-    Preconditions.checkNotNull(dataSource, "dataSource");
-    Preconditions.checkNotNull(sequenceName, "sequenceName");
-    Preconditions.checkNotNull(interval, "interval");
-
-    return connector.retryWithHandle(
-        handle -> skipSegmentLineageCheck
-               ? findMaxVersionAndAvailablePartitionId(handle, dataSource, sequenceName, interval)
-               : findMaxVersionAndAvailablePartitionIdWithLineageCheck(handle, dataSource, sequenceName, previousSegmentId, interval)
-    );
-  }
-
-  private Pair<String, Integer> findMaxVersionAndAvailablePartitionId(
-      Handle handle,
-      String dataSource,
-      String sequenceName,
-      Interval interval
-  ) throws IOException
-  {
-    final CheckExistingSegmentIdResult result = checkAndGetExistingSegmentId(
-        handle.createQuery(
-            StringUtils.format(
-                "SELECT payload FROM %s WHERE "
-                + "dataSource = :dataSource AND "
-                + "sequence_name = :sequence_name AND "
-                + "start = :start AND "
-                + "%2$send%2$s = :end",
-                dbTables.getPendingSegmentsTable(),
-                connector.getQuoteString()
-            )
-        ),
-        interval,
-        sequenceName,
-        null,
-        Pair.of("dataSource", dataSource),
-        Pair.of("sequence_name", sequenceName),
-        Pair.of("start", interval.getStart().toString()),
-        Pair.of("end", interval.getEnd().toString())
-    );
-
-    if (result.found) {
-      if (result.segmentIdentifier != null) {
-        return Pair.of(
-            result.segmentIdentifier.getVersion(),
-            result.segmentIdentifier.getShardSpec().getPartitionNum() + 1
-        );
-      } else {
-        return Pair.of(null, null);
-      }
-    }
-
-    return findMaxVersionAndSegment(handle, dataSource, interval);
-  }
-
-  private Pair<String, Integer> findMaxVersionAndAvailablePartitionIdWithLineageCheck(
-      Handle handle,
-      String dataSource,
-      String sequenceName,
-      @Nullable String previousSegmentId,
-      Interval interval
-  ) throws IOException
-  {
-    final String previousSegmentIdNotNull = previousSegmentId == null ? "" : previousSegmentId;
-    final CheckExistingSegmentIdResult result = checkAndGetExistingSegmentId(
-        handle.createQuery(
-            StringUtils.format(
-                "SELECT payload FROM %s WHERE "
-                + "dataSource = :dataSource AND "
-                + "sequence_name = :sequence_name AND "
-                + "sequence_prev_id = :sequence_prev_id",
-                dbTables.getPendingSegmentsTable()
-            )
-        ),
-        interval,
-        sequenceName,
-        previousSegmentIdNotNull,
-        Pair.of("dataSource", dataSource),
-        Pair.of("sequence_name", sequenceName),
-        Pair.of("sequence_prev_id", previousSegmentIdNotNull)
-    );
-
-    if (result.found && result.segmentIdentifier != null) {
-      return Pair.of(result.segmentIdentifier.getVersion(), result.segmentIdentifier.getShardSpec().getPartitionNum() + 1);
-    }
-
-    return findMaxVersionAndSegment(handle, dataSource, interval);
-  }
+//  @Override
+//  public Pair<String, Integer> findMaxVersionAndAvailablePartitionId(
+//      String dataSource,
+//      String sequenceName,
+//      String previousSegmentId,
+//      Interval interval,
+//      boolean skipSegmentLineageCheck
+//  )
+//  {
+//    Preconditions.checkNotNull(dataSource, "dataSource");
+//    Preconditions.checkNotNull(sequenceName, "sequenceName");
+//    Preconditions.checkNotNull(interval, "interval");
+//
+//    return connector.retryWithHandle(
+//        handle -> skipSegmentLineageCheck
+//               ? findMaxVersionAndAvailablePartitionId(handle, dataSource, sequenceName, interval)
+//               : findMaxVersionAndAvailablePartitionIdWithLineageCheck(handle, dataSource, sequenceName, previousSegmentId, interval)
+//    );
+//  }
+//
+//  private Pair<String, Integer> findMaxVersionAndAvailablePartitionId(
+//      Handle handle,
+//      String dataSource,
+//      String sequenceName,
+//      Interval interval
+//  ) throws IOException
+//  {
+//    final CheckExistingSegmentIdResult result = checkAndGetExistingSegmentId(
+//        handle.createQuery(
+//            StringUtils.format(
+//                "SELECT payload FROM %s WHERE "
+//                + "dataSource = :dataSource AND "
+//                + "sequence_name = :sequence_name AND "
+//                + "start = :start AND "
+//                + "%2$send%2$s = :end",
+//                dbTables.getPendingSegmentsTable(),
+//                connector.getQuoteString()
+//            )
+//        ),
+//        interval,
+//        sequenceName,
+//        null,
+//        Pair.of("dataSource", dataSource),
+//        Pair.of("sequence_name", sequenceName),
+//        Pair.of("start", interval.getStart().toString()),
+//        Pair.of("end", interval.getEnd().toString())
+//    );
+//
+//    if (result.found) {
+//      if (result.segmentIdentifier != null) {
+//        return Pair.of(
+//            result.segmentIdentifier.getVersion(),
+//            result.segmentIdentifier.getShardSpec().getPartitionNum() + 1
+//        );
+//      } else {
+//        return Pair.of(null, null);
+//      }
+//    }
+//
+//    return findMaxVersionAndSegment(handle, dataSource, interval);
+//  }
+//
+//  private Pair<String, Integer> findMaxVersionAndAvailablePartitionIdWithLineageCheck(
+//      Handle handle,
+//      String dataSource,
+//      String sequenceName,
+//      @Nullable String previousSegmentId,
+//      Interval interval
+//  ) throws IOException
+//  {
+//    final String previousSegmentIdNotNull = previousSegmentId == null ? "" : previousSegmentId;
+//    final CheckExistingSegmentIdResult result = checkAndGetExistingSegmentId(
+//        handle.createQuery(
+//            StringUtils.format(
+//                "SELECT payload FROM %s WHERE "
+//                + "dataSource = :dataSource AND "
+//                + "sequence_name = :sequence_name AND "
+//                + "sequence_prev_id = :sequence_prev_id",
+//                dbTables.getPendingSegmentsTable()
+//            )
+//        ),
+//        interval,
+//        sequenceName,
+//        previousSegmentIdNotNull,
+//        Pair.of("dataSource", dataSource),
+//        Pair.of("sequence_name", sequenceName),
+//        Pair.of("sequence_prev_id", previousSegmentIdNotNull)
+//    );
+//
+//    if (result.found && result.segmentIdentifier != null) {
+//      return Pair.of(result.segmentIdentifier.getVersion(), result.segmentIdentifier.getShardSpec().getPartitionNum() + 1);
+//    }
+//
+//    return findMaxVersionAndSegment(handle, dataSource, interval);
+//  }
 
   @Override
   public SegmentIdentifier allocatePendingSegment(
@@ -771,83 +771,83 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
           .execute();
   }
 
-  @Nullable
-  private Pair<String, Integer> findMaxVersionAndSegment(
-      final Handle handle,
-      final String dataSource,
-      final Interval interval
-  ) throws IOException
-  {
-    final List<TimelineObjectHolder<String, DataSegment>> existingChunks = getTimelineForIntervalsWithHandle(
-        handle,
-        dataSource,
-        ImmutableList.of(interval)
-    ).lookup(interval);
-
-    if (existingChunks.size() > 1) {
-      // Not possible to expand more than one chunk with a single segment.
-      log.warn(
-          "Cannot find maxVersion and available partitionId for dataSource[%s], interval[%s]: already have [%,d] chunks.",
-          dataSource,
-          interval,
-          existingChunks.size()
-      );
-      return Pair.of(null, null);
-    } else {
-      SegmentIdentifier max = null;
-
-      if (!existingChunks.isEmpty()) {
-        TimelineObjectHolder<String, DataSegment> existingHolder = Iterables.getOnlyElement(existingChunks);
-        for (PartitionChunk<DataSegment> existing : existingHolder.getObject()) {
-          if (max == null || max.getShardSpec().getPartitionNum() < existing.getObject()
-                                                                            .getShardSpec()
-                                                                            .getPartitionNum()) {
-            max = SegmentIdentifier.fromDataSegment(existing.getObject());
-          }
-        }
-      }
-
-      final List<SegmentIdentifier> pendings = getPendingSegmentsForIntervalWithHandle(
-          handle,
-          dataSource,
-          interval
-      );
-
-      for (SegmentIdentifier pending : pendings) {
-        if (max == null ||
-            pending.getVersion().compareTo(max.getVersion()) > 0 ||
-            (pending.getVersion().equals(max.getVersion())
-             && pending.getShardSpec().getPartitionNum() > max.getShardSpec().getPartitionNum())) {
-          max = pending;
-        }
-      }
-
-      if (max == null) {
-        return Pair.of(DateTimes.nowUtc().toString(), 0);
-      } else if (!max.getInterval().equals(interval)) {
-        log.warn(
-            "Cannot find maxVersion and available partitionId for dataSource[%s], interval[%s]: conflicting segment[%s].",
-            dataSource,
-            interval,
-            max.getIdentifierAsString()
-        );
-        return Pair.of(null, null);
-      } else if (max.getShardSpec() instanceof LinearShardSpec) {
-        return Pair.of(max.getVersion(), max.getShardSpec().getPartitionNum() + 1);
-      } else if (max.getShardSpec() instanceof NumberedShardSpec) {
-        return Pair.of(max.getVersion(), max.getShardSpec().getPartitionNum() + 1);
-      } else {
-        log.warn(
-            "Cannot allocate new segment for dataSource[%s], interval[%s]: ShardSpec class[%s] used by [%s].",
-            dataSource,
-            interval,
-            max.getShardSpec().getClass(),
-            max.getIdentifierAsString()
-        );
-        return Pair.of(null, null);
-      }
-    }
-  }
+//  @Nullable
+//  private Pair<String, Integer> findMaxVersionAndSegment(
+//      final Handle handle,
+//      final String dataSource,
+//      final Interval interval
+//  ) throws IOException
+//  {
+//    final List<TimelineObjectHolder<String, DataSegment>> existingChunks = getTimelineForIntervalsWithHandle(
+//        handle,
+//        dataSource,
+//        ImmutableList.of(interval)
+//    ).lookup(interval);
+//
+//    if (existingChunks.size() > 1) {
+//      // Not possible to expand more than one chunk with a single segment.
+//      log.warn(
+//          "Cannot find maxVersion and available partitionId for dataSource[%s], interval[%s]: already have [%,d] chunks.",
+//          dataSource,
+//          interval,
+//          existingChunks.size()
+//      );
+//      return Pair.of(null, null);
+//    } else {
+//      SegmentIdentifier max = null;
+//
+//      if (!existingChunks.isEmpty()) {
+//        TimelineObjectHolder<String, DataSegment> existingHolder = Iterables.getOnlyElement(existingChunks);
+//        for (PartitionChunk<DataSegment> existing : existingHolder.getObject()) {
+//          if (max == null || max.getShardSpec().getPartitionNum() < existing.getObject()
+//                                                                            .getShardSpec()
+//                                                                            .getPartitionNum()) {
+//            max = SegmentIdentifier.fromDataSegment(existing.getObject());
+//          }
+//        }
+//      }
+//
+//      final List<SegmentIdentifier> pendings = getPendingSegmentsForIntervalWithHandle(
+//          handle,
+//          dataSource,
+//          interval
+//      );
+//
+//      for (SegmentIdentifier pending : pendings) {
+//        if (max == null ||
+//            pending.getVersion().compareTo(max.getVersion()) > 0 ||
+//            (pending.getVersion().equals(max.getVersion())
+//             && pending.getShardSpec().getPartitionNum() > max.getShardSpec().getPartitionNum())) {
+//          max = pending;
+//        }
+//      }
+//
+//      if (max == null) {
+//        return Pair.of(DateTimes.nowUtc().toString(), 0);
+//      } else if (!max.getInterval().equals(interval)) {
+//        log.warn(
+//            "Cannot find maxVersion and available partitionId for dataSource[%s], interval[%s]: conflicting segment[%s].",
+//            dataSource,
+//            interval,
+//            max.getIdentifierAsString()
+//        );
+//        return Pair.of(null, null);
+//      } else if (max.getShardSpec() instanceof LinearShardSpec) {
+//        return Pair.of(max.getVersion(), max.getShardSpec().getPartitionNum() + 1);
+//      } else if (max.getShardSpec() instanceof NumberedShardSpec) {
+//        return Pair.of(max.getVersion(), max.getShardSpec().getPartitionNum() + 1);
+//      } else {
+//        log.warn(
+//            "Cannot allocate new segment for dataSource[%s], interval[%s]: ShardSpec class[%s] used by [%s].",
+//            dataSource,
+//            interval,
+//            max.getShardSpec().getClass(),
+//            max.getIdentifierAsString()
+//        );
+//        return Pair.of(null, null);
+//      }
+//    }
+//  }
 
   @Nullable
   private SegmentIdentifier createNewSegment(
