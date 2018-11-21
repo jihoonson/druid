@@ -26,6 +26,7 @@ import org.apache.druid.indexing.overlord.ExistingSegmentLockRequest;
 import org.apache.druid.indexing.overlord.LockRequest;
 import org.apache.druid.indexing.overlord.LockRequestForNewSegment;
 import org.apache.druid.indexing.overlord.LockRequestTmp;
+import org.apache.druid.indexing.overlord.TimeChunkLockRequest;
 import org.apache.druid.java.util.common.ISE;
 import org.joda.time.Interval;
 
@@ -210,7 +211,7 @@ public class SegmentLock implements TaskLock
   @Override
   public boolean conflict(LockRequest request)
   {
-    if (request instanceof TimeChunkLock) {
+    if (request instanceof TimeChunkLockRequest) {
       // For different interval, all overlapping intervals cause conflict.
       return dataSource.equals(request.getDataSource())
              && interval.overlaps(request.getInterval());

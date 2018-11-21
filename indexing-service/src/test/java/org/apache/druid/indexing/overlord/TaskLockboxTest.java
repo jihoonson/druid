@@ -269,10 +269,14 @@ public class TaskLockboxTest
       taskStorage.insert(task, TaskStatus.running(task.getId()));
       originalBox.add(task);
       Assert.assertTrue(
-          tryTimeChunkLock(
-              TaskLockType.EXCLUSIVE,
+          originalBox.tryLock(
               task,
-              Intervals.of(StringUtils.format("2017-01-0%d/2017-01-0%d", (i + 1), (i + 2)))
+              new TimeChunkLockRequest(
+                  TaskLockType.EXCLUSIVE,
+                  task,
+                  Intervals.of(StringUtils.format("2017-01-0%d/2017-01-0%d", (i + 1), (i + 2))),
+                  null
+              )
           ).isOk()
       );
     }
@@ -425,13 +429,13 @@ public class TaskLockboxTest
     final Task task1 = NoopTask.create("task1", 10);
     taskStorage.insert(task1, TaskStatus.running(task1.getId()));
     originalBox.add(task1);
-    Assert.assertTrue(tryTimeChunkLock(TaskLockType.EXCLUSIVE, task1, Intervals.of("2017/2018")).isOk());
+    Assert.assertTrue(originalBox.tryLock(task1, new TimeChunkLockRequest(TaskLockType.EXCLUSIVE, task1, Intervals.of("2017/2018"), null)).isOk());
 
     // task2 revokes task1
     final Task task2 = NoopTask.create("task2", 100);
     taskStorage.insert(task2, TaskStatus.running(task2.getId()));
     originalBox.add(task2);
-    Assert.assertTrue(tryTimeChunkLock(TaskLockType.EXCLUSIVE, task2, Intervals.of("2017/2018")).isOk());
+    Assert.assertTrue(originalBox.tryLock(task2, new TimeChunkLockRequest(TaskLockType.EXCLUSIVE, task2, Intervals.of("2017/2018"), null)).isOk());
 
     final Map<String, List<TaskLock>> beforeLocksInStorage = taskStorage
         .getActiveTasks()
@@ -899,7 +903,7 @@ public class TaskLockboxTest
     );
   }
 
-  // TODO: test FULLY_EXCLUSIVE
+  // TODO: test allocate new segment ids
 
   private Set<TaskLock> getAllLocks(List<Task> tasks)
   {

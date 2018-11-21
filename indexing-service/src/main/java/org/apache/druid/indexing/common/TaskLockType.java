@@ -22,6 +22,5 @@ package org.apache.druid.indexing.common;
 public enum TaskLockType
 {
   SHARED,
-  EXCLUSIVE, // shared in the same group. TODO: rename??
-  FULLY_EXCLUSIVE
+  EXCLUSIVE // shared in the same group. TODO: rename??
 }
