@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.apache.druid.indexer.TaskStatus;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
@@ -48,6 +49,10 @@ import org.apache.druid.metadata.EntryExistsException;
 import org.apache.druid.metadata.IndexerSQLMetadataStorageCoordinator;
 import org.apache.druid.metadata.MetadataStorageTablesConfig;
 import org.apache.druid.metadata.TestDerbyConnector;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpec;
 import org.easymock.EasyMock;
 import org.joda.time.Interval;
 import org.junit.Assert;
@@ -73,7 +78,7 @@ public class TaskLockboxTest
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
 
-  private final ObjectMapper objectMapper = new DefaultObjectMapper();
+  private ObjectMapper objectMapper;
   private TaskStorage taskStorage;
   private IndexerMetadataStorageCoordinator metadataStorageCoordinator;
   private TaskLockbox lockbox;
@@ -84,8 +89,13 @@ public class TaskLockboxTest
   @Before
   public void setup()
   {
+    objectMapper = new DefaultObjectMapper();
+    objectMapper.registerSubtypes(NumberedShardSpec.class);
+
     final TestDerbyConnector derbyConnector = derby.getConnector();
     derbyConnector.createTaskTables();
+    derbyConnector.createPendingSegmentsTable();
+    derbyConnector.createSegmentTable();
     final MetadataStorageTablesConfig tablesConfig = derby.metadataTablesConfigSupplier().get();
     taskStorage = new MetadataTaskStorage(
         derbyConnector,
@@ -903,7 +913,58 @@ public class TaskLockboxTest
     );
   }
 
-  // TODO: test allocate new segment ids
+  @Test
+  public void testRequestForNewSegmentWithSegmentLock()
+  {
+    final Task task = NoopTask.create();
+    lockbox.add(task);
+
+    final LockResult result = lockbox.tryLock(
+        task,
+        new LockRequestForNewSegment(
+            LockGranularity.SEGMENT,
+            TaskLockType.EXCLUSIVE,
+            task,
+            Intervals.of("2015-01-01/2015-01-05"),
+            new NumberedShardSpecFactory(),
+            3,
+            "seq",
+            null,
+            Collections.emptySet(),
+            false,
+            true
+        )
+    );
+
+    Assert.assertTrue(result.isOk());
+    Assert.assertNotNull(result.getTaskLock());
+    final List<SegmentIdentifier> segmentIdentifiers = result.getNewSegmentIds();
+    Assert.assertEquals(3, segmentIdentifiers.size());
+
+    for (int i = 0; i < 2; i++) {
+      Assert.assertEquals(segmentIdentifiers.get(2).getDataSource(), segmentIdentifiers.get(i).getDataSource());
+      Assert.assertEquals(segmentIdentifiers.get(2).getInterval(), segmentIdentifiers.get(i).getInterval());
+      Assert.assertEquals(segmentIdentifiers.get(2).getVersion(), segmentIdentifiers.get(i).getVersion());
+      Assert.assertEquals(
+          segmentIdentifiers.get(2).getOvershadowingSegments(),
+          segmentIdentifiers.get(i).getOvershadowingSegments()
+      );
+    }
+
+    for (int i = 0; i < 3; i++) {
+      final ShardSpec shardSpec = segmentIdentifiers.get(i).getShardSpec();
+      Assert.assertTrue(shardSpec instanceof NumberedShardSpec);
+      Assert.assertEquals(i, shardSpec.getPartitionNum());
+    }
+
+    // TODO: announce segments and allocate again with overshadowingSegments
+  }
+
+  @Test
+  public void testRequestForNewSegmentWithTimeChunkLock()
+  {
+
+  }
 
   private Set<TaskLock> getAllLocks(List<Task> tasks)
   {

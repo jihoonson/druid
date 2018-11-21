@@ -127,7 +127,7 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
       String previousSegmentId,
       Interval interval,
       ShardSpecFactory shardSpecFactory,
-      String version,
+      String maxVersion,
       int numPartitions,
       Set<Integer> overshadowingSegments,
       boolean firstPartition,

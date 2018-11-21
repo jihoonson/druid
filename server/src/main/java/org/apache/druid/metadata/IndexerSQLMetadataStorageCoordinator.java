@@ -453,7 +453,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       @Nullable final String previousSegmentId,
       final Interval interval,
       final ShardSpecFactory shardSpecFactory,
-      final String version,
+      final String maxVersion,
       final int numPartitions,
       final Set<Integer> overshadowingSegments,
       final boolean firstPartition,
@@ -463,7 +463,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
     Preconditions.checkNotNull(dataSource, "dataSource");
     Preconditions.checkNotNull(sequenceName, "sequenceName");
     Preconditions.checkNotNull(interval, "interval");
-    Preconditions.checkNotNull(version, "version");
+    Preconditions.checkNotNull(maxVersion, "version");
 
     return connector.retryWithHandle(
         new HandleCallback<SegmentIdentifier>()
@@ -478,7 +478,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
                        sequenceName,
                        interval,
                        shardSpecFactory,
-                       version,
+                       maxVersion,
                        numPartitions,
                        overshadowingSegments,
                        firstPartition
@@ -490,7 +490,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
                        previousSegmentId,
                        interval,
                        shardSpecFactory,
-                       version,
+                       maxVersion,
                        numPartitions,
                        overshadowingSegments,
                        firstPartition
@@ -508,7 +508,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       @Nullable final String previousSegmentId,
       final Interval interval,
       final ShardSpecFactory shardSpecFactory,
-      final String version,
+      final String maxVersion,
       final int numPartitions,
       final Set<Integer> overshadowingSegments,
       final boolean firstPartition
@@ -543,7 +543,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         dataSource,
         interval,
         shardSpecFactory,
-        version,
+        maxVersion,
         numPartitions,
         overshadowingSegments,
         firstPartition
@@ -588,7 +588,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String sequenceName,
       final Interval interval,
       final ShardSpecFactory shardSpecFactory,
-      final String version,
+      final String maxVersion,
       final int numPartitions,
       final Set<Integer> overshadowingSegments,
       final boolean firstPartition
@@ -625,7 +625,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         dataSource,
         interval,
         shardSpecFactory,
-        version,
+        maxVersion,
         numPartitions,
         overshadowingSegments,
         firstPartition
@@ -855,7 +855,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String dataSource,
       final Interval interval,
       final ShardSpecFactory shardSpecFactory,
-      final String version,
+      final String maxVersion,
       final int numPartitions,
       final Set<Integer> overshadowingSegments,
       final boolean firstPartition
@@ -878,7 +878,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
           "Cannot allocate new segment for dataSource[%s], interval[%s], version[%s]: already have [%,d] chunks.",
           dataSource,
           interval,
-          version,
+          maxVersion,
           existingChunks.size()
       );
       return null;
@@ -915,17 +915,17 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         return new SegmentIdentifier(
             dataSource,
             interval,
-            version,
+            maxVersion,
 //            new NumberedShardSpec(0, 0),
             shardSpecFactory.create(jsonMapper, 0, 0, numPartitions),
             overshadowingSegments
         );
-      } else if (!max.getInterval().equals(interval) || !max.getVersion().equals(version)) {
+      } else if (!max.getInterval().equals(interval) || max.getVersion().compareTo(maxVersion) > 0) {
         log.warn(
             "Cannot allocate new segment for dataSource[%s], interval[%s], maxVersion[%s]: conflicting segment[%s].",
             dataSource,
             interval,
-            version,
+            maxVersion,
             max.getIdentifierAsString()
         );
         return null;
@@ -967,7 +967,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         return new SegmentIdentifier(
             dataSource,
             max.getInterval(),
-            version,
+            max.getVersion(),
             newShardSpec,
             overshadowingSegments
         );

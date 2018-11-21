@@ -24,6 +24,7 @@ import org.apache.druid.indexing.common.SegmentLock;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TimeChunkLock;
+import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
@@ -51,6 +52,37 @@ public class LockRequestForNewSegment implements LockRequest
   private final Set<Integer> overshadowingSegments;
   private final boolean firstPartition;
   private final boolean skipSegmentLineageCheck;
+
+  public LockRequestForNewSegment(
+      LockGranularity lockGranularity,
+      TaskLockType lockType,
+      Task task,
+      Interval interval,
+      ShardSpecFactory shardSpecFactory,
+      int numNewSegments,
+      String baseSequenceName,
+      @Nullable String previsousSegmentId,
+      Set<Integer> overshadowingSegments,
+      boolean firstPartition,
+      boolean skipSegmentLineageCheck
+  )
+  {
+    this(
+        lockGranularity,
+        lockType,
+        task.getGroupId(),
+        task.getDataSource(),
+        interval,
+        shardSpecFactory,
+        task.getPriority(),
+        numNewSegments,
+        baseSequenceName,
+        previsousSegmentId,
+        overshadowingSegments,
+        firstPartition,
+        skipSegmentLineageCheck
+    );
+  }
 
   public LockRequestForNewSegment(
       LockGranularity lockGranularity,

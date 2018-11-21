@@ -38,6 +38,7 @@ import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
@@ -491,7 +492,7 @@ public class TaskLockbox
    *
    * @return a new {@link TaskLockPosse}
    */
-  // TODO: new class?
+  // TODO: new class for pair?
   private Pair<TaskLockPosse, List<SegmentIdentifier>> createNewTaskLockPosse(LockRequest request)
   {
     giant.lock();
@@ -532,18 +533,26 @@ public class TaskLockbox
   {
     final List<SegmentIdentifier> newSegmentIds = new ArrayList<>(request.getNumNewSegments());
     for (int i = 0; i < request.getNumNewSegments(); i++) {
+      final String sequenceName = request.isSkipSegmentLineageCheck()
+          ? StringUtils.format("%s_%d", request.getBaseSequenceName(), i)
+          : request.getBaseSequenceName();
+
       newSegmentIds.add(
-          metadataStorageCoordinator.allocatePendingSegment(
-              request.getDataSource(),
-              request.getBaseSequenceName(),
-              request.getPrevisousSegmentId(),
-              request.getInterval(),
-              request.getShardSpecFactory(),
-              request.getVersion(),
-              request.getNumNewSegments(),
-              request.getOvershadowingSegments(),
-              i == 0 && request.isFirstPartition(),
-              request.isSkipSegmentLineageCheck()
+          Preconditions.checkNotNull(
+              metadataStorageCoordinator.allocatePendingSegment(
+                  request.getDataSource(),
+                  sequenceName,
+                  request.getPrevisousSegmentId(),
+                  request.getInterval(),
+                  request.getShardSpecFactory(),
+                  request.getVersion(),
+                  request.getNumNewSegments(),
+                  request.getOvershadowingSegments(),
+                  i == 0 && request.isFirstPartition(),
+                  request.isSkipSegmentLineageCheck()
+              ),
+              "new identifier for request[%s]",
+              request
           )
       );
     }
