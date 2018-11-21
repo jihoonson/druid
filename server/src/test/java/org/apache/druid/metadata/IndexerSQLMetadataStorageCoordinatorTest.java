@@ -33,6 +33,7 @@ import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NoneShardSpec;
@@ -187,7 +188,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   public void setUp()
   {
     derbyConnector = derbyConnectorRule.getConnector();
-    mapper.registerSubtypes(LinearShardSpec.class, NumberedShardSpec.class);
+    mapper.registerSubtypes(LinearShardSpec.class, NumberedShardSpec.class, HashBasedNumberedShardSpec.class);
     derbyConnector.createDataSourceTable();
     derbyConnector.createTaskTables();
     derbyConnector.createSegmentTable();
@@ -1071,13 +1072,13 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   }
 
   @Test
-  public void testAllocatePendingSegmentsForHashBasedNumberedShardSpec()
+  public void testAllocatePendingSegmentsForHashBasedNumberedShardSpec() throws IOException
   {
     final ShardSpecFactory shardSpecFactory = new HashBasedNumberedShardSpecFactory(null);
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
 
-    final SegmentIdentifier id1 = coordinator.allocatePendingSegment(
+    SegmentIdentifier id = coordinator.allocatePendingSegment(
         dataSource,
         "seq",
         null,
@@ -1090,9 +1091,28 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         true
     );
 
-    System.out.println(id1);
+    HashBasedNumberedShardSpec shardSpec = (HashBasedNumberedShardSpec) id.getShardSpec();
+    Assert.assertEquals(0, shardSpec.getStartPartitionId());
+    Assert.assertEquals(0, shardSpec.getPartitionNum());
+    Assert.assertEquals(5, shardSpec.getPartitions());
 
-    final SegmentIdentifier id2 = coordinator.allocatePendingSegment(
+    coordinator.announceHistoricalSegments(
+        Collections.singleton(
+            new DataSegment(
+                id.getDataSource(),
+                id.getInterval(),
+                id.getVersion(),
+                null,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                id.getShardSpec(),
+                0,
+                10L
+            )
+        )
+    );
+
+    id = coordinator.allocatePendingSegment(
         dataSource,
         "seq2",
         null,
@@ -1101,10 +1121,47 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         "version",
         5,
         Collections.emptySet(),
+        false,
+        true
+    );
+
+    shardSpec = (HashBasedNumberedShardSpec) id.getShardSpec();
+    Assert.assertEquals(0, shardSpec.getStartPartitionId());
+    Assert.assertEquals(1, shardSpec.getPartitionNum());
+    Assert.assertEquals(5, shardSpec.getPartitions());
+
+    coordinator.announceHistoricalSegments(
+        Collections.singleton(
+            new DataSegment(
+                id.getDataSource(),
+                id.getInterval(),
+                id.getVersion(),
+                null,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                id.getShardSpec(),
+                0,
+                10L
+            )
+        )
+    );
+
+    id = coordinator.allocatePendingSegment(
+        dataSource,
+        "seq3",
+        null,
+        interval,
+        shardSpecFactory,
+        "version",
+        3,
+        Collections.emptySet(),
         true,
         true
     );
 
-    System.out.println(id2);
+    shardSpec = (HashBasedNumberedShardSpec) id.getShardSpec();
+    Assert.assertEquals(2, shardSpec.getStartPartitionId());
+    Assert.assertEquals(2, shardSpec.getPartitionNum());
+    Assert.assertEquals(3, shardSpec.getPartitions());
   }
 }

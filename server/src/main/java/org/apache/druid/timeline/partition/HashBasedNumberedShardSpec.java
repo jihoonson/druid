@@ -88,7 +88,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   @Override
   public boolean supportStartPartition()
   {
-    return false;
+    return true;
   }
 
   @Override
