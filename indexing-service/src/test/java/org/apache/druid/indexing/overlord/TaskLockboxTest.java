@@ -49,7 +49,10 @@ import org.apache.druid.metadata.EntryExistsException;
 import org.apache.druid.metadata.IndexerSQLMetadataStorageCoordinator;
 import org.apache.druid.metadata.MetadataStorageTablesConfig;
 import org.apache.druid.metadata.TestDerbyConnector;
+import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpec;
@@ -89,8 +92,8 @@ public class TaskLockboxTest
   @Before
   public void setup()
   {
-    objectMapper = new DefaultObjectMapper();
-    objectMapper.registerSubtypes(NumberedShardSpec.class);
+    objectMapper = TestHelper.makeJsonMapper();
+    objectMapper.registerSubtypes(NumberedShardSpec.class, HashBasedNumberedShardSpec.class);
 
     final TestDerbyConnector derbyConnector = derby.getConnector();
     derbyConnector.createTaskTables();
@@ -918,6 +921,24 @@ public class TaskLockboxTest
   {
     final Task task = NoopTask.create();
     lockbox.add(task);
+    allocateSegmentsAndAssert(task, LockGranularity.SEGMENT, "seq", 3, Collections.emptySet());
+    allocateSegmentsAndAssert(task, LockGranularity.SEGMENT, "seq2", 2, ImmutableSet.of(0, 1, 2));
+  }
+
+  @Test
+  public void testRequestForNewSegmentWithTimeChunkLock()
+  {
+    final Task task = NoopTask.create();
+    lockbox.add(task);
+    allocateSegmentsAndAssert(task, LockGranularity.TIME_CHUNK, "seq", 2, Collections.emptySet());
+    allocateSegmentsAndAssert(task, LockGranularity.TIME_CHUNK, "seq2", 3, Collections.emptySet());
+  }
+
+  @Test
+  public void testRequestForNewSegmentWithHashPartition()
+  {
+    final Task task = NoopTask.create();
+    lockbox.add(task);
 
     final LockResult result = lockbox.tryLock(
         task,
@@ -926,44 +947,119 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task,
             Intervals.of("2015-01-01/2015-01-05"),
-            new NumberedShardSpecFactory(),
+            new HashBasedNumberedShardSpecFactory(null),
             3,
             "seq",
             null,
             Collections.emptySet(),
+            true,
+            true
+        )
+    );
+
+    assertAllocatedSegments(result, 3, Collections.emptySet());
+
+    for (int i = 0; i < 3; i++) {
+      final ShardSpec shardSpec = result.getNewSegmentIds().get(i).getShardSpec();
+      Assert.assertTrue(shardSpec instanceof HashBasedNumberedShardSpec);
+      Assert.assertEquals(i, shardSpec.getPartitionNum());
+      Assert.assertEquals(0, shardSpec.getStartPartitionId());
+    }
+
+    final LockResult result2 = lockbox.tryLock(
+        task,
+        new LockRequestForNewSegment(
+            LockGranularity.SEGMENT,
+            TaskLockType.EXCLUSIVE,
+            task,
+            Intervals.of("2015-01-01/2015-01-05"),
+            new HashBasedNumberedShardSpecFactory(null),
+            5,
+            "seq2",
+            null,
+            ImmutableSet.of(0, 1, 2),
+            true,
+            true
+        )
+    );
+
+    assertAllocatedSegments(result2, 5, ImmutableSet.of(0, 1, 2));
+
+    for (int i = 0; i < 5; i++) {
+      final ShardSpec shardSpec = result2.getNewSegmentIds().get(i).getShardSpec();
+      Assert.assertTrue(shardSpec instanceof HashBasedNumberedShardSpec);
+      Assert.assertEquals(i + 3, shardSpec.getPartitionNum());
+      Assert.assertEquals(3, shardSpec.getStartPartitionId());
+    }
+  }
+
+  private void allocateSegmentsAndAssert(
+      Task task,
+      LockGranularity lockGranularity,
+      String baseSequenceName,
+      int numSegmentsToAllocate,
+      Set<Integer> overshadowingSegments
+  )
+  {
+    final LockResult result = lockbox.tryLock(
+        task,
+        new LockRequestForNewSegment(
+            lockGranularity,
+            TaskLockType.EXCLUSIVE,
+            task,
+            Intervals.of("2015-01-01/2015-01-05"),
+            new NumberedShardSpecFactory(),
+            numSegmentsToAllocate,
+            baseSequenceName,
+            null,
+            overshadowingSegments,
             false,
             true
         )
     );
 
+    assertAllocatedSegments(result, numSegmentsToAllocate, overshadowingSegments);
+  }
+
+  private void assertAllocatedSegments(
+      LockResult result,
+      int numSegmentsToAllocate,
+      Set<Integer> expectedOvershadowingSegments
+  )
+  {
+    final LockGranularity lockGranularity = result.getTaskLock().getGranularity();
     Assert.assertTrue(result.isOk());
     Assert.assertNotNull(result.getTaskLock());
+    Assert.assertEquals(lockGranularity, result.getTaskLock().getGranularity());
     final List<SegmentIdentifier> segmentIdentifiers = result.getNewSegmentIds();
-    Assert.assertEquals(3, segmentIdentifiers.size());
+    System.out.println(segmentIdentifiers); // TODO: remove
+    Assert.assertEquals(numSegmentsToAllocate, segmentIdentifiers.size());
 
-    for (int i = 0; i < 2; i++) {
-      Assert.assertEquals(segmentIdentifiers.get(2).getDataSource(), segmentIdentifiers.get(i).getDataSource());
-      Assert.assertEquals(segmentIdentifiers.get(2).getInterval(), segmentIdentifiers.get(i).getInterval());
-      Assert.assertEquals(segmentIdentifiers.get(2).getVersion(), segmentIdentifiers.get(i).getVersion());
+    final int lastSegmentIndex = numSegmentsToAllocate - 1;
+    for (int i = 0; i < lastSegmentIndex; i++) {
       Assert.assertEquals(
-          segmentIdentifiers.get(2).getOvershadowingSegments(),
-          segmentIdentifiers.get(i).getOvershadowingSegments()
+          segmentIdentifiers.get(lastSegmentIndex).getDataSource(),
+          segmentIdentifiers.get(i).getDataSource()
+      );
+      Assert.assertEquals(
+          segmentIdentifiers.get(lastSegmentIndex).getInterval(),
+          segmentIdentifiers.get(i).getInterval()
+      );
+      Assert.assertEquals(
+          segmentIdentifiers.get(lastSegmentIndex).getVersion(),
+          segmentIdentifiers.get(i).getVersion()
       );
     }
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < numSegmentsToAllocate; i++) {
       final ShardSpec shardSpec = segmentIdentifiers.get(i).getShardSpec();
       Assert.assertTrue(shardSpec instanceof NumberedShardSpec);
-      Assert.assertEquals(i, shardSpec.getPartitionNum());
+      Assert.assertEquals(i + expectedOvershadowingSegments.size(), shardSpec.getPartitionNum());
+      Assert.assertEquals(
+          expectedOvershadowingSegments,
+          segmentIdentifiers.get(i).getOvershadowingSegments()
+      );
     }
-
-    // TODO: announce segments and allocate again with overshadowingSegments
-  }
-
-  @Test
-  public void testRequestForNewSegmentWithTimeChunkLock()
-  {
-
   }
 
   private Set<TaskLock> getAllLocks(List<Task> tasks)

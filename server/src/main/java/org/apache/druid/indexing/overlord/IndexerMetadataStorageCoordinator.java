@@ -119,7 +119,8 @@ public interface IndexerMetadataStorageCoordinator
       int numPartitions,
       Set<Integer> overshadowingSegments,
       boolean firstPartition,
-      boolean skipSegmentLineageCheck
+      boolean skipSegmentLineageCheck,
+      boolean resetPartitionId
   );
 
   /**

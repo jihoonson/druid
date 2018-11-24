@@ -131,7 +131,8 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
       int numPartitions,
       Set<Integer> overshadowingSegments,
       boolean firstPartition,
-      boolean skipSegmentLineageCheck
+      boolean skipSegmentLineageCheck,
+      boolean resetPartitionId
   )
   {
     throw new UnsupportedOperationException();

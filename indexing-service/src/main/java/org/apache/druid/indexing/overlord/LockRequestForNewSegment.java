@@ -50,7 +50,7 @@ public class LockRequestForNewSegment implements LockRequest
   @Nullable
   private final String previsousSegmentId;
   private final Set<Integer> overshadowingSegments;
-  private final boolean firstPartition;
+  private final boolean firstPartition; // effective only for hash partition
   private final boolean skipSegmentLineageCheck;
 
   public LockRequestForNewSegment(
@@ -197,6 +197,11 @@ public class LockRequestForNewSegment implements LockRequest
   public boolean isSkipSegmentLineageCheck()
   {
     return skipSegmentLineageCheck;
+  }
+
+  public boolean isResetPartitionId() // effective only for timechunk lock
+  {
+    return lockGranularity == LockGranularity.TIME_CHUNK;
   }
 
   public TaskLock toLock(List<SegmentIdentifier> newSegmentIds)
