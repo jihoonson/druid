@@ -35,7 +35,7 @@ public class LinearShardSpecFactory implements ShardSpecFactory<EmptyContext>
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId, int numPartitions, EmptyContext context)
+  public ShardSpec create(ObjectMapper objectMapper, int partitionId, EmptyContext context)
   {
     return new LinearShardSpec(partitionId);
   }

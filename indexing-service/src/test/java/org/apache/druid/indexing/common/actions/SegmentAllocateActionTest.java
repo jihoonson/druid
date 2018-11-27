@@ -753,7 +753,7 @@ public class SegmentAllocateActionTest
         "s1",
         "prev",
         false,
-        new HashBasedNumberedShardSpecFactory(ImmutableList.of("dim1", "dim2")),
+        new HashBasedNumberedShardSpecFactory(ImmutableList.of("dim1", "dim2"), 2 ),
         new HashBasedNumberedShardSpecContext(1),
         Collections.emptySet(),
         false
@@ -809,7 +809,7 @@ public class SegmentAllocateActionTest
         "seq",
         null,
         true,
-        new HashBasedNumberedShardSpecFactory(ImmutableList.of("dim1", "dim2")),
+        new HashBasedNumberedShardSpecFactory(ImmutableList.of("dim1", "dim2"), 3),
         new HashBasedNumberedShardSpecContext(0),
         ImmutableSet.of(0, 1),
         false
@@ -823,6 +823,7 @@ public class SegmentAllocateActionTest
     Assert.assertTrue(shardSpec instanceof HashBasedNumberedShardSpec);
     final HashBasedNumberedShardSpec hashBasedNumberedShardSpec = (HashBasedNumberedShardSpec) shardSpec;
     Assert.assertEquals(0, hashBasedNumberedShardSpec.getOrdinal());
+    Assert.assertEquals(3, hashBasedNumberedShardSpec.getPartitions());
     Assert.assertEquals(ImmutableList.of("dim1", "dim2"), hashBasedNumberedShardSpec.getPartitionDimensions());
 
     Assert.assertEquals(ImmutableSet.of(0, 1), segmentIdentifier.getOvershadowingSegments());
@@ -842,7 +843,7 @@ public class SegmentAllocateActionTest
         "seq",
         null,
         false,
-        NumberedShardSpecFactory.instance(),
+        new NumberedShardSpecFactory(0),
         EmptyContext.instance(),
         Collections.emptySet(),
         false
@@ -860,7 +861,7 @@ public class SegmentAllocateActionTest
         "seq",
         id1.toString(),
         false,
-        NumberedShardSpecFactory.instance(),
+        new NumberedShardSpecFactory(0),
         EmptyContext.instance(),
         Collections.emptySet(),
         false
@@ -879,7 +880,7 @@ public class SegmentAllocateActionTest
         "seq",
         id2.toString(),
         false,
-        NumberedShardSpecFactory.instance(),
+        new NumberedShardSpecFactory(0),
         EmptyContext.instance(),
         Collections.emptySet(),
         true
@@ -887,7 +888,7 @@ public class SegmentAllocateActionTest
     final SegmentIdentifier id3 = action.perform(task, taskActionTestKit.getTaskActionToolbox());
     Assert.assertNotNull(id3);
     Assert.assertEquals(0, id3.getShardSpec().getPartitionNum());
-    Assert.assertTrue(id1.getVersion().compareTo(id2.getVersion()) < 0);
+    Assert.assertTrue(id1.getVersion().compareTo(id3.getVersion()) < 0);
   }
 
   private SegmentIdentifier allocate(

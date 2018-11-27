@@ -455,7 +455,6 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final Interval interval,
       final ShardSpecFactory<T> shardSpecFactory,
       final String maxVersion,
-      final int numPartitions,
       final Set<Integer> overshadowingSegments,
       final T shardSpecCreateContext,
       final boolean skipSegmentLineageCheck,
@@ -481,7 +480,6 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
                        interval,
                        shardSpecFactory,
                        maxVersion,
-                       numPartitions,
                        overshadowingSegments,
                        shardSpecCreateContext,
                        resetPartitionId
@@ -494,7 +492,6 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
                        interval,
                        shardSpecFactory,
                        maxVersion,
-                       numPartitions,
                        overshadowingSegments,
                        shardSpecCreateContext,
                        resetPartitionId
@@ -513,7 +510,6 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final Interval interval,
       final ShardSpecFactory<T> shardSpecFactory,
       final String maxVersion,
-      final int numPartitions,
       final Set<Integer> overshadowingSegments,
       final T shardSpecCreateContext,
       final boolean resetPartitionId
@@ -549,7 +545,6 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         interval,
         shardSpecFactory,
         maxVersion,
-        numPartitions,
         overshadowingSegments,
         shardSpecCreateContext,
         resetPartitionId
@@ -595,7 +590,6 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final Interval interval,
       final ShardSpecFactory<T> shardSpecFactory,
       final String maxVersion,
-      final int numPartitions,
       final Set<Integer> overshadowingSegments,
       final T shardSpecCreateContext,
       final boolean resetPartitionId
@@ -633,7 +627,6 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         interval,
         shardSpecFactory,
         maxVersion,
-        numPartitions,
         overshadowingSegments,
         shardSpecCreateContext,
         resetPartitionId
@@ -864,7 +857,6 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final Interval interval,
       @Nullable final ShardSpecFactory<T> shardSpecFactory,
       final String maxVersion,
-      final int numPartitions,
       final Set<Integer> overshadowingSegments,
       final T shardSpecCreateContext,
       final boolean resetPartitionId
@@ -885,12 +877,12 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
           existingChunks.size()
       );
       return null;
-    } else {
 
+    } else {
       if (resetPartitionId) {
         final ShardSpec shardSpec = shardSpecFactory == null
                                     ? new NumberedShardSpec(0, 0)
-                                    : shardSpecFactory.create(jsonMapper, 0, numPartitions, shardSpecCreateContext);
+                                    : shardSpecFactory.create(jsonMapper, 0, shardSpecCreateContext);
         return new SegmentIdentifier(dataSource, interval, maxVersion, shardSpec, overshadowingSegments);
       } else {
         SegmentIdentifier max = null;
@@ -924,7 +916,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         if (max == null) {
           final ShardSpec shardSpec = shardSpecFactory == null
                                       ? new NumberedShardSpec(0, 0)
-                                      : shardSpecFactory.create(jsonMapper, 0, numPartitions, shardSpecCreateContext);
+                                      : shardSpecFactory.create(jsonMapper, 0, shardSpecCreateContext);
           return new SegmentIdentifier(dataSource, interval, maxVersion, shardSpec, overshadowingSegments);
         } else if (!max.getInterval().equals(interval) || max.getVersion().compareTo(maxVersion) > 0) {
           log.warn(
@@ -981,7 +973,6 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
               final ShardSpec newShardSpec = shardSpecFactory.create(
                   jsonMapper,
                   newPartitionId,
-                  numPartitions,
                   shardSpecCreateContext
               );
               return new SegmentIdentifier(

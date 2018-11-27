@@ -27,6 +27,7 @@ import org.apache.druid.data.input.impl.CSVParseSpec;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.data.input.impl.TimestampSpec;
+import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.TestUtils;
@@ -51,6 +52,7 @@ import org.apache.druid.segment.loading.StorageLocationConfig;
 import org.apache.druid.server.security.AuthTestUtils;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -68,6 +70,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
@@ -308,7 +311,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
   }
 
   @Test
-  public void testRunIndexAndCompactAtTheSameTimeForSameInterval() throws Exception
+  public void testRunIndexAndCompactForSameSegmentAtTheSameTime() throws Exception
   {
     runIndexTask();
 
@@ -357,15 +360,12 @@ public class CompactionTaskRunTest extends IngestionTestBase
       Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
     }
 
-//    expectedException.expect(ExecutionException.class);
-//    expectedException.expectCause(CoreMatchers.instanceOf(ISE.class));
-//    expectedException.expectMessage("Failed to get a lock for segments");
-
-    compactionFuture.get();
+    final Pair<TaskStatus, List<DataSegment>> compactionResult = compactionFuture.get();
+    Assert.assertEquals(TaskState.FAILED, compactionResult.lhs.getStatusCode());
   }
 
   @Test
-  public void testRunIndexAndCompactAtTheSameTimeForSameInterval2() throws Exception
+  public void testRunIndexAndCompactForSameSegmentAtTheSameTime2() throws Exception
   {
     runIndexTask();
 
@@ -418,7 +418,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
 //    expectedException.expectCause(CoreMatchers.instanceOf(ISE.class));
 //    expectedException.expectMessage("Failed to get a lock for segments");
 
-    compactionFuture.get();
+    final Pair<TaskStatus, List<DataSegment>> compactionResult = compactionFuture.get();
+    Assert.assertEquals(TaskState.FAILED, compactionResult.lhs.getStatusCode());
   }
 
   private Pair<TaskStatus, List<DataSegment>> runIndexTask() throws Exception
@@ -545,13 +546,13 @@ public class CompactionTaskRunTest extends IngestionTestBase
         new NoopTestTaskFileWriter()
     );
 
-    if (task.isReady(box.getTaskActionClient())) {
+//    if (task.isReady(box.getTaskActionClient())) {
       TaskStatus status = task.run(box);
       shutdownTask(task);
       Collections.sort(segments);
       return Pair.of(status, segments);
-    } else {
-      throw new ISE("task is not ready");
-    }
+//    } else {
+//      throw new ISE("task is not ready");
+//    }
   }
 }

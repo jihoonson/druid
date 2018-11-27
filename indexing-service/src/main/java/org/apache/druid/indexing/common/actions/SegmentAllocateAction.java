@@ -131,7 +131,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
         sequenceName,
         previousSegmentId,
         skipSegmentLineageCheck,
-        NumberedShardSpecFactory.instance(),
+        new NumberedShardSpecFactory(0),
         EmptyContext.instance(),
         overshadowingSegments,
         changeSegmentGranularity

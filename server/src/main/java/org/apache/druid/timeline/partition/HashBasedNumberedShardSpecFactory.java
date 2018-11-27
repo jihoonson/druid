@@ -31,13 +31,16 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashB
 {
   @Nullable
   private final List<String> partitionDimensions;
+  private final int numPartitions;
 
   @JsonCreator
   public HashBasedNumberedShardSpecFactory(
-      @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions
+      @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
+      @JsonProperty("numPartitions") int numPartitions
   )
   {
     this.partitionDimensions = partitionDimensions;
+    this.numPartitions = numPartitions;
   }
 
   @Nullable
@@ -47,13 +50,14 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashB
     return partitionDimensions;
   }
 
+  @JsonProperty
+  public int getNumPartitions()
+  {
+    return numPartitions;
+  }
+
   @Override
-  public ShardSpec create(
-      ObjectMapper objectMapper,
-      int partitionId,
-      int numPartitions,
-      HashBasedNumberedShardSpecContext context
-  )
+  public ShardSpec create(ObjectMapper objectMapper, int partitionId, HashBasedNumberedShardSpecContext context)
   {
     return new HashBasedNumberedShardSpec(
         partitionId,
@@ -80,13 +84,14 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashB
       return false;
     }
     HashBasedNumberedShardSpecFactory that = (HashBasedNumberedShardSpecFactory) o;
-    return Objects.equals(partitionDimensions, that.partitionDimensions);
+    return numPartitions == that.numPartitions &&
+           Objects.equals(partitionDimensions, that.partitionDimensions);
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(partitionDimensions);
+    return Objects.hash(partitionDimensions, numPartitions);
   }
 
   public static class HashBasedNumberedShardSpecContext implements ShardSpecFactory.Context

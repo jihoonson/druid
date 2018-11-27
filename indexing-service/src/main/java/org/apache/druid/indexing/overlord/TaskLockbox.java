@@ -555,7 +555,6 @@ public class TaskLockbox
               request.getInterval(),
               request.getShardSpecFactory(),
               version,
-              request.getNumNewSegments(),
               request.getOvershadowingSegments(),
               request.getShardSpecCreateContext(i),
               request.isSkipSegmentLineageCheck(),

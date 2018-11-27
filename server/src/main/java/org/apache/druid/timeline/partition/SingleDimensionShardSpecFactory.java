@@ -42,12 +42,7 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory<SingleD
   }
 
   @Override
-  public ShardSpec create(
-      ObjectMapper objectMapper,
-      int partitionId,
-      int numPartitions,
-      SingleDimensionShardSpecContext context
-  )
+  public ShardSpec create(ObjectMapper objectMapper, int partitionId, SingleDimensionShardSpecContext context)
   {
     return new SingleDimensionShardSpec(dimension, context.start, context.end, partitionId);
   }

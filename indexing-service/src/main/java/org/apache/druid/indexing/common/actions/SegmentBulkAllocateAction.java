@@ -136,7 +136,7 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
             task.getGroupId(),
             task.getDataSource(),
             interval,
-            new HashBasedNumberedShardSpecFactory(partitionDimensions),
+            new HashBasedNumberedShardSpecFactory(partitionDimensions, numSegmentsToAllocate),
             task.getPriority(),
             numSegmentsToAllocate,
             baseSequenceName,

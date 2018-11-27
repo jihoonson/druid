@@ -889,7 +889,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
 //          partitionDimensions,
 //          jsonMapper
 //      );
-      return new HashBasedNumberedShardSpecFactory(partitionDimensions);
+      return new HashBasedNumberedShardSpecFactory(partitionDimensions, numShards);
     }
   }
 

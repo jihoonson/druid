@@ -949,7 +949,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task,
             Intervals.of("2015-01-01/2015-01-05"),
-            new HashBasedNumberedShardSpecFactory(null),
+            new HashBasedNumberedShardSpecFactory(null, 3),
             3,
             "seq",
             null,
@@ -965,7 +965,7 @@ public class TaskLockboxTest
       final ShardSpec shardSpec = result.getNewSegmentIds().get(i).getShardSpec();
       Assert.assertTrue(shardSpec instanceof HashBasedNumberedShardSpec);
       Assert.assertEquals(i, shardSpec.getPartitionNum());
-      Assert.assertEquals(0, ((HashBasedNumberedShardSpec) shardSpec).getOrdinal());
+      Assert.assertEquals(i, ((HashBasedNumberedShardSpec) shardSpec).getOrdinal());
     }
 
     final LockResult result2 = lockbox.tryLock(
@@ -975,7 +975,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task,
             Intervals.of("2015-01-01/2015-01-05"),
-            new HashBasedNumberedShardSpecFactory(null),
+            new HashBasedNumberedShardSpecFactory(null, 5),
             5,
             "seq2",
             null,
@@ -991,7 +991,7 @@ public class TaskLockboxTest
       final ShardSpec shardSpec = result2.getNewSegmentIds().get(i).getShardSpec();
       Assert.assertTrue(shardSpec instanceof HashBasedNumberedShardSpec);
       Assert.assertEquals(i + 3, shardSpec.getPartitionNum());
-      Assert.assertEquals(3, ((HashBasedNumberedShardSpec) shardSpec).getOrdinal());
+      Assert.assertEquals(i, ((HashBasedNumberedShardSpec) shardSpec).getOrdinal());
     }
   }
 
@@ -1010,11 +1010,11 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task,
             Intervals.of("2015-01-01/2015-01-05"),
-            NumberedShardSpecFactory.instance(),
+            new NumberedShardSpecFactory(0),
             numSegmentsToAllocate,
             baseSequenceName,
             null,
-            false,
+            true,
             overshadowingSegments,
             i -> EmptyContext.instance()
         )
