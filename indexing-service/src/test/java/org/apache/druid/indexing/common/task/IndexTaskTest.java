@@ -42,7 +42,6 @@ import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReportData;
 import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskReportFileWriter;
 import org.apache.druid.indexing.common.TaskToolbox;
-import org.apache.druid.indexing.common.TestUtils;
 import org.apache.druid.indexing.common.actions.LocalTaskActionClient;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
@@ -101,7 +100,6 @@ import javax.annotation.Nullable;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -136,9 +134,7 @@ public class IndexTaskTest extends IngestionTestBase
       0
   );
 
-  private DataSegmentPusher pusher;
   private SegmentLoader segmentLoader;
-  private List<DataSegment> segments;
 
   private static final IndexSpec indexSpec = new IndexSpec();
   private final ObjectMapper jsonMapper;
@@ -150,12 +146,11 @@ public class IndexTaskTest extends IngestionTestBase
 
   public IndexTaskTest()
   {
-    TestUtils testUtils = new TestUtils();
-    jsonMapper = testUtils.getTestObjectMapper();
+    jsonMapper = getObjectMapper();
 
-    indexMergerV9 = testUtils.getTestIndexMergerV9();
-    indexIO = testUtils.getTestIndexIO();
-    rowIngestionMetersFactory = testUtils.getRowIngestionMetersFactory();
+    indexMergerV9 = getIndexMerger();
+    indexIO = getIndexIO();
+    rowIngestionMetersFactory = getRowIngestionMetersFactory();
   }
 
   @Before
@@ -165,30 +160,7 @@ public class IndexTaskTest extends IngestionTestBase
         StringUtils.format("IndexTaskTestReports-%s.json", System.currentTimeMillis())
     );
 
-    final File deepStorageDir = temporaryFolder.newFolder();
     final File cacheDir = temporaryFolder.newFolder();
-
-    pusher = new LocalDataSegmentPusher(
-        new LocalDataSegmentPusherConfig()
-        {
-          @Override
-          public File getStorageDirectory()
-          {
-            return deepStorageDir;
-          }
-        },
-        jsonMapper
-    )
-    {
-      @Override
-      public DataSegment push(final File dataSegmentFile, final DataSegment segment, final boolean useUniquePath)
-          throws IOException
-      {
-        final DataSegment returnSegment = super.push(dataSegmentFile, segment, useUniquePath);
-        segments.add(returnSegment);
-        return returnSegment;
-      }
-    };
     segmentLoader = new SegmentLoaderLocalCacheManager(
         indexIO,
         new SegmentLoaderConfig()
@@ -203,8 +175,6 @@ public class IndexTaskTest extends IngestionTestBase
         },
         jsonMapper
     );
-    segments = new ArrayList<>();
-
   }
 
   @After
@@ -467,7 +437,7 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
     Assert.assertEquals(NoneShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
-    Assert.assertEquals(ImmutableList.of(0), segments.get(0).getAtomicUpdateGroup());
+    Assert.assertEquals(ImmutableSet.of(0), segments.get(0).getAtomicUpdateGroup());
   }
 
   @Test
@@ -498,7 +468,7 @@ public class IndexTaskTest extends IngestionTestBase
         rowIngestionMetersFactory
     );
 
-    runTask(indexTask);
+    final List<DataSegment> segments = runTask(indexTask).rhs;
 
     Assert.assertEquals(2, segments.size());
 
@@ -583,13 +553,13 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
-    Assert.assertEquals(ImmutableList.of(0), segments.get(0).getAtomicUpdateGroup());
+    Assert.assertEquals(ImmutableSet.of(0), segments.get(0).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(1).getDataSource());
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
     Assert.assertEquals(1, segments.get(1).getShardSpec().getPartitionNum());
-    Assert.assertEquals(ImmutableList.of(1), segments.get(1).getAtomicUpdateGroup());
+    Assert.assertEquals(ImmutableSet.of(1), segments.get(1).getAtomicUpdateGroup());
   }
 
   @Test
@@ -632,19 +602,19 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014-01-01T00/PT1H"), segments.get(0).getInterval());
     Assert.assertTrue(segments.get(0).getShardSpec().getClass().equals(NoneShardSpec.class));
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
-    Assert.assertEquals(ImmutableList.of(0), segments.get(0).getAtomicUpdateGroup());
+    Assert.assertEquals(ImmutableSet.of(0), segments.get(0).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(1).getDataSource());
     Assert.assertEquals(Intervals.of("2014-01-01T01/PT1H"), segments.get(1).getInterval());
     Assert.assertTrue(segments.get(1).getShardSpec().getClass().equals(NoneShardSpec.class));
     Assert.assertEquals(0, segments.get(1).getShardSpec().getPartitionNum());
-    Assert.assertEquals(ImmutableList.of(0), segments.get(1).getAtomicUpdateGroup());
+    Assert.assertEquals(ImmutableSet.of(0), segments.get(1).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(2).getDataSource());
     Assert.assertEquals(Intervals.of("2014-01-01T02/PT1H"), segments.get(2).getInterval());
     Assert.assertTrue(segments.get(2).getShardSpec().getClass().equals(NoneShardSpec.class));
     Assert.assertEquals(0, segments.get(2).getShardSpec().getPartitionNum());
-    Assert.assertEquals(ImmutableList.of(0), segments.get(2).getAtomicUpdateGroup());
+    Assert.assertEquals(ImmutableSet.of(0), segments.get(2).getAtomicUpdateGroup());
   }
 
   @Test
@@ -802,7 +772,7 @@ public class IndexTaskTest extends IngestionTestBase
       Assert.assertEquals(expectedInterval, segment.getInterval());
       Assert.assertEquals(NumberedShardSpec.class, segment.getShardSpec().getClass());
       Assert.assertEquals(expectedPartitionNum, segment.getShardSpec().getPartitionNum());
-      Assert.assertEquals(ImmutableList.of(expectedPartitionNum), segment.getAtomicUpdateGroup());
+      Assert.assertEquals(ImmutableSet.of(expectedPartitionNum), segment.getAtomicUpdateGroup());
     }
   }
 
@@ -892,7 +862,7 @@ public class IndexTaskTest extends IngestionTestBase
       Assert.assertEquals(expectedInterval, segment.getInterval());
       Assert.assertEquals(NumberedShardSpec.class, segment.getShardSpec().getClass());
       Assert.assertEquals(i, segment.getShardSpec().getPartitionNum());
-      Assert.assertEquals(ImmutableList.of(i), segment.getAtomicUpdateGroup());
+      Assert.assertEquals(ImmutableSet.of(i), segment.getAtomicUpdateGroup());
     }
   }
 
@@ -1540,34 +1510,19 @@ public class IndexTaskTest extends IngestionTestBase
     actionClient = createActionClient(task);
 
     final List<DataSegment> segments = new ArrayList<>();
-//    final DataSegmentPusher pusher = new DataSegmentPusher()
-//    {
-//      @Deprecated
-//      @Override
-//      public String getPathForHadoop(String dataSource)
-//      {
-//        return getPathForHadoop();
-//      }
-//
-//      @Override
-//      public String getPathForHadoop()
-//      {
-//        return null;
-//      }
-//
-//      @Override
-//      public DataSegment push(File file, DataSegment segment, boolean useUniquePath)
-//      {
-//        segments.add(segment);
-//        return segment;
-//      }
-//
-//      @Override
-//      public Map<String, Object> makeLoadSpec(URI uri)
-//      {
-//        throw new UnsupportedOperationException();
-//      }
-//    };
+    final DataSegmentPusher pusher = new LocalDataSegmentPusher(
+        new LocalDataSegmentPusherConfig(),
+        getObjectMapper()
+    )
+    {
+      @Override
+      public DataSegment push(File file, DataSegment segment, boolean useUniquePath) throws IOException
+      {
+        final DataSegment annotatedSegment = super.push(file, segment, useUniquePath);
+        segments.add(annotatedSegment);
+        return annotatedSegment;
+      }
+    };
 
     final TaskToolbox box = new TaskToolbox(
         null,

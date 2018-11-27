@@ -948,13 +948,17 @@ public class IndexTask extends AbstractTask implements ChatHandler
       // Overwrite mode, guaranteed rollup: segments are all known in advance and there is one per sequenceName.
 
       final Map<String, SegmentIdentifier> lookup = new HashMap<>();
-//      final Map<Interval, Integer> allocateSpec = shardSpecs.map
-//          .entrySet()
-//          .stream()
-//          .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().size()));
 
       // TODO: create shardSpec on the fly
-      final List<SegmentIdentifier> segmentIds = toolbox.getTaskActionClient().submit(new SegmentBulkAllocateAction(intervalToNumShards, getId(), isChangeSegmentGranularity(), tuningConfig.partitionDimensions, getAllInputPartitionIds()));
+      final List<SegmentIdentifier> segmentIds = toolbox.getTaskActionClient().submit(
+          new SegmentBulkAllocateAction(
+              intervalToNumShards,
+              getId(),
+              isChangeSegmentGranularity(),
+              tuningConfig.partitionDimensions,
+              getAllInputPartitionIds()
+          )
+      );
       final Map<Interval, List<SegmentIdentifier>> intervalToIds = new HashMap<>();
       final Map<Interval, List<ShardSpec>> shardSpecMap = new HashMap<>();
       for (SegmentIdentifier id : segmentIds) {
@@ -981,7 +985,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
           }
           final SegmentIdentifier segmentIdForPublishing = idsPerInterval.get(i).withShardSpec(shardSpecForPublishing);
 
-          shardSpecMap.computeIfAbsent(interval, k -> new ArrayList<>()).add(shardSpecForPublishing);
+          shardSpecMap.computeIfAbsent(interval, k -> new ArrayList<>()).add(idsPerInterval.get(i).getShardSpec());
           lookup.put(getSequenceName(interval, idsPerInterval.get(i).getShardSpec()), segmentIdForPublishing);
         }
       }

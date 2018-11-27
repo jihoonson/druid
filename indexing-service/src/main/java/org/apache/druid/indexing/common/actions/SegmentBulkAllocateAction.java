@@ -143,7 +143,7 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
             null,
             true,
             overshadowingSegments.get(interval),
-            i -> new HashBasedNumberedShardSpecContext(i)
+            HashBasedNumberedShardSpecContext::new
         );
       }
 

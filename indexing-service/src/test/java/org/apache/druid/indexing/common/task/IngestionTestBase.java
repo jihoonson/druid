@@ -29,6 +29,7 @@ import org.apache.druid.indexing.common.actions.LocalTaskActionClient;
 import org.apache.druid.indexing.common.actions.TaskActionToolbox;
 import org.apache.druid.indexing.common.actions.TaskAuditLogConfig;
 import org.apache.druid.indexing.common.config.TaskStorageConfig;
+import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.IndexTask.IndexTuningConfig;
 import org.apache.druid.indexing.overlord.MetadataTaskStorage;
 import org.apache.druid.indexing.overlord.TaskLockbox;
@@ -51,6 +52,7 @@ import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.realtime.firehose.LocalFirehoseFactory;
 import org.apache.druid.segment.transform.TransformSpec;
 import org.apache.druid.server.metrics.NoopServiceEmitter;
+import org.junit.Before;
 import org.junit.Rule;
 
 import java.io.File;
@@ -66,11 +68,16 @@ public abstract class IngestionTestBase
 
   private final TestUtils testUtils = new TestUtils();
   private final ObjectMapper objectMapper = testUtils.getTestObjectMapper();
-  private final TaskStorage taskStorage;
-  private final IndexerSQLMetadataStorageCoordinator storageCoordinator;
-  private final TaskLockbox lockbox;
+  private TaskStorage taskStorage;
+  private IndexerSQLMetadataStorageCoordinator storageCoordinator;
+  private TaskLockbox lockbox;
 
   public IngestionTestBase()
+  {
+  }
+
+  @Before
+  public void setUp()
   {
     final SQLMetadataConnector connector = derbyConnectorRule.getConnector();
     connector.createTaskTables();
@@ -121,6 +128,11 @@ public abstract class IngestionTestBase
   public TaskLockbox getLockbox()
   {
     return lockbox;
+  }
+
+  public RowIngestionMetersFactory getRowIngestionMetersFactory()
+  {
+    return testUtils.getRowIngestionMetersFactory();
   }
 
   public TaskActionToolbox createTaskActionToolbox()
