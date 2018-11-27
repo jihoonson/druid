@@ -206,6 +206,7 @@ public class SegmentAllocateActionTest
         NumberedShardSpecFactory.instance(),
         EmptyContext.instance()
     );
+    Assert.assertNotNull(id1);
     final SegmentIdentifier id2 = allocate(
         task,
         THE_DISTANT_FUTURE,
@@ -216,6 +217,7 @@ public class SegmentAllocateActionTest
         NumberedShardSpecFactory.instance(),
         EmptyContext.instance()
     );
+    Assert.assertNotNull(id2);
     final SegmentIdentifier id3 = allocate(
         task,
         PARTY_TIME,
@@ -226,6 +228,7 @@ public class SegmentAllocateActionTest
         NumberedShardSpecFactory.instance(),
         EmptyContext.instance()
     );
+    Assert.assertNotNull(id3);
     final SegmentIdentifier id4 = allocate(
         task,
         PARTY_TIME,
@@ -236,6 +239,7 @@ public class SegmentAllocateActionTest
         NumberedShardSpecFactory.instance(),
         EmptyContext.instance()
     );
+    Assert.assertNull(id4);
     final SegmentIdentifier id5 = allocate(
         task,
         THE_DISTANT_FUTURE,
@@ -246,6 +250,7 @@ public class SegmentAllocateActionTest
         NumberedShardSpecFactory.instance(),
         EmptyContext.instance()
     );
+    Assert.assertNotNull(id5);
     final SegmentIdentifier id6 = allocate(
         task,
         THE_DISTANT_FUTURE,
@@ -256,6 +261,7 @@ public class SegmentAllocateActionTest
         NumberedShardSpecFactory.instance(),
         EmptyContext.instance()
     );
+    Assert.assertNull(id6);
     final SegmentIdentifier id7 = allocate(
         task,
         THE_DISTANT_FUTURE,
@@ -266,6 +272,7 @@ public class SegmentAllocateActionTest
         NumberedShardSpecFactory.instance(),
         EmptyContext.instance()
     );
+    Assert.assertNotNull(id7);
 
     final List<TaskLock> partyLocks = taskActionTestKit.getTaskLockbox()
                                                        .findLocksForTask(task)
@@ -273,7 +280,7 @@ public class SegmentAllocateActionTest
                                                        .filter(input -> input.getInterval().contains(PARTY_TIME))
                                                        .collect(Collectors.toList());
 
-    Assert.assertEquals(3, partyLocks.size());
+    Assert.assertEquals(2, partyLocks.size());
 
     for (TaskLock partyLock : partyLocks) {
       assertSameIdentifier(
@@ -302,6 +309,8 @@ public class SegmentAllocateActionTest
         .stream()
         .filter(input -> input.getInterval().contains(THE_DISTANT_FUTURE))
         .collect(Collectors.toList());
+
+    Assert.assertEquals(3, futureLocks.size());
 
     for (TaskLock futureLock : futureLocks) {
       assertSameIdentifier(
