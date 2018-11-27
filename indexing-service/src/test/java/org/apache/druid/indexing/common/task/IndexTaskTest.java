@@ -1540,34 +1540,34 @@ public class IndexTaskTest extends IngestionTestBase
     actionClient = createActionClient(task);
 
     final List<DataSegment> segments = new ArrayList<>();
-    final DataSegmentPusher pusher = new DataSegmentPusher()
-    {
-      @Deprecated
-      @Override
-      public String getPathForHadoop(String dataSource)
-      {
-        return getPathForHadoop();
-      }
-
-      @Override
-      public String getPathForHadoop()
-      {
-        return null;
-      }
-
-      @Override
-      public DataSegment push(File file, DataSegment segment, boolean useUniquePath)
-      {
-        segments.add(segment);
-        return segment;
-      }
-
-      @Override
-      public Map<String, Object> makeLoadSpec(URI uri)
-      {
-        throw new UnsupportedOperationException();
-      }
-    };
+//    final DataSegmentPusher pusher = new DataSegmentPusher()
+//    {
+//      @Deprecated
+//      @Override
+//      public String getPathForHadoop(String dataSource)
+//      {
+//        return getPathForHadoop();
+//      }
+//
+//      @Override
+//      public String getPathForHadoop()
+//      {
+//        return null;
+//      }
+//
+//      @Override
+//      public DataSegment push(File file, DataSegment segment, boolean useUniquePath)
+//      {
+//        segments.add(segment);
+//        return segment;
+//      }
+//
+//      @Override
+//      public Map<String, Object> makeLoadSpec(URI uri)
+//      {
+//        throw new UnsupportedOperationException();
+//      }
+//    };
 
     final TaskToolbox box = new TaskToolbox(
         null,
