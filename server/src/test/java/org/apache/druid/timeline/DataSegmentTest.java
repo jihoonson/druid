@@ -75,7 +75,9 @@ public class DataSegmentTest
         Arrays.asList("met1", "met2"),
         NoneShardSpec.instance(),
         IndexIO.CURRENT_VERSION_ID,
-        1
+        1,
+        ImmutableSet.of(0, 1),
+        ImmutableSet.of(3, 4, 5)
     );
 
     final Map<String, Object> objectMap = mapper.readValue(
@@ -83,7 +85,7 @@ public class DataSegmentTest
         JacksonUtils.TYPE_REFERENCE_MAP_STRING_OBJECT
     );
 
-    Assert.assertEquals(11, objectMap.size());
+    Assert.assertEquals(12, objectMap.size());
     Assert.assertEquals("something", objectMap.get("dataSource"));
     Assert.assertEquals(interval.toString(), objectMap.get("interval"));
     Assert.assertEquals("1", objectMap.get("version"));
