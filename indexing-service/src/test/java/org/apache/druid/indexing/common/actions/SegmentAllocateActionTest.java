@@ -20,8 +20,6 @@
 package org.apache.druid.indexing.common.actions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Predicate;
-import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -30,7 +28,6 @@ import org.apache.druid.indexing.common.task.NoopTask;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.DateTimes;
-import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.emitter.EmittingLogger;
@@ -38,8 +35,15 @@ import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.LinearShardSpec;
+import org.apache.druid.timeline.partition.LinearShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactory.Context;
+import org.apache.druid.timeline.partition.ShardSpecFactory.EmptyContext;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
+import org.apache.druid.timeline.partition.SingleDimensionShardSpecFactory;
+import org.apache.druid.timeline.partition.SingleDimensionShardSpecFactory.SingleDimensionShardSpecContext;
 import org.easymock.EasyMock;
 import org.joda.time.DateTime;
 import org.junit.Assert;
@@ -49,6 +53,8 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class SegmentAllocateActionTest
 {
@@ -119,7 +125,9 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        null
+        null,
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
     final SegmentIdentifier id2 = allocate(
         task,
@@ -127,7 +135,9 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.getIdentifierAsString(),
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
     final SegmentIdentifier id3 = allocate(
         task,
@@ -135,41 +145,48 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id2.getIdentifierAsString()
+        id2.getIdentifierAsString(),
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
 
-    final TaskLock partyLock = Iterables.getOnlyElement(
-        FluentIterable.from(taskActionTestKit.getTaskLockbox().findLocksForTask(task))
-                      .filter(input -> input.getInterval().contains(PARTY_TIME))
-    );
+    final List<TaskLock> partyTimeLocks = taskActionTestKit.getTaskLockbox()
+                                                           .findLocksForTask(task)
+                                                           .stream()
+                                                           .filter(input -> input.getInterval().contains(PARTY_TIME))
+                                                           .collect(Collectors.toList());
 
-    assertSameIdentifier(
-        id1,
-        new SegmentIdentifier(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(PARTY_TIME),
-            partyLock.getVersion(),
-            new NumberedShardSpec(0, 0)
-        )
-    );
-    assertSameIdentifier(
-        id2,
-        new SegmentIdentifier(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(PARTY_TIME),
-            partyLock.getVersion(),
-            new NumberedShardSpec(1, 0)
-        )
-    );
-    assertSameIdentifier(
-        id3,
-        new SegmentIdentifier(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(PARTY_TIME),
-            partyLock.getVersion(),
-            new NumberedShardSpec(2, 0)
-        )
-    );
+    Assert.assertEquals(3, partyTimeLocks.size());
+
+    for (TaskLock partyLock : partyTimeLocks) {
+      assertSameIdentifier(
+          new SegmentIdentifier(
+              DATA_SOURCE,
+              Granularities.HOUR.bucket(PARTY_TIME),
+              partyLock.getVersion(),
+              new NumberedShardSpec(0, 0)
+          ),
+          id1
+      );
+      assertSameIdentifier(
+          new SegmentIdentifier(
+              DATA_SOURCE,
+              Granularities.HOUR.bucket(PARTY_TIME),
+              partyLock.getVersion(),
+              new NumberedShardSpec(1, 0)
+          ),
+          id2
+      );
+      assertSameIdentifier(
+          new SegmentIdentifier(
+              DATA_SOURCE,
+              Granularities.HOUR.bucket(PARTY_TIME),
+              partyLock.getVersion(),
+              new NumberedShardSpec(2, 0)
+          ),
+          id3
+      );
+    }
   }
 
   @Test
@@ -185,7 +202,9 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        null
+        null,
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
     final SegmentIdentifier id2 = allocate(
         task,
@@ -193,7 +212,9 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.getIdentifierAsString(),
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
     final SegmentIdentifier id3 = allocate(
         task,
@@ -201,7 +222,9 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id2.getIdentifierAsString()
+        id2.getIdentifierAsString(),
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
     final SegmentIdentifier id4 = allocate(
         task,
@@ -209,7 +232,9 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.getIdentifierAsString(),
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
     final SegmentIdentifier id5 = allocate(
         task,
@@ -217,7 +242,9 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.getIdentifierAsString(),
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
     final SegmentIdentifier id6 = allocate(
         task,
@@ -225,7 +252,9 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.MINUTE,
         "s1",
-        id1.getIdentifierAsString()
+        id1.getIdentifierAsString(),
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
     final SegmentIdentifier id7 = allocate(
         task,
@@ -233,67 +262,63 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.DAY,
         "s1",
-        id1.getIdentifierAsString()
+        id1.getIdentifierAsString(),
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
 
-    final TaskLock partyLock = Iterables.getOnlyElement(
-        FluentIterable.from(taskActionTestKit.getTaskLockbox().findLocksForTask(task))
-                      .filter(
-                          new Predicate<TaskLock>()
-                          {
-                            @Override
-                            public boolean apply(TaskLock input)
-                            {
-                              return input.getInterval().contains(PARTY_TIME);
-                            }
-                          }
-                      )
-    );
-    final TaskLock futureLock = Iterables.getOnlyElement(
-        FluentIterable.from(taskActionTestKit.getTaskLockbox().findLocksForTask(task))
-                      .filter(
-                          new Predicate<TaskLock>()
-                          {
-                            @Override
-                            public boolean apply(TaskLock input)
-                            {
-                              return input.getInterval().contains(THE_DISTANT_FUTURE);
-                            }
-                          }
-                      )
-    );
+    final List<TaskLock> partyLocks = taskActionTestKit.getTaskLockbox()
+                                                       .findLocksForTask(task)
+                                                       .stream()
+                                                       .filter(input -> input.getInterval().contains(PARTY_TIME))
+                                                       .collect(Collectors.toList());
 
-    assertSameIdentifier(
-        id1,
-        new SegmentIdentifier(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(PARTY_TIME),
-            partyLock.getVersion(),
-            new NumberedShardSpec(0, 0)
-        )
-    );
-    assertSameIdentifier(
-        id2,
-        new SegmentIdentifier(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(THE_DISTANT_FUTURE),
-            futureLock.getVersion(),
-            new NumberedShardSpec(0, 0)
-        )
-    );
-    assertSameIdentifier(
-        id3,
-        new SegmentIdentifier(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(PARTY_TIME),
-            partyLock.getVersion(),
-            new NumberedShardSpec(1, 0)
-        )
-    );
+    Assert.assertEquals(3, partyLocks.size());
+
+    for (TaskLock partyLock : partyLocks) {
+      assertSameIdentifier(
+          new SegmentIdentifier(
+              DATA_SOURCE,
+              Granularities.HOUR.bucket(PARTY_TIME),
+              partyLock.getVersion(),
+              new NumberedShardSpec(0, 0)
+          ),
+          id1
+      );
+      assertSameIdentifier(
+          new SegmentIdentifier(
+              DATA_SOURCE,
+              Granularities.HOUR.bucket(PARTY_TIME),
+              partyLock.getVersion(),
+              new NumberedShardSpec(1, 0)
+          ),
+          id3
+      );
+    }
+
+    final List<TaskLock> futureLocks = taskActionTestKit
+        .getTaskLockbox()
+        .findLocksForTask(task)
+        .stream()
+        .filter(input -> input.getInterval().contains(THE_DISTANT_FUTURE))
+        .collect(Collectors.toList());
+
+    for (TaskLock futureLock : futureLocks) {
+      assertSameIdentifier(
+          new SegmentIdentifier(
+              DATA_SOURCE,
+              Granularities.HOUR.bucket(THE_DISTANT_FUTURE),
+              futureLock.getVersion(),
+              new NumberedShardSpec(0, 0)
+          ),
+          id2
+      );
+    }
+
     Assert.assertNull(id4);
-    assertSameIdentifier(id5, id2);
+    assertSameIdentifier(id2, id5);
     Assert.assertNull(id6);
-    assertSameIdentifier(id7, id2);
+    assertSameIdentifier(id2, id7);
   }
 
   @Test
@@ -303,15 +328,35 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
-    final SegmentIdentifier id1 = allocate(task, PARTY_TIME, Granularities.NONE, Granularities.HOUR, "s1", null);
-    final SegmentIdentifier id2 = allocate(task, PARTY_TIME, Granularities.NONE, Granularities.HOUR, "s2", null);
+    final SegmentIdentifier id1 = allocate(
+        task,
+        PARTY_TIME,
+        Granularities.NONE,
+        Granularities.HOUR,
+        "s1",
+        null,
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
+    );
+    final SegmentIdentifier id2 = allocate(
+        task,
+        PARTY_TIME,
+        Granularities.NONE,
+        Granularities.HOUR,
+        "s2",
+        null,
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
+    );
     final SegmentIdentifier id3 = allocate(
         task,
         PARTY_TIME,
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.getIdentifierAsString(),
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
     final SegmentIdentifier id4 = allocate(
         task,
@@ -319,7 +364,9 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id3.getIdentifierAsString()
+        id3.getIdentifierAsString(),
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
     final SegmentIdentifier id5 = allocate(
         task,
@@ -327,85 +374,92 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s2",
-        id2.getIdentifierAsString()
+        id2.getIdentifierAsString(),
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
-    final SegmentIdentifier id6 = allocate(task, PARTY_TIME, Granularities.NONE, Granularities.HOUR, "s1", null);
+    final SegmentIdentifier id6 = allocate(
+        task,
+        PARTY_TIME,
+        Granularities.NONE,
+        Granularities.HOUR,
+        "s1",
+        null,
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
+    );
 
-    final TaskLock partyLock = Iterables.getOnlyElement(
-        FluentIterable.from(taskActionTestKit.getTaskLockbox().findLocksForTask(task))
-                      .filter(
-                          new Predicate<TaskLock>()
-                          {
-                            @Override
-                            public boolean apply(TaskLock input)
-                            {
-                              return input.getInterval().contains(PARTY_TIME);
-                            }
-                          }
-                      )
-    );
-    final TaskLock futureLock = Iterables.getOnlyElement(
-        FluentIterable.from(taskActionTestKit.getTaskLockbox().findLocksForTask(task))
-                      .filter(
-                          new Predicate<TaskLock>()
-                          {
-                            @Override
-                            public boolean apply(TaskLock input)
-                            {
-                              return input.getInterval().contains(THE_DISTANT_FUTURE);
-                            }
-                          }
-                      )
-    );
+    final List<TaskLock> partyLocks = taskActionTestKit.getTaskLockbox()
+                                                       .findLocksForTask(task)
+                                                       .stream()
+                                                       .filter(input -> input.getInterval().contains(PARTY_TIME))
+                                                       .collect(Collectors.toList());
+
+    Assert.assertEquals(4, partyLocks.size());
+
+    for (TaskLock partyLock : partyLocks) {
+      assertSameIdentifier(
+          new SegmentIdentifier(
+              DATA_SOURCE,
+              Granularities.HOUR.bucket(PARTY_TIME),
+              partyLock.getVersion(),
+              new NumberedShardSpec(0, 0)
+          ),
+          id1
+      );
+      assertSameIdentifier(
+          new SegmentIdentifier(
+              DATA_SOURCE,
+              Granularities.HOUR.bucket(PARTY_TIME),
+              partyLock.getVersion(),
+              new NumberedShardSpec(1, 0)
+          ),
+          id2
+      );
+      assertSameIdentifier(
+          new SegmentIdentifier(
+              DATA_SOURCE,
+              Granularities.HOUR.bucket(PARTY_TIME),
+              partyLock.getVersion(),
+              new NumberedShardSpec(2, 0)
+          ),
+          id3
+      );
+    }
+
+    final List<TaskLock> futureLocks = taskActionTestKit
+        .getTaskLockbox()
+        .findLocksForTask(task)
+        .stream()
+        .filter(input -> input.getInterval().contains(THE_DISTANT_FUTURE))
+        .collect(Collectors.toList());
+
+    Assert.assertEquals(2, futureLocks.size());
+
+    for (TaskLock futureLock : futureLocks) {
+      assertSameIdentifier(
+          new SegmentIdentifier(
+              DATA_SOURCE,
+              Granularities.HOUR.bucket(THE_DISTANT_FUTURE),
+              futureLock.getVersion(),
+              new NumberedShardSpec(0, 0)
+          ),
+          id4
+      );
+      assertSameIdentifier(
+          new SegmentIdentifier(
+              DATA_SOURCE,
+              Granularities.HOUR.bucket(THE_DISTANT_FUTURE),
+              futureLock.getVersion(),
+              new NumberedShardSpec(1, 0)
+          ),
+          id5
+      );
+    }
 
     assertSameIdentifier(
         id1,
-        new SegmentIdentifier(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(PARTY_TIME),
-            partyLock.getVersion(),
-            new NumberedShardSpec(0, 0)
-        )
-    );
-    assertSameIdentifier(
-        id2,
-        new SegmentIdentifier(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(PARTY_TIME),
-            partyLock.getVersion(),
-            new NumberedShardSpec(1, 0)
-        )
-    );
-    assertSameIdentifier(
-        id3,
-        new SegmentIdentifier(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(PARTY_TIME),
-            partyLock.getVersion(),
-            new NumberedShardSpec(2, 0)
-        )
-    );
-    assertSameIdentifier(
-        id4,
-        new SegmentIdentifier(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(THE_DISTANT_FUTURE),
-            futureLock.getVersion(),
-            new NumberedShardSpec(0, 0)
-        )
-    );
-    assertSameIdentifier(
-        id5,
-        new SegmentIdentifier(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(THE_DISTANT_FUTURE),
-            futureLock.getVersion(),
-            new NumberedShardSpec(1, 0)
-        )
-    );
-    assertSameIdentifier(
-        id6,
-        id1
+        id6
     );
   }
 
@@ -439,7 +493,9 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        null
+        null,
+        LinearShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
     final SegmentIdentifier id2 = allocate(
         task,
@@ -447,26 +503,28 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.getIdentifierAsString(),
+        LinearShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
 
     assertSameIdentifier(
-        id1,
         new SegmentIdentifier(
             DATA_SOURCE,
             Granularities.HOUR.bucket(PARTY_TIME),
             PARTY_TIME.toString(),
             new LinearShardSpec(2)
-        )
+        ),
+        id1
     );
     assertSameIdentifier(
-        id2,
         new SegmentIdentifier(
             DATA_SOURCE,
             Granularities.HOUR.bucket(PARTY_TIME),
             PARTY_TIME.toString(),
             new LinearShardSpec(3)
-        )
+        ),
+        id2
     );
   }
 
@@ -500,7 +558,9 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        null
+        null,
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
     final SegmentIdentifier id2 = allocate(
         task,
@@ -508,26 +568,28 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.getIdentifierAsString(),
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
     );
 
     assertSameIdentifier(
-        id1,
         new SegmentIdentifier(
             DATA_SOURCE,
             Granularities.HOUR.bucket(PARTY_TIME),
             PARTY_TIME.toString(),
             new NumberedShardSpec(2, 2)
-        )
+        ),
+        id1
     );
     assertSameIdentifier(
-        id2,
         new SegmentIdentifier(
             DATA_SOURCE,
             Granularities.HOUR.bucket(PARTY_TIME),
             PARTY_TIME.toString(),
             new NumberedShardSpec(3, 2)
-        )
+        ),
+        id2
     );
   }
 
@@ -555,16 +617,25 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
-    final SegmentIdentifier id1 = allocate(task, PARTY_TIME, Granularities.NONE, Granularities.DAY, "s1", null);
+    final SegmentIdentifier id1 = allocate(
+        task,
+        PARTY_TIME,
+        Granularities.NONE,
+        Granularities.DAY,
+        "s1",
+        null,
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
+    );
 
     assertSameIdentifier(
-        id1,
         new SegmentIdentifier(
             DATA_SOURCE,
             Granularities.HOUR.bucket(PARTY_TIME),
             PARTY_TIME.toString(),
             new NumberedShardSpec(2, 2)
-        )
+        ),
+        id1
     );
   }
 
@@ -592,16 +663,25 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
-    final SegmentIdentifier id1 = allocate(task, PARTY_TIME, Granularities.NONE, Granularities.MINUTE, "s1", null);
+    final SegmentIdentifier id1 = allocate(
+        task,
+        PARTY_TIME,
+        Granularities.NONE,
+        Granularities.MINUTE,
+        "s1",
+        null,
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
+    );
 
     assertSameIdentifier(
-        id1,
         new SegmentIdentifier(
             DATA_SOURCE,
             Granularities.HOUR.bucket(PARTY_TIME),
             PARTY_TIME.toString(),
             new NumberedShardSpec(2, 2)
-        )
+        ),
+        id1
     );
   }
 
@@ -629,7 +709,16 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
-    final SegmentIdentifier id1 = allocate(task, PARTY_TIME, Granularities.DAY, Granularities.DAY, "s1", null);
+    final SegmentIdentifier id1 = allocate(
+        task,
+        PARTY_TIME,
+        Granularities.DAY,
+        Granularities.DAY,
+        "s1",
+        null,
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
+    );
 
     Assert.assertNull(id1);
   }
@@ -640,7 +729,16 @@ public class SegmentAllocateActionTest
     final Task task = new NoopTask(null, null, 0, 0, null, null, null);
     taskActionTestKit.getTaskLockbox().add(task);
 
-    final SegmentIdentifier id1 = allocate(task, PARTY_TIME, Granularities.DAY, Granularities.HOUR, "s1", null);
+    final SegmentIdentifier id1 = allocate(
+        task,
+        PARTY_TIME,
+        Granularities.DAY,
+        Granularities.HOUR,
+        "s1",
+        null,
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance()
+    );
 
     Assert.assertNull(id1);
   }
@@ -669,7 +767,16 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
-    final SegmentIdentifier id1 = allocate(task, PARTY_TIME, Granularities.NONE, Granularities.HOUR, "s1", null);
+    final SegmentIdentifier id1 = allocate(
+        task,
+        PARTY_TIME,
+        Granularities.NONE,
+        Granularities.HOUR,
+        "s1",
+        null,
+        new SingleDimensionShardSpecFactory("foo"),
+        new SingleDimensionShardSpecContext(null, null)
+    );
 
     Assert.assertNull(id1);
   }
@@ -684,8 +791,10 @@ public class SegmentAllocateActionTest
         Granularities.HOUR,
         "s1",
         "prev",
-        Collections.emptySet(),
         false,
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance(),
+        Collections.emptySet(),
         false
     );
 
@@ -709,7 +818,9 @@ public class SegmentAllocateActionTest
       final Granularity queryGranularity,
       final Granularity preferredSegmentGranularity,
       final String sequenceName,
-      final String sequencePreviousId
+      final String sequencePreviousId,
+      final ShardSpecFactory shardSpecFactory,
+      final Context context
   )
   {
     final SegmentAllocateAction action = new SegmentAllocateAction(
@@ -719,33 +830,30 @@ public class SegmentAllocateActionTest
         preferredSegmentGranularity,
         sequenceName,
         sequencePreviousId,
-        Collections.emptySet(),
         false,
+        null,
+        null,
+        Collections.emptySet(),
         false
     );
     return action.perform(task, taskActionTestKit.getTaskActionToolbox());
   }
 
-  private void assertSameIdentifier(final SegmentIdentifier one, final SegmentIdentifier other)
+  private void assertSameIdentifier(final SegmentIdentifier expected, final SegmentIdentifier actual)
   {
-    Assert.assertEquals(one, other);
-    Assert.assertEquals(one.getShardSpec().getPartitionNum(), other.getShardSpec().getPartitionNum());
+    Assert.assertEquals(expected, actual);
+    Assert.assertEquals(expected.getShardSpec().getPartitionNum(), actual.getShardSpec().getPartitionNum());
+    Assert.assertEquals(expected.getShardSpec().getClass(), actual.getShardSpec().getClass());
 
-    if (one.getShardSpec().getClass() == NumberedShardSpec.class
-        && other.getShardSpec().getClass() == NumberedShardSpec.class) {
+    if (expected.getShardSpec().getClass() == NumberedShardSpec.class
+        && actual.getShardSpec().getClass() == NumberedShardSpec.class) {
       Assert.assertEquals(
-          ((NumberedShardSpec) one.getShardSpec()).getPartitions(),
-          ((NumberedShardSpec) other.getShardSpec()).getPartitions()
+          ((NumberedShardSpec) expected.getShardSpec()).getPartitions(),
+          ((NumberedShardSpec) actual.getShardSpec()).getPartitions()
       );
-    } else if (one.getShardSpec().getClass() == LinearShardSpec.class
-               && other.getShardSpec().getClass() == LinearShardSpec.class) {
+    } else if (expected.getShardSpec().getClass() == LinearShardSpec.class
+               && actual.getShardSpec().getClass() == LinearShardSpec.class) {
       // do nothing
-    } else {
-      throw new ISE(
-          "Unexpected shardSpecs [%s] and [%s]",
-          one.getShardSpec().getClass(),
-          other.getShardSpec().getClass()
-      );
     }
   }
 }

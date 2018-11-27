@@ -29,42 +29,45 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactory.Context;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Set;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
-public class LockRequestForNewSegment implements LockRequest
+public class LockRequestForNewSegment<T extends Context> implements LockRequest
 {
   private final LockGranularity lockGranularity;
   private final TaskLockType lockType;
   private final String groupId;
   private final String dataSource;
   private final Interval interval;
-  private final ShardSpecFactory shardSpecFactory;
+  @Nullable
+  private final ShardSpecFactory<T> shardSpecFactory;
   private final int priority;
   private final int numNewSegments;
   private final String baseSequenceName;
   @Nullable
   private final String previsousSegmentId;
-  private final Set<Integer> overshadowingSegments;
-  private final boolean firstPartition; // effective only for hash partition
   private final boolean skipSegmentLineageCheck;
+  private final Set<Integer> overshadowingSegments;
+  private final IntFunction<T> contextCreateFn;
 
   public LockRequestForNewSegment(
       LockGranularity lockGranularity,
       TaskLockType lockType,
       Task task,
       Interval interval,
-      ShardSpecFactory shardSpecFactory,
+      @Nullable ShardSpecFactory<T> shardSpecFactory,
       int numNewSegments,
       String baseSequenceName,
       @Nullable String previsousSegmentId,
+      boolean skipSegmentLineageCheck,
       Set<Integer> overshadowingSegments,
-      boolean firstPartition,
-      boolean skipSegmentLineageCheck
+      IntFunction<T> contextCreateFn
   )
   {
     this(
@@ -78,9 +81,9 @@ public class LockRequestForNewSegment implements LockRequest
         numNewSegments,
         baseSequenceName,
         previsousSegmentId,
+        skipSegmentLineageCheck,
         overshadowingSegments,
-        firstPartition,
-        skipSegmentLineageCheck
+        contextCreateFn
     );
   }
 
@@ -90,14 +93,14 @@ public class LockRequestForNewSegment implements LockRequest
       String groupId,
       String dataSource,
       Interval interval,
-      ShardSpecFactory shardSpecFactory,
+      @Nullable ShardSpecFactory<T> shardSpecFactory,
       int priority,
       int numNewSegments,
       String baseSequenceName,
       @Nullable String previsousSegmentId,
+      boolean skipSegmentLineageCheck,
       Set<Integer> overshadowingSegments,
-      boolean firstPartition,
-      boolean skipSegmentLineageCheck
+      IntFunction<T> contextCreateFn
   )
   {
     this.lockGranularity = lockGranularity;
@@ -110,9 +113,9 @@ public class LockRequestForNewSegment implements LockRequest
     this.numNewSegments = numNewSegments;
     this.baseSequenceName = baseSequenceName;
     this.previsousSegmentId = previsousSegmentId;
-    this.overshadowingSegments = overshadowingSegments;
-    this.firstPartition = firstPartition;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
+    this.overshadowingSegments = overshadowingSegments;
+    this.contextCreateFn = contextCreateFn;
   }
 
   @Override
@@ -151,7 +154,8 @@ public class LockRequestForNewSegment implements LockRequest
     return priority;
   }
 
-  public ShardSpecFactory getShardSpecFactory()
+  @Nullable
+  public ShardSpecFactory<T> getShardSpecFactory()
   {
     return shardSpecFactory;
   }
@@ -179,6 +183,11 @@ public class LockRequestForNewSegment implements LockRequest
     return previsousSegmentId;
   }
 
+  public boolean isSkipSegmentLineageCheck()
+  {
+    return skipSegmentLineageCheck;
+  }
+
   public int getNumNewSegments()
   {
     return numNewSegments;
@@ -189,14 +198,9 @@ public class LockRequestForNewSegment implements LockRequest
     return overshadowingSegments;
   }
 
-  public boolean isFirstPartition()
+  public Context getShardSpecCreateContext(int ordinal)
   {
-    return firstPartition;
-  }
-
-  public boolean isSkipSegmentLineageCheck()
-  {
-    return skipSegmentLineageCheck;
+    return contextCreateFn.apply(ordinal);
   }
 
   public boolean isResetPartitionId() // effective only for timechunk lock
@@ -252,9 +256,8 @@ public class LockRequestForNewSegment implements LockRequest
            ", numNewSegments=" + numNewSegments +
            ", baseSequenceName='" + baseSequenceName + '\'' +
            ", previsousSegmentId='" + previsousSegmentId + '\'' +
-           ", overshadowingSegments=" + overshadowingSegments +
-           ", firstPartition=" + firstPartition +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
+           ", overshadowingSegments=" + overshadowingSegments +
            '}';
   }
 }

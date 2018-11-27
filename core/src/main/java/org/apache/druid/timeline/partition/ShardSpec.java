@@ -41,16 +41,6 @@ public interface ShardSpec
 
   boolean isInChunk(long timestamp, InputRow inputRow);
 
-  default boolean supportStartPartition()
-  {
-    return false;
-  }
-
-  default int getStartPartitionId()
-  {
-    throw new UnsupportedOperationException();
-  }
-
   int getPartitionNum();
 
   ShardSpecLookup getLookup(List<ShardSpec> shardSpecs);

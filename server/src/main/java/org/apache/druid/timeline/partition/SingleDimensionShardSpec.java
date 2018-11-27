@@ -19,6 +19,7 @@
 
 package org.apache.druid.timeline.partition;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Range;
@@ -30,22 +31,27 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Class uses getters/setters to work around http://jira.codehaus.org/browse/MSHADE-92
- *
- * Adjust to JsonCreator and final fields when resolved.
+ * {@link ShardSpec} for range partitioning based on a single dimension
  */
 public class SingleDimensionShardSpec implements ShardSpec
 {
-  private String dimension;
-  private String start;
-  private String end;
-  private int partitionNum;
+  private final String dimension;
+  private final String start;
+  private final String end;
+  private final int partitionNum;
 
+  /**
+   * @param dimension    partition dimension
+   * @param start        inclusive start of this range
+   * @param end          exclusive end of this range
+   * @param partitionNum unique ID for this shard
+   */
+  @JsonCreator
   public SingleDimensionShardSpec(
-      String dimension,
-      String start,
-      String end,
-      int partitionNum
+      @JsonProperty("dimension") String dimension,
+      @JsonProperty("start") String start,
+      @JsonProperty("end") String end,
+      @JsonProperty("partitionNum") int partitionNum
   )
   {
     this.dimension = dimension;
@@ -60,31 +66,16 @@ public class SingleDimensionShardSpec implements ShardSpec
     return dimension;
   }
 
-  public void setDimension(String dimension)
-  {
-    this.dimension = dimension;
-  }
-
   @JsonProperty("start")
   public String getStart()
   {
     return start;
   }
 
-  public void setStart(String start)
-  {
-    this.start = start;
-  }
-
   @JsonProperty("end")
   public String getEnd()
   {
     return end;
-  }
-
-  public void setEnd(String end)
-  {
-    this.end = end;
   }
 
   @Override
@@ -136,11 +127,6 @@ public class SingleDimensionShardSpec implements ShardSpec
       return true;
     }
     return !rangeSet.subRangeSet(getRange()).isEmpty();
-  }
-
-  public void setPartitionNum(int partitionNum)
-  {
-    this.partitionNum = partitionNum;
   }
 
   @Override

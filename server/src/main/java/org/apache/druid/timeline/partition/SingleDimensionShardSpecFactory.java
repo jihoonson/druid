@@ -21,23 +21,16 @@ package org.apache.druid.timeline.partition;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.druid.timeline.partition.SingleDimensionShardSpecFactory.SingleDimensionShardSpecContext;
 
-public class SingleDimensionShardSpecFactory implements ShardSpecFactory
+public class SingleDimensionShardSpecFactory implements ShardSpecFactory<SingleDimensionShardSpecContext>
 {
   private final String dimension;
-  private final String start;
-  private final String end;
 
   @JsonCreator
-  public SingleDimensionShardSpecFactory(
-      @JsonProperty("dimension") String dimension,
-      @JsonProperty("start") String start,
-      @JsonProperty("end") String end
-  )
+  public SingleDimensionShardSpecFactory(@JsonProperty("dimension") String dimension)
   {
     this.dimension = dimension;
-    this.start = start;
-    this.end = end;
   }
 
   @JsonProperty
@@ -46,21 +39,32 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory
     return dimension;
   }
 
-  @JsonProperty
-  public String getStart()
+  @Override
+  public ShardSpec create(
+      ObjectMapper objectMapper,
+      int partitionId,
+      int numPartitions,
+      SingleDimensionShardSpecContext context
+  )
   {
-    return start;
-  }
-
-  @JsonProperty
-  public String getEnd()
-  {
-    return end;
+    return new SingleDimensionShardSpec(dimension, context.start, context.end, partitionId);
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId, int startPartition, int numPartitions)
+  public Class<? extends ShardSpec> getShardSpecClass()
   {
-    return new SingleDimensionShardSpec(dimension, start, end, partitionId);
+    return SingleDimensionShardSpec.class;
+  }
+
+  public static class SingleDimensionShardSpecContext implements ShardSpecFactory.Context
+  {
+    private final String start;
+    private final String end;
+
+    public SingleDimensionShardSpecContext(String start, String end)
+    {
+      this.start = start;
+      this.end = end;
+    }
   }
 }

@@ -329,7 +329,7 @@ public class OrcIndexGeneratorJobTest
     for (Interval segmentGranularity : config.getSegmentGranularIntervals().get()) {
       List<ShardSpec> specs = new ArrayList<>();
       for (Integer[] shardInfo : shardInfoForEachShard[segmentNum++]) {
-        specs.add(new HashBasedNumberedShardSpec(shardInfo[0], 0, shardInfo[1], null, HadoopDruidIndexerConfig.JSON_MAPPER));
+        specs.add(new HashBasedNumberedShardSpec(shardInfo[0], shardInfo[1], null, HadoopDruidIndexerConfig.JSON_MAPPER));
       }
       List<HadoopyShardSpec> actualSpecs = Lists.newArrayListWithExpectedSize(specs.size());
       for (ShardSpec spec : specs) {

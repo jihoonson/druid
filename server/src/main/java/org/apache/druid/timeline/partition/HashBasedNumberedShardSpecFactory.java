@@ -21,11 +21,12 @@ package org.apache.druid.timeline.partition;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecContext;
 
 import javax.annotation.Nullable;
 import java.util.List;
 
-public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
+public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashBasedNumberedShardSpecContext>
 {
   @Nullable
   private final List<String> partitionDimensions;
@@ -47,15 +48,34 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
 
   @Override
   public ShardSpec create(
-      ObjectMapper objectMapper, int partitionId, int startPartition, int numPartitions
+      ObjectMapper objectMapper,
+      int partitionId,
+      int numPartitions,
+      HashBasedNumberedShardSpecContext context
   )
   {
     return new HashBasedNumberedShardSpec(
         partitionId,
-        startPartition,
         numPartitions,
         partitionDimensions,
+        context.ordinal,
         objectMapper
     );
+  }
+
+  @Override
+  public Class<? extends ShardSpec> getShardSpecClass()
+  {
+    return HashBasedNumberedShardSpec.class;
+  }
+
+  public static class HashBasedNumberedShardSpecContext implements ShardSpecFactory.Context
+  {
+    private final int ordinal;
+
+    public HashBasedNumberedShardSpecContext(int ordinal)
+    {
+      this.ordinal = ordinal;
+    }
   }
 }

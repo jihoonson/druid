@@ -53,9 +53,11 @@ import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecContext;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpec;
+import org.apache.druid.timeline.partition.ShardSpecFactory.EmptyContext;
 import org.easymock.EasyMock;
 import org.joda.time.Interval;
 import org.junit.Assert;
@@ -942,7 +944,7 @@ public class TaskLockboxTest
 
     final LockResult result = lockbox.tryLock(
         task,
-        new LockRequestForNewSegment(
+        new LockRequestForNewSegment<>(
             LockGranularity.SEGMENT,
             TaskLockType.EXCLUSIVE,
             task,
@@ -951,9 +953,9 @@ public class TaskLockboxTest
             3,
             "seq",
             null,
-            Collections.emptySet(),
             true,
-            true
+            Collections.emptySet(),
+            HashBasedNumberedShardSpecContext::new
         )
     );
 
@@ -963,12 +965,12 @@ public class TaskLockboxTest
       final ShardSpec shardSpec = result.getNewSegmentIds().get(i).getShardSpec();
       Assert.assertTrue(shardSpec instanceof HashBasedNumberedShardSpec);
       Assert.assertEquals(i, shardSpec.getPartitionNum());
-      Assert.assertEquals(0, shardSpec.getStartPartitionId());
+      Assert.assertEquals(0, ((HashBasedNumberedShardSpec) shardSpec).getOrdinal());
     }
 
     final LockResult result2 = lockbox.tryLock(
         task,
-        new LockRequestForNewSegment(
+        new LockRequestForNewSegment<>(
             LockGranularity.SEGMENT,
             TaskLockType.EXCLUSIVE,
             task,
@@ -977,9 +979,9 @@ public class TaskLockboxTest
             5,
             "seq2",
             null,
-            ImmutableSet.of(0, 1, 2),
             true,
-            true
+            ImmutableSet.of(0, 1, 2),
+            HashBasedNumberedShardSpecContext::new
         )
     );
 
@@ -989,7 +991,7 @@ public class TaskLockboxTest
       final ShardSpec shardSpec = result2.getNewSegmentIds().get(i).getShardSpec();
       Assert.assertTrue(shardSpec instanceof HashBasedNumberedShardSpec);
       Assert.assertEquals(i + 3, shardSpec.getPartitionNum());
-      Assert.assertEquals(3, shardSpec.getStartPartitionId());
+      Assert.assertEquals(3, ((HashBasedNumberedShardSpec) shardSpec).getOrdinal());
     }
   }
 
@@ -1003,18 +1005,18 @@ public class TaskLockboxTest
   {
     final LockResult result = lockbox.tryLock(
         task,
-        new LockRequestForNewSegment(
+        new LockRequestForNewSegment<>(
             lockGranularity,
             TaskLockType.EXCLUSIVE,
             task,
             Intervals.of("2015-01-01/2015-01-05"),
-            new NumberedShardSpecFactory(),
+            NumberedShardSpecFactory.instance(),
             numSegmentsToAllocate,
             baseSequenceName,
             null,
-            overshadowingSegments,
             false,
-            true
+            overshadowingSegments,
+            i -> EmptyContext.instance()
         )
     );
 

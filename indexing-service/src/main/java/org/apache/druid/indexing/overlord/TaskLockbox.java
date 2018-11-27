@@ -498,13 +498,18 @@ public class TaskLockbox
     giant.lock();
     try {
       final Pair<TaskLock, List<SegmentIdentifier>> pair = createLock(request);
-      // TODO: how to return new segment identifier to the lock holder?
-      final TaskLockPosse posseToUse = new TaskLockPosse(pair.lhs);
-      running.computeIfAbsent(request.getDataSource(), k -> new TreeMap<>(Comparators.intervalsByStartThenEnd()))
-             .computeIfAbsent(request.getInterval(), k -> new ArrayList<>())
-             .add(posseToUse);
 
-      return Pair.of(posseToUse, pair.rhs);
+      if (pair.lhs != null) {
+        // TODO: how to return new segment identifier to the lock holder?
+        final TaskLockPosse posseToUse = new TaskLockPosse(pair.lhs);
+        running.computeIfAbsent(request.getDataSource(), k -> new TreeMap<>(Comparators.intervalsByStartThenEnd()))
+               .computeIfAbsent(request.getInterval(), k -> new ArrayList<>())
+               .add(posseToUse);
+
+        return Pair.of(posseToUse, pair.rhs);
+      } else {
+        return Pair.of(null, pair.rhs);
+      }
     }
     finally {
       giant.unlock();
@@ -523,7 +528,11 @@ public class TaskLockbox
       final LockRequestForNewSegment lockRequestForNewSegment = (LockRequestForNewSegment) request;
       final List<SegmentIdentifier> newIds = createNewSegmentIds(lockRequestForNewSegment);
 
-      return Pair.of(lockRequestForNewSegment.toLock(newIds), newIds);
+      if (newIds.stream().anyMatch(java.util.Objects::isNull)) {
+        return Pair.of(null, newIds);
+      } else {
+        return Pair.of(lockRequestForNewSegment.toLock(newIds), newIds);
+      }
     } else {
       throw new ISE("Unknown request type[%s]", request.getClass().getCanonicalName());
     }
@@ -539,22 +548,18 @@ public class TaskLockbox
           : request.getBaseSequenceName();
 
       newSegmentIds.add(
-          Preconditions.checkNotNull(
-              metadataStorageCoordinator.allocatePendingSegment(
-                  request.getDataSource(),
-                  sequenceName,
-                  request.getPrevisousSegmentId(),
-                  request.getInterval(),
-                  request.getShardSpecFactory(),
-                  version,
-                  request.getNumNewSegments(),
-                  request.getOvershadowingSegments(),
-                  i == 0 && request.isFirstPartition(),
-                  request.isSkipSegmentLineageCheck(),
-                  i == 0 && request.isResetPartitionId()
-              ),
-              "new segment identifier for request[%s]",
-              request
+          metadataStorageCoordinator.allocatePendingSegment(
+              request.getDataSource(),
+              sequenceName,
+              request.getPrevisousSegmentId(),
+              request.getInterval(),
+              request.getShardSpecFactory(),
+              version,
+              request.getNumNewSegments(),
+              request.getOvershadowingSegments(),
+              request.getShardSpecCreateContext(i),
+              request.isSkipSegmentLineageCheck(),
+              i == 0 && request.isResetPartitionId()
           )
       );
     }

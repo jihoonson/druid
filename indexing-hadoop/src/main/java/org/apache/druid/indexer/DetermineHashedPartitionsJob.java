@@ -187,9 +187,9 @@ public class DetermineHashedPartitionsJob implements Jobby
                   new HadoopyShardSpec(
                       new HashBasedNumberedShardSpec(
                           i,
-                          0,
                           numberOfShards,
                           null,
+                          0,
                           HadoopDruidIndexerConfig.JSON_MAPPER
                       ),
                       shardCount++

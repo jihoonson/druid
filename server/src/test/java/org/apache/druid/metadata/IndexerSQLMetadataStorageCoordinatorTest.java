@@ -35,12 +35,14 @@ import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecContext;
 import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactory.EmptyContext;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 import org.junit.Assert;
@@ -870,7 +872,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   @Test
   public void testAllocatePendingSegment()
   {
-    final ShardSpecFactory shardSpecFactory = new NumberedShardSpecFactory();
+    final ShardSpecFactory<EmptyContext> shardSpecFactory = NumberedShardSpecFactory.instance();
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
     final SegmentIdentifier identifier = coordinator.allocatePendingSegment(
@@ -882,7 +884,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         "version",
         0,
         Collections.emptySet(),
-        false,
+        EmptyContext.instance(),
         false,
         false
     );
@@ -898,7 +900,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         identifier.getVersion(),
         0,
         Collections.emptySet(),
-        false,
+        EmptyContext.instance(),
         false,
         false
     );
@@ -914,7 +916,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         identifier1.getVersion(),
         0,
         Collections.emptySet(),
-        false,
+        EmptyContext.instance(),
         false,
         false
     );
@@ -930,7 +932,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         identifier1.getVersion(),
         0,
         Collections.emptySet(),
-        false,
+        EmptyContext.instance(),
         false,
         false
     );
@@ -947,7 +949,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         "version",
         0,
         Collections.emptySet(),
-        false,
+        EmptyContext.instance(),
         false,
         false
     );
@@ -958,7 +960,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   @Test
   public void testDeletePendingSegment() throws InterruptedException
   {
-    final ShardSpecFactory shardSpecFactory = new NumberedShardSpecFactory();
+    final ShardSpecFactory<EmptyContext> shardSpecFactory = NumberedShardSpecFactory.instance();
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
     String prevSegmentId = null;
@@ -975,7 +977,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
           "version",
           0,
           Collections.emptySet(),
-          false,
+          EmptyContext.instance(),
           false,
           false
       );
@@ -994,7 +996,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
           "version",
           0,
           Collections.emptySet(),
-          false,
+          EmptyContext.instance(),
           false,
           false
       );
@@ -1008,7 +1010,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   @Test
   public void testAllocatePendingSegmentsWithOvershadowingSegments() throws IOException
   {
-    final ShardSpecFactory shardSpecFactory = new NumberedShardSpecFactory();
+    final ShardSpecFactory<EmptyContext> shardSpecFactory = NumberedShardSpecFactory.instance();
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
     String prevSegmentId = null;
@@ -1023,7 +1025,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
           "version",
           0,
           i < 1 ? Collections.emptySet() : ImmutableSet.of(i - 1),
-          false,
+          EmptyContext.instance(),
           false,
           false
       );
@@ -1082,7 +1084,9 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   @Test
   public void testAllocatePendingSegmentsForHashBasedNumberedShardSpec() throws IOException
   {
-    final ShardSpecFactory shardSpecFactory = new HashBasedNumberedShardSpecFactory(null);
+    final ShardSpecFactory<HashBasedNumberedShardSpecContext> shardSpecFactory = new HashBasedNumberedShardSpecFactory(
+        null
+    );
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
 
@@ -1095,13 +1099,13 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         "version",
         5,
         Collections.emptySet(),
-        true,
+        new HashBasedNumberedShardSpecContext(0),
         true,
         false
     );
 
     HashBasedNumberedShardSpec shardSpec = (HashBasedNumberedShardSpec) id.getShardSpec();
-    Assert.assertEquals(0, shardSpec.getStartPartitionId());
+    Assert.assertEquals(0, shardSpec.getOrdinal());
     Assert.assertEquals(0, shardSpec.getPartitionNum());
     Assert.assertEquals(5, shardSpec.getPartitions());
 
@@ -1130,13 +1134,13 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         "version",
         5,
         Collections.emptySet(),
-        false,
+        new HashBasedNumberedShardSpecContext(1),
         true,
         false
     );
 
     shardSpec = (HashBasedNumberedShardSpec) id.getShardSpec();
-    Assert.assertEquals(0, shardSpec.getStartPartitionId());
+    Assert.assertEquals(1, shardSpec.getOrdinal());
     Assert.assertEquals(1, shardSpec.getPartitionNum());
     Assert.assertEquals(5, shardSpec.getPartitions());
 
@@ -1165,13 +1169,13 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         "version",
         3,
         Collections.emptySet(),
-        true,
+        new HashBasedNumberedShardSpecContext(2),
         true,
         false
     );
 
     shardSpec = (HashBasedNumberedShardSpec) id.getShardSpec();
-    Assert.assertEquals(2, shardSpec.getStartPartitionId());
+    Assert.assertEquals(0, shardSpec.getOrdinal());
     Assert.assertEquals(2, shardSpec.getPartitionNum());
     Assert.assertEquals(3, shardSpec.getPartitions());
   }

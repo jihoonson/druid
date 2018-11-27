@@ -286,8 +286,8 @@ public class KafkaIndexTask extends AbstractTask implements ChatHandler
                 schema.getGranularitySpec().getSegmentGranularity(),
                 sequenceName,
                 previousSegmentId,
-                Collections.emptySet(),
                 skipSegmentLineageCheck,
+                Collections.emptySet(),
                 false
             )
         ),

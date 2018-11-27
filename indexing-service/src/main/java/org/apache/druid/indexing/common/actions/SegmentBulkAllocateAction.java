@@ -30,7 +30,9 @@ import org.apache.druid.indexing.overlord.LockResult;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecContext;
 import org.apache.druid.timeline.partition.NoneShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactory.EmptyContext;
 import org.joda.time.Interval;
 
 import java.util.ArrayList;
@@ -110,21 +112,41 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
     for (Entry<Interval, Integer> entry : allocateSpec.entrySet()) {
       final Interval interval = entry.getKey();
       final int numSegmentsToAllocate = entry.getValue();
-      final LockRequest lockRequest = new LockRequestForNewSegment(
-          changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
-          TaskLockType.EXCLUSIVE,
-          task.getGroupId(),
-          task.getDataSource(),
-          interval,
-          numSegmentsToAllocate == 1 ? new NoneShardSpecFactory() : new HashBasedNumberedShardSpecFactory(partitionDimensions),
-          task.getPriority(),
-          numSegmentsToAllocate,
-          baseSequenceName,
-          null,
-          overshadowingSegments.get(interval),
-          true,
-          true
-      );
+      final LockRequest lockRequest;
+      if (numSegmentsToAllocate == 1) {
+        lockRequest = new LockRequestForNewSegment<>(
+            changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
+            TaskLockType.EXCLUSIVE,
+            task.getGroupId(),
+            task.getDataSource(),
+            interval,
+            NoneShardSpecFactory.instance(),
+            task.getPriority(),
+            numSegmentsToAllocate,
+            baseSequenceName,
+            null,
+            true,
+            overshadowingSegments.get(interval),
+            i -> EmptyContext.instance()
+        );
+      } else {
+        lockRequest = new LockRequestForNewSegment<>(
+            changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
+            TaskLockType.EXCLUSIVE,
+            task.getGroupId(),
+            task.getDataSource(),
+            interval,
+            new HashBasedNumberedShardSpecFactory(partitionDimensions),
+            task.getPriority(),
+            numSegmentsToAllocate,
+            baseSequenceName,
+            null,
+            true,
+            overshadowingSegments.get(interval),
+            i -> new HashBasedNumberedShardSpecContext(i)
+        );
+      }
+
       final LockResult lockResult = toolbox.getTaskLockbox().tryLock(task, lockRequest);
 
       if (lockResult.isRevoked()) {

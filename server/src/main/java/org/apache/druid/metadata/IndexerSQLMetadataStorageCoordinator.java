@@ -51,6 +51,7 @@ import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactory.Context;
 import org.joda.time.Interval;
 import org.skife.jdbi.v2.FoldController;
 import org.skife.jdbi.v2.Folder3;
@@ -447,16 +448,16 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
 //  }
 
   @Override
-  public SegmentIdentifier allocatePendingSegment(
+  public <T extends Context> SegmentIdentifier allocatePendingSegment(
       final String dataSource,
       final String sequenceName,
       @Nullable final String previousSegmentId,
       final Interval interval,
-      final ShardSpecFactory shardSpecFactory,
+      final ShardSpecFactory<T> shardSpecFactory,
       final String maxVersion,
       final int numPartitions,
       final Set<Integer> overshadowingSegments,
-      final boolean firstPartition,
+      final T shardSpecCreateContext,
       final boolean skipSegmentLineageCheck,
       final boolean resetPartitionId
   )
@@ -482,7 +483,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
                        maxVersion,
                        numPartitions,
                        overshadowingSegments,
-                       firstPartition,
+                       shardSpecCreateContext,
                        resetPartitionId
                    )
                    : allocatePendingSegmentWithSegmentLineageCheck(
@@ -495,7 +496,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
                        maxVersion,
                        numPartitions,
                        overshadowingSegments,
-                       firstPartition,
+                       shardSpecCreateContext,
                        resetPartitionId
                    );
           }
@@ -504,17 +505,17 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
   }
 
   @Nullable
-  private SegmentIdentifier allocatePendingSegmentWithSegmentLineageCheck(
+  private <T extends Context> SegmentIdentifier allocatePendingSegmentWithSegmentLineageCheck(
       final Handle handle,
       final String dataSource,
       final String sequenceName,
       @Nullable final String previousSegmentId,
       final Interval interval,
-      final ShardSpecFactory shardSpecFactory,
+      final ShardSpecFactory<T> shardSpecFactory,
       final String maxVersion,
       final int numPartitions,
       final Set<Integer> overshadowingSegments,
-      final boolean firstPartition,
+      final T shardSpecCreateContext,
       final boolean resetPartitionId
   ) throws IOException
   {
@@ -550,7 +551,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         maxVersion,
         numPartitions,
         overshadowingSegments,
-        firstPartition,
+        shardSpecCreateContext,
         resetPartitionId
     );
     if (newIdentifier == null) {
@@ -587,16 +588,16 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
   }
 
   @Nullable
-  private SegmentIdentifier allocatePendingSegment(
+  private <T extends Context> SegmentIdentifier allocatePendingSegment(
       final Handle handle,
       final String dataSource,
       final String sequenceName,
       final Interval interval,
-      final ShardSpecFactory shardSpecFactory,
+      final ShardSpecFactory<T> shardSpecFactory,
       final String maxVersion,
       final int numPartitions,
       final Set<Integer> overshadowingSegments,
-      final boolean firstPartition,
+      final T shardSpecCreateContext,
       final boolean resetPartitionId
   ) throws IOException
   {
@@ -634,7 +635,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         maxVersion,
         numPartitions,
         overshadowingSegments,
-        firstPartition,
+        shardSpecCreateContext,
         resetPartitionId
     );
     if (newIdentifier == null) {
@@ -857,23 +858,18 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
 //  }
 
   @Nullable
-  private SegmentIdentifier createNewSegment(
+  private <T extends Context> SegmentIdentifier createNewSegment(
       final Handle handle,
       final String dataSource,
       final Interval interval,
-      final ShardSpecFactory shardSpecFactory,
+      @Nullable final ShardSpecFactory<T> shardSpecFactory,
       final String maxVersion,
       final int numPartitions,
       final Set<Integer> overshadowingSegments,
-      final boolean firstPartition,
+      final T shardSpecCreateContext,
       final boolean resetPartitionId
   ) throws IOException
   {
-    // Make up a pending segment based on existing segments and pending segments in the DB. This works
-    // assuming that all tasks inserting segments at a particular point in time are going through the
-    // allocatePendingSegment flow. This should be assured through some other mechanism (like task locks).
-    // TODO: this is wrong now
-
     final List<TimelineObjectHolder<String, DataSegment>> existingChunks = getTimelineForIntervalsWithHandle(
         handle,
         dataSource,
@@ -883,23 +879,19 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
     if (existingChunks.size() > 1) {
       // Not possible to expand more than one chunk with a single segment.
       log.warn(
-          "Cannot allocate new segment for dataSource[%s], interval[%s], version[%s]: already have [%,d] chunks.",
+          "Cannot allocate new segment for dataSource[%s], interval[%s]: already have [%,d] chunks.",
           dataSource,
           interval,
-          maxVersion,
           existingChunks.size()
       );
       return null;
     } else {
+
       if (resetPartitionId) {
-        return new SegmentIdentifier(
-            dataSource,
-            interval,
-            maxVersion,
-//            new NumberedShardSpec(0, 0),
-            shardSpecFactory.create(jsonMapper, 0, 0, numPartitions),
-            overshadowingSegments
-        );
+        final ShardSpec shardSpec = shardSpecFactory == null
+                                    ? new NumberedShardSpec(0, 0)
+                                    : shardSpecFactory.create(jsonMapper, 0, numPartitions, shardSpecCreateContext);
+        return new SegmentIdentifier(dataSource, interval, maxVersion, shardSpec, overshadowingSegments);
       } else {
         SegmentIdentifier max = null;
 
@@ -930,14 +922,10 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         }
 
         if (max == null) {
-          return new SegmentIdentifier(
-              dataSource,
-              interval,
-              maxVersion,
-//            new NumberedShardSpec(0, 0),
-              shardSpecFactory.create(jsonMapper, 0, 0, numPartitions),
-              overshadowingSegments
-          );
+          final ShardSpec shardSpec = shardSpecFactory == null
+                                      ? new NumberedShardSpec(0, 0)
+                                      : shardSpecFactory.create(jsonMapper, 0, numPartitions, shardSpecCreateContext);
+          return new SegmentIdentifier(dataSource, interval, maxVersion, shardSpec, overshadowingSegments);
         } else if (!max.getInterval().equals(interval) || max.getVersion().compareTo(maxVersion) > 0) {
           log.warn(
               "Cannot allocate new segment for dataSource[%s], interval[%s], maxVersion[%s]: conflicting segment[%s].",
@@ -947,58 +935,65 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
               max.getIdentifierAsString()
           );
           return null;
-//      } else if (max.getShardSpec() instanceof LinearShardSpec) {
-//        return new SegmentIdentifier(
-//            dataSource,
-//            max.getInterval(),
-//            version,
-//            new LinearShardSpec(max.getShardSpec().getPartitionNum() + 1),
-//            null
-//        );
-//      } else if (max.getShardSpec() instanceof NumberedShardSpec) {
-//        return new SegmentIdentifier(
-//            dataSource,
-//            max.getInterval(),
-//            version,
-//            new NumberedShardSpec(
-//                max.getShardSpec().getPartitionNum() + 1,
-//                ((NumberedShardSpec) max.getShardSpec()).getPartitions()
-//            ),
-//            null
-//        );
         } else {
-          final int newPartitionId = max.getShardSpec().getPartitionNum() + 1;
-          final int startPartitionId;
-          if (max.getShardSpec().supportStartPartition()) {
-            // TODO: comment
-            startPartitionId = firstPartition ? newPartitionId : max.getShardSpec().getStartPartitionId();
-          } else {
-            startPartitionId = 0;
-          }
+          if (shardSpecFactory == null) {
+            if (max.getShardSpec() instanceof LinearShardSpec) {
+              return new SegmentIdentifier(
+                  dataSource,
+                  max.getInterval(),
+                  max.getVersion(),
+                  new LinearShardSpec(max.getShardSpec().getPartitionNum() + 1),
+                  null
+              );
+            } else if (max.getShardSpec() instanceof NumberedShardSpec) {
+              return new SegmentIdentifier(
+                  dataSource,
+                  max.getInterval(),
+                  max.getVersion(),
+                  new NumberedShardSpec(
+                      max.getShardSpec().getPartitionNum() + 1,
+                      ((NumberedShardSpec) max.getShardSpec()).getPartitions()
+                  ),
+                  null
+              );
+            } else {
+              log.warn(
+                  "Cannot allocate new segment for dataSource[%s], interval[%s], maxVersion[%s]: ShardSpec class[%s] used by [%s].",
+                  dataSource,
+                  interval,
+                  maxVersion,
+                  max.getShardSpec().getClass(),
+                  max.getIdentifierAsString()
+              );
+              return null;
+            }
 
-          final ShardSpec newShardSpec = shardSpecFactory.create(
-              jsonMapper,
-              newPartitionId,
-              startPartitionId,
-              numPartitions
-          );
-          return new SegmentIdentifier(
-              dataSource,
-              max.getInterval(),
-              max.getVersion(),
-              newShardSpec,
-              overshadowingSegments
-          );
-//        log.warn(
-//            "Cannot allocate new segment for dataSource[%s], interval[%s], maxVersion[%s]: ShardSpec class[%s] used by [%s].",
-//            dataSource,
-//            interval,
-//            version,
-//            max.getShardSpec().getClass(),
-//            max.getIdentifierAsString()
-//        );
-//        return null;
-      }
+          } else {
+            if (max.getShardSpec().getClass() != shardSpecFactory.getShardSpecClass()) {
+              log.warn(
+                  "Cannot allocate new segment because of shardSpec mismatch. existing shardSpec[%s], new shardSpec[%s]",
+                  max.getShardSpec().getClass().getCanonicalName(),
+                  shardSpecFactory.getShardSpecClass().getCanonicalName()
+              );
+              return null;
+            } else {
+              final int newPartitionId = max.getShardSpec().getPartitionNum() + 1;
+              final ShardSpec newShardSpec = shardSpecFactory.create(
+                  jsonMapper,
+                  newPartitionId,
+                  numPartitions,
+                  shardSpecCreateContext
+              );
+              return new SegmentIdentifier(
+                  dataSource,
+                  max.getInterval(),
+                  max.getVersion(),
+                  newShardSpec,
+                  overshadowingSegments
+              );
+            }
+          }
+        }
       }
     }
   }

@@ -19,12 +19,30 @@
 package org.apache.druid.timeline.partition;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.druid.timeline.partition.ShardSpecFactory.EmptyContext;
 
-public class NoneShardSpecFactory implements ShardSpecFactory
+public class NoneShardSpecFactory implements ShardSpecFactory<EmptyContext>
 {
+  private static NoneShardSpecFactory INSTANCE = new NoneShardSpecFactory();
+
+  public static NoneShardSpecFactory instance()
+  {
+    return INSTANCE;
+  }
+
+  private NoneShardSpecFactory()
+  {
+  }
+
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId, int startPartition, int numPartitions)
+  public ShardSpec create(ObjectMapper objectMapper, int partitionId, int numPartitions, EmptyContext context)
   {
     return NoneShardSpec.instance();
+  }
+
+  @Override
+  public Class<? extends ShardSpec> getShardSpecClass()
+  {
+    return NoneShardSpec.class;
   }
 }

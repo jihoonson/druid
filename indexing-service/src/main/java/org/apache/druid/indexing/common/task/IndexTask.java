@@ -881,7 +881,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
 
     if (numShards == 1) {
 //      return (shardId, totalNumShards) -> NoneShardSpec.instance();
-      return new NoneShardSpecFactory();
+      return NoneShardSpecFactory.instance();
     } else {
 //      return (shardId, totalNumShards) -> new HashBasedNumberedShardSpec(
 //          shardId,
@@ -1002,8 +1002,8 @@ public class IndexTask extends AbstractTask implements ChatHandler
               schema.getGranularitySpec().getSegmentGranularity(),
               sequenceName,
               previousSegmentId,
-              changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
               skipSegmentLineageCheck,
+              changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
               changeSegmentGranularity
           )
       );
@@ -1029,8 +1029,8 @@ public class IndexTask extends AbstractTask implements ChatHandler
                 schema.getGranularitySpec().getSegmentGranularity(),
                 StringUtils.format("%s_%d", sequenceName, suffix), // TODO: make the right sequenceName in the first place
                 null,
-                changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
                 true,
+                changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
                 isChangeSegmentGranularity()
             );
           }
@@ -1334,6 +1334,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
       if (shardSpecs == null || shardSpecs.isEmpty()) {
         throw new ISE("Failed to get shardSpec for interval[%s]", interval);
       }
+      // TODO: cache shardSpecLookup
       return shardSpecs.get(0).getLookup(shardSpecs).getShardSpec(row.getTimestampFromEpoch(), row);
     }
   }

@@ -26,7 +26,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -36,6 +35,7 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.Rows;
 
 import javax.annotation.Nullable;
+import java.util.Comparator;
 import java.util.List;
 
 public class HashBasedNumberedShardSpec extends NumberedShardSpec
@@ -44,9 +44,9 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   private static final List<String> DEFAULT_PARTITION_DIMENSIONS = ImmutableList.of();
 
   private final ObjectMapper jsonMapper;
-  private final int startPartitionId;
   @JsonIgnore
   private final List<String> partitionDimensions;
+  private final int ordinal;
 
   // TODO: check what's the valid partitions. is it (max existing partitionId) + # of new partitions?
   // or just # of new partitions?
@@ -55,47 +55,27 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   @JsonCreator
   public HashBasedNumberedShardSpec(
       @JsonProperty("partitionNum") int partitionNum,// partitionId
-      @JsonProperty("startPartitionId") int startPartitionId,// backward compatible since old shard specs will fill this with 0
       @JsonProperty("partitions") int partitions,// # of partitions
       @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
+      @JsonProperty("ordinal") @Nullable Integer ordinal,
       @JacksonInject ObjectMapper jsonMapper
   )
   {
     super(partitionNum, partitions);
     this.jsonMapper = jsonMapper;
-    this.startPartitionId = startPartitionId;
     this.partitionDimensions = partitionDimensions == null ? DEFAULT_PARTITION_DIMENSIONS : partitionDimensions;
-    Preconditions.checkArgument(
-        partitionNum >= startPartitionId && partitionNum < startPartitionId + partitions,
-        "partitionNum[%s] should be in [%s, %s)",
-        partitionNum,
-        startPartitionId,
-        startPartitionId + partitions
-    );
+    this.ordinal = ordinal == null ? partitionNum : ordinal;
   }
 
   @VisibleForTesting
-  HashBasedNumberedShardSpec(
+  public HashBasedNumberedShardSpec(
       int partitionNum,
       int partitions,
       @Nullable List<String> partitionDimensions,
       ObjectMapper jsonMapper
   )
   {
-    this(partitionNum, 0, partitions, partitionDimensions, jsonMapper);
-  }
-
-  @Override
-  public boolean supportStartPartition()
-  {
-    return true;
-  }
-
-  @Override
-  @JsonProperty("startPartitionId")
-  public int getStartPartitionId()
-  {
-    return startPartitionId;
+    this(partitionNum, partitions, partitionDimensions, 0, jsonMapper);
   }
 
   @JsonProperty("partitionDimensions")
@@ -104,15 +84,16 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     return partitionDimensions;
   }
 
+  @JsonProperty
+  public int getOrdinal()
+  {
+    return ordinal;
+  }
+
   @Override
   public boolean isInChunk(long timestamp, InputRow inputRow)
   {
-    return (((long) hash(timestamp, inputRow)) - getOrdinalPartition()) % getPartitions() == 0;
-  }
-
-  private int getOrdinalPartition()
-  {
-    return getPartitionNum() - startPartitionId;
+    return (((long) hash(timestamp, inputRow)) - ordinal) % getPartitions() == 0;
   }
 
   protected int hash(long timestamp, InputRow inputRow)
@@ -148,16 +129,15 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   public String toString()
   {
     return "HashBasedNumberedShardSpec{" +
-           "partitionNum=" + getPartitionNum() +
-           ", startPartitionId=" + startPartitionId +
-           ", partitions=" + getPartitions() +
-           ", partitionDimensions=" + getPartitionDimensions() +
-           '}';
+           ", partitionDimensions=" + partitionDimensions +
+           ", ordinal=" + ordinal +
+           "} " + super.toString();
   }
 
   @Override
   public ShardSpecLookup getLookup(final List<ShardSpec> shardSpecs)
   {
+    shardSpecs.sort(Comparator.comparing(shardSpec -> ((HashBasedNumberedShardSpec) shardSpec).ordinal));
     return (long timestamp, InputRow row) -> {
       int index = Math.abs(hash(timestamp, row) % getPartitions());
       return shardSpecs.get(index);

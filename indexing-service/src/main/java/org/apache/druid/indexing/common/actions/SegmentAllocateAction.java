@@ -19,8 +19,10 @@
 
 package org.apache.druid.indexing.common.actions;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
@@ -38,9 +40,13 @@ import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactory.EmptyContext;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
+import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -68,10 +74,13 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   private final Granularity preferredSegmentGranularity;
   private final String sequenceName;
   private final String previousSegmentId;
-  private final Set<Integer> overshadowingSegments;
   private final boolean skipSegmentLineageCheck;
+  private final ShardSpecFactory shardSpecFactory;
+  private final ShardSpecFactory.Context context;
+  private final Set<Integer> overshadowingSegments;
   private final boolean changeSegmentGranularity;
 
+  @JsonCreator
   public SegmentAllocateAction(
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("timestamp") DateTime timestamp,
@@ -79,9 +88,39 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
       @JsonProperty("preferredSegmentGranularity") Granularity preferredSegmentGranularity,
       @JsonProperty("sequenceName") String sequenceName,
       @JsonProperty("previousSegmentId") String previousSegmentId,
-      @JsonProperty("overshadowingSegments") Set<Integer> overshadowingSegments,
       @JsonProperty("skipSegmentLineageCheck") boolean skipSegmentLineageCheck,
-      @JsonProperty("changeSegmentGranularity") boolean changeSegmentGranularity
+      @JsonProperty("overshadowingSegments") @Nullable Set<Integer> overshadowingSegments, // for backward compatibility
+      @JsonProperty("changeSegmentGranularity") boolean changeSegmentGranularity // false if it's null
+  )
+  {
+    this(
+        dataSource,
+        timestamp,
+        queryGranularity,
+        preferredSegmentGranularity,
+        sequenceName,
+        previousSegmentId,
+        skipSegmentLineageCheck,
+        NumberedShardSpecFactory.instance(),
+        EmptyContext.instance(),
+        overshadowingSegments,
+        changeSegmentGranularity
+    );
+  }
+
+  @VisibleForTesting
+  SegmentAllocateAction(
+      String dataSource,
+      DateTime timestamp,
+      Granularity queryGranularity,
+      Granularity preferredSegmentGranularity,
+      String sequenceName,
+      String previousSegmentId,
+      boolean skipSegmentLineageCheck,
+      ShardSpecFactory shardSpecFactory,
+      ShardSpecFactory.Context context,
+      @Nullable Set<Integer> overshadowingSegments,
+      boolean changeSegmentGranularity
   )
   {
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
@@ -93,8 +132,10 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     );
     this.sequenceName = Preconditions.checkNotNull(sequenceName, "sequenceName");
     this.previousSegmentId = previousSegmentId;
-    this.overshadowingSegments = overshadowingSegments;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
+    this.shardSpecFactory = shardSpecFactory;
+    this.context = context;
+    this.overshadowingSegments = overshadowingSegments == null ? Collections.emptySet() : overshadowingSegments;
     this.changeSegmentGranularity = changeSegmentGranularity;
   }
 
@@ -135,15 +176,22 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   }
 
   @JsonProperty
-  public Set<Integer> getOvershadowingSegments()
-  {
-    return overshadowingSegments;
-  }
-
-  @JsonProperty
   public boolean isSkipSegmentLineageCheck()
   {
     return skipSegmentLineageCheck;
+  }
+
+  @Nullable
+  @JsonProperty
+  public ShardSpecFactory getShardSpecFactory()
+  {
+    return shardSpecFactory;
+  }
+
+  @JsonProperty
+  public Set<Integer> getOvershadowingSegments()
+  {
+    return overshadowingSegments;
   }
 
   @JsonProperty
@@ -281,20 +329,21 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     // dataSources. So, all lock requests should be segmentLock.
     final LockResult lockResult = toolbox.getTaskLockbox().tryLock(
         task,
-        new LockRequestForNewSegment(
+        // TODO: type safe
+        new LockRequestForNewSegment<>(
             changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
             TaskLockType.EXCLUSIVE,
             task.getGroupId(),
             dataSource,
             tryInterval,
-            new NumberedShardSpecFactory(),
+            shardSpecFactory,
             task.getPriority(),
             1,
             sequenceName,
             previousSegmentId,
+            skipSegmentLineageCheck,
             overshadowingSegments,
-            firstPartition,
-            skipSegmentLineageCheck
+            i -> context
         )
     );
 
