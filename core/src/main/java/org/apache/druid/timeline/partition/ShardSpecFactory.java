@@ -29,6 +29,7 @@ import org.apache.druid.timeline.partition.ShardSpecFactory.Context;
 })
 public interface ShardSpecFactory<T extends Context>
 {
+  // TODO: move numPartitions to context??
   ShardSpec create(ObjectMapper objectMapper, int partitionId, int numPartitions, T context);
 
   Class<? extends ShardSpec> getShardSpecClass();

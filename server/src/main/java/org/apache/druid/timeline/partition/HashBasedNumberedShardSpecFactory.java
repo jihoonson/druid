@@ -25,6 +25,7 @@ import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.Has
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Objects;
 
 public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashBasedNumberedShardSpecContext>
 {
@@ -67,6 +68,25 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashB
   public Class<? extends ShardSpec> getShardSpecClass()
   {
     return HashBasedNumberedShardSpec.class;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    HashBasedNumberedShardSpecFactory that = (HashBasedNumberedShardSpecFactory) o;
+    return Objects.equals(partitionDimensions, that.partitionDimensions);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(partitionDimensions);
   }
 
   public static class HashBasedNumberedShardSpecContext implements ShardSpecFactory.Context

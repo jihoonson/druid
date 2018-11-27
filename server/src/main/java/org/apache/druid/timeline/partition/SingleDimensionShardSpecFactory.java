@@ -23,6 +23,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpecFactory.SingleDimensionShardSpecContext;
 
+import java.util.Objects;
+
 public class SingleDimensionShardSpecFactory implements ShardSpecFactory<SingleDimensionShardSpecContext>
 {
   private final String dimension;
@@ -54,6 +56,25 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory<SingleD
   public Class<? extends ShardSpec> getShardSpecClass()
   {
     return SingleDimensionShardSpec.class;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    SingleDimensionShardSpecFactory that = (SingleDimensionShardSpecFactory) o;
+    return Objects.equals(dimension, that.dimension);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(dimension);
   }
 
   public static class SingleDimensionShardSpecContext implements ShardSpecFactory.Context
