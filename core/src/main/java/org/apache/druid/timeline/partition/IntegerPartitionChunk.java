@@ -23,14 +23,14 @@ import org.apache.druid.timeline.Overshadowable;
 
 /**
  */
-public class IntegerPartitionChunk<T extends Overshadowable<T>> implements PartitionChunk<T>
+public class IntegerPartitionChunk<T extends Overshadowable> implements PartitionChunk<T>
 {
   private final Integer start;
   private final Integer end;
   private final int chunkNumber;
   private final T object;
 
-  public static <T extends Overshadowable<T>> IntegerPartitionChunk<T> make(Integer start, Integer end, int chunkNumber, T obj)
+  public static <T extends Overshadowable> IntegerPartitionChunk<T> make(Integer start, Integer end, int chunkNumber, T obj)
   {
     return new IntegerPartitionChunk<T>(start, end, chunkNumber, obj);
   }

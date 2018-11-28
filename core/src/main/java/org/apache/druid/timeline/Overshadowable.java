@@ -21,7 +21,7 @@ package org.apache.druid.timeline;
 import java.util.Collections;
 import java.util.Set;
 
-public interface Overshadowable<T>
+public interface Overshadowable<T extends Overshadowable>
 {
   default boolean isOvershadow(T other)
   {

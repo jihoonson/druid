@@ -23,9 +23,9 @@ import org.apache.druid.timeline.partition.PartitionChunk;
 import java.util.Collections;
 import java.util.Map;
 
-public interface PartitionChunkProvider<T extends Overshadowable<T>>
+public interface PartitionChunkProvider<T extends Overshadowable>
 {
-  static <T extends Overshadowable<T>> PartitionChunkProvider<T> defaultProvider()
+  static <T extends Overshadowable> PartitionChunkProvider<T> defaultProvider()
   {
     return Collections::emptyMap;
   }

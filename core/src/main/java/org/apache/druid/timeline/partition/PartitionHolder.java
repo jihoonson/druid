@@ -39,14 +39,14 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
   public PartitionHolder(PartitionChunk<T> initialChunk)
   {
     // TODO: proper provider
-    this.overshadowChecker = new OvershadowChecker<>(PartitionChunkProvider.<T>defaultProvider());
+    this.overshadowChecker = new OvershadowChecker<>(PartitionChunkProvider.defaultProvider());
     add(initialChunk);
   }
 
   public PartitionHolder(List<PartitionChunk<T>> initialChunks)
   {
     // TODO: proper provider
-    this.overshadowChecker = new OvershadowChecker<>(PartitionChunkProvider.<T>defaultProvider());
+    this.overshadowChecker = new OvershadowChecker<>(PartitionChunkProvider.defaultProvider());
     for (PartitionChunk<T> chunk : initialChunks) {
       add(chunk);
     }

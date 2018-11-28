@@ -202,7 +202,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       @JsonProperty("shardSpec") @Nullable ShardSpec shardSpec,
       @JsonProperty("binaryVersion") Integer binaryVersion,
       @JsonProperty("size") long size,
-      @JsonProperty("overshadowedSegments") @Nullable Set<Integer> overshadowedSegments,
+      @JsonProperty("overshadowedSegments") @Nullable Set<Integer> overshadowedSegments, // TODO: rename this properly
       @JsonProperty("atomicUpdateGroup") @Nullable Set<Integer> atomicUpdateGroup,
       @JacksonInject PruneLoadSpecHolder pruneLoadSpecHolder
   )

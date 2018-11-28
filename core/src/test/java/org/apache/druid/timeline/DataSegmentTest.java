@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.RangeSet;
 import org.apache.druid.TestObjectMapper;
 import org.apache.druid.data.input.InputRow;
@@ -41,6 +42,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,7 +53,7 @@ import java.util.TreeSet;
 public class DataSegmentTest
 {
   private static final ObjectMapper mapper = new TestObjectMapper();
-  private static final int TEST_VERSION = 0x7;
+  private static final int TEST_VERSION = 0x9;
 
   private static ShardSpec getShardSpec(final int partitionNum)
   {
@@ -119,7 +121,9 @@ public class DataSegmentTest
         Arrays.asList("met1", "met2"),
         NoneShardSpec.instance(),
         TEST_VERSION,
-        1
+        1,
+        ImmutableSet.of(0, 1),
+        ImmutableSet.of(2, 3, 4)
     );
 
     final Map<String, Object> objectMap = mapper.readValue(
@@ -127,7 +131,7 @@ public class DataSegmentTest
         JacksonUtils.TYPE_REFERENCE_MAP_STRING_OBJECT
     );
 
-    Assert.assertEquals(11, objectMap.size());
+    Assert.assertEquals(12, objectMap.size());
     Assert.assertEquals("something", objectMap.get("dataSource"));
     Assert.assertEquals(interval.toString(), objectMap.get("interval"));
     Assert.assertEquals("1", objectMap.get("version"));
@@ -137,6 +141,10 @@ public class DataSegmentTest
     Assert.assertEquals(ImmutableMap.of("type", "none"), objectMap.get("shardSpec"));
     Assert.assertEquals(TEST_VERSION, objectMap.get("binaryVersion"));
     Assert.assertEquals(1, objectMap.get("size"));
+    //noinspection unchecked
+    Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>((List<Integer>) objectMap.get("overshadowedSegments")));
+    //noinspection unchecked
+    Assert.assertEquals(ImmutableSet.of(2, 3, 4), new HashSet<>((List<Integer>) objectMap.get("atomicUpdateGroup")));
 
     DataSegment deserializedSegment = mapper.readValue(mapper.writeValueAsString(segment), DataSegment.class);
 
@@ -149,6 +157,8 @@ public class DataSegmentTest
     Assert.assertEquals(segment.getShardSpec(), deserializedSegment.getShardSpec());
     Assert.assertEquals(segment.getSize(), deserializedSegment.getSize());
     Assert.assertEquals(segment.getIdentifier(), deserializedSegment.getIdentifier());
+    Assert.assertEquals(segment.getOvershadowedGroup(), deserializedSegment.getOvershadowedGroup());
+    Assert.assertEquals(segment.getAtomicUpdateGroup(), deserializedSegment.getAtomicUpdateGroup());
 
     deserializedSegment = mapper.readValue(mapper.writeValueAsString(segment), DataSegment.class);
     Assert.assertEquals(0, segment.compareTo(deserializedSegment));
