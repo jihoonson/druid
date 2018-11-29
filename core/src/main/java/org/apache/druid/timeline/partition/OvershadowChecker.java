@@ -165,7 +165,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
       return null;
     }
 
-    if (!knownChunk.getObject().equals(partitionChunk.getObject())) {
+    if (!knownChunk.equals(partitionChunk)) {
       throw new ISE(
           "WTH? Same partitionId[%d], but known partition[%s] differs from the input partition[%s]",
           partitionChunk.getChunkNumber(),

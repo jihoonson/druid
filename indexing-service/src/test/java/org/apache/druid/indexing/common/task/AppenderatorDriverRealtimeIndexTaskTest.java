@@ -69,7 +69,7 @@ import org.apache.druid.indexing.common.index.RealtimeAppenderatorTuningConfig;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.overlord.DataSourceMetadata;
-import org.apache.druid.indexing.overlord.MetadataTaskStorage;
+import org.apache.druid.indexing.overlord.HeapMemoryTaskStorage;
 import org.apache.druid.indexing.overlord.SegmentPublishResult;
 import org.apache.druid.indexing.overlord.TaskLockbox;
 import org.apache.druid.indexing.overlord.TaskStorage;
@@ -92,7 +92,6 @@ import org.apache.druid.java.util.emitter.core.NoopEmitter;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 import org.apache.druid.java.util.metrics.MonitorScheduler;
 import org.apache.druid.math.expr.ExprMacroTable;
-import org.apache.druid.metadata.DerbyMetadataStorageActionHandlerFactory;
 import org.apache.druid.metadata.EntryExistsException;
 import org.apache.druid.metadata.IndexerSQLMetadataStorageCoordinator;
 import org.apache.druid.metadata.TestDerbyConnector;
@@ -294,7 +293,7 @@ public class AppenderatorDriverRealtimeIndexTaskTest
 
     baseDir = tempFolder.newFolder();
     reportsFile = File.createTempFile("KafkaIndexTaskTestReports-" + System.currentTimeMillis(), "json");
-    makeToolboxFactory(derbyConnector, baseDir);
+    makeToolboxFactory(baseDir);
   }
 
   @After
@@ -1374,7 +1373,6 @@ public class AppenderatorDriverRealtimeIndexTaskTest
       final Long maxTotalRows
   )
   {
-    ObjectMapper objectMapper = new DefaultObjectMapper();
     DataSchema dataSchema = new DataSchema(
         "test_ds",
         TestHelper.makeJsonMapper().convertValue(
@@ -1466,17 +1464,9 @@ public class AppenderatorDriverRealtimeIndexTaskTest
     );
   }
 
-  private void makeToolboxFactory(TestDerbyConnector connector, File directory)
+  private void makeToolboxFactory(final File directory)
   {
-    taskStorage = new MetadataTaskStorage(
-        connector,
-        new TaskStorageConfig(null),
-        new DerbyMetadataStorageActionHandlerFactory(
-            connector,
-            derbyConnectorRule.metadataTablesConfigSupplier().get(),
-            objectMapper
-        )
-    );
+    taskStorage = new HeapMemoryTaskStorage(new TaskStorageConfig(null));
     publishedSegments = new CopyOnWriteArrayList<>();
 
     ObjectMapper mapper = new DefaultObjectMapper();

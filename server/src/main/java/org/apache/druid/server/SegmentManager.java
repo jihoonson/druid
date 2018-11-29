@@ -174,10 +174,15 @@ public class SegmentManager
             log.warn("Told to load a adapter for a segment[%s] that already exists", segment.getIdentifier());
             resultSupplier.set(false);
           } else {
+            final ReferenceCountingSegment referenceCountingSegment = new ReferenceCountingSegment(
+                adapter,
+                segment.getOvershadowedGroup(),
+                segment.getAtomicUpdateGroup()
+            );
             loadedIntervals.add(
                 segment.getInterval(),
                 segment.getVersion(),
-                segment.getShardSpec().createChunk(new ReferenceCountingSegment(adapter, segment.getOvershadowedGroup(), segment.getAtomicUpdateGroup()))
+                segment.getShardSpec().createChunk(referenceCountingSegment)
             );
             dataSourceState.addSegment(segment);
             resultSupplier.set(true);
@@ -223,7 +228,7 @@ public class SegmentManager
             final PartitionChunk<ReferenceCountingSegment> removed = loadedIntervals.remove(
                 segment.getInterval(),
                 segment.getVersion(),
-                segment.getShardSpec().createChunk(null)
+                segment.getShardSpec().createChunk(new ReferenceCountingSegment(null, segment.getOvershadowedGroup(), segment.getAtomicUpdateGroup()))
             );
             final ReferenceCountingSegment oldQueryable = (removed == null) ? null : removed.getObject();
 

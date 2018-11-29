@@ -39,6 +39,7 @@ import org.junit.Test;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 public class NumberedShardSpecTest
@@ -214,6 +215,25 @@ public class NumberedShardSpecTest
     public Set<Integer> getAtomicUpdateGroup()
     {
       return Collections.singleton(Integer.parseInt(val));
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      OvershadowableString that = (OvershadowableString) o;
+      return Objects.equals(val, that.val);
+    }
+
+    @Override
+    public int hashCode()
+    {
+      return Objects.hash(val);
     }
   }
 }
