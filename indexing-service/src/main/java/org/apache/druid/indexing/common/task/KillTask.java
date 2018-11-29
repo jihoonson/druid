@@ -67,7 +67,7 @@ public class KillTask extends AbstractFixedIntervalTask
   @Override
   public boolean isOverwriteMode()
   {
-    return false;
+    return true;
   }
 
   @Override

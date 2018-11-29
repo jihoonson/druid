@@ -19,12 +19,15 @@
 
 package org.apache.druid.indexing.test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import org.apache.druid.indexing.common.TestUtils;
 import org.apache.druid.indexing.overlord.DataSourceMetadata;
 import org.apache.druid.indexing.overlord.IndexerMetadataStorageCoordinator;
 import org.apache.druid.indexing.overlord.SegmentPublishResult;
+import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
@@ -39,6 +42,7 @@ import java.util.Set;
 
 public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataStorageCoordinator
 {
+  private final ObjectMapper objectMapper = new DefaultObjectMapper();
   private final Set<DataSegment> published = Sets.newConcurrentHashSet();
   private final Set<DataSegment> nuked = Sets.newConcurrentHashSet();
   private final List<DataSegment> unusedSegments;
@@ -135,7 +139,13 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
       boolean resetPartitionId
   )
   {
-    throw new UnsupportedOperationException();
+    return new SegmentIdentifier(
+        dataSource,
+        interval,
+        maxVersion,
+        shardSpecFactory.create(objectMapper, 0, shardSpecCreateContext),
+        overshadowingSegments
+    );
   }
 
   @Override
