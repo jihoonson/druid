@@ -65,7 +65,6 @@ import org.apache.druid.segment.QueryableIndex;
 import org.apache.druid.segment.column.ColumnHolder;
 import org.apache.druid.segment.column.ValueType;
 import org.apache.druid.segment.indexing.DataSchema;
-import org.apache.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.loading.SegmentLoadingException;
@@ -472,7 +471,8 @@ public class CompactionTask extends AbstractTask
           Collections.singletonList(totalInterval)
       );
     } else {
-      granularitySpec = new ArbitraryGranularitySpec(
+      granularitySpec = new UniformGranularitySpec(
+          Granularities.ALL,
           Granularities.NONE,
           rollup,
           Collections.singletonList(totalInterval)

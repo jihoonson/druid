@@ -442,7 +442,7 @@ public class TaskLockbox
                   "Only timeChunkLock allows reusing taskLockPosse for new segments, but lockRequest was [%s]",
                   request
               );
-              return Pair.of(foundPosse, createNewSegmentIds((LockRequestForNewSegment) request));
+              return Pair.of(foundPosse, createNewSegmentIds((LockRequestForNewSegment) request, foundPosse.taskLock.getVersion()));
             } else {
               return Pair.of(foundPosse, null);
             }
@@ -526,7 +526,7 @@ public class TaskLockbox
 
     } else if (request instanceof LockRequestForNewSegment) {
       final LockRequestForNewSegment lockRequestForNewSegment = (LockRequestForNewSegment) request;
-      final List<SegmentIdentifier> newIds = createNewSegmentIds(lockRequestForNewSegment);
+      final List<SegmentIdentifier> newIds = createNewSegmentIds(lockRequestForNewSegment, request.getVersion());
 
       if (newIds.stream().anyMatch(java.util.Objects::isNull)) {
         return Pair.of(null, newIds);
@@ -538,10 +538,9 @@ public class TaskLockbox
     }
   }
 
-  private List<SegmentIdentifier> createNewSegmentIds(LockRequestForNewSegment request)
+  private List<SegmentIdentifier> createNewSegmentIds(LockRequestForNewSegment request, String version)
   {
     final List<SegmentIdentifier> newSegmentIds = new ArrayList<>(request.getNumNewSegments());
-    final String version = request.getVersion();
     for (int i = 0; i < request.getNumNewSegments(); i++) {
       final String sequenceName = request.isSkipSegmentLineageCheck()
           ? StringUtils.format("%s_%d", request.getBaseSequenceName(), i)

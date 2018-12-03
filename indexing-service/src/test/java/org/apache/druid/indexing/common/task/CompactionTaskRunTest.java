@@ -157,7 +157,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
   }
 
   @Test
-  public void testRunCompactionTwice() throws Exception
+  public void testRunCompactionTwiceWithoutKeepSegmentGranularity() throws Exception
   {
     runIndexTask();
 
@@ -187,6 +187,72 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
     for (int i = 0; i < 3; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
+      Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(Collections.emptySet(), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+    }
+
+    final CompactionTask compactionTask2 = new CompactionTask(
+        null,
+        null,
+        DATA_SOURCE,
+        Intervals.of("2014-01-01/2014-01-02"),
+        null,
+        null,
+        false,
+        null,
+        null,
+        null,
+        getObjectMapper(),
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory
+    );
+
+    resultPair = runTask(compactionTask2);
+
+    Assert.assertTrue(resultPair.lhs.isSuccess());
+
+    segments = resultPair.rhs;
+    Assert.assertEquals(3, segments.size());
+
+    for (int i = 0; i < 3; i++) {
+      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
+      Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(Collections.emptySet(), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+    }
+  }
+
+  @Test
+  public void testRunCompactionTwiceWithKeepSegmentGranularity() throws Exception
+  {
+    runIndexTask();
+
+    final CompactionTask compactionTask1 = new CompactionTask(
+        null,
+        null,
+        DATA_SOURCE,
+        Intervals.of("2014-01-01/2014-01-02"),
+        null,
+        null,
+        true,
+        null,
+        null,
+        null,
+        getObjectMapper(),
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory
+    );
+
+    Pair<TaskStatus, List<DataSegment>> resultPair = runTask(compactionTask1);
+
+    Assert.assertTrue(resultPair.lhs.isSuccess());
+
+    List<DataSegment> segments = resultPair.rhs;
+    Assert.assertEquals(3, segments.size());
+
+    for (int i = 0; i < 3; i++) {
+      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
       Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
       Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
     }
@@ -198,7 +264,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         Intervals.of("2014-01-01/2014-01-02"),
         null,
         null,
-        false,
+        true,
         null,
         null,
         null,
