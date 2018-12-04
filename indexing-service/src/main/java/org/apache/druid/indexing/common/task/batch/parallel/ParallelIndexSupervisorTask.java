@@ -32,6 +32,7 @@ import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.Counters;
 import org.apache.druid.indexing.common.TaskToolbox;
+import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.AbstractTask;
@@ -50,6 +51,7 @@ import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
 import org.apache.druid.segment.realtime.firehose.ChatHandlers;
 import org.apache.druid.server.security.Action;
 import org.apache.druid.server.security.AuthorizerMapper;
+import org.apache.druid.timeline.DataSegment;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -64,6 +66,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -207,6 +210,13 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
 
 //    return !intervals.isPresent() || checkLock(taskActionClient);
     return !intervals.isPresent() || tryLockWithIntervals(taskActionClient, new ArrayList<>(intervals.get()));
+  }
+
+  @Override
+  public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
+      throws IOException
+  {
+    return taskActionClient.submit(new SegmentListUsedAction(getDataSource(), null, intervals));
   }
 
 //  private boolean checkLock(TaskActionClient actionClient, List<Interval> intervals) throws IOException

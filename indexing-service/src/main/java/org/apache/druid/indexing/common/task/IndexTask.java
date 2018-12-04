@@ -49,6 +49,7 @@ import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
 import org.apache.druid.indexing.common.actions.SegmentBulkAllocateAction;
+import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
@@ -270,6 +271,13 @@ public class IndexTask extends AbstractTask implements ChatHandler
   {
     return isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)
            || !ingestionSchema.ioConfig.isAppendToExisting();
+  }
+
+  @Override
+  public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
+      throws IOException
+  {
+    return taskActionClient.submit(new SegmentListUsedAction(getDataSource(), null, intervals));
   }
 
   @Override

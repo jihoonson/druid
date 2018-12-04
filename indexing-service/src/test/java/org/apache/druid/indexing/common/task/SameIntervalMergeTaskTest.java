@@ -85,7 +85,7 @@ public class SameIntervalMergeTaskTest
     final SameIntervalMergeTask task = new SameIntervalMergeTask(
         null,
         "foo",
-        Intervals.of("2010-01-01/P1D"),
+        Intervals.of("2010-01-01/PT3H"),
         aggregators,
         true,
         indexSpec,
@@ -115,11 +115,42 @@ public class SameIntervalMergeTaskTest
 
   private List<DataSegment> runTask(final SameIntervalMergeTask mergeTask, final String version) throws Exception
   {
-    boolean isReady = mergeTask.isReady(new TaskActionClient()
+    final TaskActionClient actionClient = new TaskActionClient()
     {
       @Override
       public <RetType> RetType submit(TaskAction<RetType> taskAction)
       {
+        if (taskAction instanceof LockListAction) {
+          Assert.assertNotNull("taskLock should be acquired before list", taskLock);
+          return (RetType) Collections.singletonList(taskLock);
+        }
+        if (taskAction instanceof SegmentListUsedAction) {
+          List<DataSegment> segments = ImmutableList.of(
+              DataSegment.builder()
+                         .dataSource(mergeTask.getDataSource())
+                         .interval(Intervals.of("2010-01-01/PT1H"))
+                         .version("oldVersion")
+                         .shardSpec(new LinearShardSpec(0))
+                         .build(),
+              DataSegment.builder()
+                         .dataSource(mergeTask.getDataSource())
+                         .interval(Intervals.of("2010-01-01/PT1H"))
+                         .version("oldVersion")
+                         .shardSpec(new LinearShardSpec(1))
+                         .build(),
+              DataSegment.builder()
+                         .dataSource(mergeTask.getDataSource())
+                         .interval(Intervals.of("2010-01-01T01/PT2H"))
+                         .version("oldVersion")
+                         .shardSpec(new LinearShardSpec(0))
+                         .build()
+          );
+          return (RetType) segments;
+        }
+        if (taskAction instanceof SegmentInsertAction) {
+          publishCountDown.countDown();
+          return null;
+        }
         if (taskAction instanceof LockTryAcquireAction) {
           // the lock of this interval is required
           Assert.assertEquals(mergeTask.getInterval(), ((LockTryAcquireAction) taskAction).getInterval());
@@ -134,9 +165,12 @@ public class SameIntervalMergeTaskTest
           );
           return (RetType) taskLock;
         }
+
         return null;
       }
-    });
+    };
+
+    boolean isReady = mergeTask.isReady(actionClient);
     // ensure LockTryAcquireAction is submitted
     Assert.assertTrue(isReady);
     final List<DataSegment> segments = new ArrayList<>();
@@ -144,46 +178,7 @@ public class SameIntervalMergeTaskTest
     mergeTask.run(
         new TaskToolbox(
             null,
-            new TaskActionClient()
-            {
-              @Override
-              public <RetType> RetType submit(TaskAction<RetType> taskAction)
-              {
-                if (taskAction instanceof LockListAction) {
-                  Assert.assertNotNull("taskLock should be acquired before list", taskLock);
-                  return (RetType) Collections.singletonList(taskLock);
-                }
-                if (taskAction instanceof SegmentListUsedAction) {
-                  List<DataSegment> segments = ImmutableList.of(
-                      DataSegment.builder()
-                                 .dataSource(mergeTask.getDataSource())
-                                 .interval(Intervals.of("2010-01-01/PT1H"))
-                                 .version("oldVersion")
-                                 .shardSpec(new LinearShardSpec(0))
-                                 .build(),
-                      DataSegment.builder()
-                                 .dataSource(mergeTask.getDataSource())
-                                 .interval(Intervals.of("2010-01-01/PT1H"))
-                                 .version("oldVersion")
-                                 .shardSpec(new LinearShardSpec(0))
-                                 .build(),
-                      DataSegment.builder()
-                                 .dataSource(mergeTask.getDataSource())
-                                 .interval(Intervals.of("2010-01-01/PT2H"))
-                                 .version("oldVersion")
-                                 .shardSpec(new LinearShardSpec(0))
-                                 .build()
-                  );
-                  return (RetType) segments;
-                }
-                if (taskAction instanceof SegmentInsertAction) {
-                  publishCountDown.countDown();
-                  return null;
-                }
-
-                return null;
-              }
-            },
+            actionClient,
             new NoopServiceEmitter(), new DataSegmentPusher()
             {
               @Deprecated

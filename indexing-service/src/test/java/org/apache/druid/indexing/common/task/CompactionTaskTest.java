@@ -58,6 +58,7 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.granularity.Granularities;
+import org.apache.druid.java.util.common.granularity.GranularityType;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.CountAggregatorFactory;
@@ -85,6 +86,8 @@ import org.apache.druid.segment.data.RoaringBitmapSerdeFactory;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
+import org.apache.druid.segment.indexing.granularity.GranularitySpec;
+import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.loading.SegmentLoadingException;
 import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
 import org.apache.druid.segment.realtime.firehose.NoopChatHandlerProvider;
@@ -842,7 +845,7 @@ public class CompactionTaskTest
     );
   }
 
-  private static void assertIngestionSchema(
+  private void assertIngestionSchema(
       List<IndexIngestionSpec> ingestionSchemas,
       List<DimensionsSpec> expectedDimensionsSpecs,
       List<Interval> expectedSegmentIntervals
@@ -881,7 +884,7 @@ public class CompactionTaskTest
     );
   }
 
-  private static void assertIngestionSchema(
+  private void assertIngestionSchema(
       List<IndexIngestionSpec> ingestionSchemas,
       List<DimensionsSpec> expectedDimensionsSpecs,
       List<Interval> expectedSegmentIntervals,
@@ -916,14 +919,23 @@ public class CompactionTaskTest
                                                                     .map(AggregatorFactory::getCombiningFactory)
                                                                     .collect(Collectors.toSet());
       Assert.assertEquals(expectedAggregators, new HashSet<>(Arrays.asList(dataSchema.getAggregators())));
-      Assert.assertEquals(
-          new ArbitraryGranularitySpec(
-              Granularities.NONE,
-              false,
-              Collections.singletonList(expectedSegmentIntervals.get(i))
-          ),
-          dataSchema.getGranularitySpec()
-      );
+      final GranularitySpec expectedGranularitySpec;
+      if (keepSegmentGranularity) {
+        expectedGranularitySpec = new UniformGranularitySpec(
+            GranularityType.fromPeriod(expectedSegmentIntervals.get(i).toPeriod()).getDefaultGranularity(),
+            Granularities.NONE,
+            false,
+            Collections.singletonList(expectedSegmentIntervals.get(i))
+        );
+      } else {
+        expectedGranularitySpec = new UniformGranularitySpec(
+            Granularities.ALL,
+            Granularities.NONE,
+            false,
+            Collections.singletonList(expectedSegmentIntervals.get(i))
+        );
+      }
+      Assert.assertEquals(expectedGranularitySpec, dataSchema.getGranularitySpec());
 
       // assert ioConfig
       final IndexIOConfig ioConfig = ingestionSchema.getIOConfig();

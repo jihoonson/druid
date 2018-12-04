@@ -238,6 +238,13 @@ public class CompactionTask extends AbstractTask
   }
 
   @Override
+  public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
+      throws IOException
+  {
+    return taskActionClient.submit(new SegmentListUsedAction(getDataSource(), null, intervals));
+  }
+
+  @Override
   public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     return !keepSegmentGranularity;

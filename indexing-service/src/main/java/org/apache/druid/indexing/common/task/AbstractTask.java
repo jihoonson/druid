@@ -223,9 +223,9 @@ public abstract class AbstractTask implements Task
     }
 
     if (isOverwriteMode()) {
-      final List<DataSegment> usedSegments = client.submit(new SegmentListUsedAction(getDataSource(), null, intervals));
+//      final List<DataSegment> usedSegments = client.submit(new SegmentListUsedAction(getDataSource(), null, intervals));
 
-      return tryLockWithSegments(client, usedSegments);
+      return tryLockWithSegments(client, getInputSegments(client, intervals));
     } else {
       initializedLock = true;
       return true;

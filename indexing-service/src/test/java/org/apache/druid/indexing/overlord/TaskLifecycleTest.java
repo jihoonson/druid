@@ -46,14 +46,17 @@ import org.apache.druid.discovery.DruidNodeAnnouncer;
 import org.apache.druid.discovery.LookupNodeService;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
+import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.common.Counters;
 import org.apache.druid.indexing.common.SegmentLoaderFactory;
 import org.apache.druid.indexing.common.TaskLock;
+import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.TaskToolboxFactory;
 import org.apache.druid.indexing.common.TestUtils;
 import org.apache.druid.indexing.common.actions.LocalTaskActionClientFactory;
 import org.apache.druid.indexing.common.actions.LockListAction;
+import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.SegmentInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClientFactory;
 import org.apache.druid.indexing.common.actions.TaskActionToolbox;
@@ -952,15 +955,21 @@ public class TaskLifecycleTest
       @Override
       public TaskStatus run(TaskToolbox toolbox) throws Exception
       {
-        final TaskLock myLock = Iterables.getOnlyElement(
-            toolbox.getTaskActionClient()
-                   .submit(new LockListAction())
+        final Interval interval = Intervals.of("2012-01-01/P1D");
+        final LockTryAcquireAction action = LockTryAcquireAction.createTimeChunkRequest(
+            TaskLockType.EXCLUSIVE,
+            interval
         );
+
+        final TaskLock lock = toolbox.getTaskActionClient().submit(action);
+        if (lock == null) {
+          throw new ISE("Failed to get a lock");
+        }
 
         final DataSegment segment = DataSegment.builder()
                                                .dataSource("ds")
-                                               .interval(Intervals.of("2012-01-01/P1D"))
-                                               .version(myLock.getVersion())
+                                               .interval(interval)
+                                               .version(lock.getVersion())
                                                .build();
 
         toolbox.getTaskActionClient().submit(new SegmentInsertAction(ImmutableSet.of(segment)));

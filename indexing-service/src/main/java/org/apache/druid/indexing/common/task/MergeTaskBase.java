@@ -58,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  */
@@ -260,6 +261,14 @@ public abstract class MergeTaskBase extends AbstractFixedIntervalTask
   public List<DataSegment> getSegments()
   {
     return segments;
+  }
+
+  @Override
+  public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
+  {
+    return getSegments().stream()
+                 .filter(segment -> intervals.stream().anyMatch(interval -> interval.overlaps(segment.getInterval())))
+                 .collect(Collectors.toList());
   }
 
   @JsonProperty

@@ -28,8 +28,10 @@ import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSubTask
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSupervisorTask;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
+import org.apache.druid.timeline.DataSegment;
 import org.joda.time.Interval;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -158,6 +160,13 @@ public interface Task
   boolean isReady(TaskActionClient taskActionClient) throws Exception;
 
   boolean isOverwriteMode();
+
+  default List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
+      throws IOException
+  {
+    throw new UnsupportedOperationException();
+//    return Collections.emptyList();
+  }
 
   boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments);
 

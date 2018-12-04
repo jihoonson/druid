@@ -22,6 +22,7 @@ package org.apache.druid.indexing.common.task;
 import com.google.common.collect.ImmutableList;
 import com.google.common.hash.Hashing;
 import org.apache.druid.indexing.common.TaskToolbox;
+import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.timeline.DataSegment;
 import org.joda.time.Interval;
@@ -63,6 +64,12 @@ public class MergeTaskBaseTest
     public boolean isOverwriteMode()
     {
       return true;
+    }
+
+    @Override
+    public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
+    {
+      return segments;
     }
 
     @Override

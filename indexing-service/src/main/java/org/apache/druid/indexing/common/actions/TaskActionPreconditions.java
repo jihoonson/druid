@@ -73,6 +73,14 @@ public class TaskActionPreconditions
       return false;
     }
 
+    return isLockCoversSegments(taskLockMap, segments);
+  }
+
+  public static boolean isLockCoversSegments(
+      NavigableMap<DateTime, List<TaskLock>> taskLockMap,
+      Collection<DataSegment> segments
+  )
+  {
     return segments.stream().allMatch(
         segment -> {
           final Entry<DateTime, List<TaskLock>> entry = taskLockMap.floorEntry(segment.getInterval().getStart());
