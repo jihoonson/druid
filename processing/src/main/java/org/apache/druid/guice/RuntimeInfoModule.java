@@ -17,46 +17,17 @@
  * under the License.
  */
 
-package org.apache.druid.java.util.metrics;
+package org.apache.druid.guice;
 
-import org.apache.druid.java.util.emitter.core.Event;
-import org.apache.druid.java.util.emitter.service.ServiceEmitter;
+import com.google.inject.Binder;
+import com.google.inject.Module;
+import org.apache.druid.utils.RuntimeInfo;
 
-import java.util.ArrayList;
-import java.util.List;
-
-public class StubServiceEmitter extends ServiceEmitter
+public class RuntimeInfoModule implements Module
 {
-  private List<Event> events = new ArrayList<>();
-
-  public StubServiceEmitter(String service, String host)
-  {
-    super(service, host, null);
-  }
-
   @Override
-  public void emit(Event event)
+  public void configure(Binder binder)
   {
-    events.add(event);
-  }
-
-  public List<Event> getEvents()
-  {
-    return events;
-  }
-
-  @Override
-  public void start()
-  {
-  }
-
-  @Override
-  public void flush()
-  {
-  }
-
-  @Override
-  public void close()
-  {
+    binder.requestStaticInjection(RuntimeInfo.class);
   }
 }

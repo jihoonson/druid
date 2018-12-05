@@ -17,46 +17,25 @@
  * under the License.
  */
 
-package org.apache.druid.java.util.metrics;
+package org.apache.druid.utils;
 
-import org.apache.druid.java.util.emitter.core.Event;
-import org.apache.druid.java.util.emitter.service.ServiceEmitter;
+import org.junit.Assert;
+import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-
-public class StubServiceEmitter extends ServiceEmitter
+public class JvmUtilsTest
 {
-  private List<Event> events = new ArrayList<>();
-
-  public StubServiceEmitter(String service, String host)
+  @Test
+  public void testgetMaxDirectMemory()
   {
-    super(service, host, null);
-  }
-
-  @Override
-  public void emit(Event event)
-  {
-    events.add(event);
-  }
-
-  public List<Event> getEvents()
-  {
-    return events;
-  }
-
-  @Override
-  public void start()
-  {
-  }
-
-  @Override
-  public void flush()
-  {
-  }
-
-  @Override
-  public void close()
-  {
+    try {
+      long maxMemory = JvmUtils.getRuntimeInfo().getDirectMemorySizeBytes();
+      Assert.assertTrue((maxMemory > 0));
+    }
+    catch (UnsupportedOperationException expected) {
+      Assert.assertTrue(true);
+    }
+    catch (RuntimeException expected) {
+      Assert.assertTrue(true);
+    }
   }
 }
