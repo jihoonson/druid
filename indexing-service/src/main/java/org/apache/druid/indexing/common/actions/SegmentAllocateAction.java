@@ -262,7 +262,6 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
                      tryAllocateSubsequentSegment(toolbox, task, rowInterval, usedSegmentsForRow.iterator().next());
       }
 
-      // TODO: should call tryAllocateFirstSegment if it's the first call and firstSegmentInTimeChunk=true
       if (identifier != null) {
         return identifier;
       }

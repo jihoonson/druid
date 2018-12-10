@@ -25,7 +25,6 @@ import com.google.common.collect.Sets;
 import org.apache.druid.indexing.overlord.ExistingSegmentLockRequest;
 import org.apache.druid.indexing.overlord.LockRequest;
 import org.apache.druid.indexing.overlord.LockRequestForNewSegment;
-import org.apache.druid.indexing.overlord.LockRequestTmp;
 import org.apache.druid.indexing.overlord.TimeChunkLockRequest;
 import org.apache.druid.java.util.common.ISE;
 import org.joda.time.Interval;
@@ -47,51 +46,6 @@ public class SegmentLock implements TaskLock
   private final String version;
   private final int priority;
   private final boolean revoked;
-
-  public static SegmentLock from(LockRequestTmp request)
-  {
-    Preconditions.checkArgument(
-        request.getGranularity() == LockGranularity.SEGMENT,
-        "Invalid lockGranularity[%s]",
-        request.getGranularity()
-    );
-    Preconditions.checkArgument(!request.getPartitionIds().isEmpty(), "Empty partitionIds");
-    // Preferred version should be set for lock requests for existing segments
-    Preconditions.checkNotNull(request.getPreferredVersion(), "Null version");
-
-    return new SegmentLock(
-        request.getType(),
-        request.getGroupId(),
-        request.getDataSource(),
-        request.getInterval(),
-        request.getPartitionIds(),
-        request.getPreferredVersion(),
-        request.getPriority(),
-        request.isRevoked()
-    );
-  }
-
-  public static SegmentLock from(LockRequestTmp request, Set<Integer> partitionIds, String version)
-  {
-    Preconditions.checkArgument(
-        request.getGranularity() == LockGranularity.SEGMENT,
-        "Invalid lockGranularity[%s]",
-        request.getGranularity()
-    );
-    Preconditions.checkArgument(request.getPartitionIds().isEmpty(), "Non-empty partitionIds");
-    Preconditions.checkArgument(request.getPreferredVersion() == null, "Non-null version");
-
-    return new SegmentLock(
-        request.getType(),
-        request.getGroupId(),
-        request.getDataSource(),
-        request.getInterval(),
-        partitionIds,
-        version,
-        request.getPriority(),
-        request.isRevoked()
-    );
-  }
 
   @JsonCreator
   public SegmentLock(

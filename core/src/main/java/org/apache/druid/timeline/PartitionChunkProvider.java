@@ -23,6 +23,14 @@ import org.apache.druid.timeline.partition.PartitionChunk;
 import java.util.Collections;
 import java.util.Map;
 
+/**
+ * TODO: fix javaodc
+ *
+ * this will be used to provide all used segments in metadata store.
+ *
+ * TODO: maybe rename?
+ * @param <T>
+ */
 public interface PartitionChunkProvider<T extends Overshadowable>
 {
   static <T extends Overshadowable> PartitionChunkProvider<T> defaultProvider()
