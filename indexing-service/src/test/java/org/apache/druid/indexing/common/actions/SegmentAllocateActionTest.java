@@ -22,7 +22,9 @@ package org.apache.druid.indexing.common.actions;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
+import org.apache.druid.indexing.common.actions.SegmentAllocateAction.GranularityBasedIntervalsProvider;
 import org.apache.druid.indexing.common.task.NoopTask;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.jackson.DefaultObjectMapper;
@@ -746,10 +748,12 @@ public class SegmentAllocateActionTest
     objectMapper.registerSubtypes(HashBasedNumberedShardSpecFactory.class);
 
     final SegmentAllocateAction action = new SegmentAllocateAction(
+        LockGranularity.TIME_CHUNK,
         DATA_SOURCE,
         PARTY_TIME,
         Granularities.MINUTE,
-        Granularities.HOUR,
+        null,
+        new GranularityBasedIntervalsProvider(Granularities.HOUR),
         "s1",
         "prev",
         false,
@@ -767,13 +771,13 @@ public class SegmentAllocateActionTest
     Assert.assertEquals(action.getDataSource(), action2.getDataSource());
     Assert.assertEquals(action.getTimestamp(), action2.getTimestamp());
     Assert.assertEquals(action.getQueryGranularity(), action2.getQueryGranularity());
-    Assert.assertEquals(action.getPreferredSegmentGranularity(), action2.getPreferredSegmentGranularity());
+    Assert.assertEquals(action.getTryIntervalsProvider(), action2.getTryIntervalsProvider());
     Assert.assertEquals(action.getSequenceName(), action2.getSequenceName());
     Assert.assertEquals(action.getPreviousSegmentId(), action2.getPreviousSegmentId());
     Assert.assertEquals(action.isSkipSegmentLineageCheck(), action2.isSkipSegmentLineageCheck());
     Assert.assertEquals(action.getShardSpecFactory(), action2.getShardSpecFactory());
     Assert.assertEquals(action.getOvershadowingSegments(), action2.getOvershadowingSegments());
-    Assert.assertEquals(action.isChangeSegmentGranularity(), action2.isChangeSegmentGranularity());
+    Assert.assertEquals(action.isFirstSegmentInTimeChunk(), action2.isFirstSegmentInTimeChunk());
   }
 
   @Test
@@ -802,10 +806,12 @@ public class SegmentAllocateActionTest
     );
 
     final SegmentAllocateAction action = new SegmentAllocateAction(
+        LockGranularity.SEGMENT,
         DATA_SOURCE,
         PARTY_TIME,
         Granularities.MINUTE,
         Granularities.HOUR,
+        null,
         "seq",
         null,
         true,
@@ -836,10 +842,12 @@ public class SegmentAllocateActionTest
     taskActionTestKit.getTaskLockbox().add(task);
 
     SegmentAllocateAction action = new SegmentAllocateAction(
+        LockGranularity.SEGMENT,
         DATA_SOURCE,
         PARTY_TIME,
         Granularities.MINUTE,
         Granularities.HOUR,
+        null,
         "seq",
         null,
         false,
@@ -854,10 +862,12 @@ public class SegmentAllocateActionTest
     Assert.assertEquals(0, id1.getShardSpec().getPartitionNum());
 
     action = new SegmentAllocateAction(
+        LockGranularity.SEGMENT,
         DATA_SOURCE,
         PARTY_TIME,
         Granularities.MINUTE,
         Granularities.HOUR,
+        null,
         "seq",
         id1.toString(),
         false,
@@ -873,10 +883,12 @@ public class SegmentAllocateActionTest
     Assert.assertEquals(id1.getVersion(), id2.getVersion());
 
     action = new SegmentAllocateAction(
+        LockGranularity.TIME_CHUNK,
         DATA_SOURCE,
         PARTY_TIME,
         Granularities.MINUTE,
         Granularities.HOUR,
+        null,
         "seq",
         id2.toString(),
         false,
@@ -889,6 +901,8 @@ public class SegmentAllocateActionTest
     Assert.assertNotNull(id3);
     Assert.assertEquals(0, id3.getShardSpec().getPartitionNum());
     Assert.assertTrue(id1.getVersion().compareTo(id3.getVersion()) < 0);
+
+    // TODO: add test with TIME_CHUNK and firstSegmentInTimeChunk=false
   }
 
   private SegmentIdentifier allocate(
@@ -901,10 +915,12 @@ public class SegmentAllocateActionTest
   )
   {
     final SegmentAllocateAction action = new SegmentAllocateAction(
+        LockGranularity.SEGMENT,
         DATA_SOURCE,
         timestamp,
         queryGranularity,
         preferredSegmentGranularity,
+        null,
         sequenceName,
         sequencePreviousId,
         false,

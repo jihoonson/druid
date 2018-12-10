@@ -44,10 +44,12 @@ import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReport;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReportData;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskRealtimeMetricsMonitorBuilder;
 import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
+import org.apache.druid.indexing.common.actions.SegmentAllocateAction.GranularityBasedIntervalsProvider;
 import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.index.RealtimeAppenderatorIngestionSpec;
@@ -730,10 +732,11 @@ public class AppenderatorDriverRealtimeIndexTask extends AbstractTask implements
             toolbox.getTaskActionClient(),
             dataSchema,
             (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SegmentAllocateAction(
+                LockGranularity.SEGMENT,
                 schema.getDataSource(),
                 row.getTimestamp(),
                 schema.getGranularitySpec().getQueryGranularity(),
-                schema.getGranularitySpec().getSegmentGranularity(),
+                new GranularityBasedIntervalsProvider(schema.getGranularitySpec().getSegmentGranularity()),
                 sequenceName,
                 previousSegmentId,
                 skipSegmentLineageCheck,

@@ -32,6 +32,7 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
 import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
@@ -46,6 +47,7 @@ import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.firehose.IngestSegmentFirehoseFactory;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
+import org.apache.druid.java.util.common.JodaUtils;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -75,6 +77,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -294,23 +297,33 @@ public class ParallelIndexSubTask extends AbstractTask
     final boolean explicitIntervals = dataSchema.getGranularitySpec().bucketIntervals().isPresent();
     final ParallelIndexIOConfig ioConfig = ingestionSchema.getIOConfig();
     final boolean changeSegmentGranularity = isChangeSegmentGranularity();
+    final Map<Interval, Integer> intervalToCounter = new HashMap<>();
+    final Set<Interval> allInputIntervals = getAllInputPartitionIds().keySet();
+    final Interval umbrellaInterval = allInputIntervals.isEmpty() ? null : JodaUtils.umbrellaInterval(allInputIntervals);
     return new ActionBasedSegmentAllocator(
         toolbox.getTaskActionClient(),
         dataSchema,
-        (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SurrogateAction<>(
-            supervisorTaskId,
-            new SegmentAllocateAction(
-                schema.getDataSource(),
-                row.getTimestamp(),
-                schema.getGranularitySpec().getQueryGranularity(),
-                schema.getGranularitySpec().getSegmentGranularity(),
-                sequenceName,
-                previousSegmentId,
-                skipSegmentLineageCheck,
-                changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
-                changeSegmentGranularity
-            )
-        )
+        (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
+          final Interval interval = schema.getGranularitySpec().getSegmentGranularity().bucket(row.getTimestamp());
+          final int suffix = intervalToCounter.getOrDefault(interval, 0);
+          intervalToCounter.put(interval, suffix + 1);
+
+          return new SurrogateAction<>(
+              supervisorTaskId,
+              new SegmentAllocateAction(
+                  changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
+                  schema.getDataSource(),
+                  row.getTimestamp(),
+                  schema.getGranularitySpec().getQueryGranularity(),
+                  SegmentAllocateAction.from(schema.getGranularitySpec().getSegmentGranularity(), umbrellaInterval),
+                  sequenceName,
+                  previousSegmentId,
+                  skipSegmentLineageCheck,
+                  changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
+                  suffix == 0
+              )
+          );
+        }
     );
 //    if (ioConfig.isAppendToExisting() || !explicitIntervals) {
 //    } else {

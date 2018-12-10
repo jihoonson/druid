@@ -21,6 +21,9 @@ package org.apache.druid.indexing.common.actions;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
@@ -34,6 +37,7 @@ import org.apache.druid.indexing.overlord.LockResult;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
@@ -48,6 +52,7 @@ import org.joda.time.Interval;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -68,74 +73,85 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   // Prevent spinning forever in situations where the segment list just won't stop changing.
   private static final int MAX_ATTEMPTS = 90;
 
+  private final LockGranularity lockGranularity;
   private final String dataSource;
   private final DateTime timestamp;
   private final Granularity queryGranularity;
-  private final Granularity preferredSegmentGranularity;
+  private final TryIntervalsProvider tryIntervalsProvider;
   private final String sequenceName;
   private final String previousSegmentId;
   private final boolean skipSegmentLineageCheck;
   private final ShardSpecFactory shardSpecFactory;
   private final ShardSpecFactory.Context context;
   private final Set<Integer> overshadowingSegments;
-  private final boolean changeSegmentGranularity;
+  private final boolean firstSegmentInTimeChunk;
 
   @JsonCreator
   public SegmentAllocateAction(
+      @JsonProperty("lockGranularity") @Nullable LockGranularity lockGranularity, // nullable for compatibility
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("timestamp") DateTime timestamp,
       @JsonProperty("queryGranularity") Granularity queryGranularity,
-      @JsonProperty("preferredSegmentGranularity") Granularity preferredSegmentGranularity,
+      @JsonProperty("preferredSegmentGranularity") @Deprecated @Nullable Granularity preferredSegmentGranularity,
+      @JsonProperty("tryIntervalsProvider") @Nullable TryIntervalsProvider tryIntervalsProvider,
       @JsonProperty("sequenceName") String sequenceName,
       @JsonProperty("previousSegmentId") String previousSegmentId,
       @JsonProperty("skipSegmentLineageCheck") boolean skipSegmentLineageCheck,
       @JsonProperty("shardSpecFactory") @Nullable ShardSpecFactory shardSpecFactory,
       @JsonProperty("context") @Nullable Context context,
       @JsonProperty("overshadowingSegments") @Nullable Set<Integer> overshadowingSegments, // for backward compatibility
-      @JsonProperty("changeSegmentGranularity") boolean changeSegmentGranularity // false if it's null
+      @JsonProperty("firstSegmentInTimeChunk") boolean firstSegmentInTimeChunk // false if it's null
   )
   {
+    this.lockGranularity = lockGranularity == null ? LockGranularity.TIME_CHUNK : lockGranularity;
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
     this.timestamp = Preconditions.checkNotNull(timestamp, "timestamp");
     this.queryGranularity = Preconditions.checkNotNull(queryGranularity, "queryGranularity");
-    this.preferredSegmentGranularity = Preconditions.checkNotNull(
-        preferredSegmentGranularity,
-        "preferredSegmentGranularity"
-    );
+    Preconditions.checkArgument(preferredSegmentGranularity != null || tryIntervalsProvider != null, "TODO: proper error message");
+    this.tryIntervalsProvider = tryIntervalsProvider == null ? new GranularityBasedIntervalsProvider(preferredSegmentGranularity) : tryIntervalsProvider;
     this.sequenceName = Preconditions.checkNotNull(sequenceName, "sequenceName");
     this.previousSegmentId = previousSegmentId;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
     this.shardSpecFactory = shardSpecFactory;
     this.context = context;
     this.overshadowingSegments = overshadowingSegments == null ? Collections.emptySet() : overshadowingSegments;
-    this.changeSegmentGranularity = changeSegmentGranularity;
+    this.firstSegmentInTimeChunk = firstSegmentInTimeChunk;
   }
 
   public SegmentAllocateAction(
+      @Nullable LockGranularity lockGranularity,
       String dataSource,
       DateTime timestamp,
       Granularity queryGranularity,
-      Granularity preferredSegmentGranularity,
+      @Nullable TryIntervalsProvider tryIntervalsProvider,
       String sequenceName,
       String previousSegmentId,
       boolean skipSegmentLineageCheck,
       Set<Integer> overshadowingSegments,
-      boolean changeSegmentGranularity
+      boolean firstSegmentInTimeChunk
   )
   {
     this(
+        lockGranularity,
         dataSource,
         timestamp,
         queryGranularity,
-        preferredSegmentGranularity,
+        null,
+        tryIntervalsProvider,
         sequenceName,
         previousSegmentId,
         skipSegmentLineageCheck,
         new NumberedShardSpecFactory(0),
         EmptyContext.instance(),
         overshadowingSegments,
-        changeSegmentGranularity
+        firstSegmentInTimeChunk
     );
+  }
+
+  @JsonProperty
+  public LockGranularity getLockGranularity()
+  {
+    return lockGranularity;
   }
 
   @JsonProperty
@@ -157,9 +173,10 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   }
 
   @JsonProperty
-  public Granularity getPreferredSegmentGranularity()
+  @Nullable
+  public TryIntervalsProvider getTryIntervalsProvider()
   {
-    return preferredSegmentGranularity;
+    return tryIntervalsProvider;
   }
 
   @JsonProperty
@@ -194,9 +211,9 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   }
 
   @JsonProperty
-  public boolean isChangeSegmentGranularity()
+  public boolean isFirstSegmentInTimeChunk()
   {
-    return changeSegmentGranularity;
+    return firstSegmentInTimeChunk;
   }
 
   @Override
@@ -228,18 +245,24 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
 
       final Interval rowInterval = queryGranularity.bucket(timestamp);
 
-      final Set<DataSegment> usedSegmentsForRow = ImmutableSet.copyOf(
-          msc.getUsedSegmentsForInterval(dataSource, rowInterval)
-      );
+      final SegmentIdentifier identifier;
+      final Set<DataSegment> usedSegmentsForRow;
+      if (lockGranularity == LockGranularity.TIME_CHUNK && firstSegmentInTimeChunk) {
+        identifier = tryAllocateFirstSegment(toolbox, task, rowInterval);
+        usedSegmentsForRow = Collections.emptySet();
+      } else {
+        usedSegmentsForRow = msc
+            .getUsedSegmentsForInterval(dataSource, rowInterval)
+            .stream()
+            .filter(segment -> !overshadowingSegments.contains(segment.getShardSpec().getPartitionNum()))
+            .collect(Collectors.toSet());
 
-      final SegmentIdentifier identifier = usedSegmentsForRow.isEmpty() ?
-                                           tryAllocateFirstSegment(toolbox, task, rowInterval) :
-                                           tryAllocateSubsequentSegment(
-                                               toolbox,
-                                               task,
-                                               rowInterval,
-                                               usedSegmentsForRow.iterator().next()
-                                           );
+        identifier = usedSegmentsForRow.isEmpty() ?
+                     tryAllocateFirstSegment(toolbox, task, rowInterval) :
+                     tryAllocateSubsequentSegment(toolbox, task, rowInterval, usedSegmentsForRow.iterator().next());
+      }
+
+      // TODO: should call tryAllocateFirstSegment if it's the first call and firstSegmentInTimeChunk=true
       if (identifier != null) {
         return identifier;
       }
@@ -278,17 +301,121 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     }
   }
 
+  @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
+  @JsonSubTypes(value = {
+      @Type(name = "granularityBased", value = GranularityBasedIntervalsProvider.class),
+      @Type(name = "singleInterval", value = SingleIntervalProvider.class)
+  })
+  public interface TryIntervalsProvider
+  {
+    List<Interval> getTryIntervals(DateTime timestamp);
+  }
+
+  public static class GranularityBasedIntervalsProvider implements TryIntervalsProvider
+  {
+    private final Granularity preferredSegmentGranularity;
+
+    @JsonCreator
+    public GranularityBasedIntervalsProvider(@JsonProperty("preferredSegmentGranularity") Granularity preferredSegmentGranularity)
+    {
+      this.preferredSegmentGranularity = preferredSegmentGranularity;
+    }
+
+    @JsonProperty
+    public Granularity getPreferredSegmentGranularity()
+    {
+      return preferredSegmentGranularity;
+    }
+
+    @Override
+    public List<Interval> getTryIntervals(DateTime timestamp)
+    {
+      // No existing segments for this row, but there might still be nearby ones that conflict with our preferred
+      // segment granularity. Try that first, and then progressively smaller ones if it fails.
+      return Granularity.granularitiesFinerThan(preferredSegmentGranularity)
+                        .stream()
+                        .map(granularity -> granularity.bucket(timestamp))
+                        .collect(Collectors.toList());
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      GranularityBasedIntervalsProvider that = (GranularityBasedIntervalsProvider) o;
+      return Objects.equals(preferredSegmentGranularity, that.preferredSegmentGranularity);
+    }
+
+    @Override
+    public int hashCode()
+    {
+      return Objects.hash(preferredSegmentGranularity);
+    }
+  }
+
+  public static class SingleIntervalProvider implements TryIntervalsProvider
+  {
+    private final Interval interval;
+
+    @JsonCreator
+    public SingleIntervalProvider(@JsonProperty("interval") Interval interval)
+    {
+      this.interval = interval;
+    }
+
+    @JsonProperty
+    public Interval getInterval()
+    {
+      return interval;
+    }
+
+    @Override
+    public List<Interval> getTryIntervals(DateTime timestamp)
+    {
+      return Collections.singletonList(interval);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      SingleIntervalProvider that = (SingleIntervalProvider) o;
+      return Objects.equals(interval, that.interval);
+    }
+
+    @Override
+    public int hashCode()
+    {
+      return Objects.hash(interval);
+    }
+  }
+
+  public static TryIntervalsProvider from(Granularity segmentGranularity, @Nullable Interval totalInputInterval)
+  {
+    if (segmentGranularity.equals(Granularities.ALL)) {
+      return new SingleIntervalProvider(Preconditions.checkNotNull(totalInputInterval, "totalInputInterval"));
+    } else {
+      return new GranularityBasedIntervalsProvider(segmentGranularity);
+    }
+  }
+
   private SegmentIdentifier tryAllocateFirstSegment(TaskActionToolbox toolbox, Task task, Interval rowInterval)
   {
-    // No existing segments for this row, but there might still be nearby ones that conflict with our preferred
-    // segment granularity. Try that first, and then progressively smaller ones if it fails.
-    final List<Interval> tryIntervals = Granularity.granularitiesFinerThan(preferredSegmentGranularity)
-                                                   .stream()
-                                                   .map(granularity -> granularity.bucket(timestamp))
-                                                   .collect(Collectors.toList());
+    final List<Interval> tryIntervals = tryIntervalsProvider.getTryIntervals(timestamp);
+
     for (Interval tryInterval : tryIntervals) {
       if (tryInterval.contains(rowInterval)) {
-        final SegmentIdentifier identifier = tryAllocate(toolbox, task, tryInterval, rowInterval, true, false);
+        final SegmentIdentifier identifier = tryAllocate(toolbox, task, tryInterval, rowInterval, false);
         if (identifier != null) {
           return identifier;
         }
@@ -311,7 +438,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     } else {
       // If segment allocation failed here, it is highly likely an unrecoverable error. We log here for easier
       // debugging.
-      return tryAllocate(toolbox, task, usedSegment.getInterval(), rowInterval, false, true);
+      return tryAllocate(toolbox, task, usedSegment.getInterval(), rowInterval, true);
     }
   }
 
@@ -320,7 +447,6 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
       Task task,
       Interval tryInterval,
       Interval rowInterval,
-      boolean firstPartition,
       boolean logOnFail
   )
   {
@@ -330,7 +456,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
         task,
         // TODO: type safe
         new LockRequestForNewSegment<>(
-            changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
+            lockGranularity,
             TaskLockType.EXCLUSIVE,
             task.getGroupId(),
             dataSource,
@@ -397,14 +523,18 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   public String toString()
   {
     return "SegmentAllocateAction{" +
-           "dataSource='" + dataSource + '\'' +
+           "lockGranularity=" + lockGranularity +
+           ", dataSource='" + dataSource + '\'' +
            ", timestamp=" + timestamp +
            ", queryGranularity=" + queryGranularity +
-           ", preferredSegmentGranularity=" + preferredSegmentGranularity +
+           ", tryIntervalsProvider=" + tryIntervalsProvider +
            ", sequenceName='" + sequenceName + '\'' +
            ", previousSegmentId='" + previousSegmentId + '\'' +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
-           ", changeSegmentGranularity=" + changeSegmentGranularity +
+           ", shardSpecFactory=" + shardSpecFactory +
+           ", context=" + context +
+           ", overshadowingSegments=" + overshadowingSegments +
+           ", firstSegmentInTimeChunk=" + firstSegmentInTimeChunk +
            '}';
   }
 }

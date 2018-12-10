@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Files;
+import org.apache.commons.io.IOUtils;
 import org.apache.druid.data.input.impl.CSVParseSpec;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.ParseSpec;
@@ -33,9 +34,9 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.TestUtils;
 import org.apache.druid.indexing.common.actions.LocalTaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
-import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
@@ -49,10 +50,10 @@ import org.apache.druid.segment.loading.SegmentLoader;
 import org.apache.druid.segment.loading.SegmentLoaderConfig;
 import org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager;
 import org.apache.druid.segment.loading.StorageLocationConfig;
+import org.apache.druid.segment.realtime.firehose.LocalFirehoseFactory;
 import org.apache.druid.server.security.AuthTestUtils;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
-import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -63,14 +64,15 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
@@ -488,6 +490,36 @@ public class CompactionTaskRunTest extends IngestionTestBase
     Assert.assertEquals(TaskState.FAILED, compactionResult.lhs.getStatusCode());
   }
 
+  @Test
+  public void testTest() throws Exception
+  {
+    final ObjectMapper objectMapper = getObjectMapper();
+    objectMapper.registerSubtypes(new NamedType(LocalFirehoseFactory.class, "local"));
+    final Task indexTask = objectMapper.readValue(new File("/Users/jihoonson/Codes/druid/integration-tests/src/test/resources/indexer/wikipedia_index_task.json"), Task.class);
+
+    runTask(indexTask);
+
+    final String template = getTaskAsString("/Users/jihoonson/Codes/druid/integration-tests/src/test/resources/indexer/wikipedia_compaction_task.json");
+    final String taskSpec =
+        StringUtils.replace(template, "${KEEP_SEGMENT_GRANULARITY}", Boolean.toString(false));
+
+    final Task compactTask = objectMapper.readValue(taskSpec, Task.class);
+
+    System.err.println("compaction start");
+    runTask(compactTask);
+  }
+
+  protected String getTaskAsString(String file) throws IOException
+  {
+    final InputStream inputStream = new FileInputStream(file);
+    try {
+      return IOUtils.toString(inputStream, "UTF-8");
+    }
+    finally {
+      IOUtils.closeQuietly(inputStream);
+    }
+  }
+
   private Pair<TaskStatus, List<DataSegment>> runIndexTask() throws Exception
   {
     File tmpDir = temporaryFolder.newFolder();
@@ -612,6 +644,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         new NoopTestTaskFileWriter()
     );
 
+    task.isReady(box.getTaskActionClient());
 //    if (task.isReady(box.getTaskActionClient())) {
       TaskStatus status = task.run(box);
       shutdownTask(task);

@@ -33,8 +33,10 @@ import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
+import org.apache.druid.indexing.common.actions.SegmentAllocateAction.GranularityBasedIntervalsProvider;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.AbstractTask;
@@ -280,10 +282,11 @@ public class KafkaIndexTask extends AbstractTask implements ChatHandler
             toolbox.getTaskActionClient(),
             dataSchema,
             (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SegmentAllocateAction(
+                LockGranularity.SEGMENT,
                 schema.getDataSource(),
                 row.getTimestamp(),
                 schema.getGranularitySpec().getQueryGranularity(),
-                schema.getGranularitySpec().getSegmentGranularity(),
+                new GranularityBasedIntervalsProvider(schema.getGranularitySpec().getSegmentGranularity()),
                 sequenceName,
                 previousSegmentId,
                 skipSegmentLineageCheck,

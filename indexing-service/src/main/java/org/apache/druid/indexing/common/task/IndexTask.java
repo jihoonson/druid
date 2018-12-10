@@ -44,6 +44,7 @@ import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReport;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReportData;
+import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskRealtimeMetricsMonitorBuilder;
 import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskToolbox;
@@ -1004,20 +1005,30 @@ public class IndexTask extends AbstractTask implements ChatHandler
       // Append mode: Allocate segments as needed using Overlord APIs.
       // TODO: test this. does this work without the below intervalToCounter map?
       final boolean changeSegmentGranularity = isChangeSegmentGranularity();
+      final Map<Interval, Integer> intervalToCounter = new HashMap<>();
+      final Set<Interval> allInputIntervals = getAllInputPartitionIds().keySet();
+      final Interval umbrellaInterval = allInputIntervals.isEmpty() ? null : JodaUtils.umbrellaInterval(allInputIntervals);
+
       segmentAllocator = new ActionBasedSegmentAllocator(
           toolbox.getTaskActionClient(),
           dataSchema,
-          (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SegmentAllocateAction(
-              schema.getDataSource(),
-              row.getTimestamp(),
-              schema.getGranularitySpec().getQueryGranularity(),
-              schema.getGranularitySpec().getSegmentGranularity(),
-              sequenceName,
-              previousSegmentId,
-              skipSegmentLineageCheck,
-              changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
-              changeSegmentGranularity
-          )
+          (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
+            final Interval interval = schema.getGranularitySpec().getSegmentGranularity().bucket(row.getTimestamp());
+            final int suffix = intervalToCounter.getOrDefault(interval, 0);
+            intervalToCounter.put(interval, suffix + 1);
+            return new SegmentAllocateAction(
+                changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
+                schema.getDataSource(),
+                row.getTimestamp(),
+                schema.getGranularitySpec().getQueryGranularity(),
+                SegmentAllocateAction.from(schema.getGranularitySpec().getSegmentGranularity(), umbrellaInterval),
+                sequenceName,
+                previousSegmentId,
+                skipSegmentLineageCheck,
+                changeSegmentGranularity ? null : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
+                suffix == 0
+            );
+          }
       );
       shardSpecs = null;
     } else {
@@ -1025,6 +1036,8 @@ public class IndexTask extends AbstractTask implements ChatHandler
       // TODO: move this to appenderator?
       final Map<Interval, Integer> intervalToCounter = new HashMap<>();
       final boolean changeSegmentGranularity = isChangeSegmentGranularity();
+      final Set<Interval> allInputIntervals = getAllInputPartitionIds().keySet();
+      final Interval umbrellaInterval = allInputIntervals.isEmpty() ? null : JodaUtils.umbrellaInterval(allInputIntervals);
 
       segmentAllocator = new ActionBasedSegmentAllocator(
           toolbox.getTaskActionClient(),
@@ -1035,15 +1048,16 @@ public class IndexTask extends AbstractTask implements ChatHandler
             intervalToCounter.put(interval, suffix + 1);
 
             return new SegmentAllocateAction(
+                changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
                 schema.getDataSource(),
                 row.getTimestamp(),
                 schema.getGranularitySpec().getQueryGranularity(),
-                schema.getGranularitySpec().getSegmentGranularity(),
+                SegmentAllocateAction.from(schema.getGranularitySpec().getSegmentGranularity(), umbrellaInterval),
                 StringUtils.format("%s_%d", sequenceName, suffix), // TODO: make the right sequenceName in the first place
                 null,
                 true,
-                changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
-                isChangeSegmentGranularity()
+                changeSegmentGranularity ? null : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
+                suffix == 0
             );
           }
       );
