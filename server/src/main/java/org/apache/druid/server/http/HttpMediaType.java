@@ -17,15 +17,11 @@
  * under the License.
  */
 
-package org.apache.druid.data.input.parquet.simple;
+package org.apache.druid.server.http;
 
-import org.apache.parquet.example.data.Group;
-import org.apache.parquet.hadoop.ParquetInputFormat;
+import javax.ws.rs.core.MediaType;
 
-public class DruidParquetInputFormat extends ParquetInputFormat<Group>
+public class HttpMediaType
 {
-  public DruidParquetInputFormat()
-  {
-    super(DruidParquetReadSupport.class);
-  }
+  public static final String TEXT_PLAIN_UTF8 = MediaType.TEXT_PLAIN + "; charset=UTF-8";
 }

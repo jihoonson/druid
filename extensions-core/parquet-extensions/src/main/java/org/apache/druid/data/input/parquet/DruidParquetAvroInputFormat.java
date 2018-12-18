@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.apache.druid.server.log;
+package org.apache.druid.data.input.parquet;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.google.inject.Provider;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.parquet.avro.DruidParquetAvroReadSupport;
+import org.apache.parquet.hadoop.ParquetInputFormat;
 
-/**
- * A Marker interface for things that can provide a RequestLogger.  This can be combined with jackson polymorphic serde
- * to provide new RequestLogger implementations as plugins.
- */
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
-public interface RequestLoggerProvider extends Provider<RequestLogger>
+public class DruidParquetAvroInputFormat extends ParquetInputFormat<GenericRecord>
 {
+  public DruidParquetAvroInputFormat()
+  {
+    super(DruidParquetAvroReadSupport.class);
+  }
 }

@@ -499,7 +499,7 @@ public class RealtimeManagerTest
           query
       );
 
-      TestHelper.assertExpectedObjects(expectedResults, results, "");
+      TestHelper.assertExpectedObjects(expectedResults, results, "interval");
     }
 
   }
@@ -576,7 +576,7 @@ public class RealtimeManagerTest
           ),
           query
       );
-      TestHelper.assertExpectedObjects(expectedResults, results, "");
+      TestHelper.assertExpectedObjects(expectedResults, results, "segmentSpec");
 
       results = GroupByQueryRunnerTestHelper.runQuery(
           factory,
@@ -591,7 +591,7 @@ public class RealtimeManagerTest
           ),
           query
       );
-      TestHelper.assertExpectedObjects(expectedResults, results, "");
+      TestHelper.assertExpectedObjects(expectedResults, results, "segmentSpec");
     }
 
   }
@@ -690,7 +690,7 @@ public class RealtimeManagerTest
         query.getQuerySegmentSpec().lookup(query, realtimeManager3),
         query
     );
-    TestHelper.assertExpectedObjects(expectedResults_both_partitions, results, "");
+    TestHelper.assertExpectedObjects(expectedResults_both_partitions, results, "multi-segmentSpec");
 
     results = GroupByQueryRunnerTestHelper.runQuery(
         factory,
@@ -701,7 +701,7 @@ public class RealtimeManagerTest
         ),
         query
     );
-    TestHelper.assertExpectedObjects(expectedResults_single_partition_26_28, results, "");
+    TestHelper.assertExpectedObjects(expectedResults_single_partition_26_28, results, "multi-segmentSpec");
 
     results = GroupByQueryRunnerTestHelper.runQuery(
         factory,
@@ -712,7 +712,7 @@ public class RealtimeManagerTest
         ),
         query
     );
-    TestHelper.assertExpectedObjects(expectedResults_single_partition_28_29, results, "");
+    TestHelper.assertExpectedObjects(expectedResults_single_partition_28_29, results, "multi-segmentSpec");
 
     results = GroupByQueryRunnerTestHelper.runQuery(
         factory,
@@ -723,7 +723,7 @@ public class RealtimeManagerTest
         ),
         query
     );
-    TestHelper.assertExpectedObjects(expectedResults_single_partition_26_28, results, "");
+    TestHelper.assertExpectedObjects(expectedResults_single_partition_26_28, results, "multi-segmentSpec");
 
     results = GroupByQueryRunnerTestHelper.runQuery(
         factory,
@@ -734,7 +734,7 @@ public class RealtimeManagerTest
         ),
         query
     );
-    TestHelper.assertExpectedObjects(expectedResults_single_partition_28_29, results, "");
+    TestHelper.assertExpectedObjects(expectedResults_single_partition_28_29, results, "multi-segmentSpec");
 
   }
 
