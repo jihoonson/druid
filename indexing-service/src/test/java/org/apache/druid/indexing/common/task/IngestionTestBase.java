@@ -32,15 +32,12 @@ import org.apache.druid.indexing.common.config.TaskStorageConfig;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.IndexTask.IndexTuningConfig;
 import org.apache.druid.indexing.overlord.HeapMemoryTaskStorage;
-import org.apache.druid.indexing.overlord.MetadataTaskStorage;
 import org.apache.druid.indexing.overlord.TaskLockbox;
 import org.apache.druid.indexing.overlord.TaskStorage;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.granularity.Granularities;
-import org.apache.druid.metadata.DerbyMetadataStorageActionHandlerFactory;
 import org.apache.druid.metadata.EntryExistsException;
 import org.apache.druid.metadata.IndexerSQLMetadataStorageCoordinator;
-import org.apache.druid.metadata.MetadataStorageTablesConfig;
 import org.apache.druid.metadata.SQLMetadataConnector;
 import org.apache.druid.metadata.TestDerbyConnector;
 import org.apache.druid.query.aggregation.AggregatorFactory;
@@ -78,16 +75,6 @@ public abstract class IngestionTestBase
   {
     final SQLMetadataConnector connector = derbyConnectorRule.getConnector();
     connector.createTaskTables();
-//    final MetadataStorageTablesConfig tablesConfig = derbyConnectorRule.metadataTablesConfigSupplier().get();
-//    taskStorage = new MetadataTaskStorage(
-//        connector,
-//        new TaskStorageConfig(null),
-//        new DerbyMetadataStorageActionHandlerFactory(
-//            connector,
-//            tablesConfig,
-//            objectMapper
-//        )
-//    );
     taskStorage = new HeapMemoryTaskStorage(new TaskStorageConfig(null));
     storageCoordinator = new IndexerSQLMetadataStorageCoordinator(
         objectMapper,

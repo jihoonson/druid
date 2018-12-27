@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.druid.indexing.common.task;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,6 +35,7 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.TestUtils;
 import org.apache.druid.indexing.common.actions.LocalTaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
+import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
@@ -138,6 +140,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         null,
         null,
+        null,
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
@@ -174,6 +177,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         null,
         null,
+        null,
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
@@ -201,6 +205,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         null,
         false,
+        null,
         null,
         null,
         null,
@@ -240,6 +245,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         null,
         null,
+        null,
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
@@ -267,6 +273,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         null,
         true,
+        null,
         null,
         null,
         null,
@@ -300,6 +307,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         DATA_SOURCE,
         Intervals.of("2014-01-01T00:00:00/2014-01-02T03:00:00"),
+        null,
         null,
         null,
         null,
@@ -379,6 +387,73 @@ public class CompactionTaskRunTest extends IngestionTestBase
   }
 
   @Test
+  public void testWithSegmentGranularity() throws Exception
+  {
+    runIndexTask();
+
+    // day segmentGranularity
+    final CompactionTask compactionTask1 = new CompactionTask(
+        null,
+        null,
+        DATA_SOURCE,
+        Intervals.of("2014-01-01/2014-01-02"),
+        null,
+        null,
+        null,
+        Granularities.DAY,
+        null,
+        null,
+        null,
+        getObjectMapper(),
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory
+    );
+
+    Pair<TaskStatus, List<DataSegment>> resultPair = runTask(compactionTask1);
+
+    Assert.assertTrue(resultPair.lhs.isSuccess());
+
+    List<DataSegment> segments = resultPair.rhs;
+
+    Assert.assertEquals(1, segments.size());
+
+    Assert.assertEquals(Intervals.of("2014-01-01/2014-01-02"), segments.get(0).getInterval());
+    Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(0).getShardSpec());
+
+    // hour segmentGranularity
+    final CompactionTask compactionTask2 = new CompactionTask(
+        null,
+        null,
+        DATA_SOURCE,
+        Intervals.of("2014-01-01/2014-01-02"),
+        null,
+        null,
+        null,
+        Granularities.HOUR,
+        null,
+        null,
+        null,
+        getObjectMapper(),
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory
+    );
+
+    resultPair = runTask(compactionTask2);
+
+    Assert.assertTrue(resultPair.lhs.isSuccess());
+
+    segments = resultPair.rhs;
+    Assert.assertEquals(3, segments.size());
+
+    for (int i = 0; i < 3; i++) {
+      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
+      Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(i).getShardSpec());
+    }
+  }
+
+  @Test
   public void testRunIndexAndCompactForSameSegmentAtTheSameTime() throws Exception
   {
     runIndexTask();
@@ -392,6 +467,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         DATA_SOURCE,
         Intervals.of("2014-01-01T00:00:00/2014-01-02T03:00:00"),
+        null,
         null,
         null,
         null,
@@ -442,6 +518,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         DATA_SOURCE,
         Intervals.of("2014-01-01T00:00:00/2014-01-02T03:00:00"),
+        null,
         null,
         null,
         null,
@@ -596,7 +673,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
     final SegmentLoader loader = new SegmentLoaderLocalCacheManager(
         getIndexIO(),
-        new SegmentLoaderConfig(){
+        new SegmentLoaderConfig() {
           @Override
           public List<StorageLocationConfig> getLocations()
           {
@@ -644,14 +721,13 @@ public class CompactionTaskRunTest extends IngestionTestBase
         new NoopTestTaskFileWriter()
     );
 
-    task.isReady(box.getTaskActionClient());
-//    if (task.isReady(box.getTaskActionClient())) {
+    if (task.isReady(box.getTaskActionClient())) {
       TaskStatus status = task.run(box);
       shutdownTask(task);
       Collections.sort(segments);
       return Pair.of(status, segments);
-//    } else {
-//      throw new ISE("task is not ready");
-//    }
+    } else {
+      throw new ISE("task is not ready");
+    }
   }
 }
