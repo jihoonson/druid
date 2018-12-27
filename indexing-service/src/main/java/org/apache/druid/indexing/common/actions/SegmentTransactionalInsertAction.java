@@ -31,6 +31,7 @@ import org.apache.druid.indexing.overlord.SegmentPublishResult;
 import org.apache.druid.java.util.emitter.service.ServiceMetricEvent;
 import org.apache.druid.query.DruidMetrics;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.DataSegmentUtils;
 import org.joda.time.Interval;
 
 import java.util.ArrayList;
@@ -164,7 +165,7 @@ public class SegmentTransactionalInsertAction implements TaskAction<SegmentPubli
   public String toString()
   {
     return "SegmentInsertAction{" +
-           "segments=" + segments.stream().map(DataSegment::getIdentifier).collect(Collectors.joining(",")) +
+           "segments=" + DataSegmentUtils.getIdentifiersString(segments) +
            ", startMetadata=" + startMetadata +
            ", endMetadata=" + endMetadata +
            '}';
