@@ -91,6 +91,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -487,8 +488,12 @@ public class AppenderatorImpl implements Appenderator
     final List<Pair<FireHydrant, SegmentIdentifier>> indexesToPersist = new ArrayList<>();
     int numPersistedRows = 0;
     long bytesPersisted = 0L;
-    for (SegmentIdentifier identifier : sinks.keySet()) {
-      final Sink sink = sinks.get(identifier);
+    Iterator<Map.Entry<SegmentIdentifier, Sink>> iterator = sinks.entrySet().iterator();
+
+    while (iterator.hasNext()) {
+      final Map.Entry<SegmentIdentifier, Sink> entry = iterator.next();
+      final SegmentIdentifier identifier = entry.getKey();
+      final Sink sink = entry.getValue();
       if (sink == null) {
         throw new ISE("No sink for identifier: %s", identifier);
       }
