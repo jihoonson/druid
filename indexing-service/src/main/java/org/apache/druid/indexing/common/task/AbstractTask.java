@@ -223,8 +223,9 @@ public abstract class AbstractTask implements Task
     }
 
     if (isOverwriteMode()) {
-//      final List<DataSegment> usedSegments = client.submit(new SegmentListUsedAction(getDataSource(), null, intervals));
+      // TODO: check changeSegmentGranularity and get timeChunkLock here
 
+      // TODO: race - a new segment can be added after getInputSegments. change to lockAllSegmentsInIntervals
       return tryLockWithSegments(client, getInputSegments(client, intervals));
     } else {
       initializedLock = true;
@@ -247,7 +248,7 @@ public abstract class AbstractTask implements Task
       // Create a timeline to find latest segments only
       final List<Interval> intervals = segments.stream().map(DataSegment::getInterval).collect(Collectors.toList());
       final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(segments);
-      final List<DataSegment> realSegments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
+      final List<DataSegment> visibleSegments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
                                                  .stream()
                                                  .map(TimelineObjectHolder::getObject)
                                                  .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
@@ -265,13 +266,13 @@ public abstract class AbstractTask implements Task
         initializedLock = true;
         return true;
       } else {
-        for (DataSegment segment : realSegments) {
+        for (DataSegment segment : visibleSegments) {
           inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new HashSet<>())
                                   .add(segment.getShardSpec().getPartitionNum());
         }
         for (Entry<Interval, Set<Integer>> entry : inputSegmentPartitionIds.entrySet()) {
           final TaskLock lock = client.submit(
-              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), realSegments.get(0).getVersion(), entry.getValue())
+              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), visibleSegments.get(0).getVersion(), entry.getValue())
           );
           if (lock == null) {
             return false;

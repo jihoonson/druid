@@ -274,7 +274,6 @@ public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSuperv
     @Override
     public TaskStatus run(TaskToolbox toolbox) throws Exception
     {
-      setToolbox(toolbox);
       setRunner(
           new TestRunner(
               toolbox,

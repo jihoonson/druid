@@ -104,6 +104,7 @@ public class SegmentBulkAllocateAction implements TaskAction<List<SegmentIdentif
     };
   }
 
+  // TODO: Map<Interval, SegmentIdentifier>
   @Override
   public List<SegmentIdentifier> perform(Task task, TaskActionToolbox toolbox)
   {

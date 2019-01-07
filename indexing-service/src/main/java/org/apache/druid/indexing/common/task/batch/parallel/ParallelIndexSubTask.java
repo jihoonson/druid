@@ -99,8 +99,6 @@ public class ParallelIndexSubTask extends AbstractTask
   private final IndexingServiceClient indexingServiceClient;
   private final IndexTaskClientFactory<ParallelIndexTaskClient> taskClientFactory;
 
-  private final Map<Interval, List<Integer>> inputSegmentPartitionIds = new HashMap<>(); // TODO: list -> set
-
   @JsonCreator
   public ParallelIndexSubTask(
       // id shouldn't be null except when this task is created by ParallelIndexSupervisorTask
@@ -414,6 +412,8 @@ public class ParallelIndexSubTask extends AbstractTask
               fireDepartmentMetrics.incrementThrownAway();
               continue;
             }
+          } else {
+            // TODO: if overwrite, get a lock for the input segment overwritten by inputRow
           }
 
           // Segments are created as needed, using a single sequence name. They may be allocated from the overlord

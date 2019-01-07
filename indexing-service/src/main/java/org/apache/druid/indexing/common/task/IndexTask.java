@@ -261,7 +261,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
                                                                    .bucketIntervals();
 
     if (intervals.isPresent()) {
-      return isReady(taskActionClient, intervals.get());
+      return tryLockIfNecessary(taskActionClient, intervals.get());
     } else {
       return true;
     }
@@ -288,7 +288,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
     return intervalOfExistingSegments.stream().anyMatch(interval -> !segmentGranularity.match(interval));
   }
 
-  private boolean isReady(TaskActionClient actionClient, Collection<Interval> intervals) throws IOException
+  private boolean tryLockIfNecessary(TaskActionClient actionClient, Collection<Interval> intervals) throws IOException
   {
     // Sanity check preventing empty intervals (which cannot be locked, and don't make sense anyway).
     for (Interval interval : intervals) {
@@ -459,7 +459,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
 //      initInputSegmentPartitionIds(toolbox.getTaskActionClient(), new TreeSet<>(shardSpecs.getIntervals()));
 
       // get locks for found shardSpec intervals
-      if (!isReady(toolbox.getTaskActionClient(), intervalToNumShards.keySet())) {
+      if (!tryLockIfNecessary(toolbox.getTaskActionClient(), intervalToNumShards.keySet())) {
         throw new ISE("Failed to get a lock for segments");
       }
 
@@ -924,7 +924,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
       final TaskToolbox toolbox,
       final DataSchema dataSchema,
       final Map<Interval, Integer> intervalToNumShards,
-//      final Map<Interval, String> versions,
       final FirehoseFactory firehoseFactory,
       final File firehoseTempDir,
       @Nullable final Integer targetPartitionSize,
@@ -1063,20 +1062,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
       );
       shardSpecs = null;
     }
-
-//    final SegmentAllocator segmentAllocator = new SegmentAllocator()
-//    {
-//      @Override
-//      public SegmentIdentifier allocate(
-//          InputRow row, String sequenceName, String previousSegmentId, boolean skipSegmentLineageCheck
-//      ) throws IOException
-//      {
-//        final SegmentIdentifier segmentIdentifier = rawAllocator.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);
-//        return segmentIdentifier == null
-//               ? null
-//               :segmentIdentifier.withOvershadowedGroup(getInputPartitionIdsFor(segmentIdentifier.getInterval()));
-//      }
-//    };
 
     final TransactionalSegmentPublisher publisher = (segments, commitMetadata) -> {
       final SegmentTransactionalInsertAction action = new SegmentTransactionalInsertAction(segments);

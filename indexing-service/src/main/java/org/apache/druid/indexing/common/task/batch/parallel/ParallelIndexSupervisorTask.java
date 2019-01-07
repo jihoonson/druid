@@ -30,7 +30,6 @@ import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.indexer.TaskStatus;
-import org.apache.druid.indexing.common.Counters;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
@@ -68,7 +67,6 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
@@ -93,14 +91,7 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
   private final AuthorizerMapper authorizerMapper;
   private final RowIngestionMetersFactory rowIngestionMetersFactory;
 
-  private final Counters counters = new Counters();
-
   private volatile ParallelIndexTaskRunner runner;
-
-  // toolbox is initlized when run() is called, and can be used for processing HTTP endpoint requests.
-  private volatile TaskToolbox toolbox;
-
-  private final Map<Interval, List<Integer>> inputSegmentPartitionIds = new HashMap<>();
 
   @JsonCreator
   public ParallelIndexSupervisorTask(
@@ -285,8 +276,6 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
   @Override
   public TaskStatus run(TaskToolbox toolbox) throws Exception
   {
-    setToolbox(toolbox);
-
     log.info(
         "Found chat handler of class[%s]",
         Preconditions.checkNotNull(chatHandlerProvider, "chatHandlerProvider").getClass().getName()
@@ -307,12 +296,6 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
     finally {
       chatHandlerProvider.unregister(getId());
     }
-  }
-
-  @VisibleForTesting
-  void setToolbox(TaskToolbox toolbox)
-  {
-    this.toolbox = toolbox;
   }
 
   private TaskStatus runParallel(TaskToolbox toolbox) throws Exception
