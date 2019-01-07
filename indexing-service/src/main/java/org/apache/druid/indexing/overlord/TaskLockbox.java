@@ -66,6 +66,10 @@ import java.util.stream.StreamSupport;
  * Remembers which activeTasks have locked which intervals. Tasks are permitted to lock an interval if no other task
  * outside their group has locked an overlapping interval for the same datasource. When a task locks an interval,
  * it is assigned a version string that it can use to publish segments.
+ *
+ * // TODO: how to use this?
+ * // with timeChunk lock or segemnt lock
+ * // note it also does segment allocation for segment lock
  */
 public class TaskLockbox
 {
@@ -556,8 +560,7 @@ public class TaskLockbox
               version,
               request.getOvershadowingSegments(),
               request.getShardSpecCreateContext(i),
-              request.isSkipSegmentLineageCheck(),
-              i == 0 && request.isResetPartitionId()
+              request.isSkipSegmentLineageCheck()
           )
       );
     }
@@ -583,7 +586,8 @@ public class TaskLockbox
   {
     giant.lock();
 
-    // TODO: reduce contention by checking dataSource and interval
+    // TODO: reduce contention by checking dataSource and interval.
+    // TODO: also cache taskLocks
 
     try {
       return action.perform(isTaskLocksValid(task, intervalToPartitionIds));

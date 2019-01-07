@@ -358,7 +358,8 @@ public abstract class AbstractTask implements Task
 
   protected boolean isChangeSegmentGranularity()
   {
-    return initializedLock && changeSegmentGranularity;
+    Preconditions.checkState(initializedLock, "Lock must be initialized before calling this method");
+    return changeSegmentGranularity;
   }
 
   public TaskStatus success()

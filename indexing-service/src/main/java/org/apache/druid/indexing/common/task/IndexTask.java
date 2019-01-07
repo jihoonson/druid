@@ -40,16 +40,12 @@ import org.apache.druid.data.input.Rows;
 import org.apache.druid.hll.HyperLogLogCollector;
 import org.apache.druid.indexer.IngestionState;
 import org.apache.druid.indexer.TaskStatus;
-import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReport;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReportData;
-import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskRealtimeMetricsMonitorBuilder;
 import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskToolbox;
-import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
-import org.apache.druid.indexing.common.actions.SegmentBulkAllocateAction;
 import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
@@ -81,7 +77,6 @@ import org.apache.druid.segment.realtime.appenderator.Appenderators;
 import org.apache.druid.segment.realtime.appenderator.BaseAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.segment.realtime.appenderator.SegmentsAndMetadata;
 import org.apache.druid.segment.realtime.appenderator.TransactionalSegmentPublisher;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
@@ -117,7 +112,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -297,16 +291,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
       }
     }
 
-//    final List<TaskLock> locks = getTaskLocks(actionClient);
-//    if (locks.size() == 0) {
-//      try {
-//        Tasks.tryAcquireExclusiveLocks(actionClient, intervals);
-//      }
-//      catch (Exception e) {
-//        return false;
-//      }
-//    }
-
     return tryLockWithIntervals(actionClient, new ArrayList<>(intervals));
   }
 
@@ -456,24 +440,13 @@ public class IndexTask extends AbstractTask implements ChatHandler
       @Nullable final Long maxTotalRows = getValidMaxTotalRows(tuningConfig);
       final Map<Interval, Integer> intervalToNumShards = determineShardSpecs(toolbox, firehoseFactory, firehoseTempDir, targetPartitionSize);
 
-//      initInputSegmentPartitionIds(toolbox.getTaskActionClient(), new TreeSet<>(shardSpecs.getIntervals()));
-
       // get locks for found shardSpec intervals
       if (!tryLockIfNecessary(toolbox.getTaskActionClient(), intervalToNumShards.keySet())) {
         throw new ISE("Failed to get a lock for segments");
       }
 
       final DataSchema dataSchema;
-//      final Map<Interval, String> versions;
       if (determineIntervals) {
-//        final SortedSet<Interval> intervals = new TreeSet<>(Comparators.intervalsByStartThenEnd());
-//        intervals.addAll(shardSpecs.getIntervals());
-//        final Map<Interval, TaskLock> locks = Tasks.tryAcquireExclusiveLocks(
-//            toolbox.getTaskActionClient(),
-//            intervals
-//        );
-//        versions = locks.entrySet().stream()
-//                        .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().getVersion()));
 
         if (!tryLockWithIntervals(toolbox.getTaskActionClient(), intervalToNumShards.keySet())) {
           throw new ISE("Failed to get locks for intervals[%s]", intervalToNumShards.keySet());
@@ -485,9 +458,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
                            .withIntervals(JodaUtils.condenseIntervals(intervalToNumShards.keySet()))
         );
       } else {
-//        versions = getTaskLocks(toolbox.getTaskActionClient())
-//            .stream()
-//            .collect(Collectors.toMap(TaskLock::getInterval, TaskLock::getVersion));
         dataSchema = ingestionSchema.getDataSchema();
       }
 
@@ -496,7 +466,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
           toolbox,
           dataSchema,
           intervalToNumShards,
-//          versions,
           firehoseFactory,
           firehoseTempDir,
           targetPartitionSize,
@@ -586,23 +555,9 @@ public class IndexTask extends AbstractTask implements ChatHandler
     return metrics;
   }
 
-//  private static String findVersion(Map<Interval, String> versions, Interval interval)
-//  {
-//    return versions.entrySet().stream()
-//                   .filter(entry -> entry.getKey().contains(interval))
-//                   .map(Entry::getValue)
-//                   .findFirst()
-//                   .orElseThrow(() -> new ISE("Cannot find a version for interval[%s]", interval));
-//  }
-
-  private String getSequenceName(Interval interval, ShardSpec shardSpec)
+  public interface SequenceNameGenerator
   {
-    return getSequenceName(interval, shardSpec.getPartitionNum());
-  }
-
-  private String getSequenceName(Interval interval, int i)
-  {
-    return StringUtils.format("%s_%s_%d", getId(), interval, i);
+    String getSequenceName(Interval interval, InputRow inputRow);
   }
 
   private static boolean isGuaranteedRollup(IndexIOConfig ioConfig, IndexTuningConfig tuningConfig)
@@ -684,31 +639,17 @@ public class IndexTask extends AbstractTask implements ChatHandler
       IndexTuningConfig tuningConfig
   )
   {
-//    final Map<Interval, List<ShardSpec>> shardSpecs = new HashMap<>();
     final Map<Interval, Integer> intervalToNumShards = new HashMap<>();
     final SortedSet<Interval> intervals = granularitySpec.bucketIntervals().get();
 
     if (isGuaranteedRollup(ioConfig, tuningConfig)) {
       // Overwrite mode, guaranteed rollup: shardSpecs must be known in advance.
       final int numShards = tuningConfig.getNumShards() == null ? 1 : tuningConfig.getNumShards();
-//      final ShardSpecFactory shardSpecFactory = getShardSpecCreateFunction(
-//          numShards,
-//          tuningConfig.getPartitionDimensions(),
-//          jsonMapper
-//      );
-
       for (Interval interval : intervals) {
-//        final List<ShardSpec> intervalShardSpecs = IntStream.range(0, numShards)
-//                                                            .mapToObj(
-//                                                                shardId -> shardSpecCreateFn.apply(shardId, numShards)
-//                                                            )
-//                                                            .collect(Collectors.toList());
-//        shardSpecs.put(interval, intervalShardSpecs);
         intervalToNumShards.put(interval, numShards);
       }
     } else {
       for (Interval interval : intervals) {
-//        shardSpecs.put(interval, ImmutableList.of());
         intervalToNumShards.put(interval, null);
       }
     }
@@ -760,18 +701,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
       }
 
       if (isGuaranteedRollup(ingestionSchema.getIOConfig(), ingestionSchema.getTuningConfig())) {
-        // Overwrite mode, guaranteed rollup: shardSpecs must be known in advance.
-//        final BiFunction<Integer, Integer, ShardSpec> shardSpecCreateFn = getShardSpecCreateFunction(
-//            numShards,
-//            tuningConfig.getPartitionDimensions(),
-//            jsonMapper
-//        );
-
-//        final List<ShardSpec> intervalShardSpecs = IntStream.range(0, numShards)
-//                                                            .mapToObj(
-//                                                                shardId -> shardSpecCreateFn.apply(shardId, numShards)
-//                                                            ).collect(Collectors.toList());
-
+        // Overwrite mode, guaranteed rollup: # of shards must be known in advance.
         intervalToNumShards.put(interval, numShards);
       } else {
         intervalToNumShards.put(interval, null);
@@ -880,25 +810,50 @@ public class IndexTask extends AbstractTask implements ChatHandler
     return hllCollectors;
   }
 
-  private static ShardSpecFactory getShardSpecCreateFunction(
-      Integer numShards,
-      List<String> partitionDimensions,
-      ObjectMapper jsonMapper
-  )
+  private IndexTaskSegmentAllocator createSegmentAllocator(
+      TaskToolbox toolbox,
+      Map<Interval, Integer> intervalToNumShards,
+      @Nullable List<String> partitionDimensions
+  ) throws IOException
   {
-    Preconditions.checkNotNull(numShards, "numShards");
-
-    if (numShards == 1) {
-//      return (shardId, totalNumShards) -> NoneShardSpec.instance();
-      return NoneShardSpecFactory.instance();
+    if (isChangeSegmentGranularity()) {
+      // We use the timeChunk lock and don't have to ask the overlord to create segmentIds.
+      // Instead, a local allocator is used.
+      if (isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)) {
+        return new CachingLocalSegmentAllocator(
+            toolbox,
+            getId(),
+            getDataSource(),
+            intervalToNumShards,
+            partitionDimensions,
+            isExtendableShardSpecs(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)
+        );
+      } else {
+        return new LocalSegmentAllocator(
+            toolbox,
+            getId(),
+            getDataSource(),
+            ingestionSchema.dataSchema.getGranularitySpec()
+        );
+      }
     } else {
-//      return (shardId, totalNumShards) -> new HashBasedNumberedShardSpec(
-//          shardId,
-//          totalNumShards,
-//          partitionDimensions,
-//          jsonMapper
-//      );
-      return new HashBasedNumberedShardSpecFactory(partitionDimensions, numShards);
+      if (isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)) {
+        return new CachingRemoteSegmentAllocator(
+            toolbox,
+            getId(),
+            intervalToNumShards,
+            partitionDimensions,
+            getAllInputPartitionIds(),
+            isExtendableShardSpecs(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)
+        );
+      } else {
+        return new RemoteSegmentAllocator(
+            toolbox,
+            getId(),
+            ingestionSchema.dataSchema,
+            getAllInputPartitionIds()
+        );
+      }
     }
   }
 
@@ -945,123 +900,16 @@ public class IndexTask extends AbstractTask implements ChatHandler
     }
 
     final IndexIOConfig ioConfig = ingestionSchema.getIOConfig();
-    final IndexTuningConfig tuningConfig = ingestionSchema.tuningConfig;
+    final IndexTuningConfig tuningConfig = ingestionSchema.getTuningConfig();
     final long pushTimeout = tuningConfig.getPushTimeout();
     final boolean isGuaranteedRollup = isGuaranteedRollup(ioConfig, tuningConfig);
 
     // TODO: refactoring this method
-    final SegmentAllocator segmentAllocator;
-    final ShardSpecs shardSpecs;
-    if (isGuaranteedRollup) {
-      // Overwrite mode, guaranteed rollup: segments are all known in advance and there is one per sequenceName.
-
-      final Map<String, SegmentIdentifier> lookup = new HashMap<>();
-
-      // TODO: create shardSpec on the fly
-      final List<SegmentIdentifier> segmentIds = toolbox.getTaskActionClient().submit(
-          new SegmentBulkAllocateAction(
-              intervalToNumShards,
-              getId(),
-              isChangeSegmentGranularity(),
-              tuningConfig.partitionDimensions,
-              getAllInputPartitionIds()
-          )
-      );
-      final Map<Interval, List<SegmentIdentifier>> intervalToIds = new HashMap<>();
-      final Map<Interval, List<ShardSpec>> shardSpecMap = new HashMap<>();
-      for (SegmentIdentifier id : segmentIds) {
-        intervalToIds.computeIfAbsent(id.getInterval(), k -> new ArrayList<>()).add(id);
-      }
-      intervalToIds.values().forEach(ids -> ids.sort(Comparator.comparing(s -> s.getShardSpec().getPartitionNum())));
-
-      for (Map.Entry<Interval, Integer> entry : intervalToNumShards.entrySet()) {
-        final Interval interval = entry.getKey();
-        final int numShards = Preconditions.checkNotNull(entry.getValue(), "numShards for interval[%s]", interval);
-        final List<SegmentIdentifier> idsPerInterval = intervalToIds.get(interval);
-
-        Preconditions.checkState(numShards == idsPerInterval.size(), "TODO: probably map shadrdSpecPerInterval and idsPerInterval?");
-
-        for (int i = 0; i < numShards; i++) {
-          final ShardSpec shardSpecForPublishing;
-          if (isExtendableShardSpecs(ioConfig, tuningConfig)) {
-            shardSpecForPublishing = new NumberedShardSpec(
-                idsPerInterval.get(i).getShardSpec().getPartitionNum(),
-                numShards // TODO: this is wrong now
-            );
-          } else {
-            shardSpecForPublishing = idsPerInterval.get(i).getShardSpec();
-          }
-          final SegmentIdentifier segmentIdForPublishing = idsPerInterval.get(i).withShardSpec(shardSpecForPublishing);
-
-          shardSpecMap.computeIfAbsent(interval, k -> new ArrayList<>()).add(idsPerInterval.get(i).getShardSpec());
-          lookup.put(getSequenceName(interval, idsPerInterval.get(i).getShardSpec()), segmentIdForPublishing);
-        }
-      }
-      shardSpecs = new ShardSpecs(shardSpecMap);
-
-      segmentAllocator = (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> lookup.get(sequenceName);
-    } else if (ioConfig.isAppendToExisting()) {
-      // Append mode: Allocate segments as needed using Overlord APIs.
-      // TODO: test this. does this work without the below intervalToCounter map?
-      final boolean changeSegmentGranularity = isChangeSegmentGranularity();
-      final Map<Interval, Integer> intervalToCounter = new HashMap<>();
-      final Set<Interval> allInputIntervals = getAllInputPartitionIds().keySet();
-      final Interval umbrellaInterval = allInputIntervals.isEmpty() ? null : JodaUtils.umbrellaInterval(allInputIntervals);
-
-      segmentAllocator = new ActionBasedSegmentAllocator(
-          toolbox.getTaskActionClient(),
-          dataSchema,
-          (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
-            final Interval interval = schema.getGranularitySpec().getSegmentGranularity().bucket(row.getTimestamp());
-            final int suffix = intervalToCounter.getOrDefault(interval, 0);
-            intervalToCounter.put(interval, suffix + 1);
-            return new SegmentAllocateAction(
-                changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
-                schema.getDataSource(),
-                row.getTimestamp(),
-                schema.getGranularitySpec().getQueryGranularity(),
-                SegmentAllocateAction.from(schema.getGranularitySpec().getSegmentGranularity(), umbrellaInterval),
-                sequenceName,
-                previousSegmentId,
-                skipSegmentLineageCheck,
-                changeSegmentGranularity ? null : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
-                suffix == 0
-            );
-          }
-      );
-      shardSpecs = null;
-    } else {
-      // Overwrite mode, non-guaranteed rollup: We can make up our own segment ids but we don't know them in advance.
-      // TODO: move this to appenderator?
-      final Map<Interval, Integer> intervalToCounter = new HashMap<>();
-      final boolean changeSegmentGranularity = isChangeSegmentGranularity();
-      final Set<Interval> allInputIntervals = getAllInputPartitionIds().keySet();
-      final Interval umbrellaInterval = allInputIntervals.isEmpty() ? null : JodaUtils.umbrellaInterval(allInputIntervals);
-
-      segmentAllocator = new ActionBasedSegmentAllocator(
-          toolbox.getTaskActionClient(),
-          dataSchema,
-          (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
-            final Interval interval = schema.getGranularitySpec().getSegmentGranularity().bucket(row.getTimestamp());
-            final int suffix = intervalToCounter.getOrDefault(interval, 0);
-            intervalToCounter.put(interval, suffix + 1);
-
-            return new SegmentAllocateAction(
-                changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
-                schema.getDataSource(),
-                row.getTimestamp(),
-                schema.getGranularitySpec().getQueryGranularity(),
-                SegmentAllocateAction.from(schema.getGranularitySpec().getSegmentGranularity(), umbrellaInterval),
-                StringUtils.format("%s_%d", sequenceName, suffix), // TODO: make the right sequenceName in the first place
-                null,
-                true,
-                changeSegmentGranularity ? null : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
-                suffix == 0
-            );
-          }
-      );
-      shardSpecs = null;
-    }
+    final IndexTaskSegmentAllocator segmentAllocator = createSegmentAllocator(
+        toolbox,
+        intervalToNumShards,
+        tuningConfig.partitionDimensions
+    );
 
     final TransactionalSegmentPublisher publisher = (segments, commitMetadata) -> {
       final SegmentTransactionalInsertAction action = new SegmentTransactionalInsertAction(segments);
@@ -1108,8 +956,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
           if (isGuaranteedRollup) {
             // Sequence name is based solely on the shardSpec, and there will only be one segment per sequence.
             final Interval interval = optInterval.get();
-            final ShardSpec shardSpec = shardSpecs.getShardSpec(interval, inputRow);
-            sequenceName = getSequenceName(interval, shardSpec);
+            sequenceName = segmentAllocator.getSequenceName(interval, inputRow);
           } else {
             // Segments are created as needed, using a single sequence name. They may be allocated from the overlord
             // (in append mode) or may be created on our own authority (in overwrite mode).

@@ -23,10 +23,8 @@ import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.SegmentLock;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
-import org.apache.druid.indexing.common.TimeChunkLock;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.java.util.common.DateTimes;
-import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactory.Context;
@@ -40,7 +38,6 @@ import java.util.stream.Collectors;
 
 public class LockRequestForNewSegment<T extends Context> implements LockRequest
 {
-  private final LockGranularity lockGranularity;
   private final TaskLockType lockType;
   private final String groupId;
   private final String dataSource;
@@ -57,7 +54,6 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
   private final IntFunction<T> contextCreateFn;
 
   public LockRequestForNewSegment(
-      LockGranularity lockGranularity,
       TaskLockType lockType,
       Task task,
       Interval interval,
@@ -71,7 +67,6 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
   )
   {
     this(
-        lockGranularity,
         lockType,
         task.getGroupId(),
         task.getDataSource(),
@@ -88,7 +83,6 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
   }
 
   public LockRequestForNewSegment(
-      LockGranularity lockGranularity,
       TaskLockType lockType,
       String groupId,
       String dataSource,
@@ -103,7 +97,6 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
       IntFunction<T> contextCreateFn
   )
   {
-    this.lockGranularity = lockGranularity;
     this.lockType = lockType;
     this.groupId = groupId;
     this.dataSource = dataSource;
@@ -121,7 +114,7 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
   @Override
   public LockGranularity getGranularity()
   {
-    return lockGranularity;
+    return LockGranularity.SEGMENT;
   }
 
   @Override
@@ -203,11 +196,6 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
     return contextCreateFn.apply(ordinal);
   }
 
-  public boolean isResetPartitionId() // effective only for timechunk lock
-  {
-    return lockGranularity == LockGranularity.TIME_CHUNK;
-  }
-
   public TaskLock toLock(List<SegmentIdentifier> newSegmentIds)
   {
     final String version = newSegmentIds.get(0).getVersion();
@@ -217,36 +205,21 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
         newSegmentIds
     );
 
-    switch (lockGranularity) {
-      case TIME_CHUNK:
-        return new TimeChunkLock(
-            lockType,
-            groupId,
-            dataSource,
-            interval,
-            version,
-            priority
-        );
-      case SEGMENT:
-        return new SegmentLock(
-            lockType,
-            groupId,
-            dataSource,
-            interval,
-            newSegmentIds.stream().map(id -> id.getShardSpec().getPartitionNum()).collect(Collectors.toSet()),
-            version,
-            priority
-        );
-      default:
-        throw new ISE("Unknown lockGranularity[%s]", lockGranularity);
-    }
+    return new SegmentLock(
+        lockType,
+        groupId,
+        dataSource,
+        interval,
+        newSegmentIds.stream().map(id -> id.getShardSpec().getPartitionNum()).collect(Collectors.toSet()),
+        version,
+        priority
+    );
   }
 
   @Override
   public String toString()
   {
     return "LockRequestForNewSegment{" +
-           "lockGranularity=" + lockGranularity +
            ", lockType=" + lockType +
            ", groupId='" + groupId + '\'' +
            ", dataSource='" + dataSource + '\'' +

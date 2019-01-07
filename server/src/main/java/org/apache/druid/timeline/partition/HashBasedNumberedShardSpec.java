@@ -35,7 +35,6 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.Rows;
 
 import javax.annotation.Nullable;
-import java.util.Comparator;
 import java.util.List;
 
 public class HashBasedNumberedShardSpec extends NumberedShardSpec
@@ -75,7 +74,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
       ObjectMapper jsonMapper
   )
   {
-    this(partitionNum, partitions, partitionDimensions, partitionNum, jsonMapper);
+    this(partitionNum, partitions, partitionDimensions, null, jsonMapper);
   }
 
   @JsonProperty("partitionDimensions")
@@ -129,9 +128,11 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   public String toString()
   {
     return "HashBasedNumberedShardSpec{" +
-           ", partitionDimensions=" + partitionDimensions +
+           "partitionNum=" + getPartitionNum() +
+           ", partitions=" + getPartitions() +
+           ", partitionDimensions=" + getPartitionDimensions() +
            ", ordinal=" + ordinal +
-           "} " + super.toString();
+           '}';
   }
 
   @Override

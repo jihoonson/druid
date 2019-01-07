@@ -119,8 +119,7 @@ public interface IndexerMetadataStorageCoordinator
       String maxVersion,
       Set<Integer> overshadowingSegments,
       T shardSpecCreateContext,
-      boolean skipSegmentLineageCheck,
-      boolean resetPartitionId
+      boolean skipSegmentLineageCheck
   );
 
   /**

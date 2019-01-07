@@ -923,22 +923,22 @@ public class TaskLockboxTest
   {
     final Task task = NoopTask.create();
     lockbox.add(task);
-    allocateSegmentsAndAssert(task, LockGranularity.SEGMENT, "seq", 3, Collections.emptySet());
-    allocateSegmentsAndAssert(task, LockGranularity.SEGMENT, "seq2", 2, ImmutableSet.of(0, 1, 2));
+    allocateSegmentsAndAssert(task, "seq", 3, Collections.emptySet());
+    allocateSegmentsAndAssert(task, "seq2", 2, ImmutableSet.of(0, 1, 2));
   }
 
-  @Test
-  public void testRequestForNewSegmentWithTimeChunkLock()
-  {
-    final Task task = NoopTask.create();
-    lockbox.add(task);
-    allocateSegmentsAndAssert(task, LockGranularity.TIME_CHUNK, "seq", 2, Collections.emptySet());
-    // timeChunk lock always overwrites existing segments and the start partitionId is reset.
-    // if we unlock here, taskLockbox will try to use the same taskLockPosse of the existing taskLock, which in turn
-    // generating duplicate segmentIds.
-    lockbox.unlock(task, Intervals.of("2015-01-01/2015-01-05"));
-    allocateSegmentsAndAssert(task, LockGranularity.TIME_CHUNK, "seq2", 3, Collections.emptySet());
-  }
+//  @Test
+//  public void testRequestForNewSegmentWithTimeChunkLock()
+//  {
+//    final Task task = NoopTask.create();
+//    lockbox.add(task);
+//    allocateSegmentsAndAssert(task, LockGranularity.TIME_CHUNK, "seq", 2, Collections.emptySet());
+//    // timeChunk lock always overwrites existing segments and the start partitionId is reset.
+//    // if we unlock here, taskLockbox will try to use the same taskLockPosse of the existing taskLock, which in turn
+//    // generating duplicate segmentIds.
+//    lockbox.unlock(task, Intervals.of("2015-01-01/2015-01-05"));
+//    allocateSegmentsAndAssert(task, LockGranularity.TIME_CHUNK, "seq2", 3, Collections.emptySet());
+//  }
 
   @Test
   public void testRequestForNewSegmentWithHashPartition()
@@ -949,7 +949,6 @@ public class TaskLockboxTest
     final LockResult result = lockbox.tryLock(
         task,
         new LockRequestForNewSegment<>(
-            LockGranularity.SEGMENT,
             TaskLockType.EXCLUSIVE,
             task,
             Intervals.of("2015-01-01/2015-01-05"),
@@ -975,7 +974,6 @@ public class TaskLockboxTest
     final LockResult result2 = lockbox.tryLock(
         task,
         new LockRequestForNewSegment<>(
-            LockGranularity.SEGMENT,
             TaskLockType.EXCLUSIVE,
             task,
             Intervals.of("2015-01-01/2015-01-05"),
@@ -1001,7 +999,6 @@ public class TaskLockboxTest
 
   private void allocateSegmentsAndAssert(
       Task task,
-      LockGranularity lockGranularity,
       String baseSequenceName,
       int numSegmentsToAllocate,
       Set<Integer> overshadowingSegments
@@ -1010,7 +1007,6 @@ public class TaskLockboxTest
     final LockResult result = lockbox.tryLock(
         task,
         new LockRequestForNewSegment<>(
-            lockGranularity,
             TaskLockType.EXCLUSIVE,
             task,
             Intervals.of("2015-01-01/2015-01-05"),

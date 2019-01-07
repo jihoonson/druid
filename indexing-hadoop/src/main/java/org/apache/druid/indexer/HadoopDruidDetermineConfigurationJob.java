@@ -71,7 +71,6 @@ public class HadoopDruidDetermineConfigurationJob implements Jobby
                         i,
                         shardsPerInterval,
                         config.getPartitionsSpec().getPartitionDimensions(),
-                        0,
                         HadoopDruidIndexerConfig.JSON_MAPPER
                     ),
                     shardCount++

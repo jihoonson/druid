@@ -32,7 +32,6 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
-import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
 import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
@@ -309,16 +308,14 @@ public class ParallelIndexSubTask extends AbstractTask
           return new SurrogateAction<>(
               supervisorTaskId,
               new SegmentAllocateAction(
-                  changeSegmentGranularity ? LockGranularity.TIME_CHUNK : LockGranularity.SEGMENT,
                   schema.getDataSource(),
                   row.getTimestamp(),
                   schema.getGranularitySpec().getQueryGranularity(),
-                  SegmentAllocateAction.from(schema.getGranularitySpec().getSegmentGranularity(), umbrellaInterval),
+                  schema.getGranularitySpec().getSegmentGranularity(),
                   sequenceName,
                   previousSegmentId,
                   skipSegmentLineageCheck,
-                  changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()),
-                  suffix == 0
+                  changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull())
               )
           );
         }

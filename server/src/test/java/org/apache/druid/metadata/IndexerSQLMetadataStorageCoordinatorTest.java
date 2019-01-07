@@ -884,7 +884,6 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         "version",
         Collections.emptySet(),
         EmptyContext.instance(),
-        false,
         false
     );
 
@@ -899,7 +898,6 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         identifier.getVersion(),
         Collections.emptySet(),
         EmptyContext.instance(),
-        false,
         false
     );
 
@@ -914,7 +912,6 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         identifier1.getVersion(),
         Collections.emptySet(),
         EmptyContext.instance(),
-        false,
         false
     );
 
@@ -929,7 +926,6 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         identifier1.getVersion(),
         Collections.emptySet(),
         EmptyContext.instance(),
-        false,
         false
     );
 
@@ -945,7 +941,6 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         "version",
         Collections.emptySet(),
         EmptyContext.instance(),
-        false,
         false
     );
 
@@ -972,7 +967,6 @@ public class IndexerSQLMetadataStorageCoordinatorTest
           "version",
           Collections.emptySet(),
           EmptyContext.instance(),
-          false,
           false
       );
       prevSegmentId = identifier.toString();
@@ -990,7 +984,6 @@ public class IndexerSQLMetadataStorageCoordinatorTest
           "version",
           Collections.emptySet(),
           EmptyContext.instance(),
-          false,
           false
       );
       prevSegmentId = identifier.toString();
@@ -1018,7 +1011,6 @@ public class IndexerSQLMetadataStorageCoordinatorTest
           "version",
           i < 1 ? Collections.emptySet() : ImmutableSet.of(i - 1),
           EmptyContext.instance(),
-          false,
           false
       );
       Assert.assertEquals(
@@ -1092,8 +1084,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         "version",
         Collections.emptySet(),
         new HashBasedNumberedShardSpecContext(0),
-        true,
-        false
+        true
     );
 
     HashBasedNumberedShardSpec shardSpec = (HashBasedNumberedShardSpec) id.getShardSpec();
@@ -1126,8 +1117,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         "version",
         Collections.emptySet(),
         new HashBasedNumberedShardSpecContext(1),
-        true,
-        false
+        true
     );
 
     shardSpec = (HashBasedNumberedShardSpec) id.getShardSpec();
@@ -1160,8 +1150,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         "version",
         Collections.emptySet(),
         new HashBasedNumberedShardSpecContext(2),
-        true,
-        false
+        true
     );
 
     shardSpec = (HashBasedNumberedShardSpec) id.getShardSpec();

@@ -82,6 +82,7 @@ import java.util.concurrent.Future;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
+// TODO: check this
 public class CompactionTaskRunTest extends IngestionTestBase
 {
   @Rule

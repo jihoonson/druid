@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import org.apache.druid.indexing.common.TestUtils;
 import org.apache.druid.indexing.overlord.DataSourceMetadata;
 import org.apache.druid.indexing.overlord.IndexerMetadataStorageCoordinator;
 import org.apache.druid.indexing.overlord.SegmentPublishResult;
@@ -135,8 +134,7 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
       String maxVersion,
       Set<Integer> overshadowingSegments,
       T shardSpecCreateContext,
-      boolean skipSegmentLineageCheck,
-      boolean resetPartitionId
+      boolean skipSegmentLineageCheck
   )
   {
     return new SegmentIdentifier(
