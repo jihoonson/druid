@@ -24,11 +24,13 @@ import com.google.common.hash.Hashing;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.java.util.common.Intervals;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.timeline.DataSegment;
 import org.joda.time.Interval;
 import org.junit.Assert;
 import org.junit.Test;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -61,12 +63,6 @@ public class MergeTaskBaseTest
     }
 
     @Override
-    public boolean isOverwriteMode()
-    {
-      return true;
-    }
-
-    @Override
     public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
     {
       return segments;
@@ -76,6 +72,13 @@ public class MergeTaskBaseTest
     public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
     {
       return true;
+    }
+
+    @Nullable
+    @Override
+    public Granularity getSegmentGranularity(Interval interval)
+    {
+      return null;
     }
   };
 

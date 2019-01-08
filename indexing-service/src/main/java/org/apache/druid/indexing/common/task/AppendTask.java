@@ -26,6 +26,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.java.util.common.Intervals;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.segment.IndexMerger;
 import org.apache.druid.segment.IndexSpec;
@@ -136,15 +137,15 @@ public class AppendTask extends MergeTaskBase
   }
 
   @Override
-  public boolean isOverwriteMode()
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     return true;
   }
 
   @Override
-  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+  public Granularity getSegmentGranularity(Interval interval)
   {
-    return true;
+    return null;
   }
 
   @JsonProperty("aggregations")

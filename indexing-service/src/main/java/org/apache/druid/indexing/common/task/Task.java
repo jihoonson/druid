@@ -26,11 +26,13 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSubTask;
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSupervisorTask;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.timeline.DataSegment;
 import org.joda.time.Interval;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -159,17 +161,6 @@ public interface Task
    */
   boolean isReady(TaskActionClient taskActionClient) throws Exception;
 
-  boolean isOverwriteMode();
-
-  default List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
-      throws IOException
-  {
-    throw new UnsupportedOperationException();
-//    return Collections.emptyList();
-  }
-
-  boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments);
-
   /**
    * Returns whether or not this task can restore its progress from its on-disk working directory. Restorable tasks
    * may be started with a non-empty working directory. Tasks that exit uncleanly may still have a chance to attempt
@@ -215,4 +206,21 @@ public interface Task
     final ContextValueType value = getContextValue(key);
     return value == null ? defaultValue : value;
   }
+
+  // TODO: remove this and check by getInputSegments returns empty?
+  boolean requireLockInputSegments();
+
+  List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals) throws IOException;
+
+  boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments);
+
+  /**
+   * Returns the segmentGranularity for the given interval. Usually tasks are supposed to return its segmentGranularity
+   * if exists. The compactionTask can return different segmentGranularity depending on its configuration and the input
+   * interval.
+   *
+   * @return segmentGranularity or null if it doesn't support it.
+   */
+  @Nullable
+  Granularity getSegmentGranularity(Interval interval);
 }

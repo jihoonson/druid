@@ -216,7 +216,7 @@ public class ParallelIndexSubTask extends AbstractTask
 
 //  private boolean checkLock(TaskActionClient actionClient, List<Interval> intervals) throws IOException
 //  {
-//    if (isOverwriteMode()) {
+//    if (requireLockInputSegments()) {
 //      final List<DataSegment> usedSegments = actionClient.submit(
 //          new SegmentListUsedAction(getDataSource(), null, intervals)
 //      );
@@ -265,7 +265,7 @@ public class ParallelIndexSubTask extends AbstractTask
 //  }
 
   @Override
-  public boolean isOverwriteMode()
+  public boolean requireLockInputSegments()
   {
     return !ingestionSchema.getIOConfig().isAppendToExisting();
   }
@@ -282,6 +282,13 @@ public class ParallelIndexSubTask extends AbstractTask
   {
     final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
     return intervalOfExistingSegments.stream().anyMatch(interval -> !segmentGranularity.match(interval));
+  }
+
+  @Nullable
+  @Override
+  public Granularity getSegmentGranularity(Interval interval)
+  {
+    return ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
   }
 
   @VisibleForTesting

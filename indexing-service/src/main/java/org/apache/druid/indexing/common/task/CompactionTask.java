@@ -28,6 +28,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.druid.data.input.impl.DimensionSchema;
 import org.apache.druid.data.input.impl.DimensionSchema.MultiValueHandling;
@@ -207,8 +208,8 @@ public class CompactionTask extends AbstractTask
     return keepSegmentGranularity;
   }
 
-  @JsonProperty
-  public Granularity getSegmentGranularity()
+  @JsonProperty("segmentGranularity")
+  public Granularity getInputSegmentGranularity()
   {
     return segmentGranularity;
   }
@@ -253,7 +254,7 @@ public class CompactionTask extends AbstractTask
   }
 
   @Override
-  public boolean isOverwriteMode()
+  public boolean requireLockInputSegments()
   {
     return true;
   }
@@ -270,6 +271,25 @@ public class CompactionTask extends AbstractTask
   {
     return (keepSegmentGranularity != null && !keepSegmentGranularity)
         || (segmentGranularity != null); // TODO: check segmentGranularity is different
+  }
+
+  @Override
+  public Granularity getSegmentGranularity(Interval interval)
+  {
+    if (segmentGranularity == null) {
+      if (keepSegmentGranularity != null && !keepSegmentGranularity) {
+        return Granularities.ALL;
+      } else {
+        return GranularityType.fromPeriod(interval.toPeriod()).getDefaultGranularity();
+      }
+    } else {
+      if (keepSegmentGranularity != null && keepSegmentGranularity) {
+        // error
+        throw new ISE("segmentGranularity[%s] and keepSegmentGranularity can't be used together", segmentGranularity);
+      } else {
+        return segmentGranularity;
+      }
+    }
   }
 
   @Override
@@ -380,7 +400,7 @@ public class CompactionTask extends AbstractTask
         // all granularity
         final DataSchema dataSchema = createDataSchema(
             segmentProvider.dataSource,
-            segmentProvider.interval,
+//            segmentProvider.interval,
             queryableIndexAndSegments,
             dimensionsSpec,
             Granularities.ALL,
@@ -390,7 +410,8 @@ public class CompactionTask extends AbstractTask
         return Collections.singletonList(
             new IndexIngestionSpec(
                 dataSchema,
-                createIoConfig(toolbox, dataSchema, segmentProvider.interval),
+//                createIoConfig(toolbox, dataSchema, segmentProvider.interval),
+                createIoConfig(toolbox, dataSchema, Iterables.getOnlyElement(dataSchema.getGranularitySpec().inputIntervals())),
                 compactionTuningConfig
             )
         );
@@ -411,7 +432,7 @@ public class CompactionTask extends AbstractTask
           final List<Pair<QueryableIndex, DataSegment>> segmentsToCompact = entry.getValue();
           final DataSchema dataSchema = createDataSchema(
               segmentProvider.dataSource,
-              interval,
+//              interval,
               segmentsToCompact,
               dimensionsSpec,
               GranularityType.fromPeriod(interval.toPeriod()).getDefaultGranularity(),
@@ -437,7 +458,7 @@ public class CompactionTask extends AbstractTask
         // given segment granularity
         final DataSchema dataSchema = createDataSchema(
             segmentProvider.dataSource,
-            segmentProvider.interval,
+//            segmentProvider.interval,
             queryableIndexAndSegments,
             dimensionsSpec,
             segmentGranularity,
@@ -447,7 +468,8 @@ public class CompactionTask extends AbstractTask
         return Collections.singletonList(
             new IndexIngestionSpec(
                 dataSchema,
-                createIoConfig(toolbox, dataSchema, segmentProvider.interval),
+//                createIoConfig(toolbox, dataSchema, segmentProvider.interval),
+                createIoConfig(toolbox, dataSchema, Iterables.getOnlyElement(dataSchema.getGranularitySpec().inputIntervals())),
                 compactionTuningConfig
             )
         );
@@ -486,7 +508,6 @@ public class CompactionTask extends AbstractTask
 
   private static DataSchema createDataSchema(
       String dataSource,
-      Interval totalInterval,
       List<Pair<QueryableIndex, DataSegment>> queryableIndexAndSegments,
       DimensionsSpec dimensionsSpec,
       Granularity segmentGranularity,
@@ -517,6 +538,10 @@ public class CompactionTask extends AbstractTask
       final Boolean isRollup = pair.lhs.getMetadata().isRollup();
       return isRollup != null && isRollup;
     });
+
+    final Interval totalInterval = JodaUtils.umbrellaInterval(
+        queryableIndexAndSegments.stream().map(p -> p.rhs.getInterval()).collect(Collectors.toList())
+    );
 
     final GranularitySpec granularitySpec = new UniformGranularitySpec(
         Preconditions.checkNotNull(segmentGranularity),

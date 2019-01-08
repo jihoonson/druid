@@ -87,12 +87,9 @@ import org.apache.druid.server.security.Action;
 import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
-import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.NoneShardSpec;
-import org.apache.druid.timeline.partition.NoneShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
-import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.utils.CircularBuffer;
 import org.codehaus.plexus.util.FileUtils;
 import org.joda.time.Interval;
@@ -262,7 +259,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
   }
 
   @Override
-  public boolean isOverwriteMode()
+  public boolean requireLockInputSegments()
   {
     return isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)
            || !ingestionSchema.ioConfig.isAppendToExisting();
@@ -280,6 +277,13 @@ public class IndexTask extends AbstractTask implements ChatHandler
   {
     final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
     return intervalOfExistingSegments.stream().anyMatch(interval -> !segmentGranularity.match(interval));
+  }
+
+  @Nullable
+  @Override
+  public Granularity getSegmentGranularity(Interval interval)
+  {
+    return ingestionSchema.dataSchema.getGranularitySpec().getSegmentGranularity();
   }
 
   private boolean tryLockIfNecessary(TaskActionClient actionClient, Collection<Interval> intervals) throws IOException
@@ -812,6 +816,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
 
   private IndexTaskSegmentAllocator createSegmentAllocator(
       TaskToolbox toolbox,
+      DataSchema dataSchema,
       Map<Interval, Integer> intervalToNumShards,
       @Nullable List<String> partitionDimensions
   ) throws IOException
@@ -833,7 +838,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
             toolbox,
             getId(),
             getDataSource(),
-            ingestionSchema.dataSchema.getGranularitySpec()
+            dataSchema.getGranularitySpec()
         );
       }
     } else {
@@ -850,7 +855,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
         return new RemoteSegmentAllocator(
             toolbox,
             getId(),
-            ingestionSchema.dataSchema,
+            dataSchema,
             getAllInputPartitionIds()
         );
       }
@@ -904,9 +909,9 @@ public class IndexTask extends AbstractTask implements ChatHandler
     final long pushTimeout = tuningConfig.getPushTimeout();
     final boolean isGuaranteedRollup = isGuaranteedRollup(ioConfig, tuningConfig);
 
-    // TODO: refactoring this method
     final IndexTaskSegmentAllocator segmentAllocator = createSegmentAllocator(
         toolbox,
+        dataSchema,
         intervalToNumShards,
         tuningConfig.partitionDimensions
     );

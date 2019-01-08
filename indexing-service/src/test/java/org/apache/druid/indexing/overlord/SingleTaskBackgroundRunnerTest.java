@@ -32,6 +32,7 @@ import org.apache.druid.indexing.common.actions.TaskActionClientFactory;
 import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.common.task.AbstractTask;
 import org.apache.druid.indexing.common.task.NoopTask;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 import org.apache.druid.segment.loading.NoopDataSegmentArchiver;
 import org.apache.druid.segment.loading.NoopDataSegmentKiller;
@@ -42,6 +43,7 @@ import org.apache.druid.server.DruidNode;
 import org.apache.druid.server.coordination.NoopDataSegmentAnnouncer;
 import org.apache.druid.server.initialization.ServerConfig;
 import org.apache.druid.server.metrics.NoopServiceEmitter;
+import org.apache.druid.timeline.DataSegment;
 import org.easymock.EasyMock;
 import org.joda.time.Interval;
 import org.junit.After;
@@ -51,6 +53,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
@@ -185,15 +188,30 @@ public class SingleTaskBackgroundRunnerTest
     }
 
     @Override
-    public boolean isOverwriteMode()
+    public boolean requireLockInputSegments()
     {
       return false;
+    }
+
+    @Override
+    public List<DataSegment> getInputSegments(
+        TaskActionClient taskActionClient, List<Interval> intervals
+    )
+    {
+      return Collections.emptyList();
     }
 
     @Override
     public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
     {
       return false;
+    }
+
+    @Nullable
+    @Override
+    public Granularity getSegmentGranularity(Interval interval)
+    {
+      return null;
     }
 
     @Override

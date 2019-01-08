@@ -28,6 +28,7 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.druid.indexing.common.TaskToolbox;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.segment.IndexMerger;
 import org.apache.druid.segment.IndexSpec;
@@ -107,15 +108,16 @@ public class MergeTask extends MergeTaskBase
   }
 
   @Override
-  public boolean isOverwriteMode()
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     return true;
   }
 
+  @Nullable
   @Override
-  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+  public Granularity getSegmentGranularity(Interval interval)
   {
-    return true;
+    return null;
   }
 
   @JsonProperty

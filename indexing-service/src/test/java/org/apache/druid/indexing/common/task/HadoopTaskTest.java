@@ -27,6 +27,8 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.granularity.Granularity;
+import org.apache.druid.timeline.DataSegment;
 import org.apache.hadoop.yarn.util.ApplicationClassLoader;
 import org.easymock.EasyMock;
 import org.joda.time.Interval;
@@ -35,7 +37,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import javax.annotation.Nullable;
 import java.net.URLClassLoader;
+import java.util.Collections;
 import java.util.List;
 
 public class HadoopTaskTest
@@ -66,15 +70,30 @@ public class HadoopTaskTest
       }
 
       @Override
-      public boolean isOverwriteMode()
+      public boolean requireLockInputSegments()
       {
         return true;
+      }
+
+      @Override
+      public List<DataSegment> getInputSegments(
+          TaskActionClient taskActionClient, List<Interval> intervals
+      )
+      {
+        return Collections.emptyList();
       }
 
       @Override
       public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
       {
         return true;
+      }
+
+      @Nullable
+      @Override
+      public Granularity getSegmentGranularity(Interval interval)
+      {
+        return null;
       }
 
       @Override

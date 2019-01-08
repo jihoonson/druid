@@ -30,11 +30,12 @@ import org.apache.druid.indexing.common.actions.SegmentNukeAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.actions.TaskActionPreconditions;
 import org.apache.druid.java.util.common.ISE;
-import org.apache.druid.java.util.common.logger.Logger;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.timeline.DataSegment;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,8 +48,6 @@ import java.util.stream.Collectors;
  */
 public class KillTask extends AbstractFixedIntervalTask
 {
-  private static final Logger log = new Logger(KillTask.class);
-
   @JsonCreator
   public KillTask(
       @JsonProperty("id") String id,
@@ -72,7 +71,7 @@ public class KillTask extends AbstractFixedIntervalTask
   }
 
   @Override
-  public boolean isOverwriteMode()
+  public boolean requireLockInputSegments()
   {
     return true;
   }
@@ -92,6 +91,13 @@ public class KillTask extends AbstractFixedIntervalTask
   public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     return false;
+  }
+
+  @Nullable
+  @Override
+  public Granularity getSegmentGranularity(Interval interval)
+  {
+    return null;
   }
 
   @Override

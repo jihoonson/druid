@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Files;
 import org.apache.commons.io.IOUtils;
-import com.google.common.io.Files;
 import org.apache.druid.data.input.impl.CSVParseSpec;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.ParseSpec;
@@ -65,22 +64,21 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
+import javax.annotation.Nullable;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
 
 // TODO: check this
 public class CompactionTaskRunTest extends IngestionTestBase
@@ -194,13 +192,10 @@ public class CompactionTaskRunTest extends IngestionTestBase
     Assert.assertTrue(resultPair.lhs.isSuccess());
 
     List<DataSegment> segments = resultPair.rhs;
-    Assert.assertEquals(3, segments.size());
+    Assert.assertEquals(1, segments.size());
 
-    for (int i = 0; i < 3; i++) {
-      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
-      Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(i).getShardSpec());
-      Assert.assertEquals(Collections.emptySet(), new HashSet<>(segments.get(i).getOvershadowedGroup()));
-    }
+    Assert.assertEquals(Intervals.of("2014-01-01T00:00:00/2014-01-01T03:00:00"), segments.get(0).getInterval());
+    Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(0).getShardSpec());
 
     final CompactionTask compactionTask2 = new CompactionTask(
         null,
@@ -225,13 +220,10 @@ public class CompactionTaskRunTest extends IngestionTestBase
     Assert.assertTrue(resultPair.lhs.isSuccess());
 
     segments = resultPair.rhs;
-    Assert.assertEquals(3, segments.size());
+    Assert.assertEquals(1, segments.size());
 
-    for (int i = 0; i < 3; i++) {
-      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
-      Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(i).getShardSpec());
-      Assert.assertEquals(Collections.emptySet(), new HashSet<>(segments.get(i).getOvershadowedGroup()));
-    }
+    Assert.assertEquals(Intervals.of("2014-01-01T00:00:00/2014-01-01T03:00:00"), segments.get(0).getInterval());
+    Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(0).getShardSpec());
   }
 
   @Test
@@ -463,8 +455,11 @@ public class CompactionTaskRunTest extends IngestionTestBase
   {
     runIndexTask();
 
+    // make sure that indexTask becomes ready first, then compactionTask becomes ready, then indexTask runs
+    final CountDownLatch compactionTaskReadyLatch = new CountDownLatch(1);
+    final CountDownLatch indexTaskStartLatch = new CountDownLatch(1);
     final Future<Pair<TaskStatus, List<DataSegment>>> indexFuture = exec.submit(
-        this::runIndexTask
+        () -> runIndexTask(compactionTaskReadyLatch, indexTaskStartLatch)
     );
 
     final CompactionTask compactionTask = new CompactionTask(
@@ -486,17 +481,11 @@ public class CompactionTaskRunTest extends IngestionTestBase
     );
 
     final Future<Pair<TaskStatus, List<DataSegment>>> compactionFuture = exec.submit(
-        () -> runTask(compactionTask)
+        () -> {
+          compactionTaskReadyLatch.await();
+          return runTask(compactionTask, indexTaskStartLatch, null);
+        }
     );
-
-//    List<DataSegment> segments = compactionFuture.get().rhs;
-//    Assert.assertEquals(3, segments.size());
-//
-//    for (int i = 0; i < 3; i++) {
-//      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
-//      Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
-//      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
-//    }
 
     Assert.assertTrue(indexFuture.get().lhs.isSuccess());
 
@@ -536,21 +525,25 @@ public class CompactionTaskRunTest extends IngestionTestBase
         rowIngestionMetersFactory
     );
 
+    // make sure that compactionTask becomes ready first, then the indexTask becomes ready, then compactionTask runs
+    final CountDownLatch indexTaskReadyLatch = new CountDownLatch(1);
+    final CountDownLatch compactionTaskStartLatch = new CountDownLatch(1);
     final Future<Pair<TaskStatus, List<DataSegment>>> compactionFuture = exec.submit(
-        () -> runTask(compactionTask)
+        () -> {
+          final Pair<TaskStatus, List<DataSegment>> pair = runTask(
+              compactionTask,
+              indexTaskReadyLatch,
+              compactionTaskStartLatch
+          );
+          return pair;
+        }
     );
 
-//    List<DataSegment> segments = compactionFuture.get().rhs;
-//    Assert.assertEquals(3, segments.size());
-//
-//    for (int i = 0; i < 3; i++) {
-//      Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
-//      Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
-//      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
-//    }
-
     final Future<Pair<TaskStatus, List<DataSegment>>> indexFuture = exec.submit(
-        this::runIndexTask
+        () -> {
+          indexTaskReadyLatch.await();
+          return runIndexTask(compactionTaskStartLatch, null);
+        }
     );
 
     Assert.assertTrue(indexFuture.get().lhs.isSuccess());
@@ -563,10 +556,6 @@ public class CompactionTaskRunTest extends IngestionTestBase
       Assert.assertEquals(new NumberedShardSpec(2 + i % 2, 0), segments.get(i).getShardSpec());
       Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
     }
-
-//    expectedException.expect(ExecutionException.class);
-//    expectedException.expectCause(CoreMatchers.instanceOf(ISE.class));
-//    expectedException.expectMessage("Failed to get a lock for segments");
 
     final Pair<TaskStatus, List<DataSegment>> compactionResult = compactionFuture.get();
     Assert.assertEquals(TaskState.FAILED, compactionResult.lhs.getStatusCode());
@@ -604,6 +593,14 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
   private Pair<TaskStatus, List<DataSegment>> runIndexTask() throws Exception
   {
+    return runIndexTask(null, null);
+  }
+
+  private Pair<TaskStatus, List<DataSegment>> runIndexTask(
+      @Nullable CountDownLatch readyLatchToCountDown,
+      @Nullable CountDownLatch latchToAwaitBeforeRun
+  ) throws Exception
+  {
     File tmpDir = temporaryFolder.newFolder();
     File tmpFile = File.createTempFile("druid", "index", tmpDir);
 
@@ -639,10 +636,19 @@ public class CompactionTaskRunTest extends IngestionTestBase
         rowIngestionMetersFactory
     );
 
-    return runTask(indexTask);
+    return runTask(indexTask, readyLatchToCountDown, latchToAwaitBeforeRun);
   }
 
   private Pair<TaskStatus, List<DataSegment>> runTask(Task task) throws Exception
+  {
+    return runTask(task, null, null);
+  }
+
+  private Pair<TaskStatus, List<DataSegment>> runTask(
+      Task task,
+      @Nullable CountDownLatch readyLatchToCountDown,
+      @Nullable CountDownLatch latchToAwaitBeforeRun
+  ) throws Exception
   {
     getLockbox().add(task);
     getTaskStorage().insert(task, TaskStatus.running(task.getId()));
@@ -727,12 +733,18 @@ public class CompactionTaskRunTest extends IngestionTestBase
     );
 
     if (task.isReady(box.getTaskActionClient())) {
+      if (readyLatchToCountDown != null) {
+        readyLatchToCountDown.countDown();
+      }
+      if (latchToAwaitBeforeRun != null) {
+        latchToAwaitBeforeRun.await();
+      }
       TaskStatus status = task.run(box);
       shutdownTask(task);
       Collections.sort(segments);
       return Pair.of(status, segments);
     } else {
-      throw new ISE("task is not ready");
+      throw new ISE("task[%s] is not ready", task.getId());
     }
   }
 }

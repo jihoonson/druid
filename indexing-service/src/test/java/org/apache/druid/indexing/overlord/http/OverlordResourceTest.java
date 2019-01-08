@@ -41,6 +41,7 @@ import org.apache.druid.indexing.overlord.TaskRunner;
 import org.apache.druid.indexing.overlord.TaskRunnerWorkItem;
 import org.apache.druid.indexing.overlord.TaskStorageQueryAdapter;
 import org.apache.druid.java.util.common.DateTimes;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.segment.TestHelper;
 import org.apache.druid.server.security.Access;
 import org.apache.druid.server.security.Action;
@@ -50,6 +51,7 @@ import org.apache.druid.server.security.Authorizer;
 import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.server.security.ForbiddenException;
 import org.apache.druid.server.security.Resource;
+import org.apache.druid.timeline.DataSegment;
 import org.easymock.EasyMock;
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
@@ -63,6 +65,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
@@ -1023,15 +1026,30 @@ public class OverlordResourceTest
       }
 
       @Override
-      public boolean isOverwriteMode()
+      public boolean requireLockInputSegments()
       {
         return false;
+      }
+
+      @Override
+      public List<DataSegment> getInputSegments(
+          TaskActionClient taskActionClient, List<Interval> intervals
+      )
+      {
+        return Collections.emptyList();
       }
 
       @Override
       public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
       {
         return false;
+      }
+
+      @Nullable
+      @Override
+      public Granularity getSegmentGranularity(Interval interval)
+      {
+        return null;
       }
 
       @Override

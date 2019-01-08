@@ -46,7 +46,6 @@ import org.apache.druid.discovery.DruidNodeAnnouncer;
 import org.apache.druid.discovery.LookupNodeService;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
-import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.common.Counters;
 import org.apache.druid.indexing.common.SegmentLoaderFactory;
 import org.apache.druid.indexing.common.TaskLock;
@@ -58,6 +57,7 @@ import org.apache.druid.indexing.common.actions.LocalTaskActionClientFactory;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.SegmentInsertAction;
+import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.actions.TaskActionClientFactory;
 import org.apache.druid.indexing.common.actions.TaskActionToolbox;
 import org.apache.druid.indexing.common.actions.TaskAuditLogConfig;
@@ -85,6 +85,7 @@ import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.RE;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.granularity.Granularities;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
@@ -146,6 +147,7 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -941,15 +943,30 @@ public class TaskLifecycleTest
       }
 
       @Override
-      public boolean isOverwriteMode()
+      public boolean requireLockInputSegments()
       {
         return false;
+      }
+
+      @Override
+      public List<DataSegment> getInputSegments(
+          TaskActionClient taskActionClient, List<Interval> intervals
+      )
+      {
+        return Collections.emptyList();
       }
 
       @Override
       public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
       {
         return false;
+      }
+
+      @Nullable
+      @Override
+      public Granularity getSegmentGranularity(Interval interval)
+      {
+        return null;
       }
 
       @Override
@@ -996,15 +1013,31 @@ public class TaskLifecycleTest
       }
 
       @Override
-      public boolean isOverwriteMode()
+      public boolean requireLockInputSegments()
       {
         return false;
+      }
+
+      @Override
+      public List<DataSegment> getInputSegments(
+          TaskActionClient taskActionClient, List<Interval> intervals
+      )
+      {
+        return Collections.emptyList();
       }
 
       @Override
       public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
       {
         return false;
+      }
+
+      @Nullable
+      @Override
+      public Granularity getSegmentGranularity(Interval interval)
+
+      {
+        return null;
       }
 
       @Override
@@ -1042,15 +1075,30 @@ public class TaskLifecycleTest
       }
 
       @Override
-      public boolean isOverwriteMode()
+      public boolean requireLockInputSegments()
       {
         return false;
+      }
+
+      @Override
+      public List<DataSegment> getInputSegments(
+          TaskActionClient taskActionClient, List<Interval> intervals
+      )
+      {
+        return Collections.emptyList();
       }
 
       @Override
       public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
       {
         return false;
+      }
+
+      @Nullable
+      @Override
+      public Granularity getSegmentGranularity(Interval interval)
+      {
+        return null;
       }
 
       @Override

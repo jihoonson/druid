@@ -44,6 +44,7 @@ import org.apache.druid.indexing.common.actions.LockReleaseAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.CloseQuietly;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.FinalizeResultsQueryRunner;
@@ -73,8 +74,10 @@ import org.apache.druid.timeline.DataSegment;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Timer;
@@ -205,18 +208,6 @@ public class RealtimeIndexTask extends AbstractTask
   public boolean isReady(TaskActionClient taskActionClient)
   {
     return true;
-  }
-
-  @Override
-  public boolean isOverwriteMode()
-  {
-    return false;
-  }
-
-  @Override
-  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
-  {
-    return false;
   }
 
   @Override
@@ -501,6 +492,33 @@ public class RealtimeIndexTask extends AbstractTask
 
     log.info("Job done!");
     return TaskStatus.success(getId());
+  }
+
+  @Override
+  public boolean requireLockInputSegments()
+  {
+    return false;
+  }
+
+  @Override
+  public List<DataSegment> getInputSegments(
+      TaskActionClient taskActionClient, List<Interval> intervals
+  )
+  {
+    return Collections.emptyList();
+  }
+
+  @Override
+  public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
+  {
+    return false;
+  }
+
+  @Nullable
+  @Override
+  public Granularity getSegmentGranularity(Interval interval)
+  {
+    return null;
   }
 
   @Override

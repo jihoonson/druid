@@ -62,6 +62,7 @@ import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
 import org.joda.time.Interval;
 
+import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
@@ -200,9 +201,17 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
   }
 
   @Override
-  public boolean isOverwriteMode()
+  public boolean requireLockInputSegments()
   {
-    return true;
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public List<DataSegment> getInputSegments(
+      TaskActionClient taskActionClient, List<Interval> intervals
+  )
+  {
+    throw new UnsupportedOperationException();
   }
 
   @Override
@@ -210,6 +219,13 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
   {
     final Granularity segmentGranularity = spec.getDataSchema().getGranularitySpec().getSegmentGranularity();
     return intervalOfExistingSegments.stream().anyMatch(interval -> !segmentGranularity.match(interval));
+  }
+
+  @Nullable
+  @Override
+  public Granularity getSegmentGranularity(Interval interval)
+  {
+    return spec.getDataSchema().getGranularitySpec().getSegmentGranularity();
   }
 
   @JsonProperty("spec")

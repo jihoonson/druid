@@ -27,6 +27,7 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.java.util.common.DateTimes;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.segment.IndexSpec;
 import org.apache.druid.segment.writeout.SegmentWriteOutMediumFactory;
@@ -122,7 +123,7 @@ public class SameIntervalMergeTask extends AbstractFixedIntervalTask
   }
 
   @Override
-  public boolean isOverwriteMode()
+  public boolean requireLockInputSegments()
   {
     return true;
   }
@@ -138,6 +139,13 @@ public class SameIntervalMergeTask extends AbstractFixedIntervalTask
   public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
   {
     return true;
+  }
+
+  @Nullable
+  @Override
+  public Granularity getSegmentGranularity(Interval interval)
+  {
+    return null;
   }
 
   @Override

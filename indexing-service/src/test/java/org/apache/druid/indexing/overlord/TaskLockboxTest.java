@@ -42,6 +42,7 @@ import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 import org.apache.druid.metadata.DerbyMetadataStorageActionHandlerFactory;
@@ -51,6 +52,7 @@ import org.apache.druid.metadata.MetadataStorageTablesConfig;
 import org.apache.druid.metadata.TestDerbyConnector;
 import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecContext;
@@ -66,6 +68,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -1179,15 +1182,30 @@ public class TaskLockboxTest
     }
 
     @Override
-    public boolean isOverwriteMode()
+    public boolean requireLockInputSegments()
     {
       return false;
+    }
+
+    @Override
+    public List<DataSegment> getInputSegments(
+        TaskActionClient taskActionClient, List<Interval> intervals
+    )
+    {
+      return Collections.emptyList();
     }
 
     @Override
     public boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments)
     {
       return false;
+    }
+
+    @Nullable
+    @Override
+    public Granularity getSegmentGranularity(Interval interval)
+    {
+      return null;
     }
 
     @Override

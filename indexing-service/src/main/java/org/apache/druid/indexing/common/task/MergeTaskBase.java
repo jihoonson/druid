@@ -264,6 +264,12 @@ public abstract class MergeTaskBase extends AbstractFixedIntervalTask
   }
 
   @Override
+  public boolean requireLockInputSegments()
+  {
+    return true;
+  }
+
+  @Override
   public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
   {
     return getSegments().stream()

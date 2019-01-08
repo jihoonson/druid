@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
@@ -35,6 +36,7 @@ import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.JodaUtils;
+import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.timeline.DataSegment;
@@ -211,18 +213,71 @@ public abstract class AbstractTask implements Task
     return ID_JOINER.join(objects);
   }
 
-  protected boolean tryLockWithIntervals(TaskActionClient client, Set<Interval> intervals) throws IOException
+  public TaskStatus success()
+  {
+    return TaskStatus.success(getId());
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    AbstractTask that = (AbstractTask) o;
+
+    if (!id.equals(that.id)) {
+      return false;
+    }
+
+    if (!groupId.equals(that.groupId)) {
+      return false;
+    }
+
+    if (!dataSource.equals(that.dataSource)) {
+      return false;
+    }
+
+    return context.equals(that.context);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hashCode(id, groupId, dataSource, context);
+  }
+
+  public static List<TaskLock> getTaskLocks(TaskActionClient client) throws IOException
+  {
+    return client.submit(new LockListAction());
+  }
+
+  @Override
+  @JsonProperty
+  public Map<String, Object> getContext()
+  {
+    return context;
+  }
+
+  protected boolean tryLockWithIntervals(TaskActionClient client, Set<Interval> intervals)
+      throws IOException
   {
     return tryLockWithIntervals(client, new ArrayList<>(intervals));
   }
 
-  protected boolean tryLockWithIntervals(TaskActionClient client, List<Interval> intervals) throws IOException
+  protected boolean tryLockWithIntervals(TaskActionClient client, List<Interval> intervals)
+      throws IOException
   {
     if (initializedLock) {
       return true;
     }
 
-    if (isOverwriteMode()) {
+    if (requireLockInputSegments()) {
+
       // TODO: check changeSegmentGranularity and get timeChunkLock here
 
       // TODO: race - a new segment can be added after getInputSegments. change to lockAllSegmentsInIntervals
@@ -239,7 +294,7 @@ public abstract class AbstractTask implements Task
       return true;
     }
 
-    if (isOverwriteMode()) {
+    if (requireLockInputSegments()) {
       if (segments.isEmpty()) {
         initializedLock = true;
         return true;
@@ -249,15 +304,29 @@ public abstract class AbstractTask implements Task
       final List<Interval> intervals = segments.stream().map(DataSegment::getInterval).collect(Collectors.toList());
       final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(segments);
       final List<DataSegment> visibleSegments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
-                                                 .stream()
-                                                 .map(TimelineObjectHolder::getObject)
-                                                 .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
-                                                 .map(PartitionChunk::getObject)
-                                                 .collect(Collectors.toList());
+                                                        .stream()
+                                                        .map(TimelineObjectHolder::getObject)
+                                                        .flatMap(partitionHolder -> StreamSupport.stream(
+                                                            partitionHolder.spliterator(),
+                                                            false
+                                                        ))
+                                                        .map(PartitionChunk::getObject)
+                                                        .collect(Collectors.toList());
 
       changeSegmentGranularity = changeSegmentGranularity(intervals);
       if (changeSegmentGranularity) {
+        // In this case, the intervals to lock must be alighed with segmentGranularity if it's defined
+        final Set<Interval> uniqueIntervals = new HashSet<>();
         for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
+          final Granularity segmentGranularity = getSegmentGranularity(interval);
+          if (segmentGranularity == null) {
+            uniqueIntervals.add(interval);
+          } else {
+            Iterables.addAll(uniqueIntervals, segmentGranularity.getIterable(interval));
+          }
+        }
+
+        for (Interval interval : uniqueIntervals) {
           final TaskLock lock = client.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval));
           if (lock == null) {
             return false;
@@ -287,18 +356,20 @@ public abstract class AbstractTask implements Task
     }
   }
 
-  protected void lockWithIntervals(TaskActionClient client, Set<Interval> intervals, long timeoutMs) throws IOException
+  protected void lockWithIntervals(TaskActionClient client, Set<Interval> intervals, long timeoutMs)
+      throws IOException
   {
     lockWithIntervals(client, new ArrayList<>(intervals), timeoutMs);
   }
 
-  protected void lockWithIntervals(TaskActionClient client, List<Interval> intervals, long timeoutMs) throws IOException
+  protected void lockWithIntervals(TaskActionClient client, List<Interval> intervals, long timeoutMs)
+      throws IOException
   {
     if (initializedLock) {
       return;
     }
 
-    if (isOverwriteMode()) {
+    if (requireLockInputSegments()) {
       final List<DataSegment> usedSegments = client.submit(new SegmentListUsedAction(getDataSource(), null, intervals));
 
       // Create a timeline to find latest segments only
@@ -320,7 +391,7 @@ public abstract class AbstractTask implements Task
       return;
     }
 
-    if (isOverwriteMode()) {
+    if (requireLockInputSegments()) {
       if (segments.isEmpty()) {
         initializedLock = true;
         return;
@@ -362,44 +433,6 @@ public abstract class AbstractTask implements Task
     return changeSegmentGranularity;
   }
 
-  public TaskStatus success()
-  {
-    return TaskStatus.success(getId());
-  }
-
-  @Override
-  public boolean equals(Object o)
-  {
-    if (this == o) {
-      return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-
-    AbstractTask that = (AbstractTask) o;
-
-    if (!id.equals(that.id)) {
-      return false;
-    }
-
-    if (!groupId.equals(that.groupId)) {
-      return false;
-    }
-
-    if (!dataSource.equals(that.dataSource)) {
-      return false;
-    }
-
-    return context.equals(that.context);
-  }
-
-  @Override
-  public int hashCode()
-  {
-    return Objects.hashCode(id, groupId, dataSource, context);
-  }
-
   public Map<Interval, Set<Integer>> getAllInputPartitionIds()
   {
     return inputSegmentPartitionIds;
@@ -409,17 +442,5 @@ public abstract class AbstractTask implements Task
   public Set<Integer> getInputPartitionIdsFor(Interval interval)
   {
     return inputSegmentPartitionIds.get(interval);
-  }
-
-  public static List<TaskLock> getTaskLocks(TaskActionClient client) throws IOException
-  {
-    return client.submit(new LockListAction());
-  }
-
-  @Override
-  @JsonProperty
-  public Map<String, Object> getContext()
-  {
-    return context;
   }
 }
