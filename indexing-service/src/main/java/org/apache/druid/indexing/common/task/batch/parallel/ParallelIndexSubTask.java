@@ -46,8 +46,8 @@ import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.firehose.IngestSegmentFirehoseFactory;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
-import org.apache.druid.java.util.common.JodaUtils;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.common.parsers.ParseException;
@@ -55,6 +55,7 @@ import org.apache.druid.query.DruidMetrics;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
+import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.realtime.FireDepartment;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
 import org.apache.druid.segment.realtime.RealtimeMetricsMonitor;
@@ -64,6 +65,7 @@ import org.apache.druid.segment.realtime.appenderator.Appenderators;
 import org.apache.druid.segment.realtime.appenderator.BaseAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.segment.realtime.appenderator.SegmentsAndMetadata;
 import org.apache.druid.timeline.DataSegment;
 import org.joda.time.Interval;
@@ -73,10 +75,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -214,56 +214,6 @@ public class ParallelIndexSubTask extends AbstractTask
     return TaskStatus.success(getId());
   }
 
-//  private boolean checkLock(TaskActionClient actionClient, List<Interval> intervals) throws IOException
-//  {
-//    if (requireLockInputSegments()) {
-//      final List<DataSegment> usedSegments = actionClient.submit(
-//          new SegmentListUsedAction(getDataSource(), null, intervals)
-//      );
-//
-//      if (usedSegments.isEmpty()) {
-//        return true;
-//      }
-//
-//      // Create a timeline to find latest segments only
-//      final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(usedSegments);
-//      final List<DataSegment> segments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
-//                                                 .stream()
-//                                                 .map(TimelineObjectHolder::getObject)
-//                                                 .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
-//                                                 .map(PartitionChunk::getObject)
-//                                                 .collect(Collectors.toList());
-//
-//      final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
-//      if (!segmentGranularity.match(segments.get(0).getInterval())) {
-//        for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
-//          final TaskLock lock = actionClient.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval));
-//          if (lock == null) {
-//            return false;
-//          }
-//        }
-//        return true;
-//      } else {
-//        for (DataSegment segment : segments) {
-//          inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>())
-//                                  .add(segment.getShardSpec().getPartitionNum());
-//        }
-//        for (Entry<Interval, List<Integer>> entry : inputSegmentPartitionIds.entrySet()) {
-//          final TaskLock lock = actionClient.submit(
-//              // TODO: lock at once
-//              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), segments.get(0).getVersion(), entry.getValue())
-//          );
-//          if (lock == null) {
-//            return false;
-//          }
-//        }
-//      }
-//    } else {
-//      return true;
-//    }
-//    return true;
-//  }
-
   @Override
   public boolean requireLockInputSegments()
   {
@@ -294,46 +244,68 @@ public class ParallelIndexSubTask extends AbstractTask
   @VisibleForTesting
   SegmentAllocator createSegmentAllocator(
       TaskToolbox toolbox,
-      ParallelIndexIngestionSpec ingestionSchema
+      ParallelIndexTaskClient taskClient
   )
   {
-    final DataSchema dataSchema = ingestionSchema.getDataSchema();
-    final boolean explicitIntervals = dataSchema.getGranularitySpec().bucketIntervals().isPresent();
-    final ParallelIndexIOConfig ioConfig = ingestionSchema.getIOConfig();
-    final boolean changeSegmentGranularity = isChangeSegmentGranularity();
-    final Map<Interval, Integer> intervalToCounter = new HashMap<>();
-    final Set<Interval> allInputIntervals = getAllInputPartitionIds().keySet();
-    final Interval umbrellaInterval = allInputIntervals.isEmpty() ? null : JodaUtils.umbrellaInterval(allInputIntervals);
-    return new ActionBasedSegmentAllocator(
-        toolbox.getTaskActionClient(),
-        dataSchema,
-        (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
-          final Interval interval = schema.getGranularitySpec().getSegmentGranularity().bucket(row.getTimestamp());
-          final int suffix = intervalToCounter.getOrDefault(interval, 0);
-          intervalToCounter.put(interval, suffix + 1);
+    return new WrappingSegmentAllocator(toolbox, taskClient);
+  }
 
-          return new SurrogateAction<>(
-              supervisorTaskId,
-              new SegmentAllocateAction(
-                  schema.getDataSource(),
-                  row.getTimestamp(),
-                  schema.getGranularitySpec().getQueryGranularity(),
-                  schema.getGranularitySpec().getSegmentGranularity(),
-                  sequenceName,
-                  previousSegmentId,
-                  skipSegmentLineageCheck,
-                  changeSegmentGranularity ? Collections.emptySet() : getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull())
-              )
-          );
-        }
-    );
-//    if (ioConfig.isAppendToExisting() || !explicitIntervals) {
-//    } else {
-//      return (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> taskClient.allocateSegment(
-//          supervisorTaskId,
-//          row.getTimestamp()
-//      );
-//    }
+  private class WrappingSegmentAllocator implements SegmentAllocator
+  {
+    private final TaskToolbox toolbox;
+    private final ParallelIndexTaskClient taskClient;
+
+    /**
+     * This internalAllocator is initialized lazily to make sure that {@link #isChangeSegmentGranularity()} is called
+     * after the lock is properly acquired. Note that locks can be acquired after the task is started if the interval is
+     * not specified in {@link GranularitySpec}.
+     */
+    private SegmentAllocator internalAllocator;
+
+    private WrappingSegmentAllocator(TaskToolbox toolbox, ParallelIndexTaskClient taskClient)
+    {
+      this.toolbox = toolbox;
+      this.taskClient = taskClient;
+    }
+
+    @Override
+    public SegmentIdentifier allocate(
+        InputRow row, String sequenceName, String previousSegmentId, boolean skipSegmentLineageCheck
+    ) throws IOException
+    {
+      if (internalAllocator == null) {
+        internalAllocator = createSegmentAllocator();
+      }
+      return internalAllocator.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);
+    }
+
+    private SegmentAllocator createSegmentAllocator()
+    {
+      if (!isChangeSegmentGranularity()) {
+        return new ActionBasedSegmentAllocator(
+            toolbox.getTaskActionClient(),
+            ingestionSchema.getDataSchema(),
+            (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SurrogateAction<>(
+                supervisorTaskId,
+                new SegmentAllocateAction(
+                    schema.getDataSource(),
+                    row.getTimestamp(),
+                    schema.getGranularitySpec().getQueryGranularity(),
+                    schema.getGranularitySpec().getSegmentGranularity(),
+                    sequenceName,
+                    previousSegmentId,
+                    skipSegmentLineageCheck,
+                    getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull())
+                )
+            )
+        );
+      } else {
+        return (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> taskClient.allocateSegment(
+            supervisorTaskId,
+            row.getTimestamp()
+        );
+      }
+    }
   }
 
   /**
@@ -382,7 +354,7 @@ public class ParallelIndexSubTask extends AbstractTask
     @Nullable final Long maxTotalRows = IndexTask.getValidMaxTotalRows(tuningConfig);
     final long pushTimeout = tuningConfig.getPushTimeout();
     final boolean explicitIntervals = granularitySpec.bucketIntervals().isPresent();
-    final SegmentAllocator segmentAllocator = createSegmentAllocator(toolbox, ingestionSchema);
+    final SegmentAllocator segmentAllocator = createSegmentAllocator(toolbox, taskClient);
 
     try (
         final Appenderator appenderator = newAppenderator(fireDepartmentMetrics, toolbox, dataSchema, tuningConfig);
@@ -418,6 +390,11 @@ public class ParallelIndexSubTask extends AbstractTask
             }
           } else {
             // TODO: if overwrite, get a lock for the input segment overwritten by inputRow
+            final Granularity segmentGranularity = findSegmentGranularity(granularitySpec);
+            final Interval timeChunk = segmentGranularity.bucket(inputRow.getTimestamp());
+            if (!tryLockWithIntervals(toolbox.getTaskActionClient(), Collections.singletonList(timeChunk))) {
+              throw new ISE("Failed to get locks for interval[%s]", timeChunk);
+            }
           }
 
           // Segments are created as needed, using a single sequence name. They may be allocated from the overlord
@@ -458,6 +435,15 @@ public class ParallelIndexSubTask extends AbstractTask
     }
     catch (TimeoutException | ExecutionException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  private static Granularity findSegmentGranularity(GranularitySpec granularitySpec)
+  {
+    if (granularitySpec instanceof UniformGranularitySpec) {
+      return granularitySpec.getSegmentGranularity();
+    } else {
+      return Granularities.ALL;
     }
   }
 

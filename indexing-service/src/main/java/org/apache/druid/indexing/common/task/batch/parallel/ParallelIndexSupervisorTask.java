@@ -26,11 +26,15 @@ import com.fasterxml.jackson.jaxrs.smile.SmileMediaTypes;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.indexer.TaskStatus;
+import org.apache.druid.indexing.common.Counters;
+import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
+import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
@@ -43,14 +47,19 @@ import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexTaskRunner.SubTaskSpecStatus;
 import org.apache.druid.java.util.common.IAE;
+import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
+import org.apache.druid.segment.indexing.granularity.GranularitySpec;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
 import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
 import org.apache.druid.segment.realtime.firehose.ChatHandlers;
 import org.apache.druid.server.security.Action;
 import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -69,7 +78,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.SortedSet;
+import java.util.stream.Collectors;
 
 /**
  * ParallelIndexSupervisorTask is capable of running multiple subTasks for parallel indexing. This is
@@ -91,7 +102,12 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
   private final AuthorizerMapper authorizerMapper;
   private final RowIngestionMetersFactory rowIngestionMetersFactory;
 
+  private final Counters counters = new Counters();
+
   private volatile ParallelIndexTaskRunner runner;
+
+  // toolbox is initlized when run() is called, and can be used for processing HTTP endpoint requests.
+  private volatile TaskToolbox toolbox;
 
   @JsonCreator
   public ParallelIndexSupervisorTask(
@@ -171,6 +187,7 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
   @VisibleForTesting
   ParallelIndexTaskRunner createRunner(TaskToolbox toolbox)
   {
+    this.toolbox = toolbox;
     if (ingestionSchema.getTuningConfig().isForceGuaranteedRollup()) {
       throw new UnsupportedOperationException("Perfect roll-up is not supported yet");
     } else {
@@ -199,7 +216,6 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
                                                                    .getGranularitySpec()
                                                                    .bucketIntervals();
 
-//    return !intervals.isPresent() || checkLock(taskActionClient);
     return !intervals.isPresent() || tryLockWithIntervals(taskActionClient, new ArrayList<>(intervals.get()));
   }
 
@@ -209,56 +225,6 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
   {
     return taskActionClient.submit(new SegmentListUsedAction(getDataSource(), null, intervals));
   }
-
-//  private boolean checkLock(TaskActionClient actionClient, List<Interval> intervals) throws IOException
-//  {
-//    if (requireLockInputSegments()) {
-//      final List<DataSegment> usedSegments = actionClient.submit(
-//          new SegmentListUsedAction(getDataSource(), null, intervals)
-//      );
-//
-//      if (usedSegments.isEmpty()) {
-//        return true;
-//      }
-//
-//      // Create a timeline to find latest segments only
-//      final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(usedSegments);
-//      final List<DataSegment> segments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
-//                                                 .stream()
-//                                                 .map(TimelineObjectHolder::getObject)
-//                                                 .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
-//                                                 .map(PartitionChunk::getObject)
-//                                                 .collect(Collectors.toList());
-//
-//      final Granularity segmentGranularity = ingestionSchema.getDataSchema().getGranularitySpec().getSegmentGranularity();
-//      if (!segmentGranularity.match(segments.get(0).getInterval())) {
-//        for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
-//          final TaskLock lock = actionClient.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval));
-//          if (lock == null) {
-//            return false;
-//          }
-//        }
-//        return true;
-//      } else {
-//        for (DataSegment segment : segments) {
-//          inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>())
-//                                  .add(segment.getShardSpec().getPartitionNum());
-//        }
-//        for (Entry<Interval, List<Integer>> entry : inputSegmentPartitionIds.entrySet()) {
-//          final TaskLock lock = actionClient.submit(
-//              // TODO: lock at once
-//              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), segments.get(0).getVersion(), entry.getValue())
-//          );
-//          if (lock == null) {
-//            return false;
-//          }
-//        }
-//      }
-//    } else {
-//      return true;
-//    }
-//    return true;
-//  }
 
   @Override
   public boolean requireLockInputSegments()
@@ -357,101 +323,85 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
 
   // Internal APIs
 
-//  /**
-//   * Allocate a new {@link SegmentIdentifier} for a request from {@link ParallelIndexSubTask}.
-//   * The returned segmentIdentifiers have different {@code partitionNum} (thereby different {@link NumberedShardSpec})
-//   * per bucket interval.
-//   */
-//  @POST
-//  @Path("/segment/allocate")
-//  @Produces(SmileMediaTypes.APPLICATION_JACKSON_SMILE)
-//  public Response allocateSegment(
-//      DateTime timestamp,
-//      @Context final HttpServletRequest req
-//  )
-//  {
-//    ChatHandlers.authorizationCheck(
-//        req,
-//        Action.READ,
-//        getDataSource(),
-//        authorizerMapper
-//    );
-//
-//    if (toolbox == null) {
-//      return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
-//    }
-//
-//    try {
-//      final SegmentIdentifier segmentIdentifier = allocateNewSegment(timestamp);
-//      return Response.ok(toolbox.getObjectMapper().writeValueAsBytes(segmentIdentifier)).build();
-//    }
-//    catch (IOException | IllegalStateException e) {
-//      return Response.serverError().entity(Throwables.getStackTraceAsString(e)).build();
-//    }
-//    catch (IllegalArgumentException e) {
-//      return Response.status(Response.Status.BAD_REQUEST).entity(Throwables.getStackTraceAsString(e)).build();
-//    }
-//  }
+  /**
+   * Allocate a new {@link SegmentIdentifier} for a request from {@link ParallelIndexSubTask}.
+   * The returned segmentIdentifiers have different {@code partitionNum} (thereby different {@link NumberedShardSpec})
+   * per bucket interval.
+   */
+  @POST
+  @Path("/segment/allocate")
+  @Produces(SmileMediaTypes.APPLICATION_JACKSON_SMILE)
+  public Response allocateSegment(
+      DateTime timestamp,
+      @Context final HttpServletRequest req
+  )
+  {
+    ChatHandlers.authorizationCheck(
+        req,
+        Action.READ,
+        getDataSource(),
+        authorizerMapper
+    );
 
-//  @VisibleForTesting
-//  SegmentIdentifier allocateNewSegment(DateTime timestamp) throws IOException
-//  {
-//    final String dataSource = getDataSource();
-//    final GranularitySpec granularitySpec = getIngestionSchema().getDataSchema().getGranularitySpec();
-//    final SortedSet<Interval> bucketIntervals = Preconditions.checkNotNull(
-//        granularitySpec.bucketIntervals().orNull(),
-//        "bucketIntervals"
-//    );
-////    // List locks whenever allocating a new segment because locks might be revoked and no longer valid.
-////    final Map<Interval, String> versions = toolbox
-////        .getTaskActionClient()
-////        .submit(new LockListAction())
-////        .stream()
-////        .collect(Collectors.toMap(TaskLock::getInterval, TaskLock::getVersion));
-//
-//    final Optional<Interval> maybeInterval = granularitySpec.bucketInterval(timestamp);
-//    if (!maybeInterval.isPresent()) {
-//      throw new IAE("Could not find interval for timestamp [%s]", timestamp);
-//    }
-//
-//    final Interval interval = maybeInterval.get();
-//    if (!bucketIntervals.contains(interval)) {
-//      throw new ISE("Unspecified interval[%s] in granularitySpec[%s]", interval, granularitySpec);
-//    }
-//
-//    final LockResult lockResult = toolbox.getTaskActionClient().submit(
-//        new LockTryAcquireForNewSegmentAction(
-//            TaskLockType.EXCLUSIVE,
-//            interval,
-//            getId() // TODO: proper sequence name??
-//        )
-//    );
-//
-////    final int partitionNum = counters.increment(interval.toString(), 1);
-//    if (lockResult.isRevoked()) {
-//      throw new ISE("Lock resovked for interval[%s]", interval);
-//    }
-//    if (lockResult.isOk()) {
-//      return new SegmentIdentifier(
-//          dataSource,
-//          interval,
-//          lockResult.getTaskLock().getVersion(),
-//          new NumberedShardSpec(((SegmentLock) lockResult.getTaskLock()).getPartitionIds().get(0), 0),
-//          inputSegmentPartitionIds.get(interval)
-//      );
-//    } else {
-//      throw new ISE("Failed to get a lock for interval[%s] with sequenceName[%s]", interval, getId());
-//    }
-//  }
-//
-//  private static String findVersion(Map<Interval, String> versions, Interval interval)
-//  {
-//    return versions.entrySet().stream()
-//                   .filter(entry -> entry.getKey().contains(interval))
-//                   .map(Entry::getValue)
-//                   .findFirst()
-//                   .orElseThrow(() -> new ISE("Cannot find a version for interval[%s]", interval));
-//  }
+    if (toolbox == null) {
+      return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
+    }
+
+    try {
+      final SegmentIdentifier segmentIdentifier = allocateNewSegment(timestamp);
+      return Response.ok(toolbox.getObjectMapper().writeValueAsBytes(segmentIdentifier)).build();
+    }
+    catch (IOException | IllegalStateException e) {
+      return Response.serverError().entity(Throwables.getStackTraceAsString(e)).build();
+    }
+    catch (IllegalArgumentException e) {
+      return Response.status(Response.Status.BAD_REQUEST).entity(Throwables.getStackTraceAsString(e)).build();
+    }
+  }
+
+  @VisibleForTesting
+  SegmentIdentifier allocateNewSegment(DateTime timestamp) throws IOException
+  {
+    final String dataSource = getDataSource();
+    final GranularitySpec granularitySpec = getIngestionSchema().getDataSchema().getGranularitySpec();
+    final SortedSet<Interval> bucketIntervals = Preconditions.checkNotNull(
+        granularitySpec.bucketIntervals().orNull(),
+        "bucketIntervals"
+    );
+    // List locks whenever allocating a new segment because locks might be revoked and no longer valid.
+    final Map<Interval, String> versions = toolbox
+        .getTaskActionClient()
+        .submit(new LockListAction())
+        .stream()
+        .collect(Collectors.toMap(TaskLock::getInterval, TaskLock::getVersion));
+
+    final Optional<Interval> maybeInterval = granularitySpec.bucketInterval(timestamp);
+    if (!maybeInterval.isPresent()) {
+      throw new IAE("Could not find interval for timestamp [%s]", timestamp);
+    }
+
+    final Interval interval = maybeInterval.get();
+    if (!bucketIntervals.contains(interval)) {
+      throw new ISE("Unspecified interval[%s] in granularitySpec[%s]", interval, granularitySpec);
+    }
+
+    final int partitionNum = counters.increment(interval.toString(), 1);
+    return new SegmentIdentifier(
+        dataSource,
+        interval,
+        findVersion(versions, interval),
+        new NumberedShardSpec(partitionNum, 0)
+    );
+  }
+
+  private static String findVersion(Map<Interval, String> versions, Interval interval)
+  {
+    return versions.entrySet().stream()
+                   .filter(entry -> entry.getKey().contains(interval))
+                   .map(Entry::getValue)
+                   .findFirst()
+                   .orElseThrow(() -> new ISE("Cannot find a version for interval[%s]", interval));
+  }
 
   /**
    * {@link ParallelIndexSubTask}s call this API to report the segments they've generated and pushed.

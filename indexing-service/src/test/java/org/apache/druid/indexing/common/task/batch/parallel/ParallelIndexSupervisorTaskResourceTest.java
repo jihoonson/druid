@@ -624,6 +624,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
 
   private class TestSubTask extends ParallelIndexSubTask
   {
+    private final IndexTaskClientFactory<ParallelIndexTaskClient> taskClientFactory;
     private volatile TaskState state = TaskState.RUNNING;
 
     TestSubTask(
@@ -646,12 +647,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
           null,
           taskClientFactory
       );
-    }
-
-    @Override
-    public boolean isReady(TaskActionClient taskActionClient)
-    {
-      return true;
+      this.taskClientFactory = taskClientFactory;
     }
 
     @Override
@@ -661,7 +657,10 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
         Thread.sleep(100);
       }
 
-      final SegmentAllocator segmentAllocator = createSegmentAllocator(toolbox, getIngestionSchema());
+      // build LocalParallelIndexTaskClient
+      final ParallelIndexTaskClient taskClient = taskClientFactory.build(null, getId(), 0, null, 0);
+
+      final SegmentAllocator segmentAllocator = createSegmentAllocator(toolbox, taskClient);
 
       final SegmentIdentifier segmentIdentifier = segmentAllocator.allocate(
           new MapBasedInputRow(DateTimes.of("2017-01-01"), Collections.emptyList(), Collections.emptyMap()),
@@ -684,7 +683,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
           IntStream.range(0, NUM_SUB_TASKS).boxed().collect(Collectors.toSet())
       );
 
-      task.getRunner().collectReport(new PushedSegmentsReport(getId(), Collections.singletonList(segment)));
+      taskClient.report(getId(), Collections.singletonList(segment));
       return TaskStatus.fromCode(getId(), state);
     }
 

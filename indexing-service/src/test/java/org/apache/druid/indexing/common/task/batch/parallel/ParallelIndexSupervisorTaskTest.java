@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+// TODO: change segmentGranularity
 public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSupervisorTaskTest
 {
   private File inputDir;

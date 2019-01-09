@@ -451,7 +451,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
 
       final DataSchema dataSchema;
       if (determineIntervals) {
-
         if (!tryLockWithIntervals(toolbox.getTaskActionClient(), intervalToNumShards.keySet())) {
           throw new ISE("Failed to get locks for intervals[%s]", intervalToNumShards.keySet());
         }
