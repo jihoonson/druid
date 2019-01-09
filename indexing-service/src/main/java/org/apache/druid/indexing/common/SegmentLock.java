@@ -38,7 +38,9 @@ import java.util.Set;
  */
 public class SegmentLock implements TaskLock
 {
-  private final TaskLockType type;
+  static final String TYPE = "segment";
+
+  private final TaskLockType lockType;
   private final String groupId;
   private final String dataSource;
   private final Interval interval;
@@ -49,7 +51,7 @@ public class SegmentLock implements TaskLock
 
   @JsonCreator
   public SegmentLock(
-      @JsonProperty("type") TaskLockType type,
+      @JsonProperty("lockType") TaskLockType lockType,
       @JsonProperty("groupId") String groupId,
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("interval") Interval interval,
@@ -60,7 +62,7 @@ public class SegmentLock implements TaskLock
   )
   {
     Preconditions.checkArgument(!partitionIds.isEmpty(), "Empty partitionIds");
-    this.type = Preconditions.checkNotNull(type, "type");
+    this.lockType = Preconditions.checkNotNull(lockType, "lockType");
     this.groupId = Preconditions.checkNotNull(groupId, "groupId");
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
     this.interval = Preconditions.checkNotNull(interval, "interval");
@@ -71,7 +73,7 @@ public class SegmentLock implements TaskLock
   }
 
   public SegmentLock(
-      TaskLockType type,
+      TaskLockType lockType,
       String groupId,
       String dataSource,
       Interval interval,
@@ -80,19 +82,26 @@ public class SegmentLock implements TaskLock
       int priority
   )
   {
-    this(type, groupId, dataSource, interval, partitionIds, version, priority, false);
+    this(lockType, groupId, dataSource, interval, partitionIds, version, priority, false);
+  }
+
+  @JsonProperty
+  @Override
+  public String getType()
+  {
+    return TYPE;
   }
 
   @Override
   public TaskLock revokedCopy()
   {
-    return new SegmentLock(type, groupId, dataSource, interval, partitionIds, version, priority, true);
+    return new SegmentLock(lockType, groupId, dataSource, interval, partitionIds, version, priority, true);
   }
 
   @Override
   public TaskLock withPriority(int newPriority)
   {
-    return new SegmentLock(type, groupId, dataSource, interval, partitionIds, version, newPriority, revoked);
+    return new SegmentLock(lockType, groupId, dataSource, interval, partitionIds, version, newPriority, revoked);
   }
 
   @Override
@@ -103,9 +112,9 @@ public class SegmentLock implements TaskLock
 
   @JsonProperty
   @Override
-  public TaskLockType getType()
+  public TaskLockType getLockType()
   {
-    return type;
+    return lockType;
   }
 
   @JsonProperty
@@ -200,7 +209,7 @@ public class SegmentLock implements TaskLock
     SegmentLock that = (SegmentLock) o;
     return priority == that.priority &&
            revoked == that.revoked &&
-           type == that.type &&
+           lockType == that.lockType &&
            Objects.equals(groupId, that.groupId) &&
            Objects.equals(dataSource, that.dataSource) &&
            Objects.equals(interval, that.interval) &&
@@ -211,14 +220,14 @@ public class SegmentLock implements TaskLock
   @Override
   public int hashCode()
   {
-    return Objects.hash(type, groupId, dataSource, interval, partitionIds, version, priority, revoked);
+    return Objects.hash(lockType, groupId, dataSource, interval, partitionIds, version, priority, revoked);
   }
 
   @Override
   public String toString()
   {
     return "SegmentLock{" +
-           "type=" + type +
+           "type=" + lockType +
            ", groupId='" + groupId + '\'' +
            ", dataSource='" + dataSource + '\'' +
            ", interval=" + interval +

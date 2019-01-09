@@ -1089,9 +1089,9 @@ public class TaskLockboxTest
 
     @Override
     @JsonProperty
-    public TaskLockType getType()
+    public TaskLockType getLockType()
     {
-      return super.getType();
+      return super.getLockType();
     }
 
     @Override

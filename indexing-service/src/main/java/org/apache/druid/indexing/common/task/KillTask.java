@@ -31,6 +31,7 @@ import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.actions.TaskActionPreconditions;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.granularity.Granularity;
+import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.timeline.DataSegment;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
@@ -48,6 +49,7 @@ import java.util.stream.Collectors;
  */
 public class KillTask extends AbstractFixedIntervalTask
 {
+  private static final Logger log = new Logger(KillTask.class);
   @JsonCreator
   public KillTask(
       @JsonProperty("id") String id,
@@ -108,6 +110,9 @@ public class KillTask extends AbstractFixedIntervalTask
     final List<DataSegment> unusedSegments = toolbox
         .getTaskActionClient()
         .submit(new SegmentListUnusedAction(getDataSource(), getInterval()));
+
+    log.info("segments to kill: %s", unusedSegments);
+    log.info("taskLockMap: %s", taskLockMap);
 
     if (!TaskActionPreconditions.isLockCoversSegments(taskLockMap, unusedSegments)) {
       throw new ISE(

@@ -34,18 +34,20 @@ import javax.annotation.Nullable;
  */
 @JsonTypeInfo(use = Id.NAME, property = "type", defaultImpl = TimeChunkLock.class)
 @JsonSubTypes(value = {
-    @Type(name = "timeChunk", value = TimeChunkLock.class),
-    @Type(name = "segment", value = SegmentLock.class)
+    @Type(name = TimeChunkLock.TYPE, value = TimeChunkLock.class),
+    @Type(name = SegmentLock.TYPE, value = SegmentLock.class)
 })
 public interface TaskLock
 {
+  String getType();
+
   TaskLock revokedCopy();
 
   TaskLock withPriority(int priority);
 
   LockGranularity getGranularity();
 
-  TaskLockType getType();
+  TaskLockType getLockType();
 
   String getGroupId();
 

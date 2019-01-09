@@ -20,6 +20,7 @@ package org.apache.druid.indexing.common;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.apache.druid.indexing.overlord.LockRequest;
 import org.joda.time.Interval;
@@ -29,7 +30,9 @@ import java.util.Objects;
 
 public class TimeChunkLock implements TaskLock
 {
-  private final TaskLockType type;
+  static final String TYPE = "timeChunk";
+
+  private final TaskLockType lockType;
   private final String groupId;
   private final String dataSource;
   private final Interval interval;
@@ -40,7 +43,7 @@ public class TimeChunkLock implements TaskLock
 
   @JsonCreator
   public TimeChunkLock(
-      @JsonProperty("type") @Nullable TaskLockType type,            // nullable for backward compatibility
+      @JsonProperty("lockType") @Nullable TaskLockType lockType,            // nullable for backward compatibility
       @JsonProperty("groupId") String groupId,
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("interval") Interval interval,
@@ -49,7 +52,7 @@ public class TimeChunkLock implements TaskLock
       @JsonProperty("revoked") boolean revoked
   )
   {
-    this.type = type == null ? TaskLockType.EXCLUSIVE : type;
+    this.lockType = lockType == null ? TaskLockType.EXCLUSIVE : lockType;
     this.groupId = Preconditions.checkNotNull(groupId, "groupId");
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
     this.interval = Preconditions.checkNotNull(interval, "interval");
@@ -58,6 +61,7 @@ public class TimeChunkLock implements TaskLock
     this.revoked = revoked;
   }
 
+  @VisibleForTesting
   public TimeChunkLock(
       TaskLockType type,
       String groupId,
@@ -70,11 +74,18 @@ public class TimeChunkLock implements TaskLock
     this(type, groupId, dataSource, interval, version, priority, false);
   }
 
+  @JsonProperty
+  @Override
+  public String getType()
+  {
+    return TYPE;
+  }
+
   @Override
   public TaskLock revokedCopy()
   {
     return new TimeChunkLock(
-        type,
+        lockType,
         groupId,
         dataSource,
         interval,
@@ -88,7 +99,7 @@ public class TimeChunkLock implements TaskLock
   public TaskLock withPriority(int priority)
   {
     return new TimeChunkLock(
-        this.type,
+        this.lockType,
         this.groupId,
         this.dataSource,
         this.interval,
@@ -106,9 +117,9 @@ public class TimeChunkLock implements TaskLock
 
   @Override
   @JsonProperty
-  public TaskLockType getType()
+  public TaskLockType getLockType()
   {
-    return type;
+    return lockType;
   }
 
   @Override
@@ -178,7 +189,7 @@ public class TimeChunkLock implements TaskLock
     }
     TimeChunkLock that = (TimeChunkLock) o;
     return revoked == that.revoked &&
-           type == that.type &&
+           lockType == that.lockType &&
            Objects.equals(groupId, that.groupId) &&
            Objects.equals(dataSource, that.dataSource) &&
            Objects.equals(interval, that.interval) &&
@@ -189,14 +200,14 @@ public class TimeChunkLock implements TaskLock
   @Override
   public int hashCode()
   {
-    return Objects.hash(type, groupId, dataSource, interval, version, priority, revoked);
+    return Objects.hash(lockType, groupId, dataSource, interval, version, priority, revoked);
   }
 
   @Override
   public String toString()
   {
     return "TimeChunkLock{" +
-           "type=" + type +
+           "type=" + lockType +
            ", groupId='" + groupId + '\'' +
            ", dataSource='" + dataSource + '\'' +
            ", interval=" + interval +
