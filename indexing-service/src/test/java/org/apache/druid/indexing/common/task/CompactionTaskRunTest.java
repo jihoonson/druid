@@ -24,7 +24,6 @@ import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Files;
-import org.apache.commons.io.IOUtils;
 import org.apache.druid.data.input.impl.CSVParseSpec;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.ParseSpec;
@@ -65,9 +64,7 @@ import org.junit.rules.TemporaryFolder;
 import javax.annotation.Nullable;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -81,6 +78,8 @@ import java.util.concurrent.Future;
 // TODO: check this
 public class CompactionTaskRunTest extends IngestionTestBase
 {
+  public static final String DATA_SOURCE = "test";
+
   @Rule
   public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
@@ -333,7 +332,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
     IndexTask indexTask = new IndexTask(
         null,
         null,
-        createIngestionSpec(
+        IndexTaskTest.createIngestionSpec(
+            getObjectMapper(),
             tmpDir,
             DEFAULT_PARSE_SPEC,
             new UniformGranularitySpec(
@@ -559,36 +559,6 @@ public class CompactionTaskRunTest extends IngestionTestBase
     Assert.assertEquals(TaskState.FAILED, compactionResult.lhs.getStatusCode());
   }
 
-//  @Test
-//  public void testTest() throws Exception
-//  {
-//    final ObjectMapper objectMapper = getObjectMapper();
-//    objectMapper.registerSubtypes(new NamedType(LocalFirehoseFactory.class, "local"));
-//    final Task indexTask = objectMapper.readValue(new File("/Users/jihoonson/Codes/druid/integration-tests/src/test/resources/indexer/wikipedia_index_task.json"), Task.class);
-//
-//    runTask(indexTask);
-//
-//    final String template = getTaskAsString("/Users/jihoonson/Codes/druid/integration-tests/src/test/resources/indexer/wikipedia_compaction_task.json");
-//    final String taskSpec =
-//        StringUtils.replace(template, "${KEEP_SEGMENT_GRANULARITY}", Boolean.toString(false));
-//
-//    final Task compactTask = objectMapper.readValue(taskSpec, Task.class);
-//
-//    System.err.println("compaction start");
-//    runTask(compactTask);
-//  }
-
-  protected String getTaskAsString(String file) throws IOException
-  {
-    final InputStream inputStream = new FileInputStream(file);
-    try {
-      return IOUtils.toString(inputStream, "UTF-8");
-    }
-    finally {
-      IOUtils.closeQuietly(inputStream);
-    }
-  }
-
   private Pair<TaskStatus, List<DataSegment>> runIndexTask() throws Exception
   {
     return runIndexTask(null, null);
@@ -617,7 +587,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
     IndexTask indexTask = new IndexTask(
         null,
         null,
-        createIngestionSpec(
+        IndexTaskTest.createIngestionSpec(
+            getObjectMapper(),
             tmpDir,
             DEFAULT_PARSE_SPEC,
             new UniformGranularitySpec(

@@ -38,24 +38,6 @@ public class TimeChunkLock implements TaskLock
   private final Integer priority;
   private final boolean revoked;
 
-  public static TimeChunkLock from(LockRequest request)
-  {
-    Preconditions.checkArgument(
-        request.getGranularity() == LockGranularity.TIME_CHUNK,
-        "Invalid lockGranularity[%s]",
-        request.getGranularity()
-    );
-    return new TimeChunkLock(
-        request.getType(),
-        request.getGroupId(),
-        request.getDataSource(),
-        request.getInterval(),
-        request.getVersion(),
-        request.getPriority(),
-        request.isRevoked()
-    );
-  }
-
   @JsonCreator
   public TimeChunkLock(
       @JsonProperty("type") @Nullable TaskLockType type,            // nullable for backward compatibility

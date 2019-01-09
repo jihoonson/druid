@@ -441,12 +441,10 @@ public class TaskLockbox
           if (request.getType().equals(foundPosse.getTaskLock().getType()) &&
               request.getGranularity() == foundPosse.getTaskLock().getGranularity()) {
             if (request instanceof LockRequestForNewSegment) {
-              Preconditions.checkState(
-                  request.getGranularity() == LockGranularity.TIME_CHUNK,
-                  "Only timeChunkLock allows reusing taskLockPosse for new segments, but lockRequest was [%s]",
-                  request
+              return Pair.of(
+                  foundPosse,
+                  createNewSegmentIds((LockRequestForNewSegment) request, foundPosse.taskLock.getVersion())
               );
-              return Pair.of(foundPosse, createNewSegmentIds((LockRequestForNewSegment) request, foundPosse.taskLock.getVersion()));
             } else {
               return Pair.of(foundPosse, null);
             }
