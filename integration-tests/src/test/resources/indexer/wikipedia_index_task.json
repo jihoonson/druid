@@ -58,7 +58,7 @@
             "type": "index",
             "firehose": {
                 "type": "local",
-                "baseDir": "/Users/jihoonson/Codes/druid/integration-tests/src/test/resources/data/batch_index",
+                "baseDir": "/resources/data/batch_index",
                 "filter": "wikipedia_index_data*"
             }
         },

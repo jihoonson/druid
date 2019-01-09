@@ -38,7 +38,6 @@ import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
-import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
@@ -52,7 +51,6 @@ import org.apache.druid.segment.loading.SegmentLoader;
 import org.apache.druid.segment.loading.SegmentLoaderConfig;
 import org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager;
 import org.apache.druid.segment.loading.StorageLocationConfig;
-import org.apache.druid.segment.realtime.firehose.LocalFirehoseFactory;
 import org.apache.druid.server.security.AuthTestUtils;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
@@ -561,24 +559,24 @@ public class CompactionTaskRunTest extends IngestionTestBase
     Assert.assertEquals(TaskState.FAILED, compactionResult.lhs.getStatusCode());
   }
 
-  @Test
-  public void testTest() throws Exception
-  {
-    final ObjectMapper objectMapper = getObjectMapper();
-    objectMapper.registerSubtypes(new NamedType(LocalFirehoseFactory.class, "local"));
-    final Task indexTask = objectMapper.readValue(new File("/Users/jihoonson/Codes/druid/integration-tests/src/test/resources/indexer/wikipedia_index_task.json"), Task.class);
-
-    runTask(indexTask);
-
-    final String template = getTaskAsString("/Users/jihoonson/Codes/druid/integration-tests/src/test/resources/indexer/wikipedia_compaction_task.json");
-    final String taskSpec =
-        StringUtils.replace(template, "${KEEP_SEGMENT_GRANULARITY}", Boolean.toString(false));
-
-    final Task compactTask = objectMapper.readValue(taskSpec, Task.class);
-
-    System.err.println("compaction start");
-    runTask(compactTask);
-  }
+//  @Test
+//  public void testTest() throws Exception
+//  {
+//    final ObjectMapper objectMapper = getObjectMapper();
+//    objectMapper.registerSubtypes(new NamedType(LocalFirehoseFactory.class, "local"));
+//    final Task indexTask = objectMapper.readValue(new File("/Users/jihoonson/Codes/druid/integration-tests/src/test/resources/indexer/wikipedia_index_task.json"), Task.class);
+//
+//    runTask(indexTask);
+//
+//    final String template = getTaskAsString("/Users/jihoonson/Codes/druid/integration-tests/src/test/resources/indexer/wikipedia_compaction_task.json");
+//    final String taskSpec =
+//        StringUtils.replace(template, "${KEEP_SEGMENT_GRANULARITY}", Boolean.toString(false));
+//
+//    final Task compactTask = objectMapper.readValue(taskSpec, Task.class);
+//
+//    System.err.println("compaction start");
+//    runTask(compactTask);
+//  }
 
   protected String getTaskAsString(String file) throws IOException
   {
