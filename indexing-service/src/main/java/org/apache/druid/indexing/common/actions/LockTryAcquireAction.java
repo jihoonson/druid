@@ -118,6 +118,12 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
   }
 
   @JsonProperty
+  public String getVersion()
+  {
+    return version;
+  }
+
+  @JsonProperty
   public Set<Integer> getPartitionIds()
   {
     return partitionIds;

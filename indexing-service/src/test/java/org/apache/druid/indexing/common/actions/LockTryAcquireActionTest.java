@@ -20,6 +20,7 @@
 package org.apache.druid.indexing.common.actions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableSet;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.NoopTask;
@@ -63,6 +64,22 @@ public class LockTryAcquireActionTest
         TaskLockType.EXCLUSIVE,
         Intervals.of("2017-01-01/2017-01-02")
     );
+    Assert.assertEquals(expected.getType(), actual.getType());
+    Assert.assertEquals(expected.getInterval(), actual.getInterval());
+  }
+
+  @Test
+  public void testSerdeSegmentLock() throws IOException
+  {
+    final LockTryAcquireAction expected = LockTryAcquireAction.createSegmentRequest(
+        TaskLockType.SHARED,
+        Intervals.of("2017-01-01/2017-01-02"),
+        "version",
+        ImmutableSet.of(0, 1)
+    );
+
+    final byte[] bytes = mapper.writeValueAsBytes(expected);
+    final LockTryAcquireAction actual = mapper.readValue(bytes, LockTryAcquireAction.class);
     Assert.assertEquals(expected.getType(), actual.getType());
     Assert.assertEquals(expected.getInterval(), actual.getInterval());
   }
