@@ -26,6 +26,7 @@ import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactory.Context;
 import org.joda.time.Interval;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -105,9 +106,9 @@ public interface IndexerMetadataStorageCoordinator
   <T extends Context> SegmentIdentifier allocatePendingSegment(
       String dataSource,
       String sequenceName,
-      String previousSegmentId,
+      @Nullable String previousSegmentId,
       Interval interval,
-      ShardSpecFactory<T> shardSpecFactory,
+      @Nullable ShardSpecFactory<T> shardSpecFactory,
       String maxVersion,
       Set<Integer> overshadowingSegments,
       T shardSpecCreateContext,

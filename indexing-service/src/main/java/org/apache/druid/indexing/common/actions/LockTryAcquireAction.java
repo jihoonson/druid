@@ -65,9 +65,6 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
       Set<Integer> partitionIds
   )
   {
-    Preconditions.checkNotNull(version, "version shouldn't be null for segment lock");
-    Preconditions.checkState(partitionIds != null && !partitionIds.isEmpty(), "partitionIds shouldn't be empty for segment lock");
-
     return new LockTryAcquireAction(
         LockGranularity.SEGMENT,
         type,
@@ -86,6 +83,15 @@ public class LockTryAcquireAction implements TaskAction<TaskLock>
       @JsonProperty("partitionIds") @Nullable Set<Integer> partitionIds // null for timeChunk lock
   )
   {
+    Preconditions.checkArgument(
+        granularity == LockGranularity.TIME_CHUNK || version != null,
+        "version shouldn't be null for segment lock"
+    );
+    Preconditions.checkArgument(
+        granularity == LockGranularity.TIME_CHUNK || (partitionIds != null && !partitionIds.isEmpty()),
+        "partitionIds shouldn't be null or empty for segment lock"
+    );
+
     this.granularity = granularity == null ? LockGranularity.TIME_CHUNK : granularity;
     this.type = type == null ? TaskLockType.EXCLUSIVE : type;
     this.interval = interval;

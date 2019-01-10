@@ -69,9 +69,6 @@ public class LockAcquireAction implements TaskAction<TaskLock>
       long timeoutMs
   )
   {
-    Preconditions.checkNotNull(version, "version shouldn't be null for segment lock");
-    Preconditions.checkState(partitionIds != null && !partitionIds.isEmpty(), "partitionIds shouldn't be empty for segment lock");
-
     return new LockAcquireAction(LockGranularity.SEGMENT, type, interval, version, partitionIds, timeoutMs);
   }
 
@@ -85,6 +82,15 @@ public class LockAcquireAction implements TaskAction<TaskLock>
       @JsonProperty("timeoutMs") long timeoutMs
   )
   {
+    Preconditions.checkArgument(
+        granularity == LockGranularity.TIME_CHUNK || version != null,
+        "version shouldn't be null for segment lock"
+    );
+    Preconditions.checkArgument(
+        granularity == LockGranularity.TIME_CHUNK || (partitionIds != null && !partitionIds.isEmpty()),
+        "partitionIds shouldn't be null or empty for segment lock"
+    );
+
     this.granularity = granularity == null ? LockGranularity.TIME_CHUNK : granularity;
     this.type = type == null ? TaskLockType.EXCLUSIVE : type;
     this.interval = Preconditions.checkNotNull(interval, "interval");

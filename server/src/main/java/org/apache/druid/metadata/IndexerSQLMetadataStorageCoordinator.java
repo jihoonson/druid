@@ -357,7 +357,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String sequenceName,
       @Nullable final String previousSegmentId,
       final Interval interval,
-      final ShardSpecFactory<T> shardSpecFactory,
+      @Nullable final ShardSpecFactory<T> shardSpecFactory,
       final String maxVersion,
       final Set<Integer> overshadowingSegments,
       final T shardSpecCreateContext,
@@ -409,7 +409,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String sequenceName,
       @Nullable final String previousSegmentId,
       final Interval interval,
-      final ShardSpecFactory<T> shardSpecFactory,
+      @Nullable final ShardSpecFactory<T> shardSpecFactory,
       final String maxVersion,
       final Set<Integer> overshadowingSegments,
       final T shardSpecCreateContext
@@ -487,7 +487,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String dataSource,
       final String sequenceName,
       final Interval interval,
-      final ShardSpecFactory<T> shardSpecFactory,
+      @Nullable final ShardSpecFactory<T> shardSpecFactory,
       final String maxVersion,
       final Set<Integer> overshadowingSegments,
       final T shardSpecCreateContext
