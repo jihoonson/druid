@@ -1024,7 +1024,6 @@ public class TaskLockboxTest
     Assert.assertNotNull(result.getTaskLock());
     Assert.assertEquals(lockGranularity, result.getTaskLock().getGranularity());
     final List<SegmentIdentifier> segmentIdentifiers = result.getNewSegmentIds();
-    System.out.println(segmentIdentifiers); // TODO: remove
     Assert.assertEquals(numSegmentsToAllocate, segmentIdentifiers.size());
 
     final int lastSegmentIndex = numSegmentsToAllocate - 1;

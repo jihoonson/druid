@@ -41,6 +41,5 @@ public interface SegmentAllocator
       String sequenceName,
       String previousSegmentId,
       boolean skipSegmentLineageCheck
-      // TODO: add overshadowedSegments here
   ) throws IOException;
 }

@@ -30,7 +30,6 @@ import javax.annotation.Nullable;
 
 /**
  * Represents a lock held by some task. Immutable.
- * TODO: serde test from old taskLock
  */
 @JsonTypeInfo(use = Id.NAME, property = "type", defaultImpl = TimeChunkLock.class)
 @JsonSubTypes(value = {

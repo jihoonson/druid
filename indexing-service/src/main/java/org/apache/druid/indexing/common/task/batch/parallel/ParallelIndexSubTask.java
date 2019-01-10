@@ -392,7 +392,6 @@ public class ParallelIndexSubTask extends AbstractTask
               continue;
             }
           } else {
-            // TODO: if overwrite, get a lock for the input segment overwritten by inputRow
             final Granularity segmentGranularity = findSegmentGranularity(granularitySpec);
             final Interval timeChunk = segmentGranularity.bucket(inputRow.getTimestamp());
             if (!tryLockWithIntervals(toolbox.getTaskActionClient(), Collections.singletonList(timeChunk))) {

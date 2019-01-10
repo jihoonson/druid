@@ -1136,6 +1136,4 @@ public class IndexerSQLMetadataStorageCoordinatorTest
     Assert.assertEquals(2, shardSpec.getPartitionNum());
     Assert.assertEquals(3, shardSpec.getPartitions());
   }
-
-  // TODO: test resetPartitionId
 }
