@@ -186,7 +186,7 @@ public class IndexTaskTest extends IngestionTestBase
             tmpDir,
             null,
             null,
-            createTuningConfigWithTargetPartitionSize(2, false, true),
+            createTuningConfigWithMaxRowsPerSegment(2, false, true),
             false
         ),
         null,
@@ -235,7 +235,7 @@ public class IndexTaskTest extends IngestionTestBase
             tmpDir,
             null,
             null,
-            createTuningConfigWithTargetPartitionSize(2, true, true),
+            createTuningConfigWithMaxRowsPerSegment(2, true, true),
             false
         ),
         null,
@@ -290,7 +290,7 @@ public class IndexTaskTest extends IngestionTestBase
                 )
             ),
             null,
-            createTuningConfigWithTargetPartitionSize(2, true, false),
+            createTuningConfigWithMaxRowsPerSegment(2, true, false),
             false
         ),
         null,
@@ -336,7 +336,7 @@ public class IndexTaskTest extends IngestionTestBase
                 Granularities.MINUTE,
                 Collections.singletonList(Intervals.of("2014-01-01/2014-01-02"))
             ),
-            createTuningConfigWithTargetPartitionSize(10, false, true),
+            createTuningConfigWithMaxRowsPerSegment(10, false, true),
             false
         ),
         null,
@@ -374,7 +374,7 @@ public class IndexTaskTest extends IngestionTestBase
                 Granularities.HOUR,
                 Collections.singletonList(Intervals.of("2014-01-01T08:00:00Z/2014-01-01T09:00:00Z"))
             ),
-            createTuningConfigWithTargetPartitionSize(50, false, true),
+            createTuningConfigWithMaxRowsPerSegment(50, false, true),
             false
         ),
         null,
@@ -523,7 +523,7 @@ public class IndexTaskTest extends IngestionTestBase
             tmpDir,
             null,
             null,
-            createTuningConfigWithTargetPartitionSize(2, false, false),
+            createTuningConfigWithMaxRowsPerSegment(2, false, false),
             true
         ),
         null,
@@ -576,7 +576,7 @@ public class IndexTaskTest extends IngestionTestBase
                 Granularities.MINUTE,
                 null
             ),
-            createTuningConfigWithTargetPartitionSize(2, false, true),
+            createTuningConfigWithMaxRowsPerSegment(2, false, true),
             false
         ),
         null,
@@ -643,7 +643,7 @@ public class IndexTaskTest extends IngestionTestBase
                 0
             ),
             null,
-            createTuningConfigWithTargetPartitionSize(2, false, true),
+            createTuningConfigWithMaxRowsPerSegment(2, false, true),
             false
         ),
         null,
@@ -696,7 +696,7 @@ public class IndexTaskTest extends IngestionTestBase
                 0
             ),
             null,
-            createTuningConfigWithTargetPartitionSize(2, false, true),
+            createTuningConfigWithMaxRowsPerSegment(2, false, true),
             false
         ),
         null,
@@ -1014,6 +1014,7 @@ public class IndexTaskTest extends IngestionTestBase
     }
 
     final IndexTask.IndexTuningConfig tuningConfig = new IndexTask.IndexTuningConfig(
+        null,
         2,
         null,
         null,
@@ -1137,6 +1138,7 @@ public class IndexTaskTest extends IngestionTestBase
 
     // Allow up to 3 parse exceptions, and save up to 2 parse exceptions
     final IndexTask.IndexTuningConfig tuningConfig = new IndexTask.IndexTuningConfig(
+        null,
         2,
         null,
         null,
@@ -1253,6 +1255,7 @@ public class IndexTaskTest extends IngestionTestBase
 
     // Allow up to 3 parse exceptions, and save up to 2 parse exceptions
     final IndexTask.IndexTuningConfig tuningConfig = new IndexTask.IndexTuningConfig(
+        null,
         2,
         null,
         null,
@@ -1513,14 +1516,14 @@ public class IndexTaskTest extends IngestionTestBase
     return Pair.of(status, segments);
   }
 
-  private static IndexTuningConfig createTuningConfigWithTargetPartitionSize(
-      int targetPartitionSize,
+  private static IndexTuningConfig createTuningConfigWithMaxRowsPerSegment(
+      int maxRowsPerSegment,
       boolean forceExtendableShardSpecs,
       boolean forceGuaranteedRollup
   )
   {
     return createTuningConfig(
-        targetPartitionSize,
+        maxRowsPerSegment,
         1,
         null,
         null,
@@ -1553,7 +1556,7 @@ public class IndexTaskTest extends IngestionTestBase
   }
 
   static IndexTuningConfig createTuningConfig(
-      @Nullable Integer targetPartitionSize,
+      @Nullable Integer maxRowsPerSegment,
       @Nullable Integer maxRowsInMemory,
       @Nullable Long maxBytesInMemory,
       @Nullable Long maxTotalRows,
@@ -1565,7 +1568,8 @@ public class IndexTaskTest extends IngestionTestBase
   )
   {
     return new IndexTask.IndexTuningConfig(
-        targetPartitionSize,
+        null,
+        maxRowsPerSegment,
         maxRowsInMemory,
         maxBytesInMemory,
         maxTotalRows,

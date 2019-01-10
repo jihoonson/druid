@@ -38,6 +38,7 @@ import org.apache.druid.indexing.common.config.TaskStorageConfig;
 import org.apache.druid.indexing.common.task.AbstractTask;
 import org.apache.druid.indexing.common.task.NoopTask;
 import org.apache.druid.indexing.common.task.Task;
+import org.apache.druid.indexing.overlord.TaskLockbox.TaskLockPosse;
 import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
@@ -674,6 +675,52 @@ public class TaskLockboxTest
     }
 
     Assert.assertTrue(lockbox.getAllLocks().isEmpty());
+  }
+
+  @Test
+  public void testFindLockPosseAfterRevokeWithDifferentLockIntervals() throws EntryExistsException
+  {
+    final Task lowPriorityTask = NoopTask.create(0);
+    final Task highPriorityTask = NoopTask.create(10);
+
+    taskStorage.insert(lowPriorityTask, TaskStatus.running(lowPriorityTask.getId()));
+    taskStorage.insert(highPriorityTask, TaskStatus.running(highPriorityTask.getId()));
+    lockbox.add(lowPriorityTask);
+    lockbox.add(highPriorityTask);
+
+    Assert.assertTrue(
+        tryTimeChunkLock(
+            TaskLockType.EXCLUSIVE,
+            lowPriorityTask,
+            Intervals.of("2018-12-16T09:00:00/2018-12-16T10:00:00")
+        ).isOk()
+    );
+
+    Assert.assertTrue(
+        tryTimeChunkLock(
+            TaskLockType.EXCLUSIVE,
+            highPriorityTask,
+            Intervals.of("2018-12-16T09:00:00/2018-12-16T09:30:00")
+        ).isOk()
+    );
+
+    final List<TaskLockPosse> highLockPosses = lockbox.getOnlyTaskLockPosseContainingInterval(
+        highPriorityTask,
+        Intervals.of("2018-12-16T09:00:00/2018-12-16T09:30:00")
+    );
+
+    Assert.assertEquals(1, highLockPosses.size());
+    Assert.assertTrue(highLockPosses.get(0).containsTask(highPriorityTask));
+    Assert.assertFalse(highLockPosses.get(0).getTaskLock().isRevoked());
+
+    final List<TaskLockPosse> lowLockPosses = lockbox.getOnlyTaskLockPosseContainingInterval(
+        lowPriorityTask,
+        Intervals.of("2018-12-16T09:00:00/2018-12-16T10:00:00")
+    );
+
+    Assert.assertEquals(1, lowLockPosses.size());
+    Assert.assertTrue(lowLockPosses.get(0).containsTask(lowPriorityTask));
+    Assert.assertTrue(lowLockPosses.get(0).getTaskLock().isRevoked());
   }
 
   @Test
