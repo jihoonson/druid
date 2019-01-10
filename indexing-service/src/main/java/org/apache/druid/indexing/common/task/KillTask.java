@@ -80,7 +80,7 @@ public class KillTask extends AbstractFixedIntervalTask
   }
 
   @Override
-  public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
+  public List<DataSegment> findInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
       throws IOException
   {
     final List<DataSegment> allSegments = new ArrayList<>();

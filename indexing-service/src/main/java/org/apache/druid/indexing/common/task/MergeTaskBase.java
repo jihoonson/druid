@@ -270,7 +270,7 @@ public abstract class MergeTaskBase extends AbstractFixedIntervalTask
   }
 
   @Override
-  public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
+  public List<DataSegment> findInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
   {
     return getSegments().stream()
                  .filter(segment -> intervals.stream().anyMatch(interval -> interval.overlaps(segment.getInterval())))

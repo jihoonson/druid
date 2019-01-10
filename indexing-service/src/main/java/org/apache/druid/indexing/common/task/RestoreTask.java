@@ -131,7 +131,7 @@ public class RestoreTask extends AbstractFixedIntervalTask
   }
 
   @Override
-  public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
+  public List<DataSegment> findInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
   {
     return Collections.emptyList();
   }

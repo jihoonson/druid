@@ -207,10 +207,10 @@ public interface Task
     return value == null ? defaultValue : value;
   }
 
-  // TODO: remove this and check by getInputSegments returns empty?
+  // TODO: remove this and check by findInputSegments returns empty?
   boolean requireLockInputSegments();
 
-  List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals) throws IOException;
+  List<DataSegment> findInputSegments(TaskActionClient taskActionClient, List<Interval> intervals) throws IOException;
 
   boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments);
 

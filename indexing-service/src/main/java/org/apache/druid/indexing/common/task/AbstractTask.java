@@ -280,8 +280,8 @@ public abstract class AbstractTask implements Task
 
       // TODO: check changeSegmentGranularity and get timeChunkLock here
 
-      // TODO: race - a new segment can be added after getInputSegments. change to lockAllSegmentsInIntervals
-      return tryLockWithSegments(client, getInputSegments(client, intervals));
+      // TODO: race - a new segment can be added after findInputSegments. change to lockAllSegmentsInIntervals
+      return tryLockWithSegments(client, findInputSegments(client, intervals));
     } else {
       initializedLock = true;
       return true;

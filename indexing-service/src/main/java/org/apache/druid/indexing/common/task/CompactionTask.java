@@ -260,7 +260,7 @@ public class CompactionTask extends AbstractTask
   }
 
   @Override
-  public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
+  public List<DataSegment> findInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
       throws IOException
   {
     return taskActionClient.submit(new SegmentListUsedAction(getDataSource(), null, intervals));

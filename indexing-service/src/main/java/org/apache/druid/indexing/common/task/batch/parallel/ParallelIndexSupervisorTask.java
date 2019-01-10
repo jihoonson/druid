@@ -220,7 +220,7 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
   }
 
   @Override
-  public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
+  public List<DataSegment> findInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
       throws IOException
   {
     return taskActionClient.submit(new SegmentListUsedAction(getDataSource(), null, intervals));

@@ -68,7 +68,7 @@ import java.util.stream.StreamSupport;
  * it is assigned a version string that it can use to publish segments.
  *
  * // TODO: how to use this?
- * // with timeChunk lock or segemnt lock
+ * // with segemnt lock
  * // note it also does segment allocation for segment lock
  */
 public class TaskLockbox

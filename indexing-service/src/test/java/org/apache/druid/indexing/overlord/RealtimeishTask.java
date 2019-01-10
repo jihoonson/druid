@@ -70,7 +70,7 @@ public class RealtimeishTask extends AbstractTask
   }
 
   @Override
-  public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
+  public List<DataSegment> findInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
   {
     return Collections.emptyList();
   }
