@@ -207,9 +207,7 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
   }
 
   @Override
-  public List<DataSegment> getInputSegments(
-      TaskActionClient taskActionClient, List<Interval> intervals
-  )
+  public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
   {
     throw new UnsupportedOperationException();
   }

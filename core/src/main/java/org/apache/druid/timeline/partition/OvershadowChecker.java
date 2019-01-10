@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.druid.timeline.partition;
 
 import com.google.common.base.Preconditions;
@@ -44,7 +45,6 @@ public class OvershadowChecker<T extends Overshadowable<T>>
 
   private final Map<Integer, PartitionChunk<T>> knownPartitionChunks;
   private final PartitionChunkProvider<T> extraPartitionProvider;
-//  private final Int2ObjectMap<SortedSet<Integer>> overshadowedMap;
 
   private final Map<Integer, PartitionChunk<T>> onlineSegments;
   private final Map<Integer, PartitionChunk<T>> visibleSegments;
@@ -53,7 +53,6 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   {
     this.knownPartitionChunks = new HashMap<>();
     this.extraPartitionProvider = extraPartitionProvider;
-//    this.overshadowedMap = new Int2ObjectOpenHashMap<>();
     this.onlineSegments = new HashMap<>();
     this.visibleSegments = new HashMap<>();
   }
@@ -62,7 +61,6 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   {
     this.knownPartitionChunks = new HashMap<>(other.knownPartitionChunks);
     this.extraPartitionProvider = other.extraPartitionProvider;
-//    this.overshadowedMap = new Int2ObjectOpenHashMap<>(other.overshadowedMap);
     this.onlineSegments = new HashMap<>(other.onlineSegments);
     this.visibleSegments = new HashMap<>(other.visibleSegments);
   }
@@ -85,7 +83,6 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   {
     final PartitionChunk<T> prevChunk = knownPartitionChunks.put(partitionChunk.getChunkNumber(), partitionChunk);
     if (prevChunk != null) {
-//      throw new ISE("Duplicate partitionId[%d]! prevChunk[%s], newChunk[%s]", partitionChunk.getChunkNumber(), prevChunk, partitionChunk);
       log.warn("prevChunk[%s] is overwritten by newChunk[%s] for partitionId[%d]", prevChunk, partitionChunk, partitionChunk.getChunkNumber());
     }
 
@@ -102,25 +99,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
       if (!hasAllAtomicGroupSameOvershadowedGroup) {
         throw new ISE("all partitions of the same atomicUpdateGroup should have the same overshadowedGroup");
       }
-
-//      final Set<Integer> atomicUpdateGroup = new HashSet<>(partitionChunk.getObject().getAtomicUpdateGroup());
-//      final List<PartitionChunk<T>> atomicUpdateGroupChunks = overshadowedGroupToAtomicUpdateGroup.computeIfAbsent(
-//          overshadowedGroup,
-//          k -> new ArrayList<>()
-//      );
-//      final boolean hasSameAtomicUpdateGroupForSameOvershadowedGroup = atomicUpdateGroupChunks
-//          .stream()
-//          .allMatch(chunk -> atomicUpdateGroup.equals(new HashSet<>(chunk.getObject().getAtomicUpdateGroup())));
-//      if (!hasSameAtomicUpdateGroupForSameOvershadowedGroup) {
-//        throw new ISE("all partitions having the same overshadowedGroup should have the same atomicUpdateGroup");
-//      }
-//      atomicUpdateGroupChunks.add(partitionChunk);
     }
-
-//    for (Integer overshadowedPartitionId : partitionChunk.getObject().getOvershadowedGroup()) {
-//      overshadowedMap.computeIfAbsent(overshadowedPartitionId.intValue(), k -> new TreeSet<>())
-//                     .add(partitionChunk.getChunkNumber());
-//    }
 
     onlineSegments.put(partitionChunk.getChunkNumber(), partitionChunk);
     tryOnlineToVisible(partitionChunk);
@@ -150,16 +129,6 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   @Nullable
   public PartitionChunk<T> remove(PartitionChunk<T> partitionChunk)
   {
-//    for (Integer overshadowedPartitionId : partitionChunk.getObject().getOvershadowedGroup()) {
-//      final SortedSet<Integer> overshadowingPartitionIds = overshadowedMap.get(overshadowedPartitionId.intValue());
-//      if (overshadowingPartitionIds == null) {
-//        throw new ISE("Cannot find overshadowingPartitionIds for partition[%s]", overshadowedPartitionId);
-//      }
-//      if (!overshadowingPartitionIds.remove(partitionChunk.getChunkNumber())) {
-//        throw new ISE("Cannot find partition[%s] from overshadowingPartitionIds[%s]", partitionChunk.getChunkNumber(), overshadowingPartitionIds);
-//      }
-//    }
-
     final PartitionChunk<T> knownChunk = knownPartitionChunks.get(partitionChunk.getChunkNumber());
     if (knownChunk == null) {
       return null;
@@ -233,7 +202,6 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   {
     final Map<Integer, PartitionChunkCandidate> candidates = buildAllOnlineCandidates();
     final List<PartitionChunkCandidate> found = partitionIds.stream()
-//                                                      .map(onlineSegments::get)
                                                             .map(candidates::get)
                                                             .filter(Objects::nonNull)
                                                             .collect(Collectors.toList());
@@ -279,7 +247,6 @@ public class OvershadowChecker<T extends Overshadowable<T>>
     }
     OvershadowChecker<?> that = (OvershadowChecker<?>) o;
     return Objects.equals(knownPartitionChunks, that.knownPartitionChunks) &&
-//           Objects.equals(overshadowedMap, that.overshadowedMap) &&
            Objects.equals(onlineSegments, that.onlineSegments) &&
            Objects.equals(visibleSegments, that.visibleSegments);
   }
@@ -295,7 +262,6 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   {
     return "OvershadowChecker{" +
            "knownPartitionChunks=" + knownPartitionChunks +
-//           ", overshadowedMap=" + overshadowedMap +
            ", onlineSegments=" + onlineSegments +
            ", visibleSegments=" + visibleSegments +
            '}';

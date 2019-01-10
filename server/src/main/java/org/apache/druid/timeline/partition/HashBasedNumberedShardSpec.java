@@ -53,8 +53,8 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
 
   @JsonCreator
   public HashBasedNumberedShardSpec(
-      @JsonProperty("partitionNum") int partitionNum,// partitionId
-      @JsonProperty("partitions") int partitions,// # of partitions
+      @JsonProperty("partitionNum") int partitionNum,    // partitionId
+      @JsonProperty("partitions") int partitions,        // # of partitions
       @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
       @JsonProperty("ordinal") @Nullable Integer ordinal,
       @JacksonInject ObjectMapper jsonMapper
@@ -138,7 +138,6 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   @Override
   public ShardSpecLookup getLookup(final List<ShardSpec> shardSpecs)
   {
-//    shardSpecs.sort(Comparator.comparing(shardSpec -> ((HashBasedNumberedShardSpec) shardSpec).ordinal));
     return (long timestamp, InputRow row) -> {
       int index = Math.abs(hash(timestamp, row) % getPartitions());
       return shardSpecs.get(index);

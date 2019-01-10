@@ -405,9 +405,7 @@ public class AppenderatorDriverRealtimeIndexTask extends AbstractTask implements
   }
 
   @Override
-  public List<DataSegment> getInputSegments(
-      TaskActionClient taskActionClient, List<Interval> intervals
-  )
+  public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
   {
     return Collections.emptyList();
   }

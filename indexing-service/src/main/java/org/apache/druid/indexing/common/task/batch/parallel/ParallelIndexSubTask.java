@@ -270,7 +270,10 @@ public class ParallelIndexSubTask extends AbstractTask
 
     @Override
     public SegmentIdentifier allocate(
-        InputRow row, String sequenceName, String previousSegmentId, boolean skipSegmentLineageCheck
+        InputRow row,
+        String sequenceName,
+        String previousSegmentId,
+        boolean skipSegmentLineageCheck
     ) throws IOException
     {
       if (internalAllocator == null) {

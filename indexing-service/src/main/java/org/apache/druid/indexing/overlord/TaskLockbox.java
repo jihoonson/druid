@@ -602,7 +602,9 @@ public class TaskLockbox
         .stream()
         .allMatch(entry -> {
           final List<TaskLockPosse> lockPosses = getOnlyTaskLockPosseContainingInterval(
-              task, entry.getKey(), entry.getValue()
+              task,
+              entry.getKey(),
+              entry.getValue()
           );
           // Tasks cannot enter the critical section with a shared lock
           return lockPosses.stream().allMatch(

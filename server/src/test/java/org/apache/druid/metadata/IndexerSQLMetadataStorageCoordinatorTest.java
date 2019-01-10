@@ -847,28 +847,6 @@ public class IndexerSQLMetadataStorageCoordinatorTest
     Assert.assertEquals(0, metadataUpdateCounter.get());
   }
 
-//  private SegmentIdentifier allocatePendingSegment(
-//      final String dataSource,
-//      final String sequenceName,
-//      final String prevSegmentId,
-//      final Interval interval,
-//      final String version
-//  )
-//  {
-//    return coordinator.allocatePendingSegment(
-//        dataSource,
-//        sequenceName,
-//        prevSegmentId,
-//        interval,
-//        new NumberedShardSpecFactory(),
-//        version,
-//        0,
-//        Collections.emptySet(),
-//        false,
-//        false
-//    );
-//  }
-
   @Test
   public void testAllocatePendingSegment()
   {

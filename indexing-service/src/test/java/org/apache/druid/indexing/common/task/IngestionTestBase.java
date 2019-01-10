@@ -238,9 +238,7 @@ public abstract class IngestionTestBase
     }
 
     @Override
-    public void registerListener(
-        TaskRunnerListener listener, Executor executor
-    )
+    public void registerListener(TaskRunnerListener listener, Executor executor)
     {
       throw new UnsupportedOperationException();
     }

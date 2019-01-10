@@ -315,50 +315,11 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
   {
     lock.readLock().lock();
     try {
-//      final Set<TimelineObjectHolder<VersionType, ObjectType>> retVal = new HashSet<>();
-
-//      Map<Interval, Map<VersionType, TimelineEntry>> overShadowed = new HashMap<>();
-//      for (Map.Entry<Interval, TreeMap<VersionType, TimelineEntry>> versionEntry : allTimelineEntries.entrySet()) {
-//        Map<VersionType, TimelineEntry> versionCopy = new HashMap<>();
-//        versionCopy.putAll(versionEntry.getValue());
-//        overShadowed.put(versionEntry.getKey(), versionCopy);
-//      }
-//
-//      for (Map.Entry<Interval, TimelineEntry> entry : completePartitionsTimeline.entrySet()) {
-//        Map<VersionType, TimelineEntry> versionEntry = overShadowed.get(entry.getValue().getTrueInterval());
-//        if (versionEntry != null) {
-//          versionEntry.remove(entry.getValue().getVersion());
-//          if (versionEntry.isEmpty()) {
-//            overShadowed.remove(entry.getValue().getTrueInterval());
-//          }
-//        }
-//      }
-//
-//      for (Map.Entry<Interval, TimelineEntry> entry : incompletePartitionsTimeline.entrySet()) {
-//        Map<VersionType, TimelineEntry> versionEntry = overShadowed.get(entry.getValue().getTrueInterval());
-//        if (versionEntry != null) {
-//          versionEntry.remove(entry.getValue().getVersion());
-//          if (versionEntry.isEmpty()) {
-//            overShadowed.remove(entry.getValue().getTrueInterval());
-//          }
-//        }
-//      }
-//
-//      for (Map.Entry<Interval, Map<VersionType, TimelineEntry>> versionEntry : overShadowed.entrySet()) {
-//        for (Map.Entry<VersionType, TimelineEntry> entry : versionEntry.getValue().entrySet()) {
-//          TimelineEntry object = entry.getValue();
-//          retVal.add(timelineEntryToObjectHolder(object));
-//        }
-//      }
-
       final Set<TimelineEntry> entries = allTimelineEntries
           .values()
           .stream()
           .flatMap(timelineEntry -> timelineEntry.values().stream())
           .collect(Collectors.toSet());
-//      for (Map.Entry<Interval, TreeMap<VersionType, TimelineEntry>> versionEntry : allTimelineEntries.entrySet()) {
-//        versionEntry.getValue().values().forEach(entry -> retVal.add(timelineEntryToObjectHolder(entry)));
-//      }
 
       entries.removeAll(lookupEntry(completePartitionsTimeline, Intervals.ETERNITY));
       entries.removeAll(lookupEntry(incompletePartitionsTimeline, Intervals.ETERNITY));

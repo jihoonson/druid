@@ -25,7 +25,6 @@ import org.apache.druid.server.coordination.DruidServerMetadata;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.Overshadowable;
 
-import java.util.List;
 import java.util.Set;
 
 public class SegmentLoadInfo implements Overshadowable<SegmentLoadInfo>

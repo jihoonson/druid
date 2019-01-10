@@ -400,7 +400,6 @@ public class CompactionTask extends AbstractTask
         // all granularity
         final DataSchema dataSchema = createDataSchema(
             segmentProvider.dataSource,
-//            segmentProvider.interval,
             queryableIndexAndSegments,
             dimensionsSpec,
             Granularities.ALL,
@@ -410,7 +409,6 @@ public class CompactionTask extends AbstractTask
         return Collections.singletonList(
             new IndexIngestionSpec(
                 dataSchema,
-//                createIoConfig(toolbox, dataSchema, segmentProvider.interval),
                 createIoConfig(toolbox, dataSchema, Iterables.getOnlyElement(dataSchema.getGranularitySpec().inputIntervals())),
                 compactionTuningConfig
             )
@@ -432,7 +430,6 @@ public class CompactionTask extends AbstractTask
           final List<Pair<QueryableIndex, DataSegment>> segmentsToCompact = entry.getValue();
           final DataSchema dataSchema = createDataSchema(
               segmentProvider.dataSource,
-//              interval,
               segmentsToCompact,
               dimensionsSpec,
               GranularityType.fromPeriod(interval.toPeriod()).getDefaultGranularity(),
@@ -458,7 +455,6 @@ public class CompactionTask extends AbstractTask
         // given segment granularity
         final DataSchema dataSchema = createDataSchema(
             segmentProvider.dataSource,
-//            segmentProvider.interval,
             queryableIndexAndSegments,
             dimensionsSpec,
             segmentGranularity,
@@ -468,7 +464,6 @@ public class CompactionTask extends AbstractTask
         return Collections.singletonList(
             new IndexIngestionSpec(
                 dataSchema,
-//                createIoConfig(toolbox, dataSchema, segmentProvider.interval),
                 createIoConfig(toolbox, dataSchema, Iterables.getOnlyElement(dataSchema.getGranularitySpec().inputIntervals())),
                 compactionTuningConfig
             )

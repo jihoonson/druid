@@ -124,9 +124,4 @@ public class Appenderators
         null
     );
   }
-
-//  public static String getSequenceName(Interval interval, String version, ShardSpec shardSpec)
-//  {
-//    return StringUtils.format("index_%s_%s_%d", interval, version, shardSpec.getPartitionNum());
-//  }
 }

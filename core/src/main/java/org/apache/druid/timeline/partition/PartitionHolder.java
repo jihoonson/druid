@@ -33,7 +33,6 @@ import java.util.Spliterator;
  */
 public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<PartitionChunk<T>>
 {
-//  private final TreeSet<PartitionChunk<T>> holderSet;
   private final OvershadowChecker<T> overshadowChecker;
 
   public PartitionHolder(PartitionChunk<T> initialChunk)
@@ -64,18 +63,6 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
 
   public PartitionChunk<T> remove(PartitionChunk<T> chunk)
   {
-//    if (!holderSet.isEmpty()) {
-//      // Somewhat funky implementation in order to return the removed object as it exists in the set
-//      SortedSet<PartitionChunk<T>> tailSet = holderSet.tailSet(chunk, true);
-//      if (!tailSet.isEmpty()) {
-//        PartitionChunk<T> element = tailSet.first();
-//        if (chunk.equals(element)) {
-//          holderSet.remove(element);
-//          return element;
-//        }
-//      }
-//    }
-//    return null;
     return overshadowChecker.remove(chunk);
   }
 

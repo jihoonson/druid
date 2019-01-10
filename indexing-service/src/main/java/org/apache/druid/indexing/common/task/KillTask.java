@@ -50,6 +50,7 @@ import java.util.stream.Collectors;
 public class KillTask extends AbstractFixedIntervalTask
 {
   private static final Logger log = new Logger(KillTask.class);
+
   @JsonCreator
   public KillTask(
       @JsonProperty("id") String id,

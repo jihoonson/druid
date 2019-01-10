@@ -930,19 +930,6 @@ public class TaskLockboxTest
     allocateSegmentsAndAssert(task, "seq2", 2, ImmutableSet.of(0, 1, 2));
   }
 
-//  @Test
-//  public void testRequestForNewSegmentWithTimeChunkLock()
-//  {
-//    final Task task = NoopTask.create();
-//    lockbox.add(task);
-//    allocateSegmentsAndAssert(task, LockGranularity.TIME_CHUNK, "seq", 2, Collections.emptySet());
-//    // timeChunk lock always overwrites existing segments and the start partitionId is reset.
-//    // if we unlock here, taskLockbox will try to use the same taskLockPosse of the existing taskLock, which in turn
-//    // generating duplicate segmentIds.
-//    lockbox.unlock(task, Intervals.of("2015-01-01/2015-01-05"));
-//    allocateSegmentsAndAssert(task, LockGranularity.TIME_CHUNK, "seq2", 3, Collections.emptySet());
-//  }
-
   @Test
   public void testRequestForNewSegmentWithHashPartition()
   {
@@ -1188,9 +1175,7 @@ public class TaskLockboxTest
     }
 
     @Override
-    public List<DataSegment> getInputSegments(
-        TaskActionClient taskActionClient, List<Interval> intervals
-    )
+    public List<DataSegment> getInputSegments(TaskActionClient taskActionClient, List<Interval> intervals)
     {
       return Collections.emptyList();
     }

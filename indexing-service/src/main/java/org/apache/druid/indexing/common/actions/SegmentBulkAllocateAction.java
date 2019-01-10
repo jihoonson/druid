@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.druid.indexing.common.actions;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -48,7 +49,6 @@ public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<
   // interval -> # of segments to allocate
   private final Map<Interval, Integer> allocateSpec;
   private final String baseSequenceName;
-//  private final boolean changeSegmentGranularity;
   private final List<String> partitionDimensions;
   private final Map<Interval, Set<Integer>> overshadowingSegments;
 
@@ -56,14 +56,12 @@ public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<
   public SegmentBulkAllocateAction(
       @JsonProperty("allocateSpec") Map<Interval, Integer> allocateSpec,
       @JsonProperty("baseSequenceName") String baseSequenceName,
-//      @JsonProperty("changeSegmentGranularity") boolean changeSegmentGranularity,
       @JsonProperty("partitionDimensions") List<String> partitionDimensions,
       @JsonProperty("overshadowingSegments") Map<Interval, Set<Integer>> overshadowingSegments
   )
   {
     this.allocateSpec = allocateSpec;
     this.baseSequenceName = baseSequenceName;
-//    this.changeSegmentGranularity = changeSegmentGranularity;
     this.partitionDimensions = partitionDimensions;
     this.overshadowingSegments = overshadowingSegments;
   }
@@ -79,12 +77,6 @@ public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<
   {
     return baseSequenceName;
   }
-
-//  @JsonProperty
-//  public boolean isChangeSegmentGranularity()
-//  {
-//    return changeSegmentGranularity;
-//  }
 
   @JsonProperty
   public List<String> getPartitionDimensions()

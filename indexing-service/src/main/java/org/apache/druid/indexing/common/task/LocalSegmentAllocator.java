@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.druid.indexing.common.task;
 
 import com.google.common.base.Optional;
@@ -87,7 +88,10 @@ public class LocalSegmentAllocator implements IndexTaskSegmentAllocator
 
   @Override
   public SegmentIdentifier allocate(
-      InputRow row, String sequenceName, String previousSegmentId, boolean skipSegmentLineageCheck
+      InputRow row,
+      String sequenceName,
+      String previousSegmentId,
+      boolean skipSegmentLineageCheck
   ) throws IOException
   {
     return internalAllocator.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);

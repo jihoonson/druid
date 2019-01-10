@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.druid.indexing.overlord;
 
 import org.apache.druid.indexing.common.LockGranularity;
@@ -26,7 +27,6 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import javax.validation.constraints.Null;
 
 public class TimeChunkLockRequest implements LockRequest
 {

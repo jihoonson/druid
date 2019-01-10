@@ -22,7 +22,6 @@ package org.apache.druid.indexing.common.actions;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.task.NoopTask;
 import org.apache.druid.indexing.common.task.Task;
@@ -39,9 +38,7 @@ import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecContext;
 import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
-import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpec;
-import org.apache.druid.timeline.partition.ShardSpecFactory.EmptyContext;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
 import org.easymock.EasyMock;
 import org.joda.time.DateTime;
@@ -754,7 +751,7 @@ public class SegmentAllocateActionTest
         "s1",
         "prev",
         false,
-        new HashBasedNumberedShardSpecFactory(ImmutableList.of("dim1", "dim2"), 2 ),
+        new HashBasedNumberedShardSpecFactory(ImmutableList.of("dim1", "dim2"), 2),
         new HashBasedNumberedShardSpecContext(1),
         Collections.emptySet()
     );
