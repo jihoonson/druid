@@ -263,6 +263,23 @@ public abstract class AbstractTask implements Task
     return context;
   }
 
+  // TODO: remove this and check by findInputSegments returns empty?
+  public abstract boolean requireLockInputSegments();
+
+  public abstract List<DataSegment> findInputSegments(TaskActionClient taskActionClient, List<Interval> intervals) throws IOException;
+
+  public abstract boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments);
+
+  /**
+   * Returns the segmentGranularity for the given interval. Usually tasks are supposed to return its segmentGranularity
+   * if exists. The compactionTask can return different segmentGranularity depending on its configuration and the input
+   * interval.
+   *
+   * @return segmentGranularity or null if it doesn't support it.
+   */
+  @Nullable
+  public abstract Granularity getSegmentGranularity(Interval interval);
+
   protected boolean tryLockWithIntervals(TaskActionClient client, Set<Interval> intervals)
       throws IOException
   {

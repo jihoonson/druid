@@ -26,15 +26,9 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSubTask;
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexSupervisorTask;
-import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
-import org.apache.druid.timeline.DataSegment;
-import org.joda.time.Interval;
 
-import javax.annotation.Nullable;
-import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -206,21 +200,4 @@ public interface Task
     final ContextValueType value = getContextValue(key);
     return value == null ? defaultValue : value;
   }
-
-  // TODO: remove this and check by findInputSegments returns empty?
-  boolean requireLockInputSegments();
-
-  List<DataSegment> findInputSegments(TaskActionClient taskActionClient, List<Interval> intervals) throws IOException;
-
-  boolean changeSegmentGranularity(List<Interval> intervalOfExistingSegments);
-
-  /**
-   * Returns the segmentGranularity for the given interval. Usually tasks are supposed to return its segmentGranularity
-   * if exists. The compactionTask can return different segmentGranularity depending on its configuration and the input
-   * interval.
-   *
-   * @return segmentGranularity or null if it doesn't support it.
-   */
-  @Nullable
-  Granularity getSegmentGranularity(Interval interval);
 }
