@@ -21,10 +21,12 @@ package org.apache.druid.indexing.common.task;
 
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentBulkAllocateAction;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -35,13 +37,18 @@ public class CachingRemoteSegmentAllocator extends CachingSegmentAllocator
   public CachingRemoteSegmentAllocator(
       TaskToolbox toolbox,
       String taskId,
-      Map<Interval, Integer> intervalToNumShards,
-      @Nullable List<String> partitionDimensions,
+      Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec,
       Map<Interval, Set<Integer>> inputPartitionIds,
       boolean isExtendableShardSpecs
   ) throws IOException
   {
-    super(toolbox, taskId, intervalToNumShards, inputPartitionIds, partitionDimensions, isExtendableShardSpecs);
+    super(
+        toolbox,
+        taskId,
+        allocateSpec,
+        inputPartitionIds,
+        isExtendableShardSpecs
+    );
   }
 
   @Override
@@ -50,9 +57,8 @@ public class CachingRemoteSegmentAllocator extends CachingSegmentAllocator
   {
     return getToolbox().getTaskActionClient().submit(
         new SegmentBulkAllocateAction(
-            getIntervalToNumShards(),
+            getAllocateSpec(),
             getTaskId(),
-            getPartitionDimensions(),
             inputPartitionIds
         )
     );

@@ -22,10 +22,13 @@ package org.apache.druid.indexing.common.task;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -41,9 +44,8 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
 {
   private final TaskToolbox toolbox;
   private final String taskId;
-  private final Map<Interval, Integer> intervalToNumShards;
+  private final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec;
   @Nullable
-  private final List<String> partitionDimensions;
   private final boolean isExtendableShardSpecs;
   private final ShardSpecs shardSpecs;
 
@@ -53,16 +55,14 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
   public CachingSegmentAllocator(
       TaskToolbox toolbox,
       String taskId,
-      Map<Interval, Integer> intervalToNumShards,
+      Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec,
       Map<Interval, Set<Integer>> inputPartitionIds,
-      @Nullable List<String> partitionDimensions,
       boolean isExtendableShardSpecs
   ) throws IOException
   {
     this.toolbox = toolbox;
     this.taskId = taskId;
-    this.intervalToNumShards = intervalToNumShards;
-    this.partitionDimensions = partitionDimensions;
+    this.allocateSpec = allocateSpec;
     this.isExtendableShardSpecs = isExtendableShardSpecs;
     this.sequenceNameToSegmentId = new HashMap<>();
 
@@ -110,15 +110,9 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
     return taskId;
   }
 
-  Map<Interval, Integer> getIntervalToNumShards()
+  Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> getAllocateSpec()
   {
-    return intervalToNumShards;
-  }
-
-  @Nullable
-  List<String> getPartitionDimensions()
-  {
-    return partitionDimensions;
+    return allocateSpec;
   }
 
   @Override

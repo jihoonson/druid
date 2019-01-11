@@ -33,12 +33,14 @@ import org.apache.druid.server.DruidNode;
 import org.apache.druid.server.initialization.ZkPathsConfig;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecFactoryArgs;
 import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.LinearShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpecFactory;
+import org.apache.druid.timeline.partition.SingleDimensionShardSpecFactory.SingleDimensionShardSpecFactoryArgs;
 
 import java.util.Collections;
 import java.util.List;
@@ -70,12 +72,14 @@ public class ServerModule implements DruidModule
             .registerSubtypes(
                 new NamedType(SingleDimensionShardSpecFactory.class, "single"),
                 new NamedType(SingleDimensionShardSpec.class, "single"),
+                new NamedType(SingleDimensionShardSpecFactoryArgs.class, "single"),
                 new NamedType(LinearShardSpecFactory.class, "linear"),
                 new NamedType(LinearShardSpec.class, "linear"),
                 new NamedType(NumberedShardSpecFactory.class, "numbered"),
                 new NamedType(NumberedShardSpec.class, "numbered"),
                 new NamedType(HashBasedNumberedShardSpecFactory.class, "hashed"),
-                new NamedType(HashBasedNumberedShardSpec.class, "hashed")
+                new NamedType(HashBasedNumberedShardSpec.class, "hashed"),
+                new NamedType(HashBasedNumberedShardSpecFactoryArgs.class, "hashed")
             )
     );
   }

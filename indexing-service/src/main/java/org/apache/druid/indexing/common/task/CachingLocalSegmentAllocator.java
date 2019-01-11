@@ -23,13 +23,12 @@ import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
-import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
-import org.apache.druid.timeline.partition.NoneShardSpec;
-import org.apache.druid.timeline.partition.ShardSpec;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,7 +37,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class CachingLocalSegmentAllocator extends CachingSegmentAllocator
 {
@@ -50,14 +48,13 @@ public class CachingLocalSegmentAllocator extends CachingSegmentAllocator
       TaskToolbox toolbox,
       String taskId,
       String dataSource,
-      Map<Interval, Integer> intervalToNumShards,
-      @Nullable List<String> partitionDimensions,
+      Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec,
       boolean isExtendableShardSpecs
   ) throws IOException
   {
     // This segment allocator doesn't need inputPartitionIds because the newly created segments don't have to store
     // overshadowingSegments
-    super(toolbox, taskId, intervalToNumShards, Collections.emptyMap(), partitionDimensions, isExtendableShardSpecs);
+    super(toolbox, taskId, allocateSpec, Collections.emptyMap(), isExtendableShardSpecs);
     this.dataSource = dataSource;
 
     intervalToVersion = toolbox.getTaskActionClient()
@@ -69,36 +66,35 @@ public class CachingLocalSegmentAllocator extends CachingSegmentAllocator
   @Override
   Map<Interval, List<SegmentIdentifier>> getIntervalToSegmentIds(Map<Interval, Set<Integer>> inputPartitionIds)
   {
-    final Map<Interval, List<SegmentIdentifier>> intervalToSegmentIds = new HashMap<>(getIntervalToNumShards().size());
-    for (Entry<Interval, Integer> intervalToNumShard : getIntervalToNumShards().entrySet()) {
-      final Interval interval = intervalToNumShard.getKey();
-      final int numSegments = intervalToNumShard.getValue();
-      intervalToSegmentIds.put(
-          interval,
-          IntStream.range(0, numSegments)
-                   .mapToObj(i -> new SegmentIdentifier(
-                       dataSource,
-                       interval,
-                       findVersion(interval), createShardSpec(i, numSegments))
-                   )
-                   .collect(Collectors.toList())
-      );
+    final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec = getAllocateSpec();
+    final Map<Interval, List<SegmentIdentifier>> intervalToSegmentIds = new HashMap<>(allocateSpec.size());
+    for (Entry<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> entry : allocateSpec.entrySet()) {
+      final Interval interval = entry.getKey();
+      final ShardSpecFactory shardSpecFactory = entry.getValue().lhs;
+      final List<ShardSpecFactoryArgs> shardSpecFactoryArgsList = entry.getValue().rhs;
+
+      for (int i = 0; i < shardSpecFactoryArgsList.size(); i++) {
+        final int ordinal = i;
+        //noinspection unchecked
+        intervalToSegmentIds.put(
+            interval,
+            shardSpecFactoryArgsList
+                .stream()
+                .map(args -> new SegmentIdentifier(
+                    dataSource,
+                    interval,
+                    findVersion(interval),
+                    shardSpecFactory.create(
+                        getToolbox().getObjectMapper(),
+                        ordinal,
+                        shardSpecFactoryArgsList.get(ordinal)
+                    )
+                ))
+                .collect(Collectors.toList())
+        );
+      }
     }
     return intervalToSegmentIds;
-  }
-
-  private ShardSpec createShardSpec(int partitionId, int totalNumPartitions)
-  {
-    if (totalNumPartitions == 1) {
-      return NoneShardSpec.instance();
-    } else {
-      return new HashBasedNumberedShardSpec(
-          partitionId,
-          totalNumPartitions,
-          getPartitionDimensions(),
-          getToolbox().getObjectMapper()
-      );
-    }
   }
 
   private String findVersion(Interval interval)

@@ -56,6 +56,7 @@ import org.apache.druid.indexing.firehose.IngestSegmentFirehoseFactory;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.JodaUtils;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Comparators;
@@ -87,9 +88,15 @@ import org.apache.druid.server.security.Action;
 import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecFactoryArgs;
 import org.apache.druid.timeline.partition.NoneShardSpec;
+import org.apache.druid.timeline.partition.NoneShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
+import org.apache.druid.timeline.partition.ShardSpecFactoryArgs.EmptyShardSpecFactoryArgs;
 import org.apache.druid.utils.CircularBuffer;
 import org.codehaus.plexus.util.FileUtils;
 import org.joda.time.Interval;
@@ -119,6 +126,8 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class IndexTask extends AbstractTask implements ChatHandler
 {
@@ -442,23 +451,31 @@ public class IndexTask extends AbstractTask implements ChatHandler
       final IndexTuningConfig tuningConfig = ingestionSchema.tuningConfig;
       @Nullable final Integer maxRowsPerSegment = getValidMaxRowsPerSegment(tuningConfig);
       @Nullable final Long maxTotalRows = getValidMaxTotalRows(tuningConfig);
-      final Map<Interval, Integer> intervalToNumShards = determineShardSpecs(toolbox, firehoseFactory, firehoseTempDir, maxRowsPerSegment);
+      // Spec for segment allocation. This is used only for perfect rollup mode.
+      // See createSegmentAllocator().
+      final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec = determineShardSpecs(
+          toolbox,
+          firehoseFactory,
+          firehoseTempDir,
+          maxRowsPerSegment
+      );
 
+      final Set<Interval> allocateIntervals = allocateSpec.keySet();
       // get locks for found shardSpec intervals
-      if (!tryLockIfNecessary(toolbox.getTaskActionClient(), intervalToNumShards.keySet())) {
+      if (!tryLockIfNecessary(toolbox.getTaskActionClient(), allocateIntervals)) {
         throw new ISE("Failed to get a lock for segments");
       }
 
       final DataSchema dataSchema;
       if (determineIntervals) {
-        if (!tryLockWithIntervals(toolbox.getTaskActionClient(), intervalToNumShards.keySet())) {
-          throw new ISE("Failed to get locks for intervals[%s]", intervalToNumShards.keySet());
+        if (!tryLockWithIntervals(toolbox.getTaskActionClient(), allocateIntervals)) {
+          throw new ISE("Failed to get locks for intervals[%s]", allocateIntervals);
         }
 
         dataSchema = ingestionSchema.getDataSchema().withGranularitySpec(
             ingestionSchema.getDataSchema()
                            .getGranularitySpec()
-                           .withIntervals(JodaUtils.condenseIntervals(intervalToNumShards.keySet()))
+                           .withIntervals(JodaUtils.condenseIntervals(allocateIntervals))
         );
       } else {
         dataSchema = ingestionSchema.getDataSchema();
@@ -468,7 +485,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
       return generateAndPublishSegments(
           toolbox,
           dataSchema,
-          intervalToNumShards,
+          allocateSpec,
           firehoseFactory,
           firehoseTempDir,
           maxRowsPerSegment,
@@ -592,7 +609,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
    *
    * @return generated {@link ShardSpecs} representing a map of intervals and corresponding shard specs
    */
-  private Map<Interval, Integer> determineShardSpecs(
+  private Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> determineShardSpecs(
       final TaskToolbox toolbox,
       final FirehoseFactory firehoseFactory,
       final File firehoseTempDir,
@@ -636,31 +653,31 @@ public class IndexTask extends AbstractTask implements ChatHandler
     }
   }
 
-  private static Map<Interval, Integer> createShardSpecWithoutInputScan(
+  private static Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> createShardSpecWithoutInputScan(
       GranularitySpec granularitySpec,
       IndexIOConfig ioConfig,
       IndexTuningConfig tuningConfig
   )
   {
-    final Map<Interval, Integer> intervalToNumShards = new HashMap<>();
+    final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec = new HashMap<>();
     final SortedSet<Interval> intervals = granularitySpec.bucketIntervals().get();
 
     if (isGuaranteedRollup(ioConfig, tuningConfig)) {
       // Overwrite mode, guaranteed rollup: shardSpecs must be known in advance.
       final int numShards = tuningConfig.getNumShards() == null ? 1 : tuningConfig.getNumShards();
       for (Interval interval : intervals) {
-        intervalToNumShards.put(interval, numShards);
+        allocateSpec.put(interval, createShardSpecFactory(numShards, tuningConfig.partitionDimensions));
       }
     } else {
       for (Interval interval : intervals) {
-        intervalToNumShards.put(interval, null);
+        allocateSpec.put(interval, null);
       }
     }
 
-    return intervalToNumShards;
+    return allocateSpec;
   }
 
-  private Map<Interval, Integer> createShardSpecsFromInput(
+  private Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> createShardSpecsFromInput(
       ObjectMapper jsonMapper,
       IndexIngestionSpec ingestionSchema,
       FirehoseFactory firehoseFactory,
@@ -685,7 +702,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
         determineNumPartitions
     );
 
-    final Map<Interval, Integer> intervalToNumShards = new HashMap<>();
+    final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpecs = new HashMap<>();
     final int defaultNumShards = tuningConfig.getNumShards() == null ? 1 : tuningConfig.getNumShards();
     for (final Map.Entry<Interval, Optional<HyperLogLogCollector>> entry : hllCollectors.entrySet()) {
       final Interval interval = entry.getKey();
@@ -704,15 +721,31 @@ public class IndexTask extends AbstractTask implements ChatHandler
       }
 
       if (isGuaranteedRollup(ingestionSchema.getIOConfig(), ingestionSchema.getTuningConfig())) {
+        allocateSpecs.put(interval, createShardSpecFactory(numShards, tuningConfig.partitionDimensions));
         // Overwrite mode, guaranteed rollup: # of shards must be known in advance.
-        intervalToNumShards.put(interval, numShards);
       } else {
-        intervalToNumShards.put(interval, null);
+        allocateSpecs.put(interval, null);
       }
     }
     log.info("Found intervals and shardSpecs in %,dms", System.currentTimeMillis() - determineShardSpecsStartMillis);
 
-    return intervalToNumShards;
+    return allocateSpecs;
+  }
+
+  private static Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>> createShardSpecFactory(
+      int numShards,
+      @Nullable List<String> partitionDimensions)
+  {
+    if (numShards == 1) {
+      return Pair.of(NoneShardSpecFactory.instance(), Collections.singletonList(EmptyShardSpecFactoryArgs.instance()));
+    } else {
+      return Pair.of(
+          new HashBasedNumberedShardSpecFactory(partitionDimensions, numShards),
+          IntStream.range(0, numShards)
+                   .mapToObj(HashBasedNumberedShardSpecFactoryArgs::new)
+                   .collect(Collectors.toList())
+      );
+    }
   }
 
   private Map<Interval, Optional<HyperLogLogCollector>> collectIntervalsAndShardSpecs(
@@ -816,8 +849,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
   private IndexTaskSegmentAllocator createSegmentAllocator(
       TaskToolbox toolbox,
       DataSchema dataSchema,
-      Map<Interval, Integer> intervalToNumShards,
-      @Nullable List<String> partitionDimensions
+      Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec
   ) throws IOException
   {
     if (isChangeSegmentGranularity()) {
@@ -828,8 +860,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
             toolbox,
             getId(),
             getDataSource(),
-            intervalToNumShards,
-            partitionDimensions,
+            allocateSpec,
             isExtendableShardSpecs(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)
         );
       } else {
@@ -845,8 +876,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
         return new CachingRemoteSegmentAllocator(
             toolbox,
             getId(),
-            intervalToNumShards,
-            partitionDimensions,
+            allocateSpec,
             getAllInputPartitionIds(),
             isExtendableShardSpecs(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)
         );
@@ -882,7 +912,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
   private TaskStatus generateAndPublishSegments(
       final TaskToolbox toolbox,
       final DataSchema dataSchema,
-      final Map<Interval, Integer> intervalToNumShards,
+      final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec,
       final FirehoseFactory firehoseFactory,
       final File firehoseTempDir,
       @Nullable final Integer maxRowsPerSegment,
@@ -911,8 +941,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
     final IndexTaskSegmentAllocator segmentAllocator = createSegmentAllocator(
         toolbox,
         dataSchema,
-        intervalToNumShards,
-        tuningConfig.partitionDimensions
+        allocateSpec
     );
 
     final TransactionalSegmentPublisher publisher = (segments, commitMetadata) -> {

@@ -38,9 +38,7 @@ import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactory.Context;
-import org.apache.druid.timeline.partition.ShardSpecFactory.EmptyContext;
+import org.apache.druid.timeline.partition.ShardSpecFactoryArgs.EmptyShardSpecFactoryArgs;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
@@ -76,8 +74,6 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   private final String sequenceName;
   private final String previousSegmentId;
   private final boolean skipSegmentLineageCheck;
-  private final ShardSpecFactory shardSpecFactory;
-  private final ShardSpecFactory.Context context;
   private final Set<Integer> overshadowingSegments;
 
   @JsonCreator
@@ -89,8 +85,6 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
       @JsonProperty("sequenceName") String sequenceName,
       @JsonProperty("previousSegmentId") String previousSegmentId,
       @JsonProperty("skipSegmentLineageCheck") boolean skipSegmentLineageCheck,
-      @JsonProperty("shardSpecFactory") @Nullable ShardSpecFactory shardSpecFactory,
-      @JsonProperty("context") @Nullable Context context,
       @JsonProperty("overshadowingSegments") @Nullable Set<Integer> overshadowingSegments // for backward compatibility
   )
   {
@@ -104,34 +98,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     this.sequenceName = Preconditions.checkNotNull(sequenceName, "sequenceName");
     this.previousSegmentId = previousSegmentId;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
-    this.shardSpecFactory = shardSpecFactory;
-    this.context = context;
     this.overshadowingSegments = overshadowingSegments == null ? Collections.emptySet() : overshadowingSegments;
-  }
-
-  public SegmentAllocateAction(
-      String dataSource,
-      DateTime timestamp,
-      Granularity queryGranularity,
-      Granularity preferredSegmentGranularity,
-      String sequenceName,
-      String previousSegmentId,
-      boolean skipSegmentLineageCheck,
-      Set<Integer> overshadowingSegments
-  )
-  {
-    this(
-        dataSource,
-        timestamp,
-        queryGranularity,
-        preferredSegmentGranularity,
-        sequenceName,
-        previousSegmentId,
-        skipSegmentLineageCheck,
-        new NumberedShardSpecFactory(0),
-        EmptyContext.instance(),
-        overshadowingSegments
-    );
   }
 
   @JsonProperty
@@ -174,13 +141,6 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   public boolean isSkipSegmentLineageCheck()
   {
     return skipSegmentLineageCheck;
-  }
-
-  @Nullable
-  @JsonProperty
-  public ShardSpecFactory getShardSpecFactory()
-  {
-    return shardSpecFactory;
   }
 
   @JsonProperty
@@ -319,20 +279,18 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     // dataSources. So, all lock requests should be segmentLock.
     final LockResult lockResult = toolbox.getTaskLockbox().tryLock(
         task,
-        // TODO: type safe
-        new LockRequestForNewSegment<>(
+        new LockRequestForNewSegment(
             TaskLockType.EXCLUSIVE,
             task.getGroupId(),
             dataSource,
             tryInterval,
-            shardSpecFactory,
+            new NumberedShardSpecFactory(0),
+            Collections.singletonList(EmptyShardSpecFactoryArgs.instance()),
             task.getPriority(),
-            1,
             sequenceName,
             previousSegmentId,
             skipSegmentLineageCheck,
-            overshadowingSegments,
-            i -> context
+            overshadowingSegments
         )
     );
 
@@ -394,8 +352,6 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
            ", sequenceName='" + sequenceName + '\'' +
            ", previousSegmentId='" + previousSegmentId + '\'' +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
-           ", shardSpecFactory=" + shardSpecFactory +
-           ", context=" + context +
            ", overshadowingSegments=" + overshadowingSegments +
            '}';
   }

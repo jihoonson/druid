@@ -22,11 +22,11 @@ package org.apache.druid.timeline.partition;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.timeline.partition.SingleDimensionShardSpecFactory.SingleDimensionShardSpecContext;
+import org.apache.druid.timeline.partition.SingleDimensionShardSpecFactory.SingleDimensionShardSpecFactoryArgs;
 
 import java.util.Objects;
 
-public class SingleDimensionShardSpecFactory implements ShardSpecFactory<SingleDimensionShardSpecContext>
+public class SingleDimensionShardSpecFactory implements ShardSpecFactory<SingleDimensionShardSpecFactoryArgs>
 {
   private final String dimension;
 
@@ -43,9 +43,9 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory<SingleD
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId, SingleDimensionShardSpecContext context)
+  public ShardSpec create(ObjectMapper objectMapper, int partitionId, SingleDimensionShardSpecFactoryArgs args)
   {
-    return new SingleDimensionShardSpec(dimension, context.start, context.end, partitionId);
+    return new SingleDimensionShardSpec(dimension, args.start, args.end, partitionId);
   }
 
   @Override
@@ -73,15 +73,31 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory<SingleD
     return Objects.hash(dimension);
   }
 
-  public static class SingleDimensionShardSpecContext implements ShardSpecFactory.Context
+  public static class SingleDimensionShardSpecFactoryArgs implements ShardSpecFactoryArgs
   {
     private final String start;
     private final String end;
 
-    public SingleDimensionShardSpecContext(String start, String end)
+    @JsonCreator
+    public SingleDimensionShardSpecFactoryArgs(
+        @JsonProperty("start") String start,
+        @JsonProperty("end") String end
+    )
     {
       this.start = start;
       this.end = end;
+    }
+
+    @JsonProperty
+    public String getStart()
+    {
+      return start;
+    }
+
+    @JsonProperty
+    public String getEnd()
+    {
+      return end;
     }
   }
 }

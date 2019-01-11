@@ -31,7 +31,7 @@ import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactory.Context;
+import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
 
 import java.util.ArrayList;
@@ -125,15 +125,15 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
   }
 
   @Override
-  public <T extends Context> SegmentIdentifier allocatePendingSegment(
+  public SegmentIdentifier allocatePendingSegment(
       String dataSource,
       String sequenceName,
       String previousSegmentId,
       Interval interval,
-      ShardSpecFactory<T> shardSpecFactory,
+      ShardSpecFactory shardSpecFactory,
+      ShardSpecFactoryArgs shardSpecFactoryArgs,
       String maxVersion,
       Set<Integer> overshadowingSegments,
-      T shardSpecCreateContext,
       boolean skipSegmentLineageCheck
   )
   {
@@ -141,7 +141,7 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
         dataSource,
         interval,
         maxVersion,
-        shardSpecFactory.create(objectMapper, 0, shardSpecCreateContext),
+        shardSpecFactory.create(objectMapper, 0, shardSpecFactoryArgs),
         overshadowingSegments
     );
   }

@@ -22,13 +22,13 @@ package org.apache.druid.timeline.partition;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecContext;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecFactoryArgs;
 
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 
-public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashBasedNumberedShardSpecContext>
+public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashBasedNumberedShardSpecFactoryArgs>
 {
   @Nullable
   private final List<String> partitionDimensions;
@@ -58,13 +58,13 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashB
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId, HashBasedNumberedShardSpecContext context)
+  public ShardSpec create(ObjectMapper objectMapper, int partitionId, HashBasedNumberedShardSpecFactoryArgs args)
   {
     return new HashBasedNumberedShardSpec(
         partitionId,
         numPartitions,
         partitionDimensions,
-        context.ordinal,
+        args.ordinal,
         objectMapper
     );
   }
@@ -95,13 +95,20 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashB
     return Objects.hash(partitionDimensions, numPartitions);
   }
 
-  public static class HashBasedNumberedShardSpecContext implements ShardSpecFactory.Context
+  public static class HashBasedNumberedShardSpecFactoryArgs implements ShardSpecFactoryArgs
   {
     private final int ordinal;
 
-    public HashBasedNumberedShardSpecContext(int ordinal)
+    @JsonCreator
+    public HashBasedNumberedShardSpecFactoryArgs(@JsonProperty("ordinal") int ordinal)
     {
       this.ordinal = ordinal;
+    }
+
+    @JsonProperty
+    public int getOrdinal()
+    {
+      return ordinal;
     }
   }
 }

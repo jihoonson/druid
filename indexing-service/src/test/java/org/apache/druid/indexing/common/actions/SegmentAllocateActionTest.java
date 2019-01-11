@@ -35,7 +35,6 @@ import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
-import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecContext;
 import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
@@ -751,8 +750,6 @@ public class SegmentAllocateActionTest
         "s1",
         "prev",
         false,
-        new HashBasedNumberedShardSpecFactory(ImmutableList.of("dim1", "dim2"), 2),
-        new HashBasedNumberedShardSpecContext(1),
         Collections.emptySet()
     );
 
@@ -768,7 +765,6 @@ public class SegmentAllocateActionTest
     Assert.assertEquals(action.getSequenceName(), action2.getSequenceName());
     Assert.assertEquals(action.getPreviousSegmentId(), action2.getPreviousSegmentId());
     Assert.assertEquals(action.isSkipSegmentLineageCheck(), action2.isSkipSegmentLineageCheck());
-    Assert.assertEquals(action.getShardSpecFactory(), action2.getShardSpecFactory());
     Assert.assertEquals(action.getOvershadowingSegments(), action2.getOvershadowingSegments());
   }
 
@@ -805,8 +801,6 @@ public class SegmentAllocateActionTest
         "seq",
         null,
         true,
-        new HashBasedNumberedShardSpecFactory(ImmutableList.of("dim1", "dim2"), 3),
-        new HashBasedNumberedShardSpecContext(0),
         ImmutableSet.of(0, 1)
     );
     final SegmentIdentifier segmentIdentifier = action.perform(task, taskActionTestKit.getTaskActionToolbox());
@@ -841,8 +835,6 @@ public class SegmentAllocateActionTest
         sequenceName,
         sequencePreviousId,
         false,
-        null,
-        null,
         Collections.emptySet()
     );
     return action.perform(task, taskActionTestKit.getTaskActionToolbox());

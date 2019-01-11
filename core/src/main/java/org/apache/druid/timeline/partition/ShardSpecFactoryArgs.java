@@ -19,31 +19,25 @@
 
 package org.apache.druid.timeline.partition;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.apache.druid.timeline.partition.ShardSpecFactoryArgs.EmptyShardSpecFactoryArgs;
 
-public class NoneShardSpecFactory implements ShardSpecFactory<EmptyShardSpecFactoryArgs>
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
+@JsonSubTypes({
+    @JsonSubTypes.Type(name = "empty", value = EmptyShardSpecFactoryArgs.class),
+})
+public interface ShardSpecFactoryArgs
 {
-  private static NoneShardSpecFactory INSTANCE = new NoneShardSpecFactory();
-
-  public static NoneShardSpecFactory instance()
+  class EmptyShardSpecFactoryArgs implements ShardSpecFactoryArgs
   {
-    return INSTANCE;
-  }
+    private static final EmptyShardSpecFactoryArgs INSTANCE = new EmptyShardSpecFactoryArgs();
 
-  private NoneShardSpecFactory()
-  {
-  }
+    public static EmptyShardSpecFactoryArgs instance()
+    {
+      return INSTANCE;
+    }
 
-  @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId, EmptyShardSpecFactoryArgs args)
-  {
-    return NoneShardSpec.instance();
-  }
-
-  @Override
-  public Class<? extends ShardSpec> getShardSpecClass()
-  {
-    return NoneShardSpec.class;
+    private EmptyShardSpecFactoryArgs() {}
   }
 }

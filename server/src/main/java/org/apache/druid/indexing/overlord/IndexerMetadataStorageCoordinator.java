@@ -23,7 +23,7 @@ import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactory.Context;
+import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -103,15 +103,15 @@ public interface IndexerMetadataStorageCoordinator
    *
    * @return the pending segment identifier, or null if it was impossible to allocate a new segment
    */
-  <T extends Context> SegmentIdentifier allocatePendingSegment(
+  SegmentIdentifier allocatePendingSegment(
       String dataSource,
       String sequenceName,
       @Nullable String previousSegmentId,
       Interval interval,
-      @Nullable ShardSpecFactory<T> shardSpecFactory,
+      ShardSpecFactory shardSpecFactory,
+      ShardSpecFactoryArgs shardSpecFactoryArgs,
       String maxVersion,
       Set<Integer> overshadowingSegments,
-      T shardSpecCreateContext,
       boolean skipSegmentLineageCheck
   );
 

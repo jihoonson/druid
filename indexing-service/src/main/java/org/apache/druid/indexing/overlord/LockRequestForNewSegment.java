@@ -28,43 +28,40 @@ import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactory.Context;
+import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Set;
-import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
-public class LockRequestForNewSegment<T extends Context> implements LockRequest
+public class LockRequestForNewSegment implements LockRequest
 {
   private final TaskLockType lockType;
   private final String groupId;
   private final String dataSource;
   private final Interval interval;
   @Nullable
-  private final ShardSpecFactory<T> shardSpecFactory;
+  private final ShardSpecFactory shardSpecFactory;
+  private final List<ShardSpecFactoryArgs> shardSpecFactoryArgsList;
   private final int priority;
-  private final int numNewSegments;
   private final String baseSequenceName;
   @Nullable
   private final String previsousSegmentId;
   private final boolean skipSegmentLineageCheck;
   private final Set<Integer> overshadowingSegments;
-  private final IntFunction<T> contextCreateFn;
 
   public LockRequestForNewSegment(
       TaskLockType lockType,
       Task task,
       Interval interval,
-      @Nullable ShardSpecFactory<T> shardSpecFactory,
-      int numNewSegments,
+      ShardSpecFactory shardSpecFactory,
+      List<ShardSpecFactoryArgs> shardSpecFactoryArgsList,
       String baseSequenceName,
       @Nullable String previsousSegmentId,
       boolean skipSegmentLineageCheck,
-      Set<Integer> overshadowingSegments,
-      IntFunction<T> contextCreateFn
+      Set<Integer> overshadowingSegments
   )
   {
     this(
@@ -73,13 +70,12 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
         task.getDataSource(),
         interval,
         shardSpecFactory,
+        shardSpecFactoryArgsList,
         task.getPriority(),
-        numNewSegments,
         baseSequenceName,
         previsousSegmentId,
         skipSegmentLineageCheck,
-        overshadowingSegments,
-        contextCreateFn
+        overshadowingSegments
     );
   }
 
@@ -88,14 +84,13 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
       String groupId,
       String dataSource,
       Interval interval,
-      @Nullable ShardSpecFactory<T> shardSpecFactory,
+      ShardSpecFactory shardSpecFactory,
+      List<ShardSpecFactoryArgs> shardSpecFactoryArgsList,
       int priority,
-      int numNewSegments,
       String baseSequenceName,
       @Nullable String previsousSegmentId,
       boolean skipSegmentLineageCheck,
-      Set<Integer> overshadowingSegments,
-      IntFunction<T> contextCreateFn
+      Set<Integer> overshadowingSegments
   )
   {
     this.lockType = lockType;
@@ -104,12 +99,11 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
     this.interval = interval;
     this.shardSpecFactory = shardSpecFactory;
     this.priority = priority;
-    this.numNewSegments = numNewSegments;
     this.baseSequenceName = baseSequenceName;
     this.previsousSegmentId = previsousSegmentId;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
     this.overshadowingSegments = overshadowingSegments;
-    this.contextCreateFn = contextCreateFn;
+    this.shardSpecFactoryArgsList = shardSpecFactoryArgsList;
   }
 
   @Override
@@ -149,7 +143,7 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
   }
 
   @Nullable
-  public ShardSpecFactory<T> getShardSpecFactory()
+  public ShardSpecFactory<ShardSpecFactoryArgs> getShardSpecFactory()
   {
     return shardSpecFactory;
   }
@@ -182,19 +176,14 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
     return skipSegmentLineageCheck;
   }
 
-  public int getNumNewSegments()
-  {
-    return numNewSegments;
-  }
-
   public Set<Integer> getOvershadowingSegments()
   {
     return overshadowingSegments;
   }
 
-  public Context getShardSpecCreateContext(int ordinal)
+  public List<ShardSpecFactoryArgs> getShardSpecFactoryArgsList()
   {
-    return contextCreateFn.apply(ordinal);
+    return shardSpecFactoryArgsList;
   }
 
   public TaskLock toLock(List<SegmentIdentifier> newSegmentIds)
@@ -221,17 +210,17 @@ public class LockRequestForNewSegment<T extends Context> implements LockRequest
   public String toString()
   {
     return "LockRequestForNewSegment{" +
-           ", lockType=" + lockType +
+           "lockType=" + lockType +
            ", groupId='" + groupId + '\'' +
            ", dataSource='" + dataSource + '\'' +
            ", interval=" + interval +
            ", shardSpecFactory=" + shardSpecFactory +
            ", priority=" + priority +
-           ", numNewSegments=" + numNewSegments +
            ", baseSequenceName='" + baseSequenceName + '\'' +
            ", previsousSegmentId='" + previsousSegmentId + '\'' +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
            ", overshadowingSegments=" + overshadowingSegments +
+           ", shardSpecFactoryArgsList=" + shardSpecFactoryArgsList +
            '}';
   }
 }

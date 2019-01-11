@@ -22,39 +22,17 @@ package org.apache.druid.timeline.partition;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.timeline.partition.ShardSpecFactory.Context;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(name = "none", value = NoneShardSpecFactory.class),
 })
-public interface ShardSpecFactory<T extends Context>
+public interface ShardSpecFactory<T extends ShardSpecFactoryArgs>
 {
   // TODO: move numPartitions to context??
-  ShardSpec create(ObjectMapper objectMapper, int partitionId, T context);
+  ShardSpec create(ObjectMapper objectMapper, int partitionId, T args);
 
   Class<? extends ShardSpec> getShardSpecClass();
 
   // TODO: isExtendable() ??
-
-  @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
-  @JsonSubTypes({
-      @JsonSubTypes.Type(name = "empty", value = EmptyContext.class),
-  })
-  interface Context
-  {
-
-  }
-
-  class EmptyContext implements Context
-  {
-    private static final EmptyContext INSTANCE = new EmptyContext();
-
-    public static EmptyContext instance()
-    {
-      return INSTANCE;
-    }
-
-    private EmptyContext() {}
-  }
 }
