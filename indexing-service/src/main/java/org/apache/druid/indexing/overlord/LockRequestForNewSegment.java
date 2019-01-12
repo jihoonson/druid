@@ -19,6 +19,7 @@
 
 package org.apache.druid.indexing.overlord;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.SegmentLock;
@@ -42,7 +43,6 @@ public class LockRequestForNewSegment implements LockRequest
   private final String groupId;
   private final String dataSource;
   private final Interval interval;
-  @Nullable
   private final ShardSpecFactory shardSpecFactory;
   private final List<ShardSpecFactoryArgs> shardSpecFactoryArgsList;
   private final int priority;
@@ -51,33 +51,6 @@ public class LockRequestForNewSegment implements LockRequest
   private final String previsousSegmentId;
   private final boolean skipSegmentLineageCheck;
   private final Set<Integer> overshadowingSegments;
-
-  public LockRequestForNewSegment(
-      TaskLockType lockType,
-      Task task,
-      Interval interval,
-      ShardSpecFactory shardSpecFactory,
-      List<ShardSpecFactoryArgs> shardSpecFactoryArgsList,
-      String baseSequenceName,
-      @Nullable String previsousSegmentId,
-      boolean skipSegmentLineageCheck,
-      Set<Integer> overshadowingSegments
-  )
-  {
-    this(
-        lockType,
-        task.getGroupId(),
-        task.getDataSource(),
-        interval,
-        shardSpecFactory,
-        shardSpecFactoryArgsList,
-        task.getPriority(),
-        baseSequenceName,
-        previsousSegmentId,
-        skipSegmentLineageCheck,
-        overshadowingSegments
-    );
-  }
 
   public LockRequestForNewSegment(
       TaskLockType lockType,
@@ -104,6 +77,34 @@ public class LockRequestForNewSegment implements LockRequest
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
     this.overshadowingSegments = overshadowingSegments;
     this.shardSpecFactoryArgsList = shardSpecFactoryArgsList;
+  }
+
+  @VisibleForTesting
+  public LockRequestForNewSegment(
+      TaskLockType lockType,
+      Task task,
+      Interval interval,
+      ShardSpecFactory shardSpecFactory,
+      List<ShardSpecFactoryArgs> shardSpecFactoryArgsList,
+      String baseSequenceName,
+      @Nullable String previsousSegmentId,
+      boolean skipSegmentLineageCheck,
+      Set<Integer> overshadowingSegments
+  )
+  {
+    this(
+        lockType,
+        task.getGroupId(),
+        task.getDataSource(),
+        interval,
+        shardSpecFactory,
+        shardSpecFactoryArgsList,
+        task.getPriority(),
+        baseSequenceName,
+        previsousSegmentId,
+        skipSegmentLineageCheck,
+        overshadowingSegments
+    );
   }
 
   @Override
@@ -142,7 +143,6 @@ public class LockRequestForNewSegment implements LockRequest
     return priority;
   }
 
-  @Nullable
   public ShardSpecFactory<ShardSpecFactoryArgs> getShardSpecFactory()
   {
     return shardSpecFactory;

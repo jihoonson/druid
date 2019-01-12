@@ -27,7 +27,6 @@ import com.google.common.base.Supplier;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
@@ -41,6 +40,7 @@ import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.loading.DataSegmentKiller;
 import org.apache.druid.segment.realtime.appenderator.SegmentWithState.SegmentState;
+import org.apache.druid.timeline.DataSegment;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
@@ -528,6 +528,7 @@ public abstract class BaseAppenderatorDriver implements Closeable
   /**
    * Publish segments in background. The segments should be dropped (in batch ingestion) or pushed (in streaming
    * ingestion) before being published.
+   * // TODO: atomic update group
    *
    * @param segmentsAndMetadata result of dropping or pushing
    * @param publisher           transactional segment publisher
@@ -552,8 +553,18 @@ public abstract class BaseAppenderatorDriver implements Closeable
 
             try {
               final Object metadata = segmentsAndMetadata.getCommitMetadata();
+              // The segments which are published together consist an atomicUpdateGroup.
+              final Set<Integer> atomicUpdateGroup = segmentsAndMetadata.getSegments()
+                  .stream()
+                  .map(segment -> segment.getShardSpec().getPartitionNum())
+                  .collect(Collectors.toSet());
+              final Set<DataSegment> segmentsToPublish = segmentsAndMetadata.getSegments()
+                  .stream()
+                  .map(segment -> segment.withAtomicUpdateGroup(atomicUpdateGroup))
+                  .collect(Collectors.toSet());
+
               final boolean published = publisher.publishSegments(
-                  ImmutableSet.copyOf(segmentsAndMetadata.getSegments()),
+                  segmentsToPublish,
                   metadata == null ? null : ((AppenderatorDriverMetadata) metadata).getCallerMetadata()
               ).isSuccess();
 

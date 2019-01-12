@@ -90,7 +90,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -603,9 +602,6 @@ public class AppenderatorImpl implements Appenderator
   )
   {
     final Map<SegmentIdentifier, Sink> theSinks = new HashMap<>();
-    // at this point, we can finally make atomicUpdateGroup.
-    final Map<Interval, Set<Integer>> atomicUpdateGroups = new HashMap<>();
-
     for (final SegmentIdentifier identifier : identifiers) {
       final Sink sink = sinks.get(identifier);
       if (sink == null) {
@@ -615,8 +611,6 @@ public class AppenderatorImpl implements Appenderator
       if (sink.finishWriting()) {
         totalRows.addAndGet(-sink.getNumRows());
       }
-      atomicUpdateGroups.computeIfAbsent(identifier.getInterval(), k -> new HashSet<>())
-                        .add(identifier.getShardSpec().getPartitionNum());
     }
 
     return Futures.transform(
@@ -635,8 +629,7 @@ public class AppenderatorImpl implements Appenderator
             final DataSegment dataSegment = mergeAndPush(
                 entry.getKey(),
                 entry.getValue(),
-                useUniquePath,
-                atomicUpdateGroups.get(entry.getKey().getInterval())
+                useUniquePath
             );
             if (dataSegment != null) {
               dataSegments.add(dataSegment);
@@ -676,8 +669,7 @@ public class AppenderatorImpl implements Appenderator
   private DataSegment mergeAndPush(
       final SegmentIdentifier identifier,
       final Sink sink,
-      final boolean useUniquePath,
-      final Set<Integer> atomicUpdateGroup
+      final boolean useUniquePath
   )
   {
     // Bail out if this sink is null or otherwise not what we expect.
@@ -762,8 +754,7 @@ public class AppenderatorImpl implements Appenderator
           () -> dataSegmentPusher.push(
               mergedFile,
               sink.getSegment()
-                  .withDimensions(IndexMerger.getMergedDimensionsFromQueryableIndexes(indexes))
-                  .withAtomicUpdateGroup(atomicUpdateGroup),
+                  .withDimensions(IndexMerger.getMergedDimensionsFromQueryableIndexes(indexes)),
               useUniquePath
           ),
           exception -> exception instanceof Exception,
