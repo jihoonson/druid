@@ -33,7 +33,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
-import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.druid.client.cache.CachePopulatorStats;
 import org.apache.druid.client.cache.MapCache;
 import org.apache.druid.data.input.Firehose;
@@ -84,6 +83,7 @@ import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.RE;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Comparators;
@@ -616,7 +616,7 @@ public class TaskLifecycleTest
         EasyMock.createNiceMock(DataSegmentServerAnnouncer.class),
         handoffNotifierFactory,
         () -> queryRunnerFactoryConglomerate, // query runner factory conglomerate corporation unionized collective
-        MoreExecutors.sameThreadExecutor(), // query executor service
+        Execs.directExecutor(), // query executor service
         monitorScheduler, // monitor scheduler
         new SegmentLoaderFactory(
             new SegmentLoaderLocalCacheManager(null, segmentLoaderConfig, new DefaultObjectMapper())
