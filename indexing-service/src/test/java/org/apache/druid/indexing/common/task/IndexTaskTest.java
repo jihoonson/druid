@@ -543,13 +543,13 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
-    Assert.assertEquals(ImmutableSet.of(0), segments.get(0).getAtomicUpdateGroup());
+    Assert.assertEquals(ImmutableSet.of(0, 1), segments.get(0).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(1).getDataSource());
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
     Assert.assertEquals(1, segments.get(1).getShardSpec().getPartitionNum());
-    Assert.assertEquals(ImmutableSet.of(1), segments.get(1).getAtomicUpdateGroup());
+    Assert.assertEquals(ImmutableSet.of(0, 1), segments.get(1).getAtomicUpdateGroup());
   }
 
   @Test
@@ -766,7 +766,7 @@ public class IndexTaskTest extends IngestionTestBase
       Assert.assertEquals(expectedInterval, segment.getInterval());
       Assert.assertEquals(NumberedShardSpec.class, segment.getShardSpec().getClass());
       Assert.assertEquals(expectedPartitionNum, segment.getShardSpec().getPartitionNum());
-      Assert.assertEquals(ImmutableSet.of(expectedPartitionNum), segment.getAtomicUpdateGroup());
+      Assert.assertEquals(ImmutableSet.of(0, 1), segment.getAtomicUpdateGroup());
     }
   }
 
@@ -850,15 +850,15 @@ public class IndexTaskTest extends IngestionTestBase
 
     Assert.assertEquals(5, segments.size());
 
+    final Interval expectedInterval = Intervals.of("2014-01-01T00:00:00.000Z/2014-01-02T00:00:00.000Z");
     for (int i = 0; i < 5; i++) {
       final DataSegment segment = segments.get(i);
-      final Interval expectedInterval = Intervals.of("2014-01-01T00:00:00.000Z/2014-01-02T00:00:00.000Z");
 
       Assert.assertEquals("test", segment.getDataSource());
       Assert.assertEquals(expectedInterval, segment.getInterval());
       Assert.assertEquals(NumberedShardSpec.class, segment.getShardSpec().getClass());
       Assert.assertEquals(i, segment.getShardSpec().getPartitionNum());
-      Assert.assertEquals(ImmutableSet.of(i), segment.getAtomicUpdateGroup());
+      Assert.assertEquals(ImmutableSet.of(0, 1, 2, 3, 4), segment.getAtomicUpdateGroup());
     }
   }
 
@@ -1512,7 +1512,8 @@ public class IndexTaskTest extends IngestionTestBase
   private Pair<TaskStatus, List<DataSegment>> runTask(IndexTask task) throws Exception
   {
     final TaskStatus status = taskRunner.run(task).get();
-    final List<DataSegment> segments = taskRunner.getPushedSegments();
+
+    final List<DataSegment> segments = taskRunner.getPublishedSegments();
     return Pair.of(status, segments);
   }
 

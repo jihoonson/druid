@@ -29,6 +29,9 @@ import org.apache.druid.indexing.common.TaskReportFileWriter;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.TestUtils;
 import org.apache.druid.indexing.common.actions.LocalTaskActionClient;
+import org.apache.druid.indexing.common.actions.SegmentInsertAction;
+import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
+import org.apache.druid.indexing.common.actions.TaskAction;
 import org.apache.druid.indexing.common.actions.TaskActionToolbox;
 import org.apache.druid.indexing.common.actions.TaskAuditLogConfig;
 import org.apache.druid.indexing.common.config.TaskStorageConfig;
@@ -68,7 +71,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 public abstract class IngestionTestBase
@@ -81,10 +86,6 @@ public abstract class IngestionTestBase
 
   private final TestUtils testUtils = new TestUtils();
   private final ObjectMapper objectMapper = testUtils.getTestObjectMapper();
-  private final TestDataSegmentPusher segmentPusher = new TestDataSegmentPusher(
-      new LocalDataSegmentPusherConfig(),
-      objectMapper
-  );
   private TaskStorage taskStorage;
   private IndexerSQLMetadataStorageCoordinator storageCoordinator;
   private MetadataSegmentManager segmentManager;
@@ -119,9 +120,9 @@ public abstract class IngestionTestBase
     temporaryFolder.delete();
   }
 
-  public LocalTaskActionClient createActionClient(Task task)
+  public TestLocalTaskActionClient createActionClient(Task task)
   {
-    return new LocalTaskActionClient(task, taskStorage, createTaskActionToolbox(), new TaskAuditLogConfig(false));
+    return new TestLocalTaskActionClient(task);
   }
 
   public void prepareTaskForLocking(Task task) throws EntryExistsException
@@ -138,11 +139,6 @@ public abstract class IngestionTestBase
   public ObjectMapper getObjectMapper()
   {
     return objectMapper;
-  }
-
-  public TestDataSegmentPusher getSegmentPusher()
-  {
-    return segmentPusher;
   }
 
   public TaskStorage getTaskStorage()
@@ -193,36 +189,36 @@ public abstract class IngestionTestBase
     return testUtils.getTestIndexMergerV9();
   }
 
-  public static class TestDataSegmentPusher extends LocalDataSegmentPusher
+  private class TestLocalTaskActionClient extends LocalTaskActionClient
   {
-    private final List<DataSegment> segments = new ArrayList<>();
+    private final Set<DataSegment> publishedSegments = new HashSet<>();
 
-    public TestDataSegmentPusher(
-        LocalDataSegmentPusherConfig config,
-        ObjectMapper jsonMapper
-    )
+    private TestLocalTaskActionClient(Task task)
     {
-      super(config, jsonMapper);
+      super(task, taskStorage, createTaskActionToolbox(), new TaskAuditLogConfig(false));
     }
 
     @Override
-    public DataSegment push(File file, DataSegment segment, boolean useUniquePath) throws IOException
+    public <RetType> RetType submit(TaskAction<RetType> taskAction)
     {
-      final DataSegment annotatedSegment = super.push(file, segment, useUniquePath);
-      segments.add(annotatedSegment);
-      return annotatedSegment;
+      final RetType result = super.submit(taskAction);
+      if (taskAction instanceof SegmentTransactionalInsertAction) {
+        publishedSegments.addAll(((SegmentTransactionalInsertAction) taskAction).getSegments());
+      } else if (taskAction instanceof SegmentInsertAction) {
+        publishedSegments.addAll(((SegmentInsertAction) taskAction).getSegments());
+      }
+      return result;
     }
 
-    public List<DataSegment> getPushedSegments()
+    private Set<DataSegment> getPublishedSegments()
     {
-      Collections.sort(segments);
-      return segments;
+      return publishedSegments;
     }
   }
 
   public class TestTaskRunner implements TaskRunner
   {
-    private LocalTaskActionClient taskActionClient;
+    private TestLocalTaskActionClient taskActionClient;
     private File taskReportsFile;
 
     @Override
@@ -259,9 +255,11 @@ public abstract class IngestionTestBase
       return taskReportsFile;
     }
 
-    public List<DataSegment> getPushedSegments()
+    public List<DataSegment> getPublishedSegments()
     {
-      return segmentPusher.getPushedSegments();
+      final List<DataSegment> segments = new ArrayList<>(taskActionClient.getPublishedSegments());
+      Collections.sort(segments);
+      return segments;
     }
 
     @Override
@@ -279,7 +277,7 @@ public abstract class IngestionTestBase
             null,
             taskActionClient,
             null,
-            segmentPusher,
+            new LocalDataSegmentPusher(new LocalDataSegmentPusherConfig(), objectMapper),
             new NoopDataSegmentKiller(),
             null,
             null,
