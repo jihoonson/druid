@@ -88,15 +88,15 @@ public class OvershadowChecker<T extends Overshadowable<T>>
 
     if (!partitionChunk.getObject().getOvershadowedGroup().isEmpty()) {
       final Set<Integer> overshadowedGroup = new HashSet<>(partitionChunk.getObject().getOvershadowedGroup());
-      final boolean hasAllAtomicGroupSameOvershadowedGroup = partitionChunk
+      final boolean hasAllAtomicUpdateGroupSameOvershadowedGroup = partitionChunk
           .getObject()
-          .getAtomicUpdateGroup()
+          .getNonEmptyAtomicUpdateGroup(partitionChunk.getChunkNumber())
           .stream()
           .map(knownPartitionChunks::get)
           .filter(Objects::nonNull)
           .allMatch(chunk -> overshadowedGroup.equals(new HashSet<>(chunk.getObject().getOvershadowedGroup())));
 
-      if (!hasAllAtomicGroupSameOvershadowedGroup) {
+      if (!hasAllAtomicUpdateGroupSameOvershadowedGroup) {
         throw new ISE("all partitions of the same atomicUpdateGroup should have the same overshadowedGroup");
       }
     }
@@ -110,7 +110,9 @@ public class OvershadowChecker<T extends Overshadowable<T>>
     if (onlineSegment.getObject().getOvershadowedGroup().isEmpty()) {
       visibleSegments.put(onlineSegment.getChunkNumber(), onlineSegments.remove(onlineSegment.getChunkNumber()));
     } else {
-      final Set<Integer> atomicUpdateGroup = onlineSegment.getObject().getAtomicUpdateGroup();
+      final Set<Integer> atomicUpdateGroup = onlineSegment.getObject().getNonEmptyAtomicUpdateGroup(
+          onlineSegment.getChunkNumber()
+      );
 
       // if the entire atomicUpdateGroup are online, move them to visibleSegments.
       if (atomicUpdateGroup.stream().allMatch(onlineSegments::containsKey)) {
@@ -169,7 +171,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
 
         if (!latestOnlineAtomicUpdateGroup.isEmpty()) {
           // if found, replace the current atomicUpdateGroup with the latestOnlineAtomicUpdateGroup
-          offlineSegment.getAtomicUpdateGroup()
+          offlineSegment.getNonEmptyAtomicUpdateGroup(offlineSegmentChunk.getChunkNumber())
                         .forEach(partitionId -> onlineSegments.put(partitionId, visibleSegments.remove(partitionId)));
           latestOnlineAtomicUpdateGroup.forEach(candidate -> visibleSegments.put(
               candidate.chunk.getChunkNumber(),

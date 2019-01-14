@@ -27,6 +27,7 @@ import com.google.common.base.Supplier;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
@@ -49,6 +50,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -545,26 +547,17 @@ public abstract class BaseAppenderatorDriver implements Closeable
           if (segmentsAndMetadata.getSegments().isEmpty()) {
             log.info("Nothing to publish, skipping publish step.");
           } else {
+            final SegmentsAndMetadata annotatedSegmentsAndMetadata = annotateAtomicUpdateGroup(segmentsAndMetadata);
             log.info(
                 "Publishing segments with commitMetadata[%s]: [%s]",
-                segmentsAndMetadata.getCommitMetadata(),
-                Joiner.on(", ").join(segmentsAndMetadata.getSegments())
+                annotatedSegmentsAndMetadata.getCommitMetadata(),
+                Joiner.on(", ").join(annotatedSegmentsAndMetadata.getSegments())
             );
 
             try {
-              final Object metadata = segmentsAndMetadata.getCommitMetadata();
-              // The segments which are published together consist an atomicUpdateGroup.
-              final Set<Integer> atomicUpdateGroup = segmentsAndMetadata.getSegments()
-                  .stream()
-                  .map(segment -> segment.getShardSpec().getPartitionNum())
-                  .collect(Collectors.toSet());
-              final Set<DataSegment> segmentsToPublish = segmentsAndMetadata.getSegments()
-                  .stream()
-                  .map(segment -> segment.withAtomicUpdateGroup(atomicUpdateGroup))
-                  .collect(Collectors.toSet());
-
+              final Object metadata = annotatedSegmentsAndMetadata.getCommitMetadata();
               final boolean published = publisher.publishSegments(
-                  segmentsToPublish,
+                  ImmutableSet.copyOf(annotatedSegmentsAndMetadata.getSegments()),
                   metadata == null ? null : ((AppenderatorDriverMetadata) metadata).getCallerMetadata()
               ).isSuccess();
 
@@ -599,6 +592,59 @@ public abstract class BaseAppenderatorDriver implements Closeable
 
           return segmentsAndMetadata;
         }
+    );
+  }
+
+  private SegmentsAndMetadata annotateAtomicUpdateGroup(SegmentsAndMetadata segmentsAndMetadata)
+  {
+    final Map<Interval, List<DataSegment>> intervalToSegments = new HashMap<>();
+    segmentsAndMetadata
+        .getSegments()
+        .forEach(
+            segment -> intervalToSegments.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>()).add(segment)
+        );
+
+    for (Entry<Interval, List<DataSegment>> entry : intervalToSegments.entrySet()) {
+      final Interval interval = entry.getKey();
+      final List<DataSegment> segments = entry.getValue();
+      final boolean isOvershadowedSegmentsEmpty = segments.get(0).getOvershadowedGroup().isEmpty();
+
+      final boolean anyMismatch = segments.stream().anyMatch(
+          segment -> segment.getOvershadowedGroup().isEmpty() != isOvershadowedSegmentsEmpty
+      );
+      if (anyMismatch) {
+        throw new ISE(
+            "WTH? some segments have empty overshadwedSegments but others are not? "
+            + "segments with overshadowedGroup: [%s],"
+            + "segments with empty overshadowedGroup: [%s]",
+            segments.stream()
+                    .filter(segment -> !segment.getOvershadowedGroup().isEmpty())
+                    .collect(Collectors.toList()),
+            segments.stream()
+                    .filter(segment -> segment.getOvershadowedGroup().isEmpty())
+                    .collect(Collectors.toList())
+        );
+      }
+
+      if (!isOvershadowedSegmentsEmpty) {
+        // The segments which are published together consist an atomicUpdateGroup.
+        final Set<Integer> atomicUpdateGroup = segments
+            .stream()
+            .map(segment -> segment.getShardSpec().getPartitionNum())
+            .collect(Collectors.toSet());
+        intervalToSegments.put(
+            interval,
+            segments
+                .stream()
+                .map(segment -> segment.withAtomicUpdateGroup(atomicUpdateGroup))
+                .collect(Collectors.toList())
+        );
+      }
+    }
+
+    return new SegmentsAndMetadata(
+        intervalToSegments.values().stream().flatMap(Collection::stream).collect(Collectors.toList()),
+        segmentsAndMetadata.getCommitMetadata()
     );
   }
 

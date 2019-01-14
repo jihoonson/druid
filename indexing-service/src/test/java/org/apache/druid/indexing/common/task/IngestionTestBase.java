@@ -189,7 +189,7 @@ public abstract class IngestionTestBase
     return testUtils.getTestIndexMergerV9();
   }
 
-  private class TestLocalTaskActionClient extends LocalTaskActionClient
+  public class TestLocalTaskActionClient extends LocalTaskActionClient
   {
     private final Set<DataSegment> publishedSegments = new HashSet<>();
 
@@ -210,7 +210,7 @@ public abstract class IngestionTestBase
       return result;
     }
 
-    private Set<DataSegment> getPublishedSegments()
+    public Set<DataSegment> getPublishedSegments()
     {
       return publishedSegments;
     }
@@ -245,7 +245,7 @@ public abstract class IngestionTestBase
       throw new UnsupportedOperationException();
     }
 
-    public LocalTaskActionClient getTaskActionClient()
+    public TestLocalTaskActionClient getTaskActionClient()
     {
       return taskActionClient;
     }

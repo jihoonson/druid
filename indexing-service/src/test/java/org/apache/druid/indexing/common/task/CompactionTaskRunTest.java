@@ -32,7 +32,6 @@ import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.TestUtils;
-import org.apache.druid.indexing.common.actions.LocalTaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.CompactionTask.Builder;
 import org.apache.druid.java.util.common.ISE;
@@ -41,7 +40,6 @@ import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
-import org.apache.druid.segment.loading.DataSegmentPusher;
 import org.apache.druid.segment.loading.LocalDataSegmentPuller;
 import org.apache.druid.segment.loading.LocalDataSegmentPusher;
 import org.apache.druid.segment.loading.LocalDataSegmentPusherConfig;
@@ -65,7 +63,6 @@ import org.junit.rules.TemporaryFolder;
 import javax.annotation.Nullable;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -151,7 +148,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
     for (int i = 0; i < 3; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
       Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
-      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+      Assert.assertEquals(ImmutableSet.of(0, 1), segments.get(i).getOvershadowedGroup());
+      Assert.assertEquals(ImmutableSet.of(2), segments.get(i).getAtomicUpdateGroup());
     }
   }
 
@@ -182,6 +180,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
     Assert.assertEquals(Intervals.of("2014-01-01T00:00:00/2014-01-01T03:00:00"), segments.get(0).getInterval());
     Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(0).getShardSpec());
+    Assert.assertEquals(Collections.emptySet(), segments.get(0).getOvershadowedGroup());
+    Assert.assertEquals(Collections.emptySet(), segments.get(0).getAtomicUpdateGroup());
 
     final CompactionTask compactionTask2 = builder
         .interval(Intervals.of("2014-01-01/2014-01-02"))
@@ -197,6 +197,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
     Assert.assertEquals(Intervals.of("2014-01-01T00:00:00/2014-01-01T03:00:00"), segments.get(0).getInterval());
     Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(0).getShardSpec());
+    Assert.assertEquals(Collections.emptySet(), segments.get(0).getOvershadowedGroup());
+    Assert.assertEquals(Collections.emptySet(), segments.get(0).getAtomicUpdateGroup());
   }
 
   @Test
@@ -227,7 +229,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
     for (int i = 0; i < 3; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
       Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
-      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+      Assert.assertEquals(ImmutableSet.of(0, 1), segments.get(i).getOvershadowedGroup());
+      Assert.assertEquals(ImmutableSet.of(2), segments.get(i).getAtomicUpdateGroup());
     }
 
     final CompactionTask compactionTask2 = builder
@@ -245,7 +248,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
     for (int i = 0; i < 3; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
       Assert.assertEquals(new NumberedShardSpec(3, 0), segments.get(i).getShardSpec());
-      Assert.assertEquals(ImmutableSet.of(2), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+      Assert.assertEquals(ImmutableSet.of(2), segments.get(i).getOvershadowedGroup());
+      Assert.assertEquals(ImmutableSet.of(3), segments.get(i).getAtomicUpdateGroup());
     }
   }
 
@@ -318,7 +322,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
     for (int i = 0; i < 6; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", 3 + i / 2, 3 + i / 2 + 1), segments.get(i).getInterval());
       Assert.assertEquals(new NumberedShardSpec(i % 2, 0), segments.get(i).getShardSpec());
-      Assert.assertEquals(Collections.emptySet(), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+      Assert.assertEquals(Collections.emptySet(), segments.get(i).getOvershadowedGroup());
+      Assert.assertEquals(Collections.emptySet(), segments.get(i).getAtomicUpdateGroup());
     }
 
     Assert.assertTrue(compactionFuture.get().lhs.isSuccess());
@@ -329,7 +334,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
     for (int i = 0; i < 3; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
       Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
-      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+      Assert.assertEquals(ImmutableSet.of(0, 1), segments.get(i).getOvershadowedGroup());
+      Assert.assertEquals(ImmutableSet.of(2), segments.get(i).getAtomicUpdateGroup());
     }
   }
 
@@ -362,6 +368,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
     Assert.assertEquals(Intervals.of("2014-01-01/2014-01-02"), segments.get(0).getInterval());
     Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(0).getShardSpec());
+    Assert.assertEquals(Collections.emptySet(), segments.get(0).getOvershadowedGroup());
+    Assert.assertEquals(Collections.emptySet(), segments.get(0).getAtomicUpdateGroup());
 
     // hour segmentGranularity
     final CompactionTask compactionTask2 = builder
@@ -379,6 +387,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
     for (int i = 0; i < 3; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
       Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(Collections.emptySet(), segments.get(i).getOvershadowedGroup());
+      Assert.assertEquals(Collections.emptySet(), segments.get(i).getAtomicUpdateGroup());
     }
   }
 
@@ -421,7 +431,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
     for (int i = 0; i < 6; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i / 2, i / 2 + 1), segments.get(i).getInterval());
       Assert.assertEquals(new NumberedShardSpec(2 + i % 2, 0), segments.get(i).getShardSpec());
-      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+      Assert.assertEquals(ImmutableSet.of(0, 1), segments.get(i).getOvershadowedGroup());
+      Assert.assertEquals(ImmutableSet.of(2, 3), segments.get(i).getAtomicUpdateGroup());
     }
 
     final Pair<TaskStatus, List<DataSegment>> compactionResult = compactionFuture.get();
@@ -474,7 +485,8 @@ public class CompactionTaskRunTest extends IngestionTestBase
     for (int i = 0; i < 6; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i / 2, i / 2 + 1), segments.get(i).getInterval());
       Assert.assertEquals(new NumberedShardSpec(2 + i % 2, 0), segments.get(i).getShardSpec());
-      Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>(segments.get(i).getOvershadowedGroup()));
+      Assert.assertEquals(ImmutableSet.of(0, 1), segments.get(i).getOvershadowedGroup());
+      Assert.assertEquals(ImmutableSet.of(2, 3), segments.get(i).getAtomicUpdateGroup());
     }
 
     final Pair<TaskStatus, List<DataSegment>> compactionResult = compactionFuture.get();
@@ -543,7 +555,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
   {
     getLockbox().add(task);
     getTaskStorage().insert(task, TaskStatus.running(task.getId()));
-    final LocalTaskActionClient actionClient = createActionClient(task);
+    final TestLocalTaskActionClient actionClient = createActionClient(task);
 
     final File deepStorageDir = temporaryFolder.newFolder();
     final ObjectMapper objectMapper = getObjectMapper();
@@ -551,27 +563,6 @@ public class CompactionTaskRunTest extends IngestionTestBase
         new NamedType(LocalLoadSpec.class, "local")
     );
     objectMapper.registerSubtypes(LocalDataSegmentPuller.class);
-
-    final List<DataSegment> segments = new ArrayList<>();
-    final DataSegmentPusher pusher = new LocalDataSegmentPusher(
-        new LocalDataSegmentPusherConfig()
-        {
-          @Override
-          public File getStorageDirectory()
-          {
-            return deepStorageDir;
-          }
-        },
-        objectMapper
-    )
-    {
-      @Override
-      public DataSegment push(File file, DataSegment segment, boolean useUniquePath) throws IOException
-      {
-        segments.add(segment);
-        return super.push(file, segment, useUniquePath);
-      }
-    };
 
     final SegmentLoader loader = new SegmentLoaderLocalCacheManager(
         getIndexIO(),
@@ -598,7 +589,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         actionClient,
         null,
-        pusher,
+        new LocalDataSegmentPusher(new LocalDataSegmentPusherConfig(), objectMapper),
         new NoopDataSegmentKiller(),
         null,
         null,
@@ -632,6 +623,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
       }
       TaskStatus status = task.run(box);
       shutdownTask(task);
+      final List<DataSegment> segments = new ArrayList<>(actionClient.getPublishedSegments());
       Collections.sort(segments);
       return Pair.of(status, segments);
     } else {

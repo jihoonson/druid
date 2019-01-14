@@ -35,4 +35,9 @@ public interface Overshadowable<T extends Overshadowable>
   }
 
   Set<Integer> getAtomicUpdateGroup();
+
+  default Set<Integer> getNonEmptyAtomicUpdateGroup(int partitionId)
+  {
+    return getAtomicUpdateGroup().isEmpty() ? Collections.singleton(partitionId) : getAtomicUpdateGroup();
+  }
 }
