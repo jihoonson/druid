@@ -33,19 +33,19 @@ import java.util.Spliterator;
  */
 public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<PartitionChunk<T>>
 {
-  private final OvershadowChecker<T> overshadowChecker;
+  private final OvershadowableManagerPerTimeChunk<T> overshadowableManager;
 
   public PartitionHolder(PartitionChunk<T> initialChunk)
   {
     // TODO: proper provider
-    this.overshadowChecker = new OvershadowChecker<>(PartitionChunkProvider.defaultProvider());
+    this.overshadowableManager = new OvershadowableManagerPerTimeChunk<>(PartitionChunkProvider.defaultProvider());
     add(initialChunk);
   }
 
   public PartitionHolder(List<PartitionChunk<T>> initialChunks)
   {
     // TODO: proper provider
-    this.overshadowChecker = new OvershadowChecker<>(PartitionChunkProvider.defaultProvider());
+    this.overshadowableManager = new OvershadowableManagerPerTimeChunk<>(PartitionChunkProvider.defaultProvider());
     for (PartitionChunk<T> chunk : initialChunks) {
       add(chunk);
     }
@@ -53,27 +53,27 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
 
   public PartitionHolder(PartitionHolder<T> partitionHolder)
   {
-    this.overshadowChecker = new OvershadowChecker<>(partitionHolder.overshadowChecker);
+    this.overshadowableManager = new OvershadowableManagerPerTimeChunk<>(partitionHolder.overshadowableManager);
   }
 
   public void add(PartitionChunk<T> chunk)
   {
-    overshadowChecker.add(chunk);
+    overshadowableManager.add(chunk);
   }
 
   public PartitionChunk<T> remove(PartitionChunk<T> chunk)
   {
-    return overshadowChecker.remove(chunk);
+    return overshadowableManager.remove(chunk);
   }
 
   public boolean isEmpty()
   {
-    return overshadowChecker.isEmpty();
+    return overshadowableManager.isEmpty();
   }
 
   public boolean isComplete()
   {
-    if (overshadowChecker.isEmpty()) {
+    if (overshadowableManager.isEmpty()) {
       return false;
     }
 
@@ -86,7 +86,7 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
     }
 
     if (curr.isEnd()) {
-      return overshadowChecker.isComplete();
+      return overshadowableManager.isComplete();
     }
 
     while (iter.hasNext()) {
@@ -96,7 +96,7 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
       }
 
       if (next.isEnd()) {
-        return overshadowChecker.isComplete();
+        return overshadowableManager.isComplete();
       }
       curr = next;
     }
@@ -106,19 +106,19 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
 
   public PartitionChunk<T> getChunk(final int partitionNum)
   {
-    return overshadowChecker.getChunk(partitionNum);
+    return overshadowableManager.getChunk(partitionNum);
   }
 
   @Override
   public Iterator<PartitionChunk<T>> iterator()
   {
-    return overshadowChecker.getVisibles().iterator();
+    return overshadowableManager.getVisibles().iterator();
   }
 
   @Override
   public Spliterator<PartitionChunk<T>> spliterator()
   {
-    return overshadowChecker.getVisibles().spliterator();
+    return overshadowableManager.getVisibles().spliterator();
   }
 
   public Iterable<T> payloads()
@@ -136,20 +136,20 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
       return false;
     }
     PartitionHolder<?> that = (PartitionHolder<?>) o;
-    return Objects.equals(overshadowChecker, that.overshadowChecker);
+    return Objects.equals(overshadowableManager, that.overshadowableManager);
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(overshadowChecker);
+    return Objects.hash(overshadowableManager);
   }
 
   @Override
   public String toString()
   {
     return "PartitionHolder{" +
-           "overshadowChecker=" + overshadowChecker +
+           "overshadowableManager=" + overshadowableManager +
            '}';
   }
 }

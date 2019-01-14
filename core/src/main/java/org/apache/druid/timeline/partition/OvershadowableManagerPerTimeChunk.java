@@ -39,9 +39,9 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 // TODO: maybe rename?
-public class OvershadowChecker<T extends Overshadowable<T>>
+public class OvershadowableManagerPerTimeChunk<T extends Overshadowable<T>>
 {
-  private static final Logger log = new Logger(OvershadowChecker.class);
+  private static final Logger log = new Logger(OvershadowableManagerPerTimeChunk.class);
 
   private final Map<Integer, PartitionChunk<T>> knownPartitionChunks;
   private final PartitionChunkProvider<T> extraPartitionProvider;
@@ -49,7 +49,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   private final Map<Integer, PartitionChunk<T>> onlineSegments;
   private final Map<Integer, PartitionChunk<T>> visibleSegments;
 
-  public OvershadowChecker(PartitionChunkProvider<T> extraPartitionProvider)
+  public OvershadowableManagerPerTimeChunk(PartitionChunkProvider<T> extraPartitionProvider)
   {
     this.knownPartitionChunks = new HashMap<>();
     this.extraPartitionProvider = extraPartitionProvider;
@@ -57,7 +57,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
     this.visibleSegments = new HashMap<>();
   }
 
-  public OvershadowChecker(OvershadowChecker<T> other)
+  public OvershadowableManagerPerTimeChunk(OvershadowableManagerPerTimeChunk<T> other)
   {
     this.knownPartitionChunks = new HashMap<>(other.knownPartitionChunks);
     this.extraPartitionProvider = other.extraPartitionProvider;
@@ -247,7 +247,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    OvershadowChecker<?> that = (OvershadowChecker<?>) o;
+    OvershadowableManagerPerTimeChunk<?> that = (OvershadowableManagerPerTimeChunk<?>) o;
     return Objects.equals(knownPartitionChunks, that.knownPartitionChunks) &&
            Objects.equals(onlineSegments, that.onlineSegments) &&
            Objects.equals(visibleSegments, that.visibleSegments);
@@ -262,7 +262,7 @@ public class OvershadowChecker<T extends Overshadowable<T>>
   @Override
   public String toString()
   {
-    return "OvershadowChecker{" +
+    return "OvershadowableManagerPerTimeChunk{" +
            "knownPartitionChunks=" + knownPartitionChunks +
            ", onlineSegments=" + onlineSegments +
            ", visibleSegments=" + visibleSegments +
