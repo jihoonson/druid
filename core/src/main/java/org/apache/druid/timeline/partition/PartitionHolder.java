@@ -23,6 +23,7 @@ import com.google.common.collect.Iterables;
 import org.apache.druid.timeline.Overshadowable;
 import org.apache.druid.timeline.PartitionChunkProvider;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -119,6 +120,11 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
   public Spliterator<PartitionChunk<T>> spliterator()
   {
     return overshadowableManager.getVisibles().spliterator();
+  }
+
+  public Collection<PartitionChunk<T>> getOVershadowed()
+  {
+    return overshadowableManager.getOvershadowed();
   }
 
   public Iterable<T> payloads()
