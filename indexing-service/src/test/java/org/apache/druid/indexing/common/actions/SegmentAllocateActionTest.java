@@ -31,7 +31,7 @@ import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
@@ -115,7 +115,7 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
-    final SegmentIdentifier id1 = allocate(
+    final SegmentIdWithShardSpec id1 = allocate(
         task,
         PARTY_TIME,
         Granularities.NONE,
@@ -123,21 +123,21 @@ public class SegmentAllocateActionTest
         "s1",
         null
     );
-    final SegmentIdentifier id2 = allocate(
+    final SegmentIdWithShardSpec id2 = allocate(
         task,
         PARTY_TIME,
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.toString()
     );
-    final SegmentIdentifier id3 = allocate(
+    final SegmentIdWithShardSpec id3 = allocate(
         task,
         PARTY_TIME,
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id2.getIdentifierAsString()
+        id2.toString()
     );
 
     final List<TaskLock> partyTimeLocks = taskActionTestKit.getTaskLockbox()
@@ -146,6 +146,7 @@ public class SegmentAllocateActionTest
                                                            .filter(input -> input.getInterval().contains(PARTY_TIME))
                                                            .collect(Collectors.toList());
 
+<<<<<<< HEAD
     Assert.assertEquals(3, partyTimeLocks.size());
 
     for (TaskLock partyLock : partyTimeLocks) {
@@ -177,6 +178,35 @@ public class SegmentAllocateActionTest
           id3
       );
     }
+=======
+    assertSameIdentifier(
+        id1,
+        new SegmentIdWithShardSpec(
+            DATA_SOURCE,
+            Granularities.HOUR.bucket(PARTY_TIME),
+            partyLock.getVersion(),
+            new NumberedShardSpec(0, 0)
+        )
+    );
+    assertSameIdentifier(
+        id2,
+        new SegmentIdWithShardSpec(
+            DATA_SOURCE,
+            Granularities.HOUR.bucket(PARTY_TIME),
+            partyLock.getVersion(),
+            new NumberedShardSpec(1, 0)
+        )
+    );
+    assertSameIdentifier(
+        id3,
+        new SegmentIdWithShardSpec(
+            DATA_SOURCE,
+            Granularities.HOUR.bucket(PARTY_TIME),
+            partyLock.getVersion(),
+            new NumberedShardSpec(2, 0)
+        )
+    );
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
   }
 
   @Test
@@ -186,7 +216,7 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
-    final SegmentIdentifier id1 = allocate(
+    final SegmentIdWithShardSpec id1 = allocate(
         task,
         PARTY_TIME,
         Granularities.NONE,
@@ -194,59 +224,83 @@ public class SegmentAllocateActionTest
         "s1",
         null
     );
+<<<<<<< HEAD
     Assert.assertNotNull(id1);
     final SegmentIdentifier id2 = allocate(
+=======
+    final SegmentIdWithShardSpec id2 = allocate(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
         task,
         THE_DISTANT_FUTURE,
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.toString()
     );
+<<<<<<< HEAD
     Assert.assertNotNull(id2);
     final SegmentIdentifier id3 = allocate(
+=======
+    final SegmentIdWithShardSpec id3 = allocate(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
         task,
         PARTY_TIME,
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id2.getIdentifierAsString()
+        id2.toString()
     );
+<<<<<<< HEAD
     Assert.assertNotNull(id3);
     final SegmentIdentifier id4 = allocate(
+=======
+    final SegmentIdWithShardSpec id4 = allocate(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
         task,
         PARTY_TIME,
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.toString()
     );
+<<<<<<< HEAD
     Assert.assertNull(id4);
     final SegmentIdentifier id5 = allocate(
+=======
+    final SegmentIdWithShardSpec id5 = allocate(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
         task,
         THE_DISTANT_FUTURE,
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.toString()
     );
+<<<<<<< HEAD
     Assert.assertNotNull(id5);
     final SegmentIdentifier id6 = allocate(
+=======
+    final SegmentIdWithShardSpec id6 = allocate(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
         task,
         THE_DISTANT_FUTURE,
         Granularities.NONE,
         Granularities.MINUTE,
         "s1",
-        id1.getIdentifierAsString()
+        id1.toString()
     );
+<<<<<<< HEAD
     Assert.assertNull(id6);
     final SegmentIdentifier id7 = allocate(
+=======
+    final SegmentIdWithShardSpec id7 = allocate(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
         task,
         THE_DISTANT_FUTURE,
         Granularities.NONE,
         Granularities.DAY,
         "s1",
-        id1.getIdentifierAsString()
+        id1.toString()
     );
     Assert.assertNotNull(id7);
 
@@ -300,6 +354,36 @@ public class SegmentAllocateActionTest
       );
     }
 
+<<<<<<< HEAD
+=======
+    assertSameIdentifier(
+        id1,
+        new SegmentIdWithShardSpec(
+            DATA_SOURCE,
+            Granularities.HOUR.bucket(PARTY_TIME),
+            partyLock.getVersion(),
+            new NumberedShardSpec(0, 0)
+        )
+    );
+    assertSameIdentifier(
+        id2,
+        new SegmentIdWithShardSpec(
+            DATA_SOURCE,
+            Granularities.HOUR.bucket(THE_DISTANT_FUTURE),
+            futureLock.getVersion(),
+            new NumberedShardSpec(0, 0)
+        )
+    );
+    assertSameIdentifier(
+        id3,
+        new SegmentIdWithShardSpec(
+            DATA_SOURCE,
+            Granularities.HOUR.bucket(PARTY_TIME),
+            partyLock.getVersion(),
+            new NumberedShardSpec(1, 0)
+        )
+    );
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
     Assert.assertNull(id4);
     assertSameIdentifier(id2, id5);
     Assert.assertNull(id6);
@@ -313,6 +397,7 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
+<<<<<<< HEAD
     final SegmentIdentifier id1 = allocate(
         task,
         PARTY_TIME,
@@ -330,29 +415,35 @@ public class SegmentAllocateActionTest
         null
     );
     final SegmentIdentifier id3 = allocate(
+=======
+    final SegmentIdWithShardSpec id1 = allocate(task, PARTY_TIME, Granularities.NONE, Granularities.HOUR, "s1", null);
+    final SegmentIdWithShardSpec id2 = allocate(task, PARTY_TIME, Granularities.NONE, Granularities.HOUR, "s2", null);
+    final SegmentIdWithShardSpec id3 = allocate(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
         task,
         PARTY_TIME,
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.toString()
     );
-    final SegmentIdentifier id4 = allocate(
+    final SegmentIdWithShardSpec id4 = allocate(
         task,
         THE_DISTANT_FUTURE,
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id3.getIdentifierAsString()
+        id3.toString()
     );
-    final SegmentIdentifier id5 = allocate(
+    final SegmentIdWithShardSpec id5 = allocate(
         task,
         THE_DISTANT_FUTURE,
         Granularities.NONE,
         Granularities.HOUR,
         "s2",
-        id2.getIdentifierAsString()
+        id2.toString()
     );
+<<<<<<< HEAD
     final SegmentIdentifier id6 = allocate(
         task,
         PARTY_TIME,
@@ -360,6 +451,35 @@ public class SegmentAllocateActionTest
         Granularities.HOUR,
         "s1",
         null
+=======
+    final SegmentIdWithShardSpec id6 = allocate(task, PARTY_TIME, Granularities.NONE, Granularities.HOUR, "s1", null);
+
+    final TaskLock partyLock = Iterables.getOnlyElement(
+        FluentIterable.from(taskActionTestKit.getTaskLockbox().findLocksForTask(task))
+                      .filter(
+                          new Predicate<TaskLock>()
+                          {
+                            @Override
+                            public boolean apply(TaskLock input)
+                            {
+                              return input.getInterval().contains(PARTY_TIME);
+                            }
+                          }
+                      )
+    );
+    final TaskLock futureLock = Iterables.getOnlyElement(
+        FluentIterable.from(taskActionTestKit.getTaskLockbox().findLocksForTask(task))
+                      .filter(
+                          new Predicate<TaskLock>()
+                          {
+                            @Override
+                            public boolean apply(TaskLock input)
+                            {
+                              return input.getInterval().contains(THE_DISTANT_FUTURE);
+                            }
+                          }
+                      )
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
     );
 
     final List<TaskLock> partyLocks = taskActionTestKit.getTaskLockbox()
@@ -432,7 +552,56 @@ public class SegmentAllocateActionTest
 
     assertSameIdentifier(
         id1,
+<<<<<<< HEAD
         id6
+=======
+        new SegmentIdWithShardSpec(
+            DATA_SOURCE,
+            Granularities.HOUR.bucket(PARTY_TIME),
+            partyLock.getVersion(),
+            new NumberedShardSpec(0, 0)
+        )
+    );
+    assertSameIdentifier(
+        id2,
+        new SegmentIdWithShardSpec(
+            DATA_SOURCE,
+            Granularities.HOUR.bucket(PARTY_TIME),
+            partyLock.getVersion(),
+            new NumberedShardSpec(1, 0)
+        )
+    );
+    assertSameIdentifier(
+        id3,
+        new SegmentIdWithShardSpec(
+            DATA_SOURCE,
+            Granularities.HOUR.bucket(PARTY_TIME),
+            partyLock.getVersion(),
+            new NumberedShardSpec(2, 0)
+        )
+    );
+    assertSameIdentifier(
+        id4,
+        new SegmentIdWithShardSpec(
+            DATA_SOURCE,
+            Granularities.HOUR.bucket(THE_DISTANT_FUTURE),
+            futureLock.getVersion(),
+            new NumberedShardSpec(0, 0)
+        )
+    );
+    assertSameIdentifier(
+        id5,
+        new SegmentIdWithShardSpec(
+            DATA_SOURCE,
+            Granularities.HOUR.bucket(THE_DISTANT_FUTURE),
+            futureLock.getVersion(),
+            new NumberedShardSpec(1, 0)
+        )
+    );
+    assertSameIdentifier(
+        id6,
+        id1
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
     );
   }
 
@@ -460,7 +629,7 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
-    final SegmentIdentifier id1 = allocate(
+    final SegmentIdWithShardSpec id1 = allocate(
         task,
         PARTY_TIME,
         Granularities.NONE,
@@ -468,17 +637,22 @@ public class SegmentAllocateActionTest
         "s1",
         null
     );
-    final SegmentIdentifier id2 = allocate(
+    final SegmentIdWithShardSpec id2 = allocate(
         task,
         PARTY_TIME,
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.toString()
     );
 
     assertSameIdentifier(
+<<<<<<< HEAD
         new SegmentIdentifier(
+=======
+        id1,
+        new SegmentIdWithShardSpec(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
             DATA_SOURCE,
             Granularities.HOUR.bucket(PARTY_TIME),
             PARTY_TIME.toString(),
@@ -487,7 +661,12 @@ public class SegmentAllocateActionTest
         id1
     );
     assertSameIdentifier(
+<<<<<<< HEAD
         new SegmentIdentifier(
+=======
+        id2,
+        new SegmentIdWithShardSpec(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
             DATA_SOURCE,
             Granularities.HOUR.bucket(PARTY_TIME),
             PARTY_TIME.toString(),
@@ -521,7 +700,7 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
-    final SegmentIdentifier id1 = allocate(
+    final SegmentIdWithShardSpec id1 = allocate(
         task,
         PARTY_TIME,
         Granularities.NONE,
@@ -529,17 +708,22 @@ public class SegmentAllocateActionTest
         "s1",
         null
     );
-    final SegmentIdentifier id2 = allocate(
+    final SegmentIdWithShardSpec id2 = allocate(
         task,
         PARTY_TIME,
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.getIdentifierAsString()
+        id1.toString()
     );
 
     assertSameIdentifier(
+<<<<<<< HEAD
         new SegmentIdentifier(
+=======
+        id1,
+        new SegmentIdWithShardSpec(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
             DATA_SOURCE,
             Granularities.HOUR.bucket(PARTY_TIME),
             PARTY_TIME.toString(),
@@ -548,7 +732,12 @@ public class SegmentAllocateActionTest
         id1
     );
     assertSameIdentifier(
+<<<<<<< HEAD
         new SegmentIdentifier(
+=======
+        id2,
+        new SegmentIdWithShardSpec(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
             DATA_SOURCE,
             Granularities.HOUR.bucket(PARTY_TIME),
             PARTY_TIME.toString(),
@@ -582,6 +771,7 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
+<<<<<<< HEAD
     final SegmentIdentifier id1 = allocate(
         task,
         PARTY_TIME,
@@ -593,6 +783,13 @@ public class SegmentAllocateActionTest
 
     assertSameIdentifier(
         new SegmentIdentifier(
+=======
+    final SegmentIdWithShardSpec id1 = allocate(task, PARTY_TIME, Granularities.NONE, Granularities.DAY, "s1", null);
+
+    assertSameIdentifier(
+        id1,
+        new SegmentIdWithShardSpec(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
             DATA_SOURCE,
             Granularities.HOUR.bucket(PARTY_TIME),
             PARTY_TIME.toString(),
@@ -626,6 +823,7 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
+<<<<<<< HEAD
     final SegmentIdentifier id1 = allocate(
         task,
         PARTY_TIME,
@@ -637,6 +835,13 @@ public class SegmentAllocateActionTest
 
     assertSameIdentifier(
         new SegmentIdentifier(
+=======
+    final SegmentIdWithShardSpec id1 = allocate(task, PARTY_TIME, Granularities.NONE, Granularities.MINUTE, "s1", null);
+
+    assertSameIdentifier(
+        id1,
+        new SegmentIdWithShardSpec(
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
             DATA_SOURCE,
             Granularities.HOUR.bucket(PARTY_TIME),
             PARTY_TIME.toString(),
@@ -670,6 +875,7 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
+<<<<<<< HEAD
     final SegmentIdentifier id1 = allocate(
         task,
         PARTY_TIME,
@@ -678,6 +884,9 @@ public class SegmentAllocateActionTest
         "s1",
         null
     );
+=======
+    final SegmentIdWithShardSpec id1 = allocate(task, PARTY_TIME, Granularities.DAY, Granularities.DAY, "s1", null);
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
 
     Assert.assertNull(id1);
   }
@@ -688,6 +897,7 @@ public class SegmentAllocateActionTest
     final Task task = new NoopTask(null, null, 0, 0, null, null, null);
     taskActionTestKit.getTaskLockbox().add(task);
 
+<<<<<<< HEAD
     final SegmentIdentifier id1 = allocate(
         task,
         PARTY_TIME,
@@ -696,6 +906,9 @@ public class SegmentAllocateActionTest
         "s1",
         null
     );
+=======
+    final SegmentIdWithShardSpec id1 = allocate(task, PARTY_TIME, Granularities.DAY, Granularities.HOUR, "s1", null);
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
 
     Assert.assertNull(id1);
   }
@@ -724,6 +937,7 @@ public class SegmentAllocateActionTest
 
     taskActionTestKit.getTaskLockbox().add(task);
 
+<<<<<<< HEAD
     final SegmentIdentifier id1 = allocate(
         task,
         PARTY_TIME,
@@ -732,6 +946,9 @@ public class SegmentAllocateActionTest
         "s1",
         null
     );
+=======
+    final SegmentIdWithShardSpec id1 = allocate(task, PARTY_TIME, Granularities.NONE, Granularities.HOUR, "s1", null);
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
 
     Assert.assertNull(id1);
   }
@@ -818,7 +1035,7 @@ public class SegmentAllocateActionTest
     Assert.assertEquals(ImmutableSet.of(0, 1), segmentIdentifier.getOvershadowingSegments());
   }
 
-  private SegmentIdentifier allocate(
+  private SegmentIdWithShardSpec allocate(
       final Task task,
       final DateTime timestamp,
       final Granularity queryGranularity,
@@ -840,7 +1057,11 @@ public class SegmentAllocateActionTest
     return action.perform(task, taskActionTestKit.getTaskActionToolbox());
   }
 
+<<<<<<< HEAD
   private void assertSameIdentifier(final SegmentIdentifier expected, final SegmentIdentifier actual)
+=======
+  private void assertSameIdentifier(final SegmentIdWithShardSpec one, final SegmentIdWithShardSpec other)
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
   {
     Assert.assertEquals(expected, actual);
     Assert.assertEquals(expected.getShardSpec().getPartitionNum(), actual.getShardSpec().getPartitionNum());

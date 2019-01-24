@@ -19,7 +19,6 @@
 
 package org.apache.druid.segment.realtime.plumber;
 
-import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
@@ -42,8 +41,6 @@ import org.apache.druid.timeline.Overshadowable;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 
-import javax.annotation.Nullable;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -254,17 +251,8 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
         interval,
         version,
         ImmutableMap.of(),
-        new ArrayList<>(),
-        Lists.transform(
-            Arrays.asList(schema.getAggregators()), new Function<AggregatorFactory, String>()
-            {
-              @Override
-              public String apply(@Nullable AggregatorFactory input)
-              {
-                return input.getName();
-              }
-            }
-        ),
+        Collections.emptyList(),
+        Lists.transform(Arrays.asList(schema.getAggregators()), AggregatorFactory::getName),
         shardSpec,
         null,
         0,
@@ -388,7 +376,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
             newIndex.loadDimensionIterable(dimOrder, oldCapabilities);
           }
         }
-        currHydrant = new FireHydrant(newIndex, newCount, getSegment().getIdentifier());
+        currHydrant = new FireHydrant(newIndex, newCount, getSegment().getId());
         if (old != null) {
           numRowsExcludingCurrIndex.addAndGet(old.getIndex().size());
         }

@@ -130,7 +130,7 @@ public class BatchAppenderatorDriver extends BaseAppenderatorDriver
       long pushAndClearTimeoutMs
   ) throws InterruptedException, ExecutionException, TimeoutException
   {
-    final Set<SegmentIdentifier> requestedSegmentIdsForSequences = getAppendingSegments(sequenceNames)
+    final Set<SegmentIdWithShardSpec> requestedSegmentIdsForSequences = getAppendingSegments(sequenceNames)
         .map(SegmentWithState::getSegmentIdentifier)
         .collect(Collectors.toSet());
 
@@ -144,10 +144,10 @@ public class BatchAppenderatorDriver extends BaseAppenderatorDriver
                                                     future.get(pushAndClearTimeoutMs, TimeUnit.MILLISECONDS);
 
     // Sanity check
-    final Map<SegmentIdentifier, DataSegment> pushedSegmentIdToSegmentMap = segmentsAndMetadata
+    final Map<SegmentIdWithShardSpec, DataSegment> pushedSegmentIdToSegmentMap = segmentsAndMetadata
         .getSegments()
         .stream()
-        .collect(Collectors.toMap(SegmentIdentifier::fromDataSegment, Function.identity()));
+        .collect(Collectors.toMap(SegmentIdWithShardSpec::fromDataSegment, Function.identity()));
 
     if (!pushedSegmentIdToSegmentMap.keySet().equals(requestedSegmentIdsForSequences)) {
       throw new ISE(

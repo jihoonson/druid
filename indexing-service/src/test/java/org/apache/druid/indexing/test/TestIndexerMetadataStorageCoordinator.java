@@ -28,7 +28,7 @@ import org.apache.druid.indexing.overlord.IndexerMetadataStorageCoordinator;
 import org.apache.druid.indexing.overlord.SegmentPublishResult;
 import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.Pair;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
@@ -125,7 +125,7 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
   }
 
   @Override
-  public SegmentIdentifier allocatePendingSegment(
+  public SegmentIdWithShardSpec allocatePendingSegment(
       String dataSource,
       String sequenceName,
       String previousSegmentId,

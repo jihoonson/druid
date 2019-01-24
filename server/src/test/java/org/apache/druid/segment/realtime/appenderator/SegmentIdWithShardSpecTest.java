@@ -27,15 +27,20 @@ import org.joda.time.Interval;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class SegmentIdentifierTest
+public class SegmentIdWithShardSpecTest
 {
   private static final String DATA_SOURCE = "foo";
   private static final Interval INTERVAL = Intervals.of("2000/PT1H");
   private static final String VERSION = "v1";
   private static final NumberedShardSpec SHARD_SPEC_0 = new NumberedShardSpec(0, 2);
   private static final NumberedShardSpec SHARD_SPEC_1 = new NumberedShardSpec(1, 2);
+<<<<<<< HEAD:server/src/test/java/org/apache/druid/segment/realtime/appenderator/SegmentIdentifierTest.java
   private static final SegmentIdentifier ID_0 = new SegmentIdentifier(DATA_SOURCE, INTERVAL, VERSION, SHARD_SPEC_0, null);
   private static final SegmentIdentifier ID_1 = new SegmentIdentifier(DATA_SOURCE, INTERVAL, VERSION, SHARD_SPEC_1, null);
+=======
+  private static final SegmentIdWithShardSpec ID_0 = new SegmentIdWithShardSpec(DATA_SOURCE, INTERVAL, VERSION, SHARD_SPEC_0);
+  private static final SegmentIdWithShardSpec ID_1 = new SegmentIdWithShardSpec(DATA_SOURCE, INTERVAL, VERSION, SHARD_SPEC_1);
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8:server/src/test/java/org/apache/druid/segment/realtime/appenderator/SegmentIdWithShardSpecTest.java
 
   @Test
   public void testSerde() throws Exception
@@ -43,9 +48,9 @@ public class SegmentIdentifierTest
     final ObjectMapper objectMapper = new DefaultObjectMapper();
     objectMapper.registerSubtypes(NumberedShardSpec.class);
 
-    final SegmentIdentifier id2 = objectMapper.readValue(
+    final SegmentIdWithShardSpec id2 = objectMapper.readValue(
         objectMapper.writeValueAsBytes(ID_1),
-        SegmentIdentifier.class
+        SegmentIdWithShardSpec.class
     );
 
     Assert.assertEquals(ID_1, id2);
@@ -59,7 +64,7 @@ public class SegmentIdentifierTest
   @Test
   public void testAsString()
   {
-    Assert.assertEquals("foo_2000-01-01T00:00:00.000Z_2000-01-01T01:00:00.000Z_v1", ID_0.getIdentifierAsString());
-    Assert.assertEquals("foo_2000-01-01T00:00:00.000Z_2000-01-01T01:00:00.000Z_v1_1", ID_1.getIdentifierAsString());
+    Assert.assertEquals("foo_2000-01-01T00:00:00.000Z_2000-01-01T01:00:00.000Z_v1", ID_0.toString());
+    Assert.assertEquals("foo_2000-01-01T00:00:00.000Z_2000-01-01T01:00:00.000Z_v1_1", ID_1.toString());
   }
 }

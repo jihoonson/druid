@@ -582,11 +582,15 @@ public class TaskLockbox
    * @param intervalToPartitionIds partitionIds which should be locked by task
    * @param action                 action to be performed inside of the critical section
    */
+<<<<<<< HEAD
   public <T> T doInCriticalSection(
       Task task,
       Map<Interval, List<Integer>> intervalToPartitionIds,
       CriticalAction<T> action
   ) throws Exception
+=======
+  public <T> T doInCriticalSection(Task task, List<Interval> intervals, CriticalAction<T> action) throws Exception
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
   {
     giant.lock();
 

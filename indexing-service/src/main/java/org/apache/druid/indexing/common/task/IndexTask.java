@@ -25,11 +25,15 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+<<<<<<< HEAD
 import com.google.common.collect.Iterables;
+=======
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -78,6 +82,10 @@ import org.apache.druid.segment.realtime.appenderator.Appenderators;
 import org.apache.druid.segment.realtime.appenderator.BaseAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
+<<<<<<< HEAD
+=======
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
 import org.apache.druid.segment.realtime.appenderator.SegmentsAndMetadata;
 import org.apache.druid.segment.realtime.appenderator.TransactionalSegmentPublisher;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
@@ -938,11 +946,81 @@ public class IndexTask extends AbstractTask implements ChatHandler
     final long pushTimeout = tuningConfig.getPushTimeout();
     final boolean isGuaranteedRollup = isGuaranteedRollup(ioConfig, tuningConfig);
 
+<<<<<<< HEAD
     final IndexTaskSegmentAllocator segmentAllocator = createSegmentAllocator(
         toolbox,
         dataSchema,
         allocateSpec
     );
+=======
+    final SegmentAllocator segmentAllocator;
+    if (isGuaranteedRollup) {
+      // Overwrite mode, guaranteed rollup: segments are all known in advance and there is one per sequenceName.
+      final Map<String, SegmentIdWithShardSpec> lookup = new HashMap<>();
+
+      for (Map.Entry<Interval, List<ShardSpec>> entry : shardSpecs.getMap().entrySet()) {
+        for (ShardSpec shardSpec : entry.getValue()) {
+          final ShardSpec shardSpecForPublishing;
+
+          if (isExtendableShardSpecs(ioConfig, tuningConfig)) {
+            shardSpecForPublishing = new NumberedShardSpec(
+                shardSpec.getPartitionNum(),
+                entry.getValue().size()
+            );
+          } else {
+            shardSpecForPublishing = shardSpec;
+          }
+
+          final String version = findVersion(versions, entry.getKey());
+          lookup.put(
+              Appenderators.getSequenceName(entry.getKey(), version, shardSpec),
+              new SegmentIdWithShardSpec(getDataSource(), entry.getKey(), version, shardSpecForPublishing)
+          );
+        }
+      }
+
+      segmentAllocator = (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> lookup.get(sequenceName);
+    } else if (ioConfig.isAppendToExisting()) {
+      // Append mode: Allocate segments as needed using Overlord APIs.
+      segmentAllocator = new ActionBasedSegmentAllocator(
+          toolbox.getTaskActionClient(),
+          dataSchema,
+          (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SegmentAllocateAction(
+              schema.getDataSource(),
+              row.getTimestamp(),
+              schema.getGranularitySpec().getQueryGranularity(),
+              schema.getGranularitySpec().getSegmentGranularity(),
+              sequenceName,
+              previousSegmentId,
+              skipSegmentLineageCheck
+          )
+      );
+    } else {
+      // Overwrite mode, non-guaranteed rollup: We can make up our own segment ids but we don't know them in advance.
+      final Map<Interval, AtomicInteger> counters = new HashMap<>();
+
+      segmentAllocator = (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
+        final DateTime timestamp = row.getTimestamp();
+        Optional<Interval> maybeInterval = granularitySpec.bucketInterval(timestamp);
+        if (!maybeInterval.isPresent()) {
+          throw new ISE("Could not find interval for timestamp [%s]", timestamp);
+        }
+
+        final Interval interval = maybeInterval.get();
+        if (!shardSpecs.getMap().containsKey(interval)) {
+          throw new ISE("Could not find shardSpec for interval[%s]", interval);
+        }
+
+        final int partitionNum = counters.computeIfAbsent(interval, x -> new AtomicInteger()).getAndIncrement();
+        return new SegmentIdWithShardSpec(
+            getDataSource(),
+            interval,
+            findVersion(versions, interval),
+            new NumberedShardSpec(partitionNum, 0)
+        );
+      };
+    }
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
 
     final TransactionalSegmentPublisher publisher = (segments, commitMetadata) -> {
       final SegmentTransactionalInsertAction action = new SegmentTransactionalInsertAction(segments);
@@ -1046,14 +1124,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
             buildSegmentsMeters.getUnparseable(),
             buildSegmentsMeters.getThrownAway()
         );
-        log.info(
-            "Published segments[%s]", Joiner.on(", ").join(
-                Iterables.transform(
-                    published.getSegments(),
-                    DataSegment::getIdentifier
-                )
-            )
-        );
+        log.info("Published segments: %s", Lists.transform(published.getSegments(), DataSegment::getId));
 
         toolbox.getTaskReportFileWriter().write(getTaskCompletionReports());
         return TaskStatus.success(getId());

@@ -171,7 +171,7 @@ public class SegmentManager
           );
 
           if ((entry != null) && (entry.getChunk(segment.getShardSpec().getPartitionNum()) != null)) {
-            log.warn("Told to load a adapter for a segment[%s] that already exists", segment.getIdentifier());
+            log.warn("Told to load a adapter for a segment[%s] that already exists", segment.getId());
             resultSupplier.set(false);
           } else {
             final ReferenceCountingSegment referenceCountingSegment = new ReferenceCountingSegment(
@@ -235,7 +235,7 @@ public class SegmentManager
             if (oldQueryable != null) {
               dataSourceState.removeSegment(segment);
 
-              log.info("Attempting to close segment %s", segment.getIdentifier());
+              log.info("Attempting to close segment %s", segment.getId());
               oldQueryable.close();
             } else {
               log.info(

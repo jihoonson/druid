@@ -51,7 +51,7 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
 import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
 import org.apache.druid.segment.realtime.firehose.ChatHandlers;
@@ -325,7 +325,7 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
   // Internal APIs
 
   /**
-   * Allocate a new {@link SegmentIdentifier} for a request from {@link ParallelIndexSubTask}.
+   * Allocate a new {@link SegmentIdWithShardSpec} for a request from {@link ParallelIndexSubTask}.
    * The returned segmentIdentifiers have different {@code partitionNum} (thereby different {@link NumberedShardSpec})
    * per bucket interval.
    */
@@ -349,7 +349,7 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
     }
 
     try {
-      final SegmentIdentifier segmentIdentifier = allocateNewSegment(timestamp);
+      final SegmentIdWithShardSpec segmentIdentifier = allocateNewSegment(timestamp);
       return Response.ok(toolbox.getObjectMapper().writeValueAsBytes(segmentIdentifier)).build();
     }
     catch (IOException | IllegalStateException e) {
@@ -361,7 +361,7 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
   }
 
   @VisibleForTesting
-  SegmentIdentifier allocateNewSegment(DateTime timestamp) throws IOException
+  SegmentIdWithShardSpec allocateNewSegment(DateTime timestamp) throws IOException
   {
     final String dataSource = getDataSource();
     final GranularitySpec granularitySpec = getIngestionSchema().getDataSchema().getGranularitySpec();
@@ -387,7 +387,7 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
     }
 
     final int partitionNum = counters.increment(interval.toString(), 1);
-    return new SegmentIdentifier(
+    return new SegmentIdWithShardSpec(
         dataSource,
         interval,
         findVersion(versions, interval),

@@ -52,48 +52,25 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
+ * Metadata of Druid's data segment. An immutable object.
+ *
+ * DataSegment's equality ({@link #equals}/{@link #hashCode}) and {@link #compareTo} methods consider only the
+ * {@link SegmentId} of the segment.
  */
 @PublicApi
 public class DataSegment implements Comparable<DataSegment>, Overshadowable<DataSegment>
 {
-  public static String delimiter = "_";
-  private final Integer binaryVersion;
-  private static final Interner<String> STRING_INTERNER = Interners.newWeakInterner();
-  private static final Interner<List<String>> DIMENSIONS_INTERNER = Interners.newWeakInterner();
-  private static final Interner<List<String>> METRICS_INTERNER = Interners.newWeakInterner();
-  private static final Map<String, Object> PRUNED_LOAD_SPEC = ImmutableMap.of(
-      "load spec is pruned, because it's not needed on Brokers, but eats a lot of heap space",
-      ""
-  );
-
-  public static String makeDataSegmentIdentifier(
-      String dataSource,
-      DateTime start,
-      DateTime end,
-      String version,
-      ShardSpec shardSpec
-  )
-  {
-    StringBuilder sb = new StringBuilder();
-
-    sb.append(dataSource).append(delimiter)
-      .append(start).append(delimiter)
-      .append(end).append(delimiter)
-      .append(version);
-
-    if (shardSpec.getPartitionNum() != 0) {
-      sb.append(delimiter).append(shardSpec.getPartitionNum());
-    }
-
-    return sb.toString();
-  }
+  /*
+   * The difference between this class and org.apache.druid.segment.Segment is that this class contains the segment
+   * metadata only, while org.apache.druid.segment.Segment represents the actual body of segment data, queryable.
+   */
 
   @Override
   public boolean isOvershadow(DataSegment other)
   {
-    if (dataSource.equals(other.dataSource)
-        && interval.overlaps(other.interval)
-        && version.equals(other.version)) {
+    if (id.getDataSource().equals(other.id.getDataSource())
+        && id.getInterval().overlaps(other.id.getInterval())
+        && id.getVersion().equals(other.id.getVersion())) {
       return overshadowedSegments.contains(other.getShardSpec().getPartitionNum());
     }
     return false;
@@ -112,16 +89,22 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     @Inject(optional = true) @PruneLoadSpec boolean pruneLoadSpec = false;
   }
 
-  private final String dataSource;
-  private final Interval interval;
-  private final String version;
+  private static final Interner<String> STRING_INTERNER = Interners.newWeakInterner();
+  private static final Interner<List<String>> DIMENSIONS_INTERNER = Interners.newWeakInterner();
+  private static final Interner<List<String>> METRICS_INTERNER = Interners.newWeakInterner();
+  private static final Map<String, Object> PRUNED_LOAD_SPEC = ImmutableMap.of(
+      "load spec is pruned, because it's not needed on Brokers, but eats a lot of heap space",
+      ""
+  );
+
+  private final Integer binaryVersion;
+  private final SegmentId id;
   @Nullable
   private final Map<String, Object> loadSpec;
   private final List<String> dimensions;
   private final List<String> metrics;
   private final ShardSpec shardSpec;
   private final long size;
-  private final String identifier;
   // TODO: sometimes overshadowedSegments have invalid pids which include the overshadowed pids of the overshadowed pid ... why?
   private final Set<Integer> overshadowedSegments; // TODO: intSet? int rangeSet?
   private final Set<Integer> atomicUpdateGroup; // TODO: intSet? int rangeSet?
@@ -207,12 +190,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       @JacksonInject PruneLoadSpecHolder pruneLoadSpecHolder
   )
   {
-    // dataSource, dimensions & metrics are stored as canonical string values to decrease memory required for storing
-    // large numbers of segments.
-    this.dataSource = STRING_INTERNER.intern(dataSource);
-    this.interval = interval;
+    this.id = SegmentId.of(dataSource, interval, version, shardSpec);
     this.loadSpec = pruneLoadSpecHolder.pruneLoadSpec ? PRUNED_LOAD_SPEC : prepareLoadSpec(loadSpec);
-    this.version = version;
     // Deduplicating dimensions and metrics lists as a whole because they are very likely the same for the same
     // dataSource
     this.dimensions = prepareDimensionsOrMetrics(dimensions, DIMENSIONS_INTERNER);
@@ -222,14 +201,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     this.size = size;
     this.overshadowedSegments = overshadowedSegments == null ? Collections.emptySet() : overshadowedSegments;
     this.atomicUpdateGroup = atomicUpdateGroup == null ? Collections.emptySet() : atomicUpdateGroup;
-
-    this.identifier = makeDataSegmentIdentifier(
-        this.dataSource,
-        this.interval.getStart(),
-        this.interval.getEnd(),
-        this.version,
-        this.shardSpec
-    );
   }
 
   @Nullable
@@ -254,6 +225,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       List<String> result = list
           .stream()
           .filter(s -> !Strings.isNullOrEmpty(s))
+          // dimensions & metrics are stored as canonical string values to decrease memory required for storing
+          // large numbers of segments.
           .map(STRING_INTERNER::intern)
           // TODO replace with ImmutableList.toImmutableList() when updated to Guava 21+
           .collect(Collectors.collectingAndThen(Collectors.toList(), ImmutableList::copyOf));
@@ -269,13 +242,13 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   @JsonProperty
   public String getDataSource()
   {
-    return dataSource;
+    return id.getDataSource();
   }
 
   @JsonProperty
   public Interval getInterval()
   {
-    return interval;
+    return id.getInterval();
   }
 
   @Nullable
@@ -288,7 +261,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   @JsonProperty
   public String getVersion()
   {
-    return version;
+    return id.getVersion();
   }
 
   @JsonProperty
@@ -323,10 +296,11 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     return size;
   }
 
-  @JsonProperty
-  public String getIdentifier()
+  // "identifier" for backward compatibility of JSON API
+  @JsonProperty(value = "identifier", access = JsonProperty.Access.READ_ONLY)
+  public SegmentId getId()
   {
-    return identifier;
+    return id;
   }
 
   @Override
@@ -345,7 +319,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
 
   public SegmentDescriptor toDescriptor()
   {
-    return new SegmentDescriptor(interval, version, shardSpec.getPartitionNum());
+    return new SegmentDescriptor(getInterval(), getVersion(), shardSpec.getPartitionNum());
   }
 
   public DataSegment withLoadSpec(Map<String, Object> loadSpec)
@@ -386,14 +360,14 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   @Override
   public int compareTo(DataSegment dataSegment)
   {
-    return getIdentifier().compareTo(dataSegment.getIdentifier());
+    return getId().compareTo(dataSegment.getId());
   }
 
   @Override
   public boolean equals(Object o)
   {
     if (o instanceof DataSegment) {
-      return getIdentifier().equals(((DataSegment) o).getIdentifier());
+      return getId().equals(((DataSegment) o).getId());
     }
     return false;
   }
@@ -401,7 +375,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   @Override
   public int hashCode()
   {
-    return getIdentifier().hashCode();
+    return getId().hashCode();
   }
 
   @Override
@@ -409,15 +383,12 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   {
     return "DataSegment{" +
            "binaryVersion=" + binaryVersion +
-           ", dataSource='" + dataSource + '\'' +
-           ", interval=" + interval +
-           ", version='" + version + '\'' +
+           ", id=" + id +
            ", loadSpec=" + loadSpec +
            ", dimensions=" + dimensions +
            ", metrics=" + metrics +
            ", shardSpec=" + shardSpec +
            ", size=" + size +
-           ", identifier='" + identifier + '\'' +
            ", overshadowedSegments=" + overshadowedSegments +
            ", atomicUpdateGroup=" + atomicUpdateGroup +
            '}';
@@ -562,7 +533,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
 
     public DataSegment build()
     {
-      // Check stuff that goes into the identifier, at least.
+      // Check stuff that goes into the id, at least.
       Preconditions.checkNotNull(dataSource, "dataSource");
       Preconditions.checkNotNull(interval, "interval");
       Preconditions.checkNotNull(version, "version");

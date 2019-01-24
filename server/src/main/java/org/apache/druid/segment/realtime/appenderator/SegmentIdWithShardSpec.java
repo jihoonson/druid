@@ -23,19 +23,30 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.SegmentId;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 
+<<<<<<< HEAD:server/src/main/java/org/apache/druid/segment/realtime/appenderator/SegmentIdentifier.java
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
 public class SegmentIdentifier
+=======
+/**
+ * {@link SegmentId} with additional {@link ShardSpec} info. {@link #equals}/{@link #hashCode} and {@link
+ * #compareTo} don't consider that additinal info.
+ *
+ * This class is separate from {@link SegmentId} because in a lot of places segment ids are transmitted as "segment id
+ * strings" that don't contain enough information to deconstruct the {@link ShardSpec}. Also, even a single extra field
+ * in {@link SegmentId} is important, because it adds to the memory footprint considerably.
+ */
+public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithShardSpec>
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8:server/src/main/java/org/apache/druid/segment/realtime/appenderator/SegmentIdWithShardSpec.java
 {
-  private final String dataSource;
-  private final Interval interval;
-  private final String version;
+  private final SegmentId id;
   private final ShardSpec shardSpec;
   private final String asString;
   private final Set<Integer> overshadowingSegments;
@@ -51,7 +62,7 @@ public class SegmentIdentifier
   }
 
   @JsonCreator
-  public SegmentIdentifier(
+  public SegmentIdWithShardSpec(
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("interval") Interval interval,
       @JsonProperty("version") String version,
@@ -59,10 +70,9 @@ public class SegmentIdentifier
       @JsonProperty("overshadowingSegments") @Nullable Set<Integer> overshadowingSegments
   )
   {
-    this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
-    this.interval = Preconditions.checkNotNull(interval, "interval");
-    this.version = Preconditions.checkNotNull(version, "version");
+    this.id = SegmentId.of(dataSource, interval, version, shardSpec.getPartitionNum());
     this.shardSpec = Preconditions.checkNotNull(shardSpec, "shardSpec");
+<<<<<<< HEAD:server/src/main/java/org/apache/druid/segment/realtime/appenderator/SegmentIdentifier.java
     this.overshadowingSegments = overshadowingSegments == null ? Collections.emptySet() : overshadowingSegments;
     this.asString = DataSegment.makeDataSegmentIdentifier(
         dataSource,
@@ -71,6 +81,14 @@ public class SegmentIdentifier
         version,
         shardSpec
     );
+=======
+    this.asString = id.toString();
+  }
+
+  public SegmentId asSegmentId()
+  {
+    return id;
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8:server/src/main/java/org/apache/druid/segment/realtime/appenderator/SegmentIdWithShardSpec.java
   }
 
   public SegmentIdentifier withShardSpec(ShardSpec shardSpec)
@@ -98,19 +116,19 @@ public class SegmentIdentifier
   @JsonProperty
   public String getDataSource()
   {
-    return dataSource;
+    return id.getDataSource();
   }
 
   @JsonProperty
   public Interval getInterval()
   {
-    return interval;
+    return id.getInterval();
   }
 
   @JsonProperty
   public String getVersion()
   {
-    return version;
+    return id.getVersion();
   }
 
   @JsonProperty
@@ -119,6 +137,7 @@ public class SegmentIdentifier
     return shardSpec;
   }
 
+<<<<<<< HEAD:server/src/main/java/org/apache/druid/segment/realtime/appenderator/SegmentIdentifier.java
   @JsonProperty
   public Set<Integer> getOvershadowingSegments()
   {
@@ -130,23 +149,31 @@ public class SegmentIdentifier
     return asString;
   }
 
+=======
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8:server/src/main/java/org/apache/druid/segment/realtime/appenderator/SegmentIdWithShardSpec.java
   @Override
   public boolean equals(Object o)
   {
     if (this == o) {
       return true;
     }
-    if (o == null || getClass() != o.getClass()) {
+    if (!(o instanceof SegmentIdWithShardSpec)) {
       return false;
     }
-    SegmentIdentifier that = (SegmentIdentifier) o;
-    return Objects.equals(asString, that.asString);
+    SegmentIdWithShardSpec that = (SegmentIdWithShardSpec) o;
+    return id.equals(that.id);
   }
 
   @Override
   public int hashCode()
   {
-    return asString.hashCode();
+    return id.hashCode();
+  }
+
+  @Override
+  public int compareTo(SegmentIdWithShardSpec o)
+  {
+    return id.compareTo(o.id);
   }
 
   @Override
@@ -155,9 +182,9 @@ public class SegmentIdentifier
     return asString;
   }
 
-  public static SegmentIdentifier fromDataSegment(final DataSegment segment)
+  public static SegmentIdWithShardSpec fromDataSegment(final DataSegment segment)
   {
-    return new SegmentIdentifier(
+    return new SegmentIdWithShardSpec(
         segment.getDataSource(),
         segment.getInterval(),
         segment.getVersion(),

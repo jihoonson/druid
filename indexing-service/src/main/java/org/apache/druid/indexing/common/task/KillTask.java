@@ -110,6 +110,7 @@ public class KillTask extends AbstractFixedIntervalTask
     // List unused segments
     final List<DataSegment> unusedSegments = toolbox
         .getTaskActionClient()
+<<<<<<< HEAD
         .submit(new SegmentListUnusedAction(getDataSource(), getInterval()));
 
     log.info("segments to kill: %s", unusedSegments);
@@ -122,6 +123,22 @@ public class KillTask extends AbstractFixedIntervalTask
           getId(),
           unusedSegments
       );
+=======
+        .submit(new SegmentListUnusedAction(myLock.getDataSource(), myLock.getInterval()));
+
+    // Verify none of these segments have versions > lock version
+    for (final DataSegment unusedSegment : unusedSegments) {
+      if (unusedSegment.getVersion().compareTo(myLock.getVersion()) > 0) {
+        throw new ISE(
+            "WTF?! Unused segment[%s] has version[%s] > task version[%s]",
+            unusedSegment.getId(),
+            unusedSegment.getVersion(),
+            myLock.getVersion()
+        );
+      }
+
+      log.info("OK to kill segment: %s", unusedSegment.getId());
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
     }
 
     // Kill segments

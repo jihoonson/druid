@@ -39,7 +39,7 @@ import org.apache.druid.segment.Segment;
 import org.apache.druid.segment.TestIndex;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
-import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.SegmentId;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
 import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.SingleElementPartitionChunk;
@@ -124,20 +124,14 @@ public class TimeBoundaryQueryRunnerTest
         .buildOnheap();
   }
 
-  private static String makeIdentifier(IncrementalIndex index, String version)
+  private static SegmentId makeIdentifier(IncrementalIndex index, String version)
   {
     return makeIdentifier(index.getInterval(), version);
   }
 
-  private static String makeIdentifier(Interval interval, String version)
+  private static SegmentId makeIdentifier(Interval interval, String version)
   {
-    return DataSegment.makeDataSegmentIdentifier(
-        QueryRunnerTestHelper.dataSource,
-        interval.getStart(),
-        interval.getEnd(),
-        version,
-        new NoneShardSpec()
-    );
+    return SegmentId.of(QueryRunnerTestHelper.dataSource, interval, version, NoneShardSpec.instance());
   }
 
   private QueryRunner getCustomRunner() throws IOException
@@ -151,9 +145,16 @@ public class TimeBoundaryQueryRunnerTest
     segment0 = new IncrementalIndexSegment(index0, makeIdentifier(index0, "v1"));
     segment1 = new IncrementalIndexSegment(index1, makeIdentifier(index1, "v1"));
 
+<<<<<<< HEAD
     VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = new VersionedIntervalTimeline<>(StringComparators.LEXICOGRAPHIC);
     timeline.add(index0.getInterval(), "v1", new SingleElementPartitionChunk<>(new ReferenceCountingSegment(segment0)));
     timeline.add(index1.getInterval(), "v1", new SingleElementPartitionChunk<>(new ReferenceCountingSegment(segment1)));
+=======
+    VersionedIntervalTimeline<String, Segment> timeline =
+        new VersionedIntervalTimeline<>(StringComparators.LEXICOGRAPHIC);
+    timeline.add(index0.getInterval(), "v1", new SingleElementPartitionChunk<>(segment0));
+    timeline.add(index1.getInterval(), "v1", new SingleElementPartitionChunk<>(segment1));
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
 
     return QueryRunnerTestHelper.makeFilteringQueryRunner(timeline, factory);
   }

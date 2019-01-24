@@ -20,7 +20,7 @@
 package org.apache.druid.indexing.overlord;
 
 import org.apache.druid.java.util.common.Pair;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
@@ -103,7 +103,7 @@ public interface IndexerMetadataStorageCoordinator
    *
    * @return the pending segment identifier, or null if it was impossible to allocate a new segment
    */
-  SegmentIdentifier allocatePendingSegment(
+  SegmentIdWithShardSpec allocatePendingSegment(
       String dataSource,
       String sequenceName,
       @Nullable String previousSegmentId,

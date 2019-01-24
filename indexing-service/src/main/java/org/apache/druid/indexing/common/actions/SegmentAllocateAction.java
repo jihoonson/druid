@@ -35,7 +35,7 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactoryArgs.EmptyShardSpecFactoryArgs;
@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
  *
  * TODO: must be used with segment locking
  */
-public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
+public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
 {
   private static final Logger log = new Logger(SegmentAllocateAction.class);
 
@@ -150,15 +150,15 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
   }
 
   @Override
-  public TypeReference<SegmentIdentifier> getReturnTypeReference()
+  public TypeReference<SegmentIdWithShardSpec> getReturnTypeReference()
   {
-    return new TypeReference<SegmentIdentifier>()
+    return new TypeReference<SegmentIdWithShardSpec>()
     {
     };
   }
 
   @Override
-  public SegmentIdentifier perform(
+  public SegmentIdWithShardSpec perform(
       final Task task,
       final TaskActionToolbox toolbox
   )
@@ -184,9 +184,9 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
           .filter(segment -> !overshadowingSegments.contains(segment.getShardSpec().getPartitionNum()))
           .collect(Collectors.toSet());
 
-      final SegmentIdentifier identifier = usedSegmentsForRow.isEmpty() ?
-                                           tryAllocateFirstSegment(toolbox, task, rowInterval) :
-                                           tryAllocateSubsequentSegment(
+      final SegmentIdWithShardSpec identifier = usedSegmentsForRow.isEmpty() ?
+                                                tryAllocateFirstSegment(toolbox, task, rowInterval) :
+                                                tryAllocateSubsequentSegment(
                                                toolbox,
                                                task,
                                                rowInterval,
@@ -230,7 +230,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     }
   }
 
-  private SegmentIdentifier tryAllocateFirstSegment(TaskActionToolbox toolbox, Task task, Interval rowInterval)
+  private SegmentIdWithShardSpec tryAllocateFirstSegment(TaskActionToolbox toolbox, Task task, Interval rowInterval)
   {
     // No existing segments for this row, but there might still be nearby ones that conflict with our preferred
     // segment granularity. Try that first, and then progressively smaller ones if it fails.
@@ -240,7 +240,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
                                                    .collect(Collectors.toList());
     for (Interval tryInterval : tryIntervals) {
       if (tryInterval.contains(rowInterval)) {
-        final SegmentIdentifier identifier = tryAllocate(toolbox, task, tryInterval, rowInterval, false);
+        final SegmentIdWithShardSpec identifier = tryAllocate(toolbox, task, tryInterval, rowInterval, false);
         if (identifier != null) {
           return identifier;
         }
@@ -249,7 +249,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     return null;
   }
 
-  private SegmentIdentifier tryAllocateSubsequentSegment(
+  private SegmentIdWithShardSpec tryAllocateSubsequentSegment(
       TaskActionToolbox toolbox,
       Task task,
       Interval rowInterval,
@@ -267,7 +267,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     }
   }
 
-  private SegmentIdentifier tryAllocate(
+  private SegmentIdWithShardSpec tryAllocate(
       TaskActionToolbox toolbox,
       Task task,
       Interval tryInterval,
@@ -300,6 +300,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
     }
 
     if (lockResult.isOk()) {
+<<<<<<< HEAD
       final List<SegmentIdentifier> identifiers = lockResult.getNewSegmentIds();
       if (!identifiers.isEmpty()) {
         if (identifiers.size() == 1) {
@@ -307,6 +308,35 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdentifier>
         } else {
           throw new ISE("WTH? multiple segmentIds[%s] were created?", identifiers);
         }
+=======
+      final SegmentIdWithShardSpec identifier;
+      try {
+        identifier = toolbox.getTaskLockbox().doInCriticalSection(
+            task,
+            ImmutableList.of(tryInterval),
+            CriticalAction
+                .<SegmentIdWithShardSpec>builder()
+                .onValidLocks(
+                    () -> toolbox.getIndexerMetadataStorageCoordinator().allocatePendingSegment(
+                        dataSource,
+                        sequenceName,
+                        previousSegmentId,
+                        tryInterval,
+                        lockResult.getTaskLock().getVersion(),
+                        skipSegmentLineageCheck
+                    )
+                )
+                .onInvalidLocks(() -> null)
+                .build()
+        );
+      }
+      catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+
+      if (identifier != null) {
+        return identifier;
+>>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
       } else {
         final String msg = StringUtils.format(
             "Could not allocate pending segment for rowInterval[%s], segmentInterval[%s].",
