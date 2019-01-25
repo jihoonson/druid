@@ -24,6 +24,7 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
@@ -80,7 +81,7 @@ public class CachingLocalSegmentAllocator extends CachingSegmentAllocator
             interval,
             shardSpecFactoryArgsList
                 .stream()
-                .map(args -> new SegmentIdentifier(
+                .map(args -> new SegmentIdWithShardSpec(
                     dataSource,
                     interval,
                     findVersion(interval),

@@ -27,14 +27,11 @@ import org.apache.druid.timeline.SegmentId;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 
-<<<<<<< HEAD:server/src/main/java/org/apache/druid/segment/realtime/appenderator/SegmentIdentifier.java
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
-public class SegmentIdentifier
-=======
 /**
  * {@link SegmentId} with additional {@link ShardSpec} info. {@link #equals}/{@link #hashCode} and {@link
  * #compareTo} don't consider that additinal info.
@@ -44,14 +41,13 @@ public class SegmentIdentifier
  * in {@link SegmentId} is important, because it adds to the memory footprint considerably.
  */
 public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithShardSpec>
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8:server/src/main/java/org/apache/druid/segment/realtime/appenderator/SegmentIdWithShardSpec.java
 {
   private final SegmentId id;
   private final ShardSpec shardSpec;
   private final String asString;
   private final Set<Integer> overshadowingSegments;
 
-  public SegmentIdentifier(
+  public SegmentIdWithShardSpec(
       String dataSource,
       Interval interval,
       String version,
@@ -72,7 +68,6 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
   {
     this.id = SegmentId.of(dataSource, interval, version, shardSpec.getPartitionNum());
     this.shardSpec = Preconditions.checkNotNull(shardSpec, "shardSpec");
-<<<<<<< HEAD:server/src/main/java/org/apache/druid/segment/realtime/appenderator/SegmentIdentifier.java
     this.overshadowingSegments = overshadowingSegments == null ? Collections.emptySet() : overshadowingSegments;
     this.asString = DataSegment.makeDataSegmentIdentifier(
         dataSource,
@@ -81,14 +76,12 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
         version,
         shardSpec
     );
-=======
     this.asString = id.toString();
   }
 
   public SegmentId asSegmentId()
   {
     return id;
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8:server/src/main/java/org/apache/druid/segment/realtime/appenderator/SegmentIdWithShardSpec.java
   }
 
   public SegmentIdentifier withShardSpec(ShardSpec shardSpec)
