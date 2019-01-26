@@ -34,13 +34,8 @@ public class SegmentIdWithShardSpecTest
   private static final String VERSION = "v1";
   private static final NumberedShardSpec SHARD_SPEC_0 = new NumberedShardSpec(0, 2);
   private static final NumberedShardSpec SHARD_SPEC_1 = new NumberedShardSpec(1, 2);
-<<<<<<< HEAD:server/src/test/java/org/apache/druid/segment/realtime/appenderator/SegmentIdentifierTest.java
-  private static final SegmentIdentifier ID_0 = new SegmentIdentifier(DATA_SOURCE, INTERVAL, VERSION, SHARD_SPEC_0, null);
-  private static final SegmentIdentifier ID_1 = new SegmentIdentifier(DATA_SOURCE, INTERVAL, VERSION, SHARD_SPEC_1, null);
-=======
   private static final SegmentIdWithShardSpec ID_0 = new SegmentIdWithShardSpec(DATA_SOURCE, INTERVAL, VERSION, SHARD_SPEC_0);
   private static final SegmentIdWithShardSpec ID_1 = new SegmentIdWithShardSpec(DATA_SOURCE, INTERVAL, VERSION, SHARD_SPEC_1);
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8:server/src/test/java/org/apache/druid/segment/realtime/appenderator/SegmentIdWithShardSpecTest.java
 
   @Test
   public void testSerde() throws Exception

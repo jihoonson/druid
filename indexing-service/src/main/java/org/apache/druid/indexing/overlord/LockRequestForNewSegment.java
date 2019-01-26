@@ -27,7 +27,7 @@ import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.java.util.common.DateTimes;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
@@ -186,7 +186,7 @@ public class LockRequestForNewSegment implements LockRequest
     return shardSpecFactoryArgsList;
   }
 
-  public TaskLock toLock(List<SegmentIdentifier> newSegmentIds)
+  public TaskLock toLock(List<SegmentIdWithShardSpec> newSegmentIds)
   {
     final String version = newSegmentIds.get(0).getVersion();
     Preconditions.checkState(

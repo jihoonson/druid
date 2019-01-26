@@ -32,11 +32,7 @@ import org.apache.druid.indexing.overlord.SegmentPublishResult;
 import org.apache.druid.java.util.emitter.service.ServiceMetricEvent;
 import org.apache.druid.query.DruidMetrics;
 import org.apache.druid.timeline.DataSegment;
-<<<<<<< HEAD
-import org.apache.druid.timeline.DataSegmentUtils;
 import org.joda.time.Interval;
-=======
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
 
 import java.util.ArrayList;
 import java.util.HashMap;

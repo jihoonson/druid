@@ -24,7 +24,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 import org.apache.druid.data.input.impl.CSVParseSpec;
@@ -70,10 +69,6 @@ import org.apache.druid.segment.loading.SegmentLoader;
 import org.apache.druid.segment.loading.SegmentLoaderConfig;
 import org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager;
 import org.apache.druid.segment.loading.StorageLocationConfig;
-<<<<<<< HEAD
-=======
-import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
 import org.apache.druid.segment.realtime.firehose.LocalFirehoseFactory;
 import org.apache.druid.segment.realtime.firehose.WindowedStorageAdapter;
 import org.apache.druid.segment.transform.ExpressionTransform;
@@ -1529,123 +1524,7 @@ public class IndexTaskTest extends IngestionTestBase
 
   private Pair<TaskStatus, List<DataSegment>> runTask(IndexTask task) throws Exception
   {
-<<<<<<< HEAD
     final TaskStatus status = taskRunner.run(task).get();
-=======
-    final TaskActionClient actionClient = new TaskActionClient()
-    {
-      @Override
-      public <RetType> RetType submit(TaskAction<RetType> taskAction)
-      {
-        if (taskAction instanceof LockListAction) {
-          return (RetType) Collections.singletonList(
-              new TaskLock(
-                  TaskLockType.EXCLUSIVE,
-                  "",
-                  "",
-                  Intervals.of("2014/P1Y"), DateTimes.nowUtc().toString(),
-                  Tasks.DEFAULT_BATCH_INDEX_TASK_PRIORITY
-              )
-          );
-        }
-
-        if (taskAction instanceof LockAcquireAction) {
-          return (RetType) new TaskLock(
-              TaskLockType.EXCLUSIVE,
-              "groupId",
-              "test",
-              ((LockAcquireAction) taskAction).getInterval(),
-              DateTimes.nowUtc().toString(),
-              Tasks.DEFAULT_BATCH_INDEX_TASK_PRIORITY
-          );
-        }
-
-        if (taskAction instanceof LockTryAcquireAction) {
-          return (RetType) new TaskLock(
-              TaskLockType.EXCLUSIVE,
-              "groupId",
-              "test",
-              ((LockTryAcquireAction) taskAction).getInterval(),
-              DateTimes.nowUtc().toString(),
-              Tasks.DEFAULT_BATCH_INDEX_TASK_PRIORITY
-          );
-        }
-
-        if (taskAction instanceof SegmentTransactionalInsertAction) {
-          return (RetType) new SegmentPublishResult(
-              ((SegmentTransactionalInsertAction) taskAction).getSegments(),
-              true
-          );
-        }
-
-        if (taskAction instanceof SegmentAllocateAction) {
-          SegmentAllocateAction action = (SegmentAllocateAction) taskAction;
-          Interval interval = action.getPreferredSegmentGranularity().bucket(action.getTimestamp());
-          ShardSpec shardSpec = new NumberedShardSpec(segmentAllocatePartitionCounter++, 0);
-          return (RetType) new SegmentIdWithShardSpec(action.getDataSource(), interval, "latestVersion", shardSpec);
-        }
-
-        return null;
-      }
-    };
-
-    final DataSegmentKiller killer = new DataSegmentKiller()
-    {
-      @Override
-      public void kill(DataSegment segment)
-      {
-
-      }
-
-      @Override
-      public void killAll()
-      {
-
-      }
-    };
-
-    final TaskToolbox box = new TaskToolbox(
-        null,
-        actionClient,
-        null,
-        pusher,
-        killer,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        jsonMapper,
-        temporaryFolder.newFolder(),
-        indexIO,
-        null,
-        null,
-        null,
-        indexMergerV9,
-        null,
-        null,
-        null,
-        null,
-        new TaskReportFileWriter(reportsFile)
-    );
-
-    indexTask.isReady(box.getTaskActionClient());
-    TaskStatus status = indexTask.run(box);
-
-    segments.sort((s1, s2) -> {
-      final int comp = Comparators.intervalsByStartThenEnd().compare(s1.getInterval(), s2.getInterval());
-      if (comp != 0) {
-        return comp;
-      }
-      //noinspection SubtractionInCompareTo
-      return s1.getShardSpec().getPartitionNum() - s2.getShardSpec().getPartitionNum();
-    });
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
-
     final List<DataSegment> segments = taskRunner.getPublishedSegments();
     return Pair.of(status, segments);
   }

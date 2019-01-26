@@ -29,7 +29,6 @@ import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -69,13 +68,6 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
     this.id = SegmentId.of(dataSource, interval, version, shardSpec.getPartitionNum());
     this.shardSpec = Preconditions.checkNotNull(shardSpec, "shardSpec");
     this.overshadowingSegments = overshadowingSegments == null ? Collections.emptySet() : overshadowingSegments;
-    this.asString = DataSegment.makeDataSegmentIdentifier(
-        dataSource,
-        interval.getStart(),
-        interval.getEnd(),
-        version,
-        shardSpec
-    );
     this.asString = id.toString();
   }
 
@@ -84,23 +76,23 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
     return id;
   }
 
-  public SegmentIdentifier withShardSpec(ShardSpec shardSpec)
+  public SegmentIdWithShardSpec withShardSpec(ShardSpec shardSpec)
   {
-    return new SegmentIdentifier(
-        dataSource,
-        interval,
-        version,
+    return new SegmentIdWithShardSpec(
+        id.getDataSource(),
+        id.getInterval(),
+        id.getVersion(),
         shardSpec,
         overshadowingSegments
     );
   }
 
-  public SegmentIdentifier withOvershadowedGroup(Set<Integer> overshadowedGroup)
+  public SegmentIdWithShardSpec withOvershadowedGroup(Set<Integer> overshadowedGroup)
   {
-    return new SegmentIdentifier(
-        dataSource,
-        interval,
-        version,
+    return new SegmentIdWithShardSpec(
+        id.getDataSource(),
+        id.getInterval(),
+        id.getVersion(),
         shardSpec,
         overshadowedGroup
     );
@@ -130,7 +122,6 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
     return shardSpec;
   }
 
-<<<<<<< HEAD:server/src/main/java/org/apache/druid/segment/realtime/appenderator/SegmentIdentifier.java
   @JsonProperty
   public Set<Integer> getOvershadowingSegments()
   {
@@ -142,8 +133,6 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
     return asString;
   }
 
-=======
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8:server/src/main/java/org/apache/druid/segment/realtime/appenderator/SegmentIdWithShardSpec.java
   @Override
   public boolean equals(Object o)
   {

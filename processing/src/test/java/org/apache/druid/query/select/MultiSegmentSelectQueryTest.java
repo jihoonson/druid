@@ -149,18 +149,10 @@ public class MultiSegmentSelectQueryTest
     segment1 = new IncrementalIndexSegment(index1, makeIdentifier(index1, "v1"));
     segment_override = new IncrementalIndexSegment(index2, makeIdentifier(index2, "v2"));
 
-<<<<<<< HEAD
     VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = new VersionedIntervalTimeline<>(StringComparators.LEXICOGRAPHIC);
     timeline.add(index0.getInterval(), "v1", new SingleElementPartitionChunk<>(new ReferenceCountingSegment(segment0)));
     timeline.add(index1.getInterval(), "v1", new SingleElementPartitionChunk<>(new ReferenceCountingSegment(segment1)));
     timeline.add(index2.getInterval(), "v2", new SingleElementPartitionChunk<>(new ReferenceCountingSegment(segment_override)));
-=======
-    VersionedIntervalTimeline<String, Segment> timeline =
-        new VersionedIntervalTimeline<>(StringComparators.LEXICOGRAPHIC);
-    timeline.add(index0.getInterval(), "v1", new SingleElementPartitionChunk<>(segment0));
-    timeline.add(index1.getInterval(), "v1", new SingleElementPartitionChunk<>(segment1));
-    timeline.add(index2.getInterval(), "v2", new SingleElementPartitionChunk<>(segment_override));
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
 
     segmentIdentifiers = new ArrayList<>();
     for (TimelineObjectHolder<String, ?> holder : timeline.lookup(Intervals.of("2011-01-12/2011-01-14"))) {

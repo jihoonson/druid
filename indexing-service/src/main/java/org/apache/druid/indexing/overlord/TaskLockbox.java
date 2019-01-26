@@ -40,7 +40,7 @@ import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.java.util.emitter.EmittingLogger;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
@@ -153,7 +153,7 @@ public class TaskLockbox
                                       ? savedTaskLock.withPriority(task.getPriority())
                                       : savedTaskLock;
 
-        final Pair<TaskLockPosse, List<SegmentIdentifier>> taskLockPosse = verifyAndCreateOrFindLockPosse(
+        final Pair<TaskLockPosse, List<SegmentIdWithShardSpec>> taskLockPosse = verifyAndCreateOrFindLockPosse(
             task,
             savedTaskLockWithPriority
         );
@@ -205,7 +205,7 @@ public class TaskLockbox
    * This method is called only in {@link #syncFromStorage()} and verifies the given task and the taskLock have the same
    * groupId, dataSource, and priority.
    */
-  private Pair<TaskLockPosse, List<SegmentIdentifier>> verifyAndCreateOrFindLockPosse(Task task, TaskLock taskLock)
+  private Pair<TaskLockPosse, List<SegmentIdWithShardSpec>> verifyAndCreateOrFindLockPosse(Task task, TaskLock taskLock)
   {
     giant.lock();
 
@@ -358,7 +358,7 @@ public class TaskLockbox
       }
       Preconditions.checkArgument(request.getInterval().toDurationMillis() > 0, "interval empty");
 
-      final Pair<TaskLockPosse, List<SegmentIdentifier>> pair = createOrFindLockPosse(task, request);
+      final Pair<TaskLockPosse, List<SegmentIdWithShardSpec>> pair = createOrFindLockPosse(task, request);
       final TaskLockPosse posseToUse = pair.lhs;
       if (posseToUse != null && !posseToUse.getTaskLock().isRevoked()) {
         // Add to existing TaskLockPosse, if necessary
@@ -394,7 +394,7 @@ public class TaskLockbox
     }
   }
 
-  private Pair<TaskLockPosse, List<SegmentIdentifier>> createOrFindLockPosse(Task task, LockRequest request)
+  private Pair<TaskLockPosse, List<SegmentIdWithShardSpec>> createOrFindLockPosse(Task task, LockRequest request)
   {
     giant.lock();
 
@@ -499,11 +499,11 @@ public class TaskLockbox
    * @return a new {@link TaskLockPosse}
    */
   // TODO: new class for pair?
-  private Pair<TaskLockPosse, List<SegmentIdentifier>> createNewTaskLockPosse(LockRequest request)
+  private Pair<TaskLockPosse, List<SegmentIdWithShardSpec>> createNewTaskLockPosse(LockRequest request)
   {
     giant.lock();
     try {
-      final Pair<TaskLock, List<SegmentIdentifier>> pair = createLock(request);
+      final Pair<TaskLock, List<SegmentIdWithShardSpec>> pair = createLock(request);
 
       if (pair.lhs != null) {
         // TODO: how to return new segment identifier to the lock holder?
@@ -523,7 +523,7 @@ public class TaskLockbox
     }
   }
 
-  private Pair<TaskLock, List<SegmentIdentifier>> createLock(LockRequest request)
+  private Pair<TaskLock, List<SegmentIdWithShardSpec>> createLock(LockRequest request)
   {
     if (request instanceof TimeChunkLockRequest) {
       return Pair.of(((TimeChunkLockRequest) request).toLock(), Collections.emptyList());
@@ -533,7 +533,7 @@ public class TaskLockbox
 
     } else if (request instanceof LockRequestForNewSegment) {
       final LockRequestForNewSegment lockRequestForNewSegment = (LockRequestForNewSegment) request;
-      final List<SegmentIdentifier> newIds = createNewSegmentIds(lockRequestForNewSegment, request.getVersion());
+      final List<SegmentIdWithShardSpec> newIds = createNewSegmentIds(lockRequestForNewSegment, request.getVersion());
 
       if (newIds.stream().anyMatch(java.util.Objects::isNull)) {
         return Pair.of(null, newIds);
@@ -545,10 +545,10 @@ public class TaskLockbox
     }
   }
 
-  private List<SegmentIdentifier> createNewSegmentIds(LockRequestForNewSegment request, String version)
+  private List<SegmentIdWithShardSpec> createNewSegmentIds(LockRequestForNewSegment request, String version)
   {
     final int numNewSegments = request.getShardSpecFactoryArgsList().size();
-    final List<SegmentIdentifier> newSegmentIds = new ArrayList<>(numNewSegments);
+    final List<SegmentIdWithShardSpec> newSegmentIds = new ArrayList<>(numNewSegments);
     for (int i = 0; i < numNewSegments; i++) {
       final String sequenceName = request.isSkipSegmentLineageCheck()
           ? StringUtils.format("%s_%d", request.getBaseSequenceName(), i)
@@ -582,15 +582,11 @@ public class TaskLockbox
    * @param intervalToPartitionIds partitionIds which should be locked by task
    * @param action                 action to be performed inside of the critical section
    */
-<<<<<<< HEAD
   public <T> T doInCriticalSection(
       Task task,
       Map<Interval, List<Integer>> intervalToPartitionIds,
       CriticalAction<T> action
   ) throws Exception
-=======
-  public <T> T doInCriticalSection(Task task, List<Interval> intervals, CriticalAction<T> action) throws Exception
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
   {
     giant.lock();
 

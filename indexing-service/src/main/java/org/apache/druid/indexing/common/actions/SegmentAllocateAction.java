@@ -300,43 +300,13 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
     }
 
     if (lockResult.isOk()) {
-<<<<<<< HEAD
-      final List<SegmentIdentifier> identifiers = lockResult.getNewSegmentIds();
+      final List<SegmentIdWithShardSpec> identifiers = lockResult.getNewSegmentIds();
       if (!identifiers.isEmpty()) {
         if (identifiers.size() == 1) {
           return identifiers.get(0);
         } else {
           throw new ISE("WTH? multiple segmentIds[%s] were created?", identifiers);
         }
-=======
-      final SegmentIdWithShardSpec identifier;
-      try {
-        identifier = toolbox.getTaskLockbox().doInCriticalSection(
-            task,
-            ImmutableList.of(tryInterval),
-            CriticalAction
-                .<SegmentIdWithShardSpec>builder()
-                .onValidLocks(
-                    () -> toolbox.getIndexerMetadataStorageCoordinator().allocatePendingSegment(
-                        dataSource,
-                        sequenceName,
-                        previousSegmentId,
-                        tryInterval,
-                        lockResult.getTaskLock().getVersion(),
-                        skipSegmentLineageCheck
-                    )
-                )
-                .onInvalidLocks(() -> null)
-                .build()
-        );
-      }
-      catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-
-      if (identifier != null) {
-        return identifier;
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
       } else {
         final String msg = StringUtils.format(
             "Could not allocate pending segment for rowInterval[%s], segmentInterval[%s].",

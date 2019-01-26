@@ -21,11 +21,8 @@ package org.apache.druid.segment;
 
 import com.google.common.base.Preconditions;
 import org.apache.druid.java.util.emitter.EmittingLogger;
-<<<<<<< HEAD
 import org.apache.druid.timeline.Overshadowable;
-=======
 import org.apache.druid.timeline.SegmentId;
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
 import org.joda.time.Interval;
 
 import java.io.Closeable;

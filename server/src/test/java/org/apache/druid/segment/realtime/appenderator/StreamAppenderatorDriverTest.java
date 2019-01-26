@@ -155,13 +155,8 @@ public class StreamAppenderatorDriverTest extends EasyMockSupport
 
     Assert.assertEquals(
         ImmutableSet.of(
-<<<<<<< HEAD
-            new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0), null),
-            new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000T01/PT1H"), VERSION, new NumberedShardSpec(0, 0), null)
-=======
             new SegmentIdWithShardSpec(DATA_SOURCE, Intervals.of("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0)),
             new SegmentIdWithShardSpec(DATA_SOURCE, Intervals.of("2000T01/PT1H"), VERSION, new NumberedShardSpec(0, 0))
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
         ),
         asIdentifiers(segmentsAndMetadata.getSegments())
     );
@@ -257,11 +252,7 @@ public class StreamAppenderatorDriverTest extends EasyMockSupport
 
       Assert.assertEquals(
           ImmutableSet.of(
-<<<<<<< HEAD
-              new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0), null)
-=======
               new SegmentIdWithShardSpec(DATA_SOURCE, Intervals.of("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0))
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
           ),
           asIdentifiers(segmentsAndMetadata.getSegments())
       );
@@ -284,11 +275,7 @@ public class StreamAppenderatorDriverTest extends EasyMockSupport
           ImmutableSet.of(
               // The second and third rows have the same dataSource, interval, and version, but different shardSpec of
               // different partitionNum
-<<<<<<< HEAD
-              new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000T01/PT1H"), VERSION, new NumberedShardSpec(i - 1, 0), null)
-=======
               new SegmentIdWithShardSpec(DATA_SOURCE, Intervals.of("2000T01/PT1H"), VERSION, new NumberedShardSpec(i - 1, 0))
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
           ),
           asIdentifiers(segmentsAndMetadata.getSegments())
       );
@@ -351,22 +338,14 @@ public class StreamAppenderatorDriverTest extends EasyMockSupport
 
     Assert.assertEquals(
         ImmutableSet.of(
-<<<<<<< HEAD
-            new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0), null)
-=======
             new SegmentIdWithShardSpec(DATA_SOURCE, Intervals.of("2000/PT1H"), VERSION, new NumberedShardSpec(0, 0))
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
         ),
         asIdentifiers(handedoffFromSequence0.getSegments())
     );
 
     Assert.assertEquals(
         ImmutableSet.of(
-<<<<<<< HEAD
-            new SegmentIdentifier(DATA_SOURCE, Intervals.of("2000T01/PT1H"), VERSION, new NumberedShardSpec(0, 0), null)
-=======
             new SegmentIdWithShardSpec(DATA_SOURCE, Intervals.of("2000T01/PT1H"), VERSION, new NumberedShardSpec(0, 0))
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
         ),
         asIdentifiers(handedoffFromSequence1.getSegments())
     );

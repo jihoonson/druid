@@ -55,11 +55,8 @@ import org.skife.jdbi.v2.tweak.HandleCallback;
 import org.skife.jdbi.v2.util.StringMapper;
 
 import java.io.IOException;
-<<<<<<< HEAD
-import java.util.Collections;
-=======
 import java.nio.charset.StandardCharsets;
->>>>>>> 66f64cd8bdf3a742d3d6a812b7560a9ffc0c28b8
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -983,7 +980,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
     String prevSegmentId = null;
 
     for (int i = 0; i < 10; i++) {
-      final SegmentIdentifier identifier = coordinator.allocatePendingSegment(
+      final SegmentIdWithShardSpec identifier = coordinator.allocatePendingSegment(
           dataSource,
           "seq",
           prevSegmentId,
@@ -1056,7 +1053,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
 
-    SegmentIdentifier id = coordinator.allocatePendingSegment(
+    SegmentIdWithShardSpec id = coordinator.allocatePendingSegment(
         dataSource,
         "seq",
         null,
