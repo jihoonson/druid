@@ -46,6 +46,7 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 /**
@@ -202,7 +203,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
 
       if (!ImmutableSet.copyOf(msc.getUsedSegmentsForInterval(dataSource, rowInterval)).equals(usedSegmentsForRow)) {
         if (attempt < MAX_ATTEMPTS) {
-          final long shortRandomSleep = 50 + (long) (Math.random() * 450);
+          final long shortRandomSleep = 50 + (long) (ThreadLocalRandom.current().nextDouble() * 450);
           log.debug(
               "Used segment set changed for rowInterval[%s]. Retrying segment allocation in %,dms (attempt = %,d).",
               rowInterval,

@@ -307,6 +307,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
   {
     return new TimelineObjectHolder<>(
         entry.getTrueInterval(),
+        entry.getTrueInterval(),
         entry.getVersion(),
         new PartitionHolder<>(entry.getPartitionHolder())
     );
@@ -640,6 +641,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
         retVal.add(
             new TimelineObjectHolder<>(
                 timelineInterval,
+                val.getTrueInterval(),
                 val.getVersion(),
                 new PartitionHolder<>(val.getPartitionHolder())
             )
@@ -658,6 +660,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
           0,
           new TimelineObjectHolder<>(
               new Interval(interval.getStart(), firstEntry.getInterval().getEnd()),
+              firstEntry.getTrueInterval(),
               firstEntry.getVersion(),
               firstEntry.getObject()
           )
@@ -670,6 +673,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
           retVal.size() - 1,
           new TimelineObjectHolder<>(
               new Interval(lastEntry.getInterval().getStart(), interval.getEnd()),
+              lastEntry.getTrueInterval(),
               lastEntry.getVersion(),
               lastEntry.getObject()
           )

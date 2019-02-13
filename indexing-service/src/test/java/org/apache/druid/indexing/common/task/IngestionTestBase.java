@@ -24,7 +24,6 @@ import com.google.common.base.Optional;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.druid.indexer.TaskStatus;
-import org.apache.druid.indexing.common.Counters;
 import org.apache.druid.indexing.common.TaskReportFileWriter;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.TestUtils;
@@ -174,8 +173,7 @@ public abstract class IngestionTestBase
         taskStorage,
         storageCoordinator,
         new NoopServiceEmitter(),
-        null,
-        new Counters()
+        null
     );
   }
 

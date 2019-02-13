@@ -33,6 +33,7 @@ import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
+import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.JodaUtils;
@@ -177,11 +178,14 @@ public abstract class AbstractTask implements Task
     return false;
   }
 
+  /**
+   * Should be called independent of canRestore so that resource cleaning can be achieved.
+   * If resource cleaning is required, concrete class should override this method
+   */
   @Override
-  public void stopGracefully()
+  public void stopGracefully(TaskConfig taskConfig)
   {
-    // Should not be called when canRestore = false.
-    throw new UnsupportedOperationException("Cannot stop gracefully");
+    // Do nothing and let the concrete class handle it
   }
 
   @Override

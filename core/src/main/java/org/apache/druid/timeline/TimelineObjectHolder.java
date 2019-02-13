@@ -19,6 +19,7 @@
 
 package org.apache.druid.timeline;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.druid.timeline.partition.PartitionHolder;
 import org.joda.time.Interval;
 
@@ -29,16 +30,25 @@ import java.util.Objects;
 public class TimelineObjectHolder<VersionType, ObjectType extends Overshadowable<ObjectType>> implements LogicalSegment
 {
   private final Interval interval;
+  private final Interval trueInterval;
   private final VersionType version;
   private final PartitionHolder<ObjectType> object;
 
+  @VisibleForTesting
+  public TimelineObjectHolder(Interval interval, VersionType version, PartitionHolder<ObjectType> object)
+  {
+    this(interval, interval, version, object);
+  }
+
   public TimelineObjectHolder(
       Interval interval,
+      Interval trueInterval,
       VersionType version,
       PartitionHolder<ObjectType> object
   )
   {
     this.interval = interval;
+    this.trueInterval = trueInterval;
     this.version = version;
     this.object = object;
   }
@@ -47,6 +57,12 @@ public class TimelineObjectHolder<VersionType, ObjectType extends Overshadowable
   public Interval getInterval()
   {
     return interval;
+  }
+
+  @Override
+  public Interval getTrueInterval()
+  {
+    return trueInterval;
   }
 
   public VersionType getVersion()
@@ -85,6 +101,7 @@ public class TimelineObjectHolder<VersionType, ObjectType extends Overshadowable
   {
     return "TimelineObjectHolder{" +
            "interval=" + interval +
+           ", trueInterval=" + trueInterval +
            ", version=" + version +
            ", object=" + object +
            '}';
