@@ -257,8 +257,7 @@ public class SystemSchemaTest extends CalciteTestBase
       ImmutableList.of("met1", "met2"),
       null,
       1,
-      53000L,
-      DataSegment.PruneLoadSpecHolder.DEFAULT
+      53000L
   );
   private final DataSegment publishedSegment2 = new DataSegment(
       "wikipedia2",
@@ -269,8 +268,7 @@ public class SystemSchemaTest extends CalciteTestBase
       ImmutableList.of("met1", "met2"),
       null,
       1,
-      83000L,
-      DataSegment.PruneLoadSpecHolder.DEFAULT
+      83000L
   );
   private final DataSegment publishedSegment3 = new DataSegment(
       "wikipedia3",
@@ -281,8 +279,7 @@ public class SystemSchemaTest extends CalciteTestBase
       ImmutableList.of("met1", "met2"),
       null,
       1,
-      47000L,
-      DataSegment.PruneLoadSpecHolder.DEFAULT
+      47000L
   );
 
   private final DataSegment segment1 = new DataSegment(

@@ -29,7 +29,7 @@ import org.apache.druid.indexing.overlord.LockRequestForNewSegment;
 import org.apache.druid.indexing.overlord.LockResult;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
@@ -40,7 +40,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
-public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<SegmentIdentifier>>>
+public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<SegmentIdWithShardSpec>>>
 {
   // interval -> # of segments to allocate
   private final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec;
@@ -78,17 +78,17 @@ public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<
   }
 
   @Override
-  public TypeReference<Map<Interval, List<SegmentIdentifier>>> getReturnTypeReference()
+  public TypeReference<Map<Interval, List<SegmentIdWithShardSpec>>> getReturnTypeReference()
   {
-    return new TypeReference<Map<Interval, List<SegmentIdentifier>>>()
+    return new TypeReference<Map<Interval, List<SegmentIdWithShardSpec>>>()
     {
     };
   }
 
   @Override
-  public Map<Interval, List<SegmentIdentifier>> perform(Task task, TaskActionToolbox toolbox)
+  public Map<Interval, List<SegmentIdWithShardSpec>> perform(Task task, TaskActionToolbox toolbox)
   {
-    final Map<Interval, List<SegmentIdentifier>> segmentIds = new HashMap<>(allocateSpec.size());
+    final Map<Interval, List<SegmentIdWithShardSpec>> segmentIds = new HashMap<>(allocateSpec.size());
 
     for (Entry<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> entry : allocateSpec.entrySet()) {
       final Interval interval = entry.getKey();
@@ -118,7 +118,7 @@ public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<
       }
 
       if (lockResult.isOk()) {
-        final List<SegmentIdentifier> identifiers = lockResult.getNewSegmentIds();
+        final List<SegmentIdWithShardSpec> identifiers = lockResult.getNewSegmentIds();
         if (!identifiers.isEmpty()) {
           if (identifiers.size() == numSegmentsToAllocate) {
             segmentIds.put(interval, identifiers);

@@ -601,9 +601,7 @@ public abstract class BaseAppenderatorDriver implements Closeable
     final Map<Interval, List<DataSegment>> intervalToSegments = new HashMap<>();
     segmentsAndMetadata
         .getSegments()
-        .forEach(
-            segment -> intervalToSegments.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>()).add(segment)
-        );
+        .forEach(segment -> intervalToSegments.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>()).add(segment));
 
     for (Entry<Interval, List<DataSegment>> entry : intervalToSegments.entrySet()) {
       final Interval interval = entry.getKey();

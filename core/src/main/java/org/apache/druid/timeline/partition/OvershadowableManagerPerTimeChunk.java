@@ -215,7 +215,7 @@ public class OvershadowableManagerPerTimeChunk<T extends Overshadowable<T>>
           atomicUpdateGroup = atomicUpdateGroupIds.stream().map(standbySegments::get).collect(Collectors.toList());
         }
 
-        atomicUpdateGroup.forEach(partition -> transitPartitionChunkState(partition, State.STANDBY, ));
+        atomicUpdateGroup.forEach(partition -> transitPartitionChunkState(partition, State.STANDBY, State.VISIBLE));
 
         // TODO: probably a sanity check that all atomic update group have the same overshadowedGroup?
 

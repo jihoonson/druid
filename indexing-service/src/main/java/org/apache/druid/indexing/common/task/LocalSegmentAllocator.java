@@ -27,7 +27,7 @@ import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
@@ -71,7 +71,7 @@ public class LocalSegmentAllocator implements IndexTaskSegmentAllocator
                                               .orElseThrow(() -> new ISE("Cannot find a version for interval[%s]", interval));
 
       final int partitionNum = counters.computeIfAbsent(interval, x -> new AtomicInteger()).getAndIncrement();
-      return new SegmentIdentifier(
+      return new SegmentIdWithShardSpec(
           dataSource,
           interval,
           version,
@@ -87,7 +87,7 @@ public class LocalSegmentAllocator implements IndexTaskSegmentAllocator
   }
 
   @Override
-  public SegmentIdentifier allocate(
+  public SegmentIdWithShardSpec allocate(
       InputRow row,
       String sequenceName,
       String previousSegmentId,

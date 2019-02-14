@@ -53,7 +53,7 @@ import org.apache.druid.metadata.IndexerSQLMetadataStorageCoordinator;
 import org.apache.druid.metadata.MetadataStorageTablesConfig;
 import org.apache.druid.metadata.TestDerbyConnector;
 import org.apache.druid.segment.TestHelper;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
@@ -1083,7 +1083,7 @@ public class TaskLockboxTest
     Assert.assertTrue(result.isOk());
     Assert.assertNotNull(result.getTaskLock());
     Assert.assertEquals(lockGranularity, result.getTaskLock().getGranularity());
-    final List<SegmentIdentifier> segmentIdentifiers = result.getNewSegmentIds();
+    final List<SegmentIdWithShardSpec> segmentIdentifiers = result.getNewSegmentIds();
     Assert.assertEquals(numSegmentsToAllocate, segmentIdentifiers.size());
 
     final int lastSegmentIndex = numSegmentsToAllocate - 1;
@@ -1119,19 +1119,23 @@ public class TaskLockboxTest
     final Task task1 = NoopTask.create();
     final Task task2 = NoopTask.create();
 
-    TaskLock taskLock1 = new TaskLock(TaskLockType.EXCLUSIVE,
+    TaskLock taskLock1 = new TimeChunkLock(
+        TaskLockType.EXCLUSIVE,
         task1.getGroupId(),
         task1.getDataSource(),
         Intervals.of("2018/2019"),
         "v1",
-        task1.getPriority());
+        task1.getPriority()
+    );
 
-    TaskLock taskLock2 = new TaskLock(TaskLockType.EXCLUSIVE,
+    TaskLock taskLock2 = new TimeChunkLock(
+        TaskLockType.EXCLUSIVE,
         task2.getGroupId(),
         task2.getDataSource(),
         Intervals.of("2018/2019"),
         "v2",
-        task2.getPriority());
+        task2.getPriority()
+    );
 
     TaskLockPosse taskLockPosse1 = new TaskLockPosse(taskLock1);
     TaskLockPosse taskLockPosse2 = new TaskLockPosse(taskLock2);

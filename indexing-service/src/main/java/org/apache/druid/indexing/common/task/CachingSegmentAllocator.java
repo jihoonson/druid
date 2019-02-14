@@ -24,7 +24,7 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
@@ -50,7 +50,7 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
   private final ShardSpecs shardSpecs;
 
   // sequenceName -> segmentId
-  private final Map<String, SegmentIdentifier> sequenceNameToSegmentId;
+  private final Map<String, SegmentIdWithShardSpec> sequenceNameToSegmentId;
 
   public CachingSegmentAllocator(
       TaskToolbox toolbox,
@@ -66,15 +66,15 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
     this.isExtendableShardSpecs = isExtendableShardSpecs;
     this.sequenceNameToSegmentId = new HashMap<>();
 
-    final Map<Interval, List<SegmentIdentifier>> intervalToIds = getIntervalToSegmentIds(inputPartitionIds);
+    final Map<Interval, List<SegmentIdWithShardSpec>> intervalToIds = getIntervalToSegmentIds(inputPartitionIds);
     final Map<Interval, List<ShardSpec>> shardSpecMap = new HashMap<>();
 
-    for (Map.Entry<Interval, List<SegmentIdentifier>> entry : intervalToIds.entrySet()) {
+    for (Map.Entry<Interval, List<SegmentIdWithShardSpec>> entry : intervalToIds.entrySet()) {
       final Interval interval = entry.getKey();
-      final List<SegmentIdentifier> idsPerInterval = intervalToIds.get(interval);
+      final List<SegmentIdWithShardSpec> idsPerInterval = intervalToIds.get(interval);
       final int numTotalPartitions = idsPerInterval.size();
 
-      for (SegmentIdentifier segmentIdentifier : idsPerInterval) {
+      for (SegmentIdWithShardSpec segmentIdentifier : idsPerInterval) {
         shardSpecMap.computeIfAbsent(interval, k -> new ArrayList<>()).add(segmentIdentifier.getShardSpec());
         // The shardSpecs for partitinoing and publishing can be different if isExtendableShardSpecs = true.
         sequenceNameToSegmentId.put(
@@ -97,7 +97,7 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
     }
   }
 
-  abstract Map<Interval, List<SegmentIdentifier>> getIntervalToSegmentIds(Map<Interval, Set<Integer>> inputPartitionIds)
+  abstract Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds(Map<Interval, Set<Integer>> inputPartitionIds)
       throws IOException;
 
   TaskToolbox getToolbox()
@@ -116,7 +116,7 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
   }
 
   @Override
-  public SegmentIdentifier allocate(
+  public SegmentIdWithShardSpec allocate(
       InputRow row,
       String sequenceName,
       String previousSegmentId,

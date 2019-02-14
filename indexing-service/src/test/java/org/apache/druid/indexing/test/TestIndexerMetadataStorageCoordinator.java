@@ -137,7 +137,7 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
       boolean skipSegmentLineageCheck
   )
   {
-    return new SegmentIdentifier(
+    return new SegmentIdWithShardSpec(
         dataSource,
         interval,
         maxVersion,

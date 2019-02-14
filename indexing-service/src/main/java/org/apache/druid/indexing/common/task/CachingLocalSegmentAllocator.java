@@ -25,7 +25,6 @@ import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
@@ -65,10 +64,10 @@ public class CachingLocalSegmentAllocator extends CachingSegmentAllocator
   }
 
   @Override
-  Map<Interval, List<SegmentIdentifier>> getIntervalToSegmentIds(Map<Interval, Set<Integer>> inputPartitionIds)
+  Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds(Map<Interval, Set<Integer>> inputPartitionIds)
   {
     final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec = getAllocateSpec();
-    final Map<Interval, List<SegmentIdentifier>> intervalToSegmentIds = new HashMap<>(allocateSpec.size());
+    final Map<Interval, List<SegmentIdWithShardSpec>> intervalToSegmentIds = new HashMap<>(allocateSpec.size());
     for (Entry<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> entry : allocateSpec.entrySet()) {
       final Interval interval = entry.getKey();
       final ShardSpecFactory shardSpecFactory = entry.getValue().lhs;

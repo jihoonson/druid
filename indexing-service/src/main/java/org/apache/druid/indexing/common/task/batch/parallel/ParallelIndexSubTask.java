@@ -65,7 +65,7 @@ import org.apache.druid.segment.realtime.appenderator.Appenderators;
 import org.apache.druid.segment.realtime.appenderator.BaseAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentsAndMetadata;
 import org.apache.druid.timeline.DataSegment;
 import org.joda.time.Interval;
@@ -269,7 +269,7 @@ public class ParallelIndexSubTask extends AbstractTask
     }
 
     @Override
-    public SegmentIdentifier allocate(
+    public SegmentIdWithShardSpec allocate(
         InputRow row,
         String sequenceName,
         String previousSegmentId,

@@ -24,7 +24,7 @@ import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
 import org.apache.druid.segment.indexing.DataSchema;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.joda.time.Interval;
 
 import java.io.IOException;
@@ -66,7 +66,7 @@ public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
   }
 
   @Override
-  public SegmentIdentifier allocate(
+  public SegmentIdWithShardSpec allocate(
       InputRow row,
       String sequenceName,
       String previousSegmentId,

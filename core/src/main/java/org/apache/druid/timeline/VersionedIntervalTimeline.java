@@ -314,58 +314,45 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
   }
 
   // TODO: fix this
-  public Set<ObjectType> findOvershadowed()
+  public Set<TimelineObjectHolder<VersionType, ObjectType>> findOvershadowed()
   {
     lock.readLock().lock();
     try {
-      final Map<Interval, Map<VersionType, TimelineEntry>> overshadowed = new HashMap<>();
-      final List<TimelineEntry> nonOvershadowed = new ArrayList<>();
+      Set<TimelineObjectHolder<VersionType, ObjectType>> retVal = new HashSet<>();
 
-      // 1. find fully overshadowed timeChunks
-      for (Entry<Interval, TreeMap<VersionType, TimelineEntry>> versionEntry : allTimelineEntries.entrySet()) {
-        final Map<VersionType, TimelineEntry> versionCopy = new HashMap<>(versionEntry.getValue());
-        overshadowed.put(versionEntry.getKey(), versionCopy);
+      Map<Interval, Map<VersionType, TimelineEntry>> overShadowed = new HashMap<>();
+      for (Map.Entry<Interval, TreeMap<VersionType, TimelineEntry>> versionEntry : allTimelineEntries.entrySet()) {
+        Map<VersionType, TimelineEntry> versionCopy = new HashMap<>();
+        versionCopy.putAll(versionEntry.getValue());
+        overShadowed.put(versionEntry.getKey(), versionCopy);
       }
 
-      for (Entry<Interval, TimelineEntry> entry : completePartitionsTimeline.entrySet()) {
-        final Map<VersionType, TimelineEntry> versionEntry = overshadowed.get(entry.getValue().getTrueInterval());
+      for (Map.Entry<Interval, TimelineEntry> entry : completePartitionsTimeline.entrySet()) {
+        Map<VersionType, TimelineEntry> versionEntry = overShadowed.get(entry.getValue().getTrueInterval());
         if (versionEntry != null) {
           versionEntry.remove(entry.getValue().getVersion());
           if (versionEntry.isEmpty()) {
-            overshadowed.remove(entry.getValue().getTrueInterval());
-            nonOvershadowed.add(entry.getValue());
+            overShadowed.remove(entry.getValue().getTrueInterval());
           }
         }
       }
 
-      for (Entry<Interval, TimelineEntry> entry : incompletePartitionsTimeline.entrySet()) {
-        final Map<VersionType, TimelineEntry> versionEntry = overshadowed.get(entry.getValue().getTrueInterval());
+      for (Map.Entry<Interval, TimelineEntry> entry : incompletePartitionsTimeline.entrySet()) {
+        Map<VersionType, TimelineEntry> versionEntry = overShadowed.get(entry.getValue().getTrueInterval());
         if (versionEntry != null) {
           versionEntry.remove(entry.getValue().getVersion());
           if (versionEntry.isEmpty()) {
-            overshadowed.remove(entry.getValue().getTrueInterval());
-            nonOvershadowed.add(entry.getValue());
+            overShadowed.remove(entry.getValue().getTrueInterval());
           }
         }
       }
 
-      final Set<ObjectType> retVal = new HashSet<>();
-      for (Entry<Interval, Map<VersionType, TimelineEntry>> versionEntry : overshadowed.entrySet()) {
-        for (Entry<VersionType, TimelineEntry> entry : versionEntry.getValue().entrySet()) {
-          final TimelineEntry object = entry.getValue();
-          final Iterator<PartitionChunk<ObjectType>> it = object.partitionHolder.iterator();
-          while (it.hasNext()) {
-            retVal.add(it.next().getObject());
-          }
+      for (Map.Entry<Interval, Map<VersionType, TimelineEntry>> versionEntry : overShadowed.entrySet()) {
+        for (Map.Entry<VersionType, TimelineEntry> entry : versionEntry.getValue().entrySet()) {
+          TimelineEntry object = entry.getValue();
+          retVal.add(timelineEntryToObjectHolder(object));
         }
       }
-
-      // 2. find partially overshadowed timeChunks
-      nonOvershadowed
-          .stream()
-          .flatMap(timelineEntry -> timelineEntry.partitionHolder.getOVershadowed().stream())
-          .map(PartitionChunk::getObject)
-          .forEach(retVal::add);
 
       return retVal;
     }

@@ -427,7 +427,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       return result.segmentIdentifier;
     }
 
-    final SegmentIdWithShardSpec newIdentifier =  createNewSegment(
+    final SegmentIdWithShardSpec newIdentifier = createNewSegment(
         handle,
         dataSource,
         interval,

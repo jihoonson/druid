@@ -46,7 +46,7 @@ import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdentifier;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.server.security.AuthConfig;
 import org.apache.druid.server.security.AuthenticationResult;
 import org.apache.druid.timeline.DataSegment;
@@ -662,7 +662,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
 
       final SegmentAllocator segmentAllocator = createSegmentAllocator(toolbox, taskClient);
 
-      final SegmentIdentifier segmentIdentifier = segmentAllocator.allocate(
+      final SegmentIdWithShardSpec segmentIdentifier = segmentAllocator.allocate(
           new MapBasedInputRow(DateTimes.of("2017-01-01"), Collections.emptyList(), Collections.emptyMap()),
           getId(),
           null,
