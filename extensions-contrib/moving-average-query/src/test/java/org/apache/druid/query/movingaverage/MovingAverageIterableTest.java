@@ -32,6 +32,7 @@ import org.apache.druid.query.filter.DimFilter;
 import org.apache.druid.query.filter.SelectorDimFilter;
 import org.apache.druid.query.movingaverage.averagers.AveragerFactory;
 import org.apache.druid.query.movingaverage.averagers.ConstantAveragerFactory;
+import org.apache.druid.query.movingaverage.averagers.CumulativeLongSumAveragerFactory;
 import org.apache.druid.query.movingaverage.averagers.LongMeanAveragerFactory;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
@@ -248,11 +249,80 @@ public class MovingAverageIterableTest
 
   }
 
+  @Test
+  public void testCumulativeLongSum()
+  {
+    Map<String, Object> event1 = new HashMap<>();
+    Map<String, Object> event2 = new HashMap<>();
+    Map<String, Object> event3 = new HashMap<>();
+
+    event1.put("gender", "m");
+    event1.put("pageViews", 10L);
+    event2.put("gender", "m");
+    event2.put("pageViews", 30L);
+    event3.put("gender", "f");
+    event3.put("pageViews", 20L);
+
+    List<DimensionSpec> ds = new ArrayList<>();
+    ds.add(new DefaultDimensionSpec("gender", "gender"));
+
+    Row jan_1_row1 = new MapBasedRow(JAN_1, event1);
+    Row jan_1_row2 = new MapBasedRow(JAN_1, event2);
+    Row jan_1_row3 = new MapBasedRow(JAN_1, event3);
+
+    Row jan_2_row1 = new MapBasedRow(JAN_2, event1);
+    Row jan_2_row2 = new MapBasedRow(JAN_2, event2);
+    Row jan_2_row3 = new MapBasedRow(JAN_2, event3);
+
+    Sequence<RowBucket> seq = Sequences.simple(Arrays.asList(
+        new RowBucket(JAN_1, Arrays.asList(jan_1_row1, jan_1_row2, jan_1_row3)),
+        new RowBucket(JAN_2, Arrays.asList(jan_2_row1, jan_2_row2, jan_2_row3))
+    ));
+
+    Iterator<Row> iter = new MovingAverageIterable(
+        seq,
+        ds,
+        Collections.singletonList(new CumulativeLongSumAveragerFactory("cuSumPageViews", "pageViews")),
+        Collections.emptyList(),
+        Collections.singletonList(new LongSumAggregatorFactory("pageViews", "pageViews"))
+    ).iterator();
+
+    assertTrue(iter.hasNext());
+    Row result = iter.next();
+    assertEquals("m", (result.getDimension("gender")).get(0));
+    assertEquals(JAN_1, (result.getTimestamp()));
+
+    assertTrue(iter.hasNext());
+    result = iter.next();
+    assertEquals("f", (result.getDimension("gender")).get(0));
+    assertEquals(JAN_1, (result.getTimestamp()));
+
+    assertTrue(iter.hasNext());
+    result = iter.next();
+    assertEquals("u", (result.getDimension("gender")).get(0));
+    assertEquals(JAN_1, (result.getTimestamp()));
+
+    assertTrue(iter.hasNext());
+    result = iter.next();
+    assertEquals("m", (result.getDimension("gender")).get(0));
+    assertEquals(JAN_2, (result.getTimestamp()));
+
+    assertTrue(iter.hasNext());
+    result = iter.next();
+    assertEquals("f", (result.getDimension("gender")).get(0));
+    assertEquals(JAN_2, (result.getTimestamp()));
+
+    assertTrue(iter.hasNext());
+    result = iter.next();
+    assertEquals("u", (result.getDimension("gender")).get(0));
+    assertEquals(JAN_2, (result.getTimestamp()));
+
+    assertFalse(iter.hasNext());
+  }
 
   @Test
   public void testCompleteData()
   {
-
     Map<String, Object> event1 = new HashMap<>();
     Map<String, Object> event2 = new HashMap<>();
     Map<String, Object> event3 = new HashMap<>();

@@ -89,7 +89,17 @@ public abstract class BaseAverager<I, R extends Object> implements Averager<R>
     } else {
       finalMetric = (I) metric;
     }
-    buckets[index++] = finalMetric;
+    update(finalMetric);
+  }
+
+  protected I getCurrent()
+  {
+    return buckets[index];
+  }
+
+  protected void update(I metric)
+  {
+    buckets[index++] = metric;
     index %= numBuckets;
   }
 
@@ -195,4 +205,8 @@ public abstract class BaseAverager<I, R extends Object> implements Averager<R>
     return false;
   }
 
+  protected boolean isShouldFinalize()
+  {
+    return shouldFinalize;
+  }
 }

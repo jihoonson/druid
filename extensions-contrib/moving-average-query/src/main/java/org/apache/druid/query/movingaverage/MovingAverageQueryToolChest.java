@@ -29,7 +29,6 @@ import org.apache.druid.query.QueryMetrics;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QuerySegmentWalker;
 import org.apache.druid.query.QueryToolChest;
-import org.apache.druid.query.QueryToolChestWarehouse;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.MetricManipulationFn;
 import org.apache.druid.query.movingaverage.averagers.AveragerFactory;
@@ -47,7 +46,6 @@ public class MovingAverageQueryToolChest extends QueryToolChest<Row, MovingAvera
 
   private final QuerySegmentWalker walker;
   private final RequestLogger requestLogger;
-  private QueryToolChestWarehouse warehouse;
 
   public static final String MOVING_AVERAGE_MERGE_KEY = "movingAverageMerge";
 
@@ -69,16 +67,10 @@ public class MovingAverageQueryToolChest extends QueryToolChest<Row, MovingAvera
     this.movingAverageQueryMetricsFactory = DefaultMovingAverageQueryMetricsFactory.instance();
   }
 
-  @Inject(optional = true)
-  public void setWarehouse(QueryToolChestWarehouse warehouse)
-  {
-    this.warehouse = warehouse;
-  }
-
   @Override
   public QueryRunner<Row> mergeResults(QueryRunner<Row> runner)
   {
-    return new MovingAverageQueryRunner(warehouse, walker, requestLogger);
+    return new MovingAverageQueryRunner(walker, requestLogger);
   }
 
   @Override

@@ -20,6 +20,7 @@
 package org.apache.druid.query.movingaverage.averagers;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 import java.util.Comparator;
@@ -42,7 +43,8 @@ import java.util.List;
     @JsonSubTypes.Type(name = "longMeanNoNulls", value = LongMeanNoNullAveragerFactory.class),
     @JsonSubTypes.Type(name = "longMax", value = LongMaxAveragerFactory.class),
     @JsonSubTypes.Type(name = "longMin", value = LongMinAveragerFactory.class),
-    @JsonSubTypes.Type(name = "sketchUnion", value = SketchUnionAveragerFactory.class)
+    @JsonSubTypes.Type(name = "sketchUnion", value = SketchUnionAveragerFactory.class),
+    @Type(name = "cuLongSum", value = CumulativeLongSumAveragerFactory.class)
 })
 public interface AveragerFactory<R, F>
 {

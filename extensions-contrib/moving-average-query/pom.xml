@@ -85,5 +85,11 @@
       <version>0.15.0-incubating-SNAPSHOT</version>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>org.apache.druid</groupId>
+      <artifactId>druid-sql</artifactId>
+      <version>0.15.0-incubating-SNAPSHOT</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 </project>
