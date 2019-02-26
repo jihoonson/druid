@@ -27,7 +27,7 @@ public class CumulativeLongSumAveragerFactory extends ComparableAveragerFactory<
   @JsonCreator
   public CumulativeLongSumAveragerFactory(@JsonProperty("name") String name, @JsonProperty("fieldName") String fieldName)
   {
-    super(name, 2, fieldName, 1);
+    super(name, 1, fieldName, 1);
   }
 
   @Override

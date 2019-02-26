@@ -48,7 +48,6 @@ import org.apache.druid.guice.QueryRunnerFactoryModule;
 import org.apache.druid.guice.QueryableModule;
 import org.apache.druid.guice.http.DruidHttpClientConfig;
 import org.apache.druid.initialization.Initialization;
-import org.apache.druid.java.util.common.guava.Accumulators;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.emitter.core.Event;
@@ -118,10 +117,7 @@ public class MovingAverageQueryTest
     List<String[]> tests = new ArrayList<>();
 
     for (String line = testReader.readLine(); line != null; line = testReader.readLine()) {
-      if (line.equals("cumulativeSum.yaml")) {
-//      if (line.equals("sortingAveragersAsc.yaml")) {
-        tests.add(new String[]{line});
-      }
+      tests.add(new String[]{line});
     }
 
     return tests;

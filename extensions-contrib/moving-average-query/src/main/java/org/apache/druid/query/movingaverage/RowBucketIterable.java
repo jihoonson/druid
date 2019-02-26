@@ -70,6 +70,8 @@ public class RowBucketIterable implements Iterable<RowBucket>
     private boolean processedLastRow = false;
     private boolean processedExtraRow = false;
 
+    private Yielder<RowBucket> nextYielder;
+
     public RowIterator(Sequence<Row> rows, List<Interval> intervals, Period period)
     {
       this.period = period;
@@ -86,7 +88,7 @@ public class RowBucketIterable implements Iterable<RowBucket>
     public boolean hasNext()
     {
       // expectedBucket < endTime
-      if (expectedBucket.compareTo(endTime) < 0) {
+      if (expectedBucket.compareTo(endTime) < 0 || nextYielder != null) {
         return true;
       }
       return false;
@@ -98,11 +100,12 @@ public class RowBucketIterable implements Iterable<RowBucket>
     @Override
     public RowBucket next()
     {
+      nextYielder = null;
       RowBucket currentBucket = yielder.get();
 
       if (expectedBucket.compareTo(intervals.get(intervalIndex).getEnd()) >= 0) {
         intervalIndex++;
-        if (intervalIndex <= intervals.size()) {
+        if (intervalIndex < intervals.size()) {
           expectedBucket = intervals.get(intervalIndex).getStart();
         }
       }
@@ -116,6 +119,7 @@ public class RowBucketIterable implements Iterable<RowBucket>
       if (!yielder.isDone()) {
         // standard case. return regular row
         yielder = yielder.next(currentBucket);
+        nextYielder = yielder;
         expectedBucket = expectedBucket.plus(period);
         return currentBucket;
       } else if (!processedLastRow && yielder.get() != null && yielder.get().getNextBucket() == null) {

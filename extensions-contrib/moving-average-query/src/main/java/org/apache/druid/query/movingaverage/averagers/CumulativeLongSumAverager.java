@@ -25,7 +25,6 @@ import java.util.Map;
 
 public class CumulativeLongSumAverager extends BaseAverager<Long, Long>
 {
-  private int startFrom = 0;
 
   public CumulativeLongSumAverager(
       String name,
@@ -33,7 +32,6 @@ public class CumulativeLongSumAverager extends BaseAverager<Long, Long>
   )
   {
     super(Long.class, 1, name, fieldName, 1);
-//    super(Long.class, 2, name, fieldName, 1);
   }
 
   @Override
@@ -65,25 +63,4 @@ public class CumulativeLongSumAverager extends BaseAverager<Long, Long>
     final Long[] obj = getBuckets();
     return obj[0] == null ? 0 : obj[0];
   }
-
-//  @Override
-//  protected Long computeResult()
-//  {
-//    long result = 0;
-//    int cycleSize = getCycleSize();
-//    int numBuckets = getNumBuckets();
-//    Number[] obj = getBuckets();
-//
-//    for (int i = 0; i < numBuckets; i += cycleSize) {
-//      final Number next = obj[(i + startFrom) % numBuckets];
-//      if (next != null) {
-//        result += next.longValue();
-//      } else {
-//        result += 0;
-//      }
-//    }
-//
-//    startFrom++;
-//    return result;
-//  }
 }
