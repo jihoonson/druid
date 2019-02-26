@@ -43,7 +43,12 @@ public class CumulativeLongSumAverager extends BaseAverager<Long, Long>
     final Long finalMetric;
     if (a.containsKey(getFieldName()) && isShouldFinalize()) {
       AggregatorFactory af = a.get(getFieldName());
-      finalMetric = metric != null ? (Long) af.finalizeComputation(metric) : null;
+      if (metric != null) {
+        final Object finalized = af.finalizeComputation(metric);
+        finalMetric = finalized == null ? null : ((Number) finalized).longValue();
+      } else {
+        finalMetric = null;
+      }
     } else {
       finalMetric = ((Number) metric).longValue();
     }

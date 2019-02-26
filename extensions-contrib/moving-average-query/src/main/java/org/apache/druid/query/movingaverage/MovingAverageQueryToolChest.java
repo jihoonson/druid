@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.inject.Inject;
+import com.google.inject.Provider;
 import org.apache.druid.data.input.MapBasedRow;
 import org.apache.druid.data.input.Row;
 import org.apache.druid.query.QueryMetrics;
@@ -34,7 +35,6 @@ import org.apache.druid.query.aggregation.MetricManipulationFn;
 import org.apache.druid.query.movingaverage.averagers.AveragerFactory;
 import org.apache.druid.server.log.RequestLogger;
 
-import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,10 +44,8 @@ import java.util.Map;
 public class MovingAverageQueryToolChest extends QueryToolChest<Row, MovingAverageQuery>
 {
 
-  private final QuerySegmentWalker walker;
+  private final Provider<QuerySegmentWalker> walker;
   private final RequestLogger requestLogger;
-
-  public static final String MOVING_AVERAGE_MERGE_KEY = "movingAverageMerge";
 
   private final MovingAverageQueryMetricsFactory movingAverageQueryMetricsFactory;
 
@@ -59,7 +57,7 @@ public class MovingAverageQueryToolChest extends QueryToolChest<Row, MovingAvera
    * @param requestLogger
    */
   @Inject
-  public MovingAverageQueryToolChest(@Nullable QuerySegmentWalker walker, RequestLogger requestLogger)
+  public MovingAverageQueryToolChest(Provider<QuerySegmentWalker> walker, RequestLogger requestLogger)
   {
 
     this.walker = walker;
@@ -70,7 +68,7 @@ public class MovingAverageQueryToolChest extends QueryToolChest<Row, MovingAvera
   @Override
   public QueryRunner<Row> mergeResults(QueryRunner<Row> runner)
   {
-    return new MovingAverageQueryRunner(walker, requestLogger);
+    return new MovingAverageQueryRunner(walker.get(), requestLogger);
   }
 
   @Override

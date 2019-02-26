@@ -35,7 +35,6 @@ import org.apache.druid.query.QueryDataSource;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QuerySegmentWalker;
-import org.apache.druid.query.QueryToolChestWarehouse;
 import org.apache.druid.query.Result;
 import org.apache.druid.query.TableDataSource;
 import org.apache.druid.query.UnionDataSource;
@@ -50,7 +49,6 @@ import org.apache.druid.server.log.RequestLogger;
 import org.joda.time.Interval;
 import org.joda.time.Period;
 
-import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,10 +73,7 @@ public class MovingAverageQueryRunner implements QueryRunner<Row>
   private final QuerySegmentWalker walker;
   private final RequestLogger requestLogger;
 
-  public MovingAverageQueryRunner(
-      @Nullable QuerySegmentWalker walker,
-      RequestLogger requestLogger
-  )
+  public MovingAverageQueryRunner(QuerySegmentWalker walker, RequestLogger requestLogger)
   {
     this.walker = walker;
     this.requestLogger = requestLogger;
