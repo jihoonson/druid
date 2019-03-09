@@ -160,6 +160,11 @@ public abstract class IngestionTestBase
     return lockbox;
   }
 
+  public IndexerSQLMetadataStorageCoordinator getStorageCoordinator()
+  {
+    return storageCoordinator;
+  }
+
   public RowIngestionMetersFactory getRowIngestionMetersFactory()
   {
     return testUtils.getRowIngestionMetersFactory();

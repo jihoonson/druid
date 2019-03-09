@@ -19,8 +19,6 @@
 
 package org.apache.druid.indexing.seekablestream;
 
-import com.fasterxml.jackson.annotation.JacksonInject;
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
@@ -66,15 +64,12 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.ThreadLocalRandom;
 
 
-public abstract class SeekableStreamIndexTask<PartitionIdType, SequenceOffsetType extends Comparable> extends AbstractTask
-    implements ChatHandler
+public abstract class SeekableStreamIndexTask<PartitionIdType, SequenceOffsetType extends Comparable>
+    extends AbstractTask implements ChatHandler
 {
   public static final long LOCK_ACQUIRE_TIMEOUT_SECONDS = 15;
-  private static final Random RANDOM = ThreadLocalRandom.current();
   private static final EmittingLogger log = new EmittingLogger(SeekableStreamIndexTask.class);
 
   private final SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOffsetType> runner;
@@ -88,18 +83,17 @@ public abstract class SeekableStreamIndexTask<PartitionIdType, SequenceOffsetTyp
   protected final RowIngestionMetersFactory rowIngestionMetersFactory;
   protected final CircularBuffer<Throwable> savedParseExceptions;
 
-  @JsonCreator
   public SeekableStreamIndexTask(
-      @JsonProperty("id") String id,
-      @JsonProperty("resource") TaskResource taskResource,
-      @JsonProperty("dataSchema") DataSchema dataSchema,
-      @JsonProperty("tuningConfig") SeekableStreamIndexTaskTuningConfig tuningConfig,
-      @JsonProperty("ioConfig") SeekableStreamIndexTaskIOConfig ioConfig,
-      @JsonProperty("context") Map<String, Object> context,
-      @JacksonInject ChatHandlerProvider chatHandlerProvider,
-      @JacksonInject AuthorizerMapper authorizerMapper,
-      @JacksonInject RowIngestionMetersFactory rowIngestionMetersFactory,
-      String groupId
+      final String id,
+      @Nullable final TaskResource taskResource,
+      final DataSchema dataSchema,
+      final SeekableStreamIndexTaskTuningConfig tuningConfig,
+      final SeekableStreamIndexTaskIOConfig<PartitionIdType, SequenceOffsetType> ioConfig,
+      @Nullable final Map<String, Object> context,
+      @Nullable final ChatHandlerProvider chatHandlerProvider,
+      final AuthorizerMapper authorizerMapper,
+      final RowIngestionMetersFactory rowIngestionMetersFactory,
+      @Nullable final String groupId
   )
   {
     super(
@@ -124,7 +118,6 @@ public abstract class SeekableStreamIndexTask<PartitionIdType, SequenceOffsetTyp
     this.rowIngestionMetersFactory = rowIngestionMetersFactory;
     this.runner = createTaskRunner();
   }
-
 
   private static String makeTaskId(String dataSource, String type)
   {

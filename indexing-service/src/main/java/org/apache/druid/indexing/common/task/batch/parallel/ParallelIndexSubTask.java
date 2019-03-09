@@ -43,7 +43,6 @@ import org.apache.druid.indexing.common.task.IndexTask;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
-import org.apache.druid.indexing.firehose.IngestSegmentFirehoseFactory;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
@@ -187,11 +186,6 @@ public class ParallelIndexSubTask extends AbstractTask
   {
     final FirehoseFactory firehoseFactory = ingestionSchema.getIOConfig().getFirehoseFactory();
 
-    if (firehoseFactory instanceof IngestSegmentFirehoseFactory) {
-      // pass toolbox to Firehose
-      ((IngestSegmentFirehoseFactory) firehoseFactory).setTaskToolbox(toolbox);
-    }
-
     final File firehoseTempDir = toolbox.getFirehoseTemporaryDir();
     // Firehose temporary directory is automatically removed when this IndexTask completes.
     FileUtils.forceMkdir(firehoseTempDir);
@@ -284,6 +278,7 @@ public class ParallelIndexSubTask extends AbstractTask
 
     private SegmentAllocator createSegmentAllocator()
     {
+      // TODO: what if intervals are missing?
       if (!isChangeSegmentGranularity()) {
         return new ActionBasedSegmentAllocator(
             toolbox.getTaskActionClient(),
