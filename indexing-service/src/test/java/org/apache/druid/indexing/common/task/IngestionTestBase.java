@@ -280,7 +280,7 @@ public abstract class IngestionTestBase
             null,
             taskActionClient,
             null,
-            new LocalDataSegmentPusher(new LocalDataSegmentPusherConfig(), objectMapper),
+            new LocalDataSegmentPusher(new LocalDataSegmentPusherConfig()),
             new NoopDataSegmentKiller(),
             null,
             null,

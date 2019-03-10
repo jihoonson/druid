@@ -76,6 +76,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -279,23 +280,32 @@ public class ParallelIndexSubTask extends AbstractTask
     private SegmentAllocator createSegmentAllocator()
     {
       // TODO: what if intervals are missing?
-      if (!isChangeSegmentGranularity()) {
+      if (ingestionSchema.getIOConfig().isAppendToExisting() || !isChangeSegmentGranularity()) {
         return new ActionBasedSegmentAllocator(
             toolbox.getTaskActionClient(),
             ingestionSchema.getDataSchema(),
-            (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> new SurrogateAction<>(
-                supervisorTaskId,
-                new SegmentAllocateAction(
-                    schema.getDataSource(),
-                    row.getTimestamp(),
-                    schema.getGranularitySpec().getQueryGranularity(),
-                    schema.getGranularitySpec().getSegmentGranularity(),
-                    sequenceName,
-                    previousSegmentId,
-                    skipSegmentLineageCheck,
-                    getInputPartitionIdsFor(schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull())
-                )
-            )
+            (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
+              final GranularitySpec granularitySpec = ingestionSchema.getDataSchema().getGranularitySpec();
+              final Set<Integer> inputSegmentIds = ingestionSchema.getIOConfig().isAppendToExisting()
+                                                   ? null
+                                                   : getInputPartitionIdsFor(
+                                                       granularitySpec.bucketInterval(row.getTimestamp())
+                                                                      .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()))
+                                                   );
+              return new SurrogateAction<>(
+                  supervisorTaskId,
+                  new SegmentAllocateAction(
+                      schema.getDataSource(),
+                      row.getTimestamp(),
+                      schema.getGranularitySpec().getQueryGranularity(),
+                      schema.getGranularitySpec().getSegmentGranularity(),
+                      sequenceName,
+                      previousSegmentId,
+                      skipSegmentLineageCheck,
+                      inputSegmentIds
+                  )
+              );
+            }
         );
       } else {
         return (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> taskClient.allocateSegment(

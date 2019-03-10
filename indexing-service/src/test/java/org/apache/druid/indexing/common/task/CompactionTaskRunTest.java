@@ -72,7 +72,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -289,7 +288,10 @@ public class CompactionTaskRunTest extends IngestionTestBase
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
-        rowIngestionMetersFactory
+        rowIngestionMetersFactory,
+        coordinatorClient,
+        segmentLoaderFactory,
+        retryPolicyFactory
     );
 
     final CompactionTask compactionTask = builder
@@ -438,7 +440,10 @@ public class CompactionTaskRunTest extends IngestionTestBase
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
-        rowIngestionMetersFactory
+        rowIngestionMetersFactory,
+        coordinatorClient,
+        segmentLoaderFactory,
+        retryPolicyFactory
     );
 
     final CompactionTask compactionTask = builder
@@ -478,7 +483,10 @@ public class CompactionTaskRunTest extends IngestionTestBase
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
-        rowIngestionMetersFactory
+        rowIngestionMetersFactory,
+        coordinatorClient,
+        segmentLoaderFactory,
+        retryPolicyFactory
     );
 
     final CompactionTask compactionTask = builder
@@ -618,7 +626,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         actionClient,
         null,
-        new LocalDataSegmentPusher(new LocalDataSegmentPusherConfig(), objectMapper),
+        new LocalDataSegmentPusher(new LocalDataSegmentPusherConfig()),
         new NoopDataSegmentKiller(),
         null,
         null,

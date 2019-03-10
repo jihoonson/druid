@@ -30,14 +30,11 @@ import com.google.common.base.Throwables;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.FirehoseFactory;
-import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.Counters;
 import org.apache.druid.indexing.common.TaskLock;
-import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
-import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.config.TaskConfig;
@@ -56,7 +53,6 @@ import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.indexing.TuningConfig;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
-import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
 import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
@@ -407,93 +403,43 @@ public class ParallelIndexSupervisorTask extends AbstractTask implements ChatHan
   {
     final String dataSource = getDataSource();
     final GranularitySpec granularitySpec = getIngestionSchema().getDataSchema().getGranularitySpec();
-    final Optional<SortedSet<Interval>> bucketIntervals = granularitySpec.bucketIntervals();
-
+    final SortedSet<Interval> bucketIntervals = Preconditions.checkNotNull(
+        granularitySpec.bucketIntervals().orNull(),
+        "bucketIntervals"
+    );
     // List locks whenever allocating a new segment because locks might be revoked and no longer valid.
-    final List<TaskLock> locks = toolbox
+    final Map<Interval, String> versions = toolbox
         .getTaskActionClient()
-        .submit(new LockListAction());
-    final TaskLock revokedLock = locks.stream().filter(TaskLock::isRevoked).findAny().orElse(null);
-    if (revokedLock != null) {
-      throw new ISE("Lock revoked: [%s]", revokedLock);
-    }
-    final Map<Interval, String> versions = locks
+        .submit(new LockListAction())
         .stream()
         .collect(Collectors.toMap(TaskLock::getInterval, TaskLock::getVersion));
 
-    Interval interval;
-    String version;
-    boolean justLockedInterval = false;
-    if (bucketIntervals.isPresent()) {
-      // If the granularity spec has explicit intervals, we just need to find the interval (of the segment
-      // granularity); we already tried to lock it at task startup.
-      final Optional<Interval> maybeInterval = granularitySpec.bucketInterval(timestamp);
-      if (!maybeInterval.isPresent()) {
-        throw new IAE("Could not find interval for timestamp [%s]", timestamp);
-      }
+    final Optional<Interval> maybeInterval = granularitySpec.bucketInterval(timestamp);
+    if (!maybeInterval.isPresent()) {
+      throw new IAE("Could not find interval for timestamp [%s]", timestamp);
+    }
 
-      interval = maybeInterval.get();
-      if (!bucketIntervals.get().contains(interval)) {
-        throw new ISE("Unspecified interval[%s] in granularitySpec[%s]", interval, granularitySpec);
-      }
-
-      version = findVersion(versions, interval);
-      if (version == null) {
-        throw new ISE("Cannot find a version for interval[%s]", interval);
-      }
-    } else {
-      // We don't have explicit intervals. We can use the segment granularity to figure out what
-      // interval we need, but we might not have already locked it.
-      interval = granularitySpec.getSegmentGranularity().bucket(timestamp);
-      version = findVersion(versions, interval);
-      if (version == null) {
-        // We don't have a lock for this interval, so we should lock it now.
-        final TaskLock lock = Preconditions.checkNotNull(
-            toolbox.getTaskActionClient().submit(LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, interval)),
-            "Cannot acquire a lock for interval[%s]", interval
-        );
-        version = lock.getVersion();
-        justLockedInterval = true;
-      }
+    final Interval interval = maybeInterval.get();
+    if (!bucketIntervals.contains(interval)) {
+      throw new ISE("Unspecified interval[%s] in granularitySpec[%s]", interval, granularitySpec);
     }
 
     final int partitionNum = Counters.getAndIncrementInt(partitionNumCountersPerInterval, interval);
-    if (justLockedInterval && partitionNum != 0) {
-      throw new ISE(
-          "Expected partitionNum to be 0 for interval [%s] right after locking, but got [%s]",
-          interval, partitionNum
-      );
-    }
     return new SegmentIdWithShardSpec(
         dataSource,
         interval,
-        version,
+        findVersion(versions, interval),
         new NumberedShardSpec(partitionNum, 0)
     );
   }
 
-  private static class DynamicSegmentAllocator implements SegmentAllocator
-  {
-    @Override
-    public SegmentIdWithShardSpec allocate(
-        InputRow row,
-        String sequenceName,
-        String previousSegmentId,
-        boolean skipSegmentLineageCheck
-    ) throws IOException
-    {
-      return null;
-    }
-  }
-
-  @Nullable
   private static String findVersion(Map<Interval, String> versions, Interval interval)
   {
     return versions.entrySet().stream()
                    .filter(entry -> entry.getKey().contains(interval))
                    .map(Entry::getValue)
                    .findFirst()
-                   .orElse(null);
+                   .orElseThrow(() -> new ISE("Cannot find a version for interval[%s]", interval));
   }
 
   /**

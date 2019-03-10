@@ -24,10 +24,12 @@ import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
 import org.apache.druid.segment.indexing.DataSchema;
+import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.joda.time.Interval;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -48,9 +50,18 @@ public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
         toolbox.getTaskActionClient(),
         dataSchema,
         (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
-          final Set<Integer> overshadowingSegments = inputPartitionIds.get(
-              schema.getGranularitySpec().bucketInterval(row.getTimestamp()).orNull()
-          );
+          final GranularitySpec granularitySpec = schema.getGranularitySpec();
+          final Set<Integer> overshadowingSegments;
+          // inputPartitionIds can be empty if isAppendToExisting = true or there's no input segments
+          if (inputPartitionIds.isEmpty()) {
+            overshadowingSegments = Collections.emptySet();
+          } else {
+            overshadowingSegments = inputPartitionIds.get(
+                granularitySpec
+                    .bucketInterval(row.getTimestamp())
+                    .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()))
+            );
+          }
           return new SegmentAllocateAction(
               schema.getDataSource(),
               row.getTimestamp(),

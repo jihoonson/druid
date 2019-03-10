@@ -28,8 +28,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
@@ -78,7 +76,6 @@ import org.apache.druid.segment.realtime.appenderator.Appenderators;
 import org.apache.druid.segment.realtime.appenderator.BaseAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentsAndMetadata;
 import org.apache.druid.segment.realtime.appenderator.TransactionalSegmentPublisher;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
@@ -840,7 +837,24 @@ public class IndexTask extends AbstractTask implements ChatHandler
       Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec
   ) throws IOException
   {
-    if (isChangeSegmentGranularity()) {
+    if (ingestionSchema.ioConfig.isAppendToExisting() || !isChangeSegmentGranularity()) {
+      if (isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)) {
+        return new CachingRemoteSegmentAllocator(
+            toolbox,
+            getId(),
+            allocateSpec,
+            getAllInputPartitionIds(),
+            isExtendableShardSpecs(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)
+        );
+      } else {
+        return new RemoteSegmentAllocator(
+            toolbox,
+            getId(),
+            dataSchema,
+            ingestionSchema.ioConfig.isAppendToExisting() ? Collections.emptyMap() : getAllInputPartitionIds()
+        );
+      }
+    } else {
       // We use the timeChunk lock and don't have to ask the overlord to create segmentIds.
       // Instead, a local allocator is used.
       if (isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)) {
@@ -857,23 +871,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
             getId(),
             getDataSource(),
             dataSchema.getGranularitySpec()
-        );
-      }
-    } else {
-      if (isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)) {
-        return new CachingRemoteSegmentAllocator(
-            toolbox,
-            getId(),
-            allocateSpec,
-            getAllInputPartitionIds(),
-            isExtendableShardSpecs(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)
-        );
-      } else {
-        return new RemoteSegmentAllocator(
-            toolbox,
-            getId(),
-            dataSchema,
-            getAllInputPartitionIds()
         );
       }
     }
