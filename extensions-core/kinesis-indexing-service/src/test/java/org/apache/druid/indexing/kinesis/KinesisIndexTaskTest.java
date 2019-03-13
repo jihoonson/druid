@@ -2213,7 +2213,7 @@ public class KinesisIndexTaskTest extends EasyMockSupport
     Assert.assertEquals(ImmutableList.of("d", "e"), readSegmentColumn("dim1", desc2));
   }
 
-  @Test(timeout = 5000L)
+  @Test(timeout = 120_000L)
   public void testRestoreAfterPersistingSequences() throws Exception
   {
     maxRowsPerSegment = 2;
