@@ -15,7 +15,7 @@
 # limitations under the License.
 
 # cleanup
-for node in druid-historical druid-coordinator druid-overlord druid-router druid-router-permissive-tls druid-router-no-client-auth-tls druid-router-custom-check-tls druid-broker druid-middlemanager druid-zookeeper-kafka druid-metadata-storage;
+for node in druid-historical druid-coordinator druid-overlord druid-router druid-router-permissive-tls druid-router-no-client-auth-tls druid-router-custom-check-tls druid-broker druid-middlemanager druid-zookeeper-kafka druid-kinesis druid-metadata-storage;
 do
 docker stop $node
 docker rm $node
@@ -62,8 +62,14 @@ docker network create --subnet=172.172.172.0/24 druid-it-net
 # Build Druid Cluster Image
 docker build -t druid/cluster $SHARED_DIR/docker
 
+# Pull localstack for kinesis test
+docker pull localstack/localstack
+
 # Start zookeeper and kafka
 docker run -d --privileged --net druid-it-net --ip 172.172.172.2 -e LANG=C.UTF-8 -e LANGUAGE=C.UTF-8 -e LC_ALL=C.UTF-8 --name druid-zookeeper-kafka -p 2181:2181 -p 9092:9092 -p 9093:9093 -v $SHARED_DIR:/shared -v $DOCKERDIR/zookeeper.conf:$SUPERVISORDIR/zookeeper.conf -v $DOCKERDIR/kafka.conf:$SUPERVISORDIR/kafka.conf druid/cluster
+
+# Start localstack for kinesis testing
+docker run -d --privileged --net druid-it-net --ip 172.172.172.13 -e LANG=C.UTF-8 -e LANGUAGE=C.UTF-8 -e LC_ALL=C.UTF-8 -e SERVICES=kinesis -e DEFAULT_REGION=us-east-1 -e KINESIS_ERROR_PROBABILITY=0.5 -e START_WEB=0 --name druid-kinesis -v $SHARED_DIR:/shared localstack/localstack
 
 # Start MYSQL 
 docker run -d --privileged --net druid-it-net --ip 172.172.172.3 -e LANG=C.UTF-8 -e LANGUAGE=C.UTF-8 -e LC_ALL=C.UTF-8 --name druid-metadata-storage -v $SHARED_DIR:/shared -v $DOCKERDIR/metadata-storage.conf:$SUPERVISORDIR/metadata-storage.conf druid/cluster

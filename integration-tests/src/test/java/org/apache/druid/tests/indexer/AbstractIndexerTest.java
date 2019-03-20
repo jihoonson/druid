@@ -41,7 +41,6 @@ import java.util.concurrent.Callable;
 
 public abstract class AbstractIndexerTest
 {
-
   @Inject
   protected CoordinatorResourceTestClient coordinator;
   @Inject
