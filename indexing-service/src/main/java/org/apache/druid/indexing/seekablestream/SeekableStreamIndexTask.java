@@ -66,7 +66,7 @@ import java.util.List;
 import java.util.Map;
 
 
-public abstract class SeekableStreamIndexTask<PartitionIdType, SequenceOffsetType extends Comparable>
+public abstract class SeekableStreamIndexTask<PartitionIdType, SequenceOffsetType>
     extends AbstractTask implements ChatHandler
 {
   public static final long LOCK_ACQUIRE_TIMEOUT_SECONDS = 15;

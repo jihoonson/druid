@@ -48,13 +48,12 @@ public class CachingLocalSegmentAllocator extends CachingSegmentAllocator
       TaskToolbox toolbox,
       String taskId,
       String dataSource,
-      Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec,
-      boolean isExtendableShardSpecs
+      Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec
   ) throws IOException
   {
     // This segment allocator doesn't need inputPartitionIds because the newly created segments don't have to store
     // overshadowingSegments
-    super(toolbox, taskId, allocateSpec, Collections.emptyMap(), isExtendableShardSpecs);
+    super(toolbox, taskId, allocateSpec, Collections.emptyMap());
     this.dataSource = dataSource;
 
     intervalToVersion = toolbox.getTaskActionClient()

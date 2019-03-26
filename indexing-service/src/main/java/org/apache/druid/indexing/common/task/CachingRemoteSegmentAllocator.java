@@ -38,17 +38,10 @@ public class CachingRemoteSegmentAllocator extends CachingSegmentAllocator
       TaskToolbox toolbox,
       String taskId,
       Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec,
-      Map<Interval, Set<Integer>> inputPartitionIds,
-      boolean isExtendableShardSpecs
+      Map<Interval, Set<Integer>> inputPartitionIds
   ) throws IOException
   {
-    super(
-        toolbox,
-        taskId,
-        allocateSpec,
-        inputPartitionIds,
-        isExtendableShardSpecs
-    );
+    super(toolbox, taskId, allocateSpec, inputPartitionIds);
   }
 
   @Override

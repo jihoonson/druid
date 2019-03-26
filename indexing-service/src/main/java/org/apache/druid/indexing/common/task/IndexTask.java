@@ -123,6 +123,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -574,11 +575,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
     return tuningConfig.isForceGuaranteedRollup();
   }
 
-  private static boolean isExtendableShardSpecs(IndexIOConfig ioConfig, IndexTuningConfig tuningConfig)
-  {
-    return tuningConfig.isForceExtendableShardSpecs() || ioConfig.isAppendToExisting();
-  }
-
   /**
    * Determines intervals and shardSpecs for input data.  This method first checks that it must determine intervals and
    * shardSpecs by itself.  Intervals must be determined if they are not specified in {@link GranularitySpec}.
@@ -843,8 +839,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
             toolbox,
             getId(),
             allocateSpec,
-            getAllInputPartitionIds(),
-            isExtendableShardSpecs(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)
+            getAllInputPartitionIds()
         );
       } else {
         return new RemoteSegmentAllocator(
@@ -862,8 +857,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
             toolbox,
             getId(),
             getDataSource(),
-            allocateSpec,
-            isExtendableShardSpecs(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)
+            allocateSpec
         );
       } else {
         return new LocalSegmentAllocator(
@@ -1107,7 +1101,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
       }
     }
     catch (TimeoutException | ExecutionException e) {
-      throw Throwables.propagate(e);
+      throw new RuntimeException(e);
     }
   }
 
@@ -1339,7 +1333,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
 
     private static final IndexSpec DEFAULT_INDEX_SPEC = new IndexSpec();
     private static final int DEFAULT_MAX_PENDING_PERSISTS = 0;
-    private static final boolean DEFAULT_FORCE_EXTENDABLE_SHARD_SPECS = false;
     private static final boolean DEFAULT_GUARANTEE_ROLLUP = false;
     private static final boolean DEFAULT_REPORT_PARSE_EXCEPTIONS = false;
     private static final long DEFAULT_PUSH_TIMEOUT = 0;
@@ -1358,16 +1351,10 @@ public class IndexTask extends AbstractTask implements ChatHandler
     private final int maxPendingPersists;
 
     /**
-     * This flag is to force to always use an extendableShardSpec (like {@link NumberedShardSpec} even if
-     * {@link #forceGuaranteedRollup} is set.
-     */
-    private final boolean forceExtendableShardSpecs;
-
-    /**
      * This flag is to force _perfect rollup mode_. {@link IndexTask} will scan the whole input data twice to 1) figure
      * out proper shard specs for each segment and 2) generate segments. Note that perfect rollup mode basically assumes
-     * that no more data will be appended in the future. As a result, in perfect rollup mode, {@link NoneShardSpec} and
-     * {@link HashBasedNumberedShardSpec} are used for a single shard and two or shards, respectively.
+     * that no more data will be appended in the future. As a result, in perfect rollup mode,
+     * {@link HashBasedNumberedShardSpec} is used for shards.
      */
     private final boolean forceGuaranteedRollup;
     private final boolean reportParseExceptions;
@@ -1391,17 +1378,16 @@ public class IndexTask extends AbstractTask implements ChatHandler
         @JsonProperty("maxRowsInMemory") @Nullable Integer maxRowsInMemory,
         @JsonProperty("maxBytesInMemory") @Nullable Long maxBytesInMemory,
         @JsonProperty("maxTotalRows") @Nullable Long maxTotalRows,
-        @JsonProperty("rowFlushBoundary") @Nullable Integer rowFlushBoundary_forBackCompatibility, // DEPRECATED
+        @JsonProperty("rowFlushBoundary") @Deprecated @Nullable Integer rowFlushBoundary_forBackCompatibility,
         @JsonProperty("numShards") @Nullable Integer numShards,
         @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
         @JsonProperty("indexSpec") @Nullable IndexSpec indexSpec,
         @JsonProperty("maxPendingPersists") @Nullable Integer maxPendingPersists,
         // This parameter is left for compatibility when reading existing JSONs, to be removed in Druid 0.12.
         @JsonProperty("buildV9Directly") @Nullable Boolean buildV9Directly,
-        @JsonProperty("forceExtendableShardSpecs") @Nullable Boolean forceExtendableShardSpecs,
         @JsonProperty("forceGuaranteedRollup") @Nullable Boolean forceGuaranteedRollup,
-        @Deprecated @JsonProperty("reportParseExceptions") @Nullable Boolean reportParseExceptions,
-        @JsonProperty("publishTimeout") @Nullable Long publishTimeout, // deprecated
+        @JsonProperty("reportParseExceptions") @Deprecated @Nullable Boolean reportParseExceptions,
+        @JsonProperty("publishTimeout") @Deprecated @Nullable Long publishTimeout,
         @JsonProperty("pushTimeout") @Nullable Long pushTimeout,
         @JsonProperty("segmentWriteOutMediumFactory") @Nullable
             SegmentWriteOutMediumFactory segmentWriteOutMediumFactory,
@@ -1419,7 +1405,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
           partitionDimensions,
           indexSpec,
           maxPendingPersists,
-          forceExtendableShardSpecs,
           forceGuaranteedRollup,
           reportParseExceptions,
           pushTimeout != null ? pushTimeout : publishTimeout,
@@ -1438,7 +1423,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
 
     private IndexTuningConfig()
     {
-      this(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+      this(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private IndexTuningConfig(
@@ -1450,7 +1435,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
         @Nullable List<String> partitionDimensions,
         @Nullable IndexSpec indexSpec,
         @Nullable Integer maxPendingPersists,
-        @Nullable Boolean forceExtendableShardSpecs,
         @Nullable Boolean forceGuaranteedRollup,
         @Nullable Boolean reportParseExceptions,
         @Nullable Long pushTimeout,
@@ -1478,9 +1462,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
       this.partitionDimensions = partitionDimensions == null ? Collections.emptyList() : partitionDimensions;
       this.indexSpec = indexSpec == null ? DEFAULT_INDEX_SPEC : indexSpec;
       this.maxPendingPersists = maxPendingPersists == null ? DEFAULT_MAX_PENDING_PERSISTS : maxPendingPersists;
-      this.forceExtendableShardSpecs = forceExtendableShardSpecs == null
-                                       ? DEFAULT_FORCE_EXTENDABLE_SHARD_SPECS
-                                       : forceExtendableShardSpecs;
       this.forceGuaranteedRollup = forceGuaranteedRollup == null ? DEFAULT_GUARANTEE_ROLLUP : forceGuaranteedRollup;
       this.reportParseExceptions = reportParseExceptions == null
                                    ? DEFAULT_REPORT_PARSE_EXCEPTIONS
@@ -1517,7 +1498,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
           partitionDimensions,
           indexSpec,
           maxPendingPersists,
-          forceExtendableShardSpecs,
           forceGuaranteedRollup,
           reportParseExceptions,
           pushTimeout,
@@ -1540,7 +1520,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
           partitionDimensions,
           indexSpec,
           maxPendingPersists,
-          forceExtendableShardSpecs,
           forceGuaranteedRollup,
           reportParseExceptions,
           pushTimeout,
@@ -1633,12 +1612,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
     }
 
     @JsonProperty
-    public boolean isForceExtendableShardSpecs()
-    {
-      return forceExtendableShardSpecs;
-    }
-
-    @JsonProperty
     public boolean isForceGuaranteedRollup()
     {
       return forceGuaranteedRollup;
@@ -1702,7 +1675,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
       return maxRowsInMemory == that.maxRowsInMemory &&
              Objects.equals(maxTotalRows, that.maxTotalRows) &&
              maxPendingPersists == that.maxPendingPersists &&
-             forceExtendableShardSpecs == that.forceExtendableShardSpecs &&
              forceGuaranteedRollup == that.forceGuaranteedRollup &&
              reportParseExceptions == that.reportParseExceptions &&
              pushTimeout == that.pushTimeout &&
@@ -1727,7 +1699,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
           indexSpec,
           basePersistDirectory,
           maxPendingPersists,
-          forceExtendableShardSpecs,
           forceGuaranteedRollup,
           reportParseExceptions,
           pushTimeout,
@@ -1750,7 +1721,6 @@ public class IndexTask extends AbstractTask implements ChatHandler
              ", indexSpec=" + indexSpec +
              ", basePersistDirectory=" + basePersistDirectory +
              ", maxPendingPersists=" + maxPendingPersists +
-             ", forceExtendableShardSpecs=" + forceExtendableShardSpecs +
              ", forceGuaranteedRollup=" + forceGuaranteedRollup +
              ", reportParseExceptions=" + reportParseExceptions +
              ", pushTimeout=" + pushTimeout +

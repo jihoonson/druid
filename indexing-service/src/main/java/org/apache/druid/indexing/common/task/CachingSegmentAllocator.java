@@ -46,7 +46,6 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
   private final String taskId;
   private final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec;
   @Nullable
-  private final boolean isExtendableShardSpecs;
   private final ShardSpecs shardSpecs;
 
   // sequenceName -> segmentId
@@ -56,14 +55,12 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
       TaskToolbox toolbox,
       String taskId,
       Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec,
-      Map<Interval, Set<Integer>> inputPartitionIds,
-      boolean isExtendableShardSpecs
+      Map<Interval, Set<Integer>> inputPartitionIds
   ) throws IOException
   {
     this.toolbox = toolbox;
     this.taskId = taskId;
     this.allocateSpec = allocateSpec;
-    this.isExtendableShardSpecs = isExtendableShardSpecs;
     this.sequenceNameToSegmentId = new HashMap<>();
 
     final Map<Interval, List<SegmentIdWithShardSpec>> intervalToIds = getIntervalToSegmentIds(inputPartitionIds);
@@ -80,7 +77,7 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
         sequenceNameToSegmentId.put(
             getSequenceName(interval, segmentIdentifier.getShardSpec()),
             segmentIdentifier.withShardSpec(
-                makeExtendableIfNecessary(segmentIdentifier.getShardSpec(), numTotalPartitions)
+                makeShardSpec(segmentIdentifier.getShardSpec(), numTotalPartitions)
             )
         );
       }
@@ -88,13 +85,9 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
     shardSpecs = new ShardSpecs(shardSpecMap);
   }
 
-  private ShardSpec makeExtendableIfNecessary(ShardSpec shardSpec, int numTotalPartitions)
+  private ShardSpec makeShardSpec(ShardSpec shardSpec, int numTotalPartitions)
   {
-    if (isExtendableShardSpecs) {
-      return new NumberedShardSpec(shardSpec.getPartitionNum(), numTotalPartitions);
-    } else {
-      return shardSpec;
-    }
+    return new NumberedShardSpec(shardSpec.getPartitionNum(), numTotalPartitions);
   }
 
   abstract Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds(Map<Interval, Set<Integer>> inputPartitionIds)
@@ -134,7 +127,7 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
 
   /**
    * Create a sequence name from the given shardSpec and interval. The shardSpec must be the original one before calling
-   * {@link #makeExtendableIfNecessary(ShardSpec, int)} to apply the proper partitioning.
+   * {@link #makeShardSpec(ShardSpec, int)} to apply the proper partitioning.
    *
    * See {@link org.apache.druid.timeline.partition.HashBasedNumberedShardSpec} as an example of partitioning.
    */

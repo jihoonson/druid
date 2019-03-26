@@ -26,7 +26,6 @@ import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.google.common.base.Function;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -698,7 +697,6 @@ public class TaskLifecycleTest
                 indexSpec,
                 3,
                 true,
-                true,
                 false,
                 null,
                 null,
@@ -779,7 +777,6 @@ public class TaskLifecycleTest
                 null,
                 indexSpec,
                 3,
-                true,
                 true,
                 false,
                 null,
@@ -1258,7 +1255,6 @@ public class TaskLifecycleTest
                 null,
                 null,
                 null,
-                null,
                 null
             )
         ),
@@ -1346,7 +1342,7 @@ public class TaskLifecycleTest
         }
       }
       catch (Exception e) {
-        throw Throwables.propagate(e);
+        throw new RuntimeException(e);
       }
     }
 

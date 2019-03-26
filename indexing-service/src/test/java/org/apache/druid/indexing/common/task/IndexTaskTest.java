@@ -76,7 +76,6 @@ import org.apache.druid.segment.transform.TransformSpec;
 import org.apache.druid.server.security.AuthTestUtils;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
-import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.joda.time.Interval;
 import org.junit.Assert;
@@ -185,7 +184,7 @@ public class IndexTaskTest extends IngestionTestBase
             tmpDir,
             null,
             null,
-            createTuningConfigWithMaxRowsPerSegment(2, false, true),
+            createTuningConfigWithMaxRowsPerSegment(2, true),
             false
         ),
         null,
@@ -211,57 +210,6 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
     Assert.assertEquals(1, segments.get(1).getShardSpec().getPartitionNum());
     Assert.assertEquals(2, ((NumberedShardSpec) segments.get(1).getShardSpec()).getPartitions());
-    Assert.assertEquals(Collections.emptySet(), segments.get(1).getOvershadowedGroup());
-    Assert.assertEquals(Collections.emptySet(), segments.get(1).getAtomicUpdateGroup());
-  }
-
-  @Test
-  public void testForceExtendableShardSpecs() throws Exception
-  {
-    File tmpDir = temporaryFolder.newFolder();
-
-    File tmpFile = File.createTempFile("druid", "index", tmpDir);
-
-    try (BufferedWriter writer = Files.newWriter(tmpFile, StandardCharsets.UTF_8)) {
-      writer.write("2014-01-01T00:00:10Z,a,1\n");
-      writer.write("2014-01-01T01:00:20Z,b,1\n");
-      writer.write("2014-01-01T02:00:30Z,c,1\n");
-    }
-
-    IndexTask indexTask = new IndexTask(
-        null,
-        null,
-        createIngestionSpec(
-            jsonMapper,
-            tmpDir,
-            null,
-            null,
-            createTuningConfigWithMaxRowsPerSegment(2, true, true),
-            false
-        ),
-        null,
-        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
-        null,
-        rowIngestionMetersFactory
-    );
-
-    Assert.assertEquals(indexTask.getId(), indexTask.getGroupId());
-
-    final List<DataSegment> segments = runTask(indexTask).rhs;
-
-    Assert.assertEquals(2, segments.size());
-
-    Assert.assertEquals("test", segments.get(0).getDataSource());
-    Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
-    Assert.assertEquals(NumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
-    Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getOvershadowedGroup());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getAtomicUpdateGroup());
-
-    Assert.assertEquals("test", segments.get(1).getDataSource());
-    Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
-    Assert.assertEquals(NumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
-    Assert.assertEquals(1, segments.get(1).getShardSpec().getPartitionNum());
     Assert.assertEquals(Collections.emptySet(), segments.get(1).getOvershadowedGroup());
     Assert.assertEquals(Collections.emptySet(), segments.get(1).getAtomicUpdateGroup());
   }
@@ -293,7 +241,7 @@ public class IndexTaskTest extends IngestionTestBase
                 )
             ),
             null,
-            createTuningConfigWithMaxRowsPerSegment(2, true, false),
+            createTuningConfigWithMaxRowsPerSegment(2, false),
             false
         ),
         null,
@@ -340,7 +288,7 @@ public class IndexTaskTest extends IngestionTestBase
                 Granularities.MINUTE,
                 Collections.singletonList(Intervals.of("2014-01-01/2014-01-02"))
             ),
-            createTuningConfigWithMaxRowsPerSegment(10, false, true),
+            createTuningConfigWithMaxRowsPerSegment(10, true),
             false
         ),
         null,
@@ -378,7 +326,7 @@ public class IndexTaskTest extends IngestionTestBase
                 Granularities.HOUR,
                 Collections.singletonList(Intervals.of("2014-01-01T08:00:00Z/2014-01-01T09:00:00Z"))
             ),
-            createTuningConfigWithMaxRowsPerSegment(50, false, true),
+            createTuningConfigWithMaxRowsPerSegment(50, true),
             false
         ),
         null,
@@ -412,7 +360,7 @@ public class IndexTaskTest extends IngestionTestBase
             tmpDir,
             null,
             null,
-            createTuningConfigWithNumShards(1, null, false, true),
+            createTuningConfigWithNumShards(1, null, true),
             false
         ),
         null,
@@ -427,7 +375,7 @@ public class IndexTaskTest extends IngestionTestBase
 
     Assert.assertEquals("test", segments.get(0).getDataSource());
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
-    Assert.assertEquals(NoneShardSpec.class, segments.get(0).getShardSpec().getClass());
+    Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
     Assert.assertEquals(Collections.emptySet(), segments.get(0).getOvershadowedGroup());
     Assert.assertEquals(Collections.emptySet(), segments.get(0).getAtomicUpdateGroup());
@@ -453,7 +401,7 @@ public class IndexTaskTest extends IngestionTestBase
             tmpDir,
             null,
             null,
-            createTuningConfigWithNumShards(2, ImmutableList.of("dim"), false, true),
+            createTuningConfigWithNumShards(2, ImmutableList.of("dim"), true),
             false
         ),
         null,
@@ -528,7 +476,7 @@ public class IndexTaskTest extends IngestionTestBase
             tmpDir,
             null,
             null,
-            createTuningConfigWithMaxRowsPerSegment(2, false, false),
+            createTuningConfigWithMaxRowsPerSegment(2, false),
             true
         ),
         null,
@@ -583,7 +531,7 @@ public class IndexTaskTest extends IngestionTestBase
                 Granularities.MINUTE,
                 null
             ),
-            createTuningConfigWithMaxRowsPerSegment(2, false, true),
+            createTuningConfigWithMaxRowsPerSegment(2, true),
             false
         ),
         null,
@@ -598,21 +546,21 @@ public class IndexTaskTest extends IngestionTestBase
 
     Assert.assertEquals("test", segments.get(0).getDataSource());
     Assert.assertEquals(Intervals.of("2014-01-01T00/PT1H"), segments.get(0).getInterval());
-    Assert.assertTrue(segments.get(0).getShardSpec().getClass().equals(NoneShardSpec.class));
+    Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
     Assert.assertEquals(Collections.emptySet(), segments.get(0).getOvershadowedGroup());
     Assert.assertEquals(Collections.emptySet(), segments.get(0).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(1).getDataSource());
     Assert.assertEquals(Intervals.of("2014-01-01T01/PT1H"), segments.get(1).getInterval());
-    Assert.assertTrue(segments.get(1).getShardSpec().getClass().equals(NoneShardSpec.class));
+    Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(1).getShardSpec().getPartitionNum());
     Assert.assertEquals(Collections.emptySet(), segments.get(1).getOvershadowedGroup());
     Assert.assertEquals(Collections.emptySet(), segments.get(1).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(2).getDataSource());
     Assert.assertEquals(Intervals.of("2014-01-01T02/PT1H"), segments.get(2).getInterval());
-    Assert.assertTrue(segments.get(2).getShardSpec().getClass().equals(NoneShardSpec.class));
+    Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(2).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(2).getShardSpec().getPartitionNum());
     Assert.assertEquals(Collections.emptySet(), segments.get(2).getOvershadowedGroup());
     Assert.assertEquals(Collections.emptySet(), segments.get(2).getAtomicUpdateGroup());
@@ -653,7 +601,7 @@ public class IndexTaskTest extends IngestionTestBase
                 0
             ),
             null,
-            createTuningConfigWithMaxRowsPerSegment(2, false, true),
+            createTuningConfigWithMaxRowsPerSegment(2, true),
             false
         ),
         null,
@@ -706,7 +654,7 @@ public class IndexTaskTest extends IngestionTestBase
                 0
             ),
             null,
-            createTuningConfigWithMaxRowsPerSegment(2, false, true),
+            createTuningConfigWithMaxRowsPerSegment(2, true),
             false
         ),
         null,
@@ -754,7 +702,7 @@ public class IndexTaskTest extends IngestionTestBase
                 Granularities.MINUTE,
                 null
             ),
-            createTuningConfig(2, 2, null, 2L, null, null, false, false, true),
+            createTuningConfig(2, 2, null, 2L, null, null, false, true),
             false
         ),
         null,
@@ -802,7 +750,7 @@ public class IndexTaskTest extends IngestionTestBase
                 true,
                 null
             ),
-            createTuningConfig(3, 2, null, 2L, null, null, false, true, true),
+            createTuningConfig(3, 2, null, 2L, null, null, true, true),
             false
         ),
         null,
@@ -849,7 +797,7 @@ public class IndexTaskTest extends IngestionTestBase
                 true,
                 null
             ),
-            createTuningConfig(3, 2, null, 2L, null, null, false, false, true),
+            createTuningConfig(3, 2, null, 2L, null, null, false, true),
             false
         ),
         null,
@@ -925,7 +873,7 @@ public class IndexTaskTest extends IngestionTestBase
             0
         ),
         null,
-        createTuningConfig(2, null, null, null, null, null, false, false, false), // ignore parse exception,
+        createTuningConfig(2, null, null, null, null, null, false, false), // ignore parse exception,
         false
     );
 
@@ -979,7 +927,7 @@ public class IndexTaskTest extends IngestionTestBase
             0
         ),
         null,
-        createTuningConfig(2, null, null, null, null, null, false, false, true), // report parse exception
+        createTuningConfig(2, null, null, null, null, null, false, true), // report parse exception
         false
     );
 
@@ -1038,7 +986,6 @@ public class IndexTaskTest extends IngestionTestBase
         indexSpec,
         null,
         true,
-        false,
         true,
         false,
         null,
@@ -1164,7 +1111,6 @@ public class IndexTaskTest extends IngestionTestBase
         true,
         false,
         false,
-        false,
         null,
         null,
         null,
@@ -1279,7 +1225,6 @@ public class IndexTaskTest extends IngestionTestBase
         indexSpec,
         null,
         true,
-        false,
         true,
         false,
         null,
@@ -1414,7 +1359,7 @@ public class IndexTaskTest extends IngestionTestBase
             0
         ),
         null,
-        createTuningConfig(2, 1, null, null, null, null, false, true, true), // report parse exception
+        createTuningConfig(2, 1, null, null, null, null, true, true), // report parse exception
         false
     );
 
@@ -1485,7 +1430,7 @@ public class IndexTaskTest extends IngestionTestBase
             0
         ),
         null,
-        createTuningConfig(2, null, null, null, null, null, false, false, true), // report parse exception
+        createTuningConfig(2, null, null, null, null, null, false, true), // report parse exception
         false
     );
 
@@ -1531,7 +1476,6 @@ public class IndexTaskTest extends IngestionTestBase
 
   private static IndexTuningConfig createTuningConfigWithMaxRowsPerSegment(
       int maxRowsPerSegment,
-      boolean forceExtendableShardSpecs,
       boolean forceGuaranteedRollup
   )
   {
@@ -1542,7 +1486,6 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         null,
-        forceExtendableShardSpecs,
         forceGuaranteedRollup,
         true
     );
@@ -1551,7 +1494,6 @@ public class IndexTaskTest extends IngestionTestBase
   private static IndexTuningConfig createTuningConfigWithNumShards(
       int numShards,
       @Nullable List<String> partitionDimensions,
-      boolean forceExtendableShardSpecs,
       boolean forceGuaranteedRollup
   )
   {
@@ -1562,7 +1504,6 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         numShards,
         partitionDimensions,
-        forceExtendableShardSpecs,
         forceGuaranteedRollup,
         true
     );
@@ -1575,7 +1516,6 @@ public class IndexTaskTest extends IngestionTestBase
       @Nullable Long maxTotalRows,
       @Nullable Integer numShards,
       @Nullable List<String> partitionDimensions,
-      boolean forceExtendableShardSpecs,
       boolean forceGuaranteedRollup,
       boolean reportParseException
   )
@@ -1592,7 +1532,6 @@ public class IndexTaskTest extends IngestionTestBase
         indexSpec,
         null,
         true,
-        forceExtendableShardSpecs,
         forceGuaranteedRollup,
         reportParseException,
         null,
