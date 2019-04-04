@@ -19,13 +19,17 @@
 
 package org.apache.druid.sql.calcite.util;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
 import com.google.common.io.Closeables;
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.UOE;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.guava.FunctionalIterable;
-import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.query.Druids;
 import org.apache.druid.query.FinalizeResultsQueryRunner;
 import org.apache.druid.query.NoopQueryRunner;
 import org.apache.druid.query.Query;
@@ -37,6 +41,8 @@ import org.apache.druid.query.QuerySegmentWalker;
 import org.apache.druid.query.QueryToolChest;
 import org.apache.druid.query.SegmentDescriptor;
 import org.apache.druid.query.TableDataSource;
+import org.apache.druid.query.scan.ScanQuery;
+import org.apache.druid.query.spec.MultipleSpecificSegmentSpec;
 import org.apache.druid.query.spec.SpecificSegmentQueryRunner;
 import org.apache.druid.query.spec.SpecificSegmentSpec;
 import org.apache.druid.segment.QueryableIndex;
@@ -54,8 +60,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, Closeable
 {
@@ -97,9 +101,16 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
       final Iterable<Interval> intervals
   )
   {
-    final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);
+    Query<T> newQuery = query;
+    if (query instanceof ScanQuery && ((ScanQuery) query).getOrder() != ScanQuery.Order.NONE) {
+      newQuery = (Query<T>) Druids.ScanQueryBuilder.copy((ScanQuery) query)
+                                                   .intervals(new MultipleSpecificSegmentSpec(ImmutableList.of()))
+                                                   .build();
+    }
+
+    final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(newQuery);
     if (factory == null) {
-      throw new ISE("Unknown query type[%s].", query.getClass());
+      throw new ISE("Unknown query type[%s].", newQuery.getClass());
     }
 
     final QueryToolChest<T, Query<T>> toolChest = factory.getToolchest();
@@ -108,33 +119,46 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
         toolChest.postMergeQueryDecoration(
             toolChest.mergeResults(
                 toolChest.preMergeQueryDecoration(
-                    new QueryRunner<T>()
-                    {
-                      @Override
-                      public Sequence<T> run(QueryPlus<T> queryPlus, Map<String, Object> responseContext)
-                      {
-                        Query<T> query = queryPlus.getQuery();
-                        final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = getTimelineForTableDataSource(query);
-                        return makeBaseRunner(
-                            query,
-                            toolChest,
-                            factory,
-                            FunctionalIterable
-                                .create(intervals)
-                                .transformCat(timeline::lookup)
-                                .transformCat(
-                                    holder -> FunctionalIterable
-                                        .create(holder.getObject())
-                                        .transform(
-                                            chunk -> new SegmentDescriptor(
-                                                holder.getInterval(),
-                                                holder.getVersion(),
-                                                chunk.getChunkNumber()
-                                            )
-                                        )
-                                )
-                        ).run(queryPlus, responseContext);
+                    (queryPlus, responseContext) -> {
+                      Query<T> query1 = queryPlus.getQuery();
+                      Query<T> newQuery1 = query1;
+                      if (query instanceof ScanQuery && ((ScanQuery) query).getOrder() != ScanQuery.Order.NONE) {
+                        newQuery1 = (Query<T>) Druids.ScanQueryBuilder.copy((ScanQuery) query)
+                                                                      .intervals(new MultipleSpecificSegmentSpec(
+                                                                          ImmutableList.of(new SegmentDescriptor(
+                                                                              Intervals.of("2015-04-12/2015-04-13"),
+                                                                              "4",
+                                                                              0
+                                                                          ))))
+                                                                      .context(ImmutableMap.of(
+                                                                          ScanQuery.CTX_KEY_OUTERMOST,
+                                                                          false
+                                                                      ))
+                                                                      .build();
                       }
+                      final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline = getTimelineForTableDataSource(
+                          newQuery1);
+                      return makeBaseRunner(
+                          newQuery1,
+                          toolChest,
+                          factory,
+                          FunctionalIterable
+                              .create(intervals)
+                              .transformCat(
+                                  interval -> timeline.lookup(interval)
+                              )
+                              .transformCat(
+                                  holder -> FunctionalIterable
+                                      .create(holder.getObject())
+                                      .transform(
+                                          chunk -> new SegmentDescriptor(
+                                              holder.getInterval(),
+                                              holder.getVersion(),
+                                              chunk.getChunkNumber()
+                                          )
+                                      )
+                              )
+                      ).run(QueryPlus.wrap(newQuery1), responseContext);
                     }
                 )
             )
@@ -210,12 +234,13 @@ public class SpecificSegmentsQuerySegmentWalker implements QuerySegmentWalker, C
                               descriptor.getVersion()
                           );
 
-                          return StreamSupport.stream(holder.spliterator(), false)
-                                              .map(chunk -> new SpecificSegmentQueryRunner<T>(
-                                                  factory.createRunner(chunk.getObject()),
-                                                  new SpecificSegmentSpec(descriptor)
-                                              ))
-                                              .collect(Collectors.toList());
+                          return Iterables.transform(
+                              holder,
+                              chunk -> new SpecificSegmentQueryRunner<T>(
+                                  factory.createRunner(chunk.getObject()),
+                                  new SpecificSegmentSpec(descriptor)
+                              )
+                          );
                         }
                     )
             )
