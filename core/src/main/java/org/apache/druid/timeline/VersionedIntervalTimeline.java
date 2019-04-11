@@ -19,6 +19,7 @@
 
 package org.apache.druid.timeline;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
@@ -60,7 +61,7 @@ import java.util.stream.StreamSupport;
  * a certain time period and when you do a lookup(), you are asking for all of the objects that you need to look
  * at in order to get a correct answer about that time period.
  *
- * The findOvershadowed() method returns a list of objects that will never be returned by a call to lookup() because
+ * The findFullyOvershadowed() method returns a list of objects that will never be returned by a call to lookup() because
  * they are overshadowed by some other object.  This can be used in conjunction with the add() and remove() methods
  * to achieve "atomic" updates.  First add new items, then check if those items caused anything to be overshadowed, if
  * so, remove the overshadowed elements and you have effectively updated your data set without any user impact.
@@ -69,13 +70,15 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
 {
   private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
 
-  // below timelines stores only visible timelineEntries
+  // below timelines stores only visible *timelineEntries*
   // adjusted interval -> timelineEntry
-  final NavigableMap<Interval, TimelineEntry> completePartitionsTimeline = new TreeMap<Interval, TimelineEntry>(
+  private final NavigableMap<Interval, TimelineEntry> completePartitionsTimeline = new TreeMap<>(
       Comparators.intervalsByStartThenEnd()
   );
+  // incompletePartitionsTimeline also includes completePartitionsTimeline
   // adjusted interval -> timelineEntry
-  final NavigableMap<Interval, TimelineEntry> incompletePartitionsTimeline = new TreeMap<Interval, TimelineEntry>(
+  @VisibleForTesting
+  final NavigableMap<Interval, TimelineEntry> incompletePartitionsTimeline = new TreeMap<>(
       Comparators.intervalsByStartThenEnd()
   );
   // true interval -> version -> timelineEntry
@@ -314,20 +317,18 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
   }
 
   // TODO: fix this
-  public Set<TimelineObjectHolder<VersionType, ObjectType>> findOvershadowed()
+  public Set<TimelineObjectHolder<VersionType, ObjectType>> findFullyOvershadowed()
   {
     lock.readLock().lock();
     try {
-      Set<TimelineObjectHolder<VersionType, ObjectType>> retVal = new HashSet<>();
-
-      Map<Interval, Map<VersionType, TimelineEntry>> overShadowed = new HashMap<>();
+      // 1. Put all timelineEntries and remove all visible entries to find out only non-visible timelineEntries.
+      final Map<Interval, Map<VersionType, TimelineEntry>> overShadowed = new HashMap<>();
       for (Map.Entry<Interval, TreeMap<VersionType, TimelineEntry>> versionEntry : allTimelineEntries.entrySet()) {
-        Map<VersionType, TimelineEntry> versionCopy = new HashMap<>();
-        versionCopy.putAll(versionEntry.getValue());
+        Map<VersionType, TimelineEntry> versionCopy = new HashMap<>(versionEntry.getValue());
         overShadowed.put(versionEntry.getKey(), versionCopy);
       }
 
-      for (Map.Entry<Interval, TimelineEntry> entry : completePartitionsTimeline.entrySet()) {
+      for (Entry<Interval, TimelineEntry> entry : completePartitionsTimeline.entrySet()) {
         Map<VersionType, TimelineEntry> versionEntry = overShadowed.get(entry.getValue().getTrueInterval());
         if (versionEntry != null) {
           versionEntry.remove(entry.getValue().getVersion());
@@ -337,7 +338,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
         }
       }
 
-      for (Map.Entry<Interval, TimelineEntry> entry : incompletePartitionsTimeline.entrySet()) {
+      for (Entry<Interval, TimelineEntry> entry : incompletePartitionsTimeline.entrySet()) {
         Map<VersionType, TimelineEntry> versionEntry = overShadowed.get(entry.getValue().getTrueInterval());
         if (versionEntry != null) {
           versionEntry.remove(entry.getValue().getVersion());
@@ -347,11 +348,23 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
         }
       }
 
-      for (Map.Entry<Interval, Map<VersionType, TimelineEntry>> versionEntry : overShadowed.entrySet()) {
-        for (Map.Entry<VersionType, TimelineEntry> entry : versionEntry.getValue().entrySet()) {
-          TimelineEntry object = entry.getValue();
-          retVal.add(timelineEntryToObjectHolder(object));
+      final Set<TimelineObjectHolder<VersionType, ObjectType>> retVal = new HashSet<>();
+      for (Entry<Interval, Map<VersionType, TimelineEntry>> versionEntry : overShadowed.entrySet()) {
+        for (Entry<VersionType, TimelineEntry> entry : versionEntry.getValue().entrySet()) {
+          final TimelineEntry timelineEntry = entry.getValue();
+          retVal.add(timelineEntryToObjectHolder(timelineEntry));
         }
+      }
+
+      // 2. Visible timelineEntries can also have overshadowed segments. Add them to the result too.
+      for (Entry<Interval, TimelineEntry> entry : incompletePartitionsTimeline.entrySet()) {
+        retVal.add(
+            new TimelineObjectHolder<>(
+                entry.getValue().trueInterval,
+                entry.getValue().version,
+                new PartitionHolder<>(new ArrayList<>(entry.getValue().partitionHolder.getOvershadowed()))
+            )
+        );
       }
 
       return retVal;

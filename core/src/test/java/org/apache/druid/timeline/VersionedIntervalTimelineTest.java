@@ -29,6 +29,7 @@ import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.timeline.partition.ImmutablePartitionHolder;
 import org.apache.druid.timeline.partition.IntegerPartitionChunk;
+import org.apache.druid.timeline.partition.NumberedPartitionChunk;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
 import org.apache.druid.timeline.partition.SingleElementPartitionChunk;
@@ -227,13 +228,13 @@ public class VersionedIntervalTimelineTest
   @Test
   public void testRemove()
   {
-    for (TimelineObjectHolder<String, OvershadowableInteger> holder : timeline.findOvershadowed()) {
+    for (TimelineObjectHolder<String, OvershadowableInteger> holder : timeline.findFullyOvershadowed()) {
       for (PartitionChunk<OvershadowableInteger> chunk : holder.getObject()) {
         timeline.remove(holder.getInterval(), holder.getVersion(), chunk);
       }
     }
 
-    Assert.assertTrue(timeline.findOvershadowed().isEmpty());
+    Assert.assertTrue(timeline.findFullyOvershadowed().isEmpty());
   }
 
   @Test
@@ -315,14 +316,14 @@ public class VersionedIntervalTimelineTest
         ImmutableList.of(createExpected("2011-10-05/2011-10-06", "5", 5)),
         timeline.lookup(Intervals.of("2011-10-05/2011-10-07"))
     );
-    Assert.assertTrue("Expected no overshadowed entries", timeline.findOvershadowed().isEmpty());
+    Assert.assertTrue("Expected no overshadowed entries", timeline.findFullyOvershadowed().isEmpty());
 
     add("2011-10-06/2011-10-07", "6", IntegerPartitionChunk.make(10, 20, 1, new OvershadowableInteger(1, 61)));
     assertValues(
         ImmutableList.of(createExpected("2011-10-05/2011-10-06", "5", 5)),
         timeline.lookup(Intervals.of("2011-10-05/2011-10-07"))
     );
-    Assert.assertTrue("Expected no overshadowed entries", timeline.findOvershadowed().isEmpty());
+    Assert.assertTrue("Expected no overshadowed entries", timeline.findFullyOvershadowed().isEmpty());
 
     add("2011-10-06/2011-10-07", "6", IntegerPartitionChunk.make(20, null, 2, new OvershadowableInteger(2, 62)));
     assertValues(
@@ -339,7 +340,7 @@ public class VersionedIntervalTimelineTest
         ),
         timeline.lookup(Intervals.of("2011-10-05/2011-10-07"))
     );
-    Assert.assertTrue("Expected no overshadowed entries", timeline.findOvershadowed().isEmpty());
+    Assert.assertTrue("Expected no overshadowed entries", timeline.findFullyOvershadowed().isEmpty());
   }
 
   @Test
@@ -348,17 +349,17 @@ public class VersionedIntervalTimelineTest
     testRemove();
 
     add("2011-10-05/2011-10-07", "6", IntegerPartitionChunk.make(null, 10, 0, new OvershadowableInteger(0, 60)));
-    Assert.assertTrue("Expected no overshadowed entries", timeline.findOvershadowed().isEmpty());
+    Assert.assertTrue("Expected no overshadowed entries", timeline.findFullyOvershadowed().isEmpty());
 
     add("2011-10-05/2011-10-07", "6", IntegerPartitionChunk.make(10, 20, 1, new OvershadowableInteger(1, 61)));
-    Assert.assertTrue("Expected no overshadowed entries", timeline.findOvershadowed().isEmpty());
+    Assert.assertTrue("Expected no overshadowed entries", timeline.findFullyOvershadowed().isEmpty());
 
     add("2011-10-05/2011-10-07", "6", IntegerPartitionChunk.make(20, null, 2, new OvershadowableInteger(2, 62)));
     assertValues(
         ImmutableSet.of(
             createExpected("2011-10-05/2011-10-06", "5", 5)
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -373,7 +374,7 @@ public class VersionedIntervalTimelineTest
         ImmutableList.of(createExpected("2011-10-05/2011-10-06", "5", 5)),
         timeline.lookup(Intervals.of("2011-10-05/2011-10-07"))
     );
-    Assert.assertTrue("Expected no overshadowed entries", timeline.findOvershadowed().isEmpty());
+    Assert.assertTrue("Expected no overshadowed entries", timeline.findFullyOvershadowed().isEmpty());
   }
 
   @Test
@@ -1111,7 +1112,7 @@ public class VersionedIntervalTimelineTest
             createExpected("2011-01-03/2011-01-06", "1", 1),
             createExpected("2011-01-09/2011-01-12", "1", 2)
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1134,7 +1135,7 @@ public class VersionedIntervalTimelineTest
             createExpected("2011-01-05/2011-01-10", "2", 2),
             createExpected("2011-01-01/2011-01-10", "1", 3)
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1156,7 +1157,7 @@ public class VersionedIntervalTimelineTest
             createExpected("2011-01-03/2011-01-12", "1", 3),
             createExpected("2011-01-01/2011-01-05", "2", 1)
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1310,7 +1311,7 @@ public class VersionedIntervalTimelineTest
             createExpected("2011-04-03/2011-04-06", "1", 3),
             createExpected("2011-04-06/2011-04-09", "1", 4)
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1328,7 +1329,7 @@ public class VersionedIntervalTimelineTest
         ImmutableSet.of(
             createExpected("2011-04-01/2011-04-09", "1", 1)
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1348,7 +1349,7 @@ public class VersionedIntervalTimelineTest
             createExpected("2011-04-03/2011-04-06", "1", 3),
             createExpected("2011-04-09/2011-04-12", "1", 4)
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1366,7 +1367,7 @@ public class VersionedIntervalTimelineTest
             createExpected("2011-04-03/2011-04-06", "1", 3),
             createExpected("2011-04-06/2011-04-09", "1", 4)
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1381,7 +1382,7 @@ public class VersionedIntervalTimelineTest
 
     assertValues(
         ImmutableSet.of(),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1396,7 +1397,7 @@ public class VersionedIntervalTimelineTest
 
     assertValues(
         ImmutableSet.of(),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1411,7 +1412,7 @@ public class VersionedIntervalTimelineTest
 
     assertValues(
         ImmutableSet.of(),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1429,7 +1430,7 @@ public class VersionedIntervalTimelineTest
         ImmutableSet.of(
             createExpected("2011-04-03/2011-04-06", "1", 3)
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1449,7 +1450,7 @@ public class VersionedIntervalTimelineTest
             createExpected("2011-04-03/2011-04-06", "1", 3),
             createExpected("2011-04-09/2011-04-12", "1", 3)
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1467,7 +1468,7 @@ public class VersionedIntervalTimelineTest
             createExpected("2011-04-01/2011-04-09", "2", 3),
             createExpected("2011-04-01/2011-04-09", "1", 1)
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1486,7 +1487,7 @@ public class VersionedIntervalTimelineTest
             createExpected("2011-04-01/2011-04-09", "2", 3),
             createExpected("2011-04-01/2011-04-09", "1", 1)
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
   }
 
@@ -1543,7 +1544,7 @@ public class VersionedIntervalTimelineTest
                 )
             )
         ),
-        timeline.findOvershadowed()
+        timeline.findFullyOvershadowed()
     );
 
     testRemove();
@@ -1637,7 +1638,6 @@ public class VersionedIntervalTimelineTest
     add("2011-04-15/2011-04-19", "12", makeSingle(1));
     add("2011-04-17/2011-04-21", "11", makeSingle(1));
 
-
     Assert.assertFalse(timeline.isOvershadowed(Intervals.of("2011-04-01/2011-04-03"), "0", new OvershadowableInteger(0, 1)));
     Assert.assertFalse(timeline.isOvershadowed(Intervals.of("2011-04-01/2011-04-05"), "0", new OvershadowableInteger(0, 1)));
     Assert.assertFalse(timeline.isOvershadowed(Intervals.of("2011-04-01/2011-04-06"), "0", new OvershadowableInteger(0, 1)));
@@ -1711,6 +1711,44 @@ public class VersionedIntervalTimelineTest
     Assert.assertFalse(timeline.isOvershadowed(Intervals.of("2011-04-21/2011-04-22"), "0", new OvershadowableInteger(0, 1)));
   }
 
+  @Test
+  public void testOvershadowedViaReference()
+  {
+    timeline = makeStringIntegerTimeline();
+
+    add("2019-01-01/2019-01-02", "0", makeNumbered(0, 0));
+    add("2019-01-01/2019-01-02", "0", makeNumbered(1, 0));
+    add("2019-01-01/2019-01-02", "0", makeNumbered(2, 0));
+
+    add("2019-01-01/2019-01-02", "0", makeNumbered(3, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)));
+    add("2019-01-01/2019-01-02", "0", makeNumbered(4, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)));
+
+    Assert.assertEquals(
+        ImmutableSet.of(
+            makeTimelineObjectHolder(
+                "2019-01-01/2019-01-02",
+                "0",
+                ImmutableList.of(makeNumbered(0, 0), makeNumbered(1, 0), makeNumbered(2, 0))
+            )
+        ),
+        timeline.findFullyOvershadowed()
+    );
+  }
+
+  private TimelineObjectHolder<String, OvershadowableInteger> makeTimelineObjectHolder(
+      String interval,
+      String version,
+      List<PartitionChunk<OvershadowableInteger>> chunks
+  )
+  {
+    return new TimelineObjectHolder<>(
+        Intervals.of(interval),
+        Intervals.of(interval),
+        version,
+        new PartitionHolder<>(chunks)
+    );
+  }
+
   // TODO: test if the middle segment is missing (B among A <- B <- C)
 
   // TODO: test fall back when the middle segment is missing
@@ -1740,9 +1778,40 @@ public class VersionedIntervalTimelineTest
     );
   }
 
-  private PartitionChunk<OvershadowableInteger> makeSingle(Integer value)
+  private PartitionChunk<OvershadowableInteger> makeSingle(int value)
   {
-    return new SingleElementPartitionChunk<>(new OvershadowableInteger(0, value));
+    return makeSingle(0, value);
+  }
+
+  private PartitionChunk<OvershadowableInteger> makeSingle(int partitionNum, int val)
+  {
+    return new SingleElementPartitionChunk<>(new OvershadowableInteger(partitionNum, val));
+  }
+
+  private PartitionChunk<OvershadowableInteger> makeNumbered(
+      int partitionNum,
+      int val
+  )
+  {
+    return new NumberedPartitionChunk<>(
+        partitionNum,
+        0,
+        new OvershadowableInteger(partitionNum, val)
+    );
+  }
+
+  private PartitionChunk<OvershadowableInteger> makeNumbered(
+      int partitionNum,
+      int val,
+      Set<Integer> overshadowedSegments,
+      Set<Integer> atomicUpdateGroup
+  )
+  {
+    return new NumberedPartitionChunk<>(
+        partitionNum,
+        0,
+        new OvershadowableInteger(partitionNum, val, overshadowedSegments, atomicUpdateGroup)
+    );
   }
 
   private void add(String interval, String version, Integer value)
@@ -1812,23 +1881,37 @@ public class VersionedIntervalTimelineTest
   {
     private final int partitionNum;
     private final int val;
+    private final Set<Integer> overshadowedGroup;
+    private final Set<Integer> atomicUpdateGroup;
 
-    OvershadowableInteger(int partitionNum, int val)
+    private OvershadowableInteger(int partitionNum, int val)
+    {
+      this(partitionNum, val, Collections.emptySet(), Collections.singleton(partitionNum));
+    }
+
+    private OvershadowableInteger(
+        int partitionNum,
+        int val,
+        Set<Integer> overshadowedGroup,
+        Set<Integer> atomicUpdateGroup
+    )
     {
       this.partitionNum = partitionNum;
       this.val = val;
+      this.overshadowedGroup = overshadowedGroup;
+      this.atomicUpdateGroup = atomicUpdateGroup;
     }
 
     @Override
     public Set<Integer> getOvershadowedGroup()
     {
-      return Collections.emptySet();
+      return overshadowedGroup;
     }
 
     @Override
     public Set<Integer> getAtomicUpdateGroup()
     {
-      return Collections.singleton(partitionNum);
+      return atomicUpdateGroup;
     }
 
     @Override

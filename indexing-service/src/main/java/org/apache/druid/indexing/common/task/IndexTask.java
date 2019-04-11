@@ -87,13 +87,10 @@ import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecFactoryArgs;
-import org.apache.druid.timeline.partition.NoneShardSpec;
-import org.apache.druid.timeline.partition.NoneShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
-import org.apache.druid.timeline.partition.ShardSpecFactoryArgs.EmptyShardSpecFactoryArgs;
 import org.apache.druid.utils.CircularBuffer;
 import org.codehaus.plexus.util.FileUtils;
 import org.joda.time.Interval;
@@ -123,7 +120,6 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -715,18 +711,15 @@ public class IndexTask extends AbstractTask implements ChatHandler
 
   private static Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>> createShardSpecFactory(
       int numShards,
-      @Nullable List<String> partitionDimensions)
+      @Nullable List<String> partitionDimensions
+  )
   {
-    if (numShards == 1) {
-      return Pair.of(NoneShardSpecFactory.instance(), Collections.singletonList(EmptyShardSpecFactoryArgs.instance()));
-    } else {
-      return Pair.of(
-          new HashBasedNumberedShardSpecFactory(partitionDimensions, numShards),
-          IntStream.range(0, numShards)
-                   .mapToObj(HashBasedNumberedShardSpecFactoryArgs::new)
-                   .collect(Collectors.toList())
-      );
-    }
+    return Pair.of(
+        new HashBasedNumberedShardSpecFactory(partitionDimensions, numShards),
+        IntStream.range(0, numShards)
+                 .mapToObj(HashBasedNumberedShardSpecFactoryArgs::new)
+                 .collect(Collectors.toList())
+    );
   }
 
   private Map<Interval, Optional<HyperLogLogCollector>> collectIntervalsAndShardSpecs(

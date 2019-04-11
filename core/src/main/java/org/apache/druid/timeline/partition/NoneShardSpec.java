@@ -49,7 +49,7 @@ public class NoneShardSpec implements ShardSpec
   @Override
   public <T> PartitionChunk<T> createChunk(T obj)
   {
-    return new SingleElementPartitionChunk<T>(obj);
+    return new SingleElementPartitionChunk<>(obj);
   }
 
   @Override

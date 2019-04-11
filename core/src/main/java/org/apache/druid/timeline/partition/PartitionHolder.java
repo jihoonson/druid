@@ -122,7 +122,7 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
     return overshadowableManager.getVisibles().spliterator();
   }
 
-  public Collection<PartitionChunk<T>> getOVershadowed()
+  public Collection<PartitionChunk<T>> getOvershadowed()
   {
     return overshadowableManager.getOvershadowed();
   }

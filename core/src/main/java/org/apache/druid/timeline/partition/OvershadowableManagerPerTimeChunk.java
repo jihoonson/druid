@@ -222,7 +222,7 @@ public class OvershadowableManagerPerTimeChunk<T extends Overshadowable<T>>
         standbySegment.getObject().getOvershadowedGroup()
                      .stream()
                      .filter(visibleSegments::containsKey)
-                     .forEach(eachPartitionId -> standbySegments.put(eachPartitionId, visibleSegments.remove(eachPartitionId)));
+                     .forEach(eachPartitionId -> overshadowedSegments.put(eachPartitionId, visibleSegments.remove(eachPartitionId)));
       }
     }
   }
