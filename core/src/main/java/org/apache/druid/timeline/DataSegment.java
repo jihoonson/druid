@@ -32,6 +32,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Interner;
 import com.google.common.collect.Interners;
 import com.google.inject.Inject;
+import it.unimi.dsi.fastutil.ints.AbstractIntCollection;
+import it.unimi.dsi.fastutil.ints.IntArraySet;
+import it.unimi.dsi.fastutil.ints.IntSet;
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import org.apache.druid.guice.annotations.PublicApi;
 import org.apache.druid.jackson.CommaListJoinDeserializer;
@@ -44,8 +47,10 @@ import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -71,7 +76,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     if (id.getDataSource().equals(other.id.getDataSource())
         && id.getInterval().overlaps(other.id.getInterval())
         && id.getVersion().equals(other.id.getVersion())) {
-      return overshadowedSegments.contains(other.getShardSpec().getPartitionNum());
+//      return overshadowedSegments.contains(other.getShardSpec().getPartitionNum());
+      return overshadowedSegments.get(other.getShardSpec().getPartitionNum());
     }
     return false;
   }
@@ -106,8 +112,13 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   private final ShardSpec shardSpec;
   private final long size;
   // TODO: sometimes overshadowedSegments have invalid pids which include the overshadowed pids of the overshadowed pid ... why?
-  private final Set<Integer> overshadowedSegments; // TODO: intSet? int rangeSet?
-  private final Set<Integer> atomicUpdateGroup; // TODO: intSet? int rangeSet?
+//  private final Set<Integer> overshadowedSegments; // TODO: intSet? int rangeSet?
+//  private final Set<Integer> atomicUpdateGroup; // TODO: intSet? int rangeSet?
+//  private final IntSet overshadowedSegments;
+//  private final IntSet atomicUpdateGroup;
+
+  private final BitSet overshadowedSegments;
+  private final BitSet atomicUpdateGroup;
 
   public DataSegment(
       String dataSource,
@@ -199,8 +210,36 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     this.shardSpec = (shardSpec == null) ? new NumberedShardSpec(0, 1) : shardSpec;
     this.binaryVersion = binaryVersion;
     this.size = size;
-    this.overshadowedSegments = overshadowedSegments == null ? Collections.emptySet() : overshadowedSegments;
-    this.atomicUpdateGroup = atomicUpdateGroup == null ? Collections.emptySet() : atomicUpdateGroup;
+//    this.overshadowedSegments = overshadowedSegments == null ? Collections.emptySet() : overshadowedSegments;
+//    this.atomicUpdateGroup = atomicUpdateGroup == null ? Collections.emptySet() : atomicUpdateGroup;
+
+//    this.overshadowedSegments = overshadowedSegments == null ? new IntArraySet() : overshadowedSegments
+//        .stream()
+//        .mapToInt(i -> i)
+//        .collect(IntArraySet::new, IntArraySet::add, AbstractIntCollection::addAll);
+
+//    this.atomicUpdateGroup = atomicUpdateGroup == null ? new IntArraySet() : atomicUpdateGroup
+//        .stream()
+//        .mapToInt(i -> i)
+//        .collect(IntArraySet::new, IntArraySet::add, AbstractIntCollection::addAll);
+
+    if (overshadowedSegments != null) {
+      this.overshadowedSegments = new BitSet(overshadowedSegments.size());
+      for (Integer i : overshadowedSegments) {
+        this.overshadowedSegments.set(i);
+      }
+    } else {
+      this.overshadowedSegments = null;
+    }
+
+    if (atomicUpdateGroup != null) {
+      this.atomicUpdateGroup = new BitSet(atomicUpdateGroup.size());
+      for (Integer i : atomicUpdateGroup) {
+        this.atomicUpdateGroup.set(i);
+      }
+    } else {
+      this.atomicUpdateGroup = null;
+    }
   }
 
   @Nullable
@@ -307,14 +346,37 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   @JsonProperty("overshadowedSegments")
   public Set<Integer> getOvershadowedGroup()
   {
-    return overshadowedSegments;
+//    return overshadowedSegments;
+    if (overshadowedSegments != null) {
+      final Set<Integer> set = new HashSet<>();
+      for (int i = 0; i < overshadowedSegments.length(); i++) {
+        if (overshadowedSegments.get(i)) {
+          set.add(i);
+        }
+      }
+      return set;
+    } else {
+      return Collections.emptySet();
+    }
   }
 
   @Override
   @JsonProperty
   public Set<Integer> getAtomicUpdateGroup()
   {
-    return atomicUpdateGroup;
+//    return atomicUpdateGroup;
+
+    if (atomicUpdateGroup != null) {
+      final Set<Integer> set = new HashSet<>();
+      for (int i = 0; i < atomicUpdateGroup.length(); i++) {
+        if (atomicUpdateGroup.get(i)) {
+          set.add(i);
+        }
+      }
+      return set;
+    } else {
+      return Collections.emptySet();
+    }
   }
 
   public SegmentDescriptor toDescriptor()

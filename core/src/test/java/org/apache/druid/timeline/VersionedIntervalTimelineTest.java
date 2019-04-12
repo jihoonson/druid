@@ -1712,7 +1712,7 @@ public class VersionedIntervalTimelineTest
   }
 
   @Test
-  public void testOvershadowedViaReference()
+  public void testOvershadowedByReference()
   {
     timeline = makeStringIntegerTimeline();
 
@@ -1735,6 +1735,179 @@ public class VersionedIntervalTimelineTest
     );
   }
 
+  @Test
+  public void testOvershadowedByReferenceChain()
+  {
+    timeline = makeStringIntegerTimeline();
+
+    // 2019-01-01/2019-01-02
+    add("2019-01-01/2019-01-02", "0", makeNumbered(0, 0));
+    add("2019-01-01/2019-01-02", "0", makeNumbered(1, 0));
+    add("2019-01-01/2019-01-02", "0", makeNumbered(2, 0));
+
+    // 2019-01-02/2019-01-03
+    add("2019-01-02/2019-01-03", "0", makeNumbered(0, 0));
+    add("2019-01-02/2019-01-03", "0", makeNumbered(1, 0));
+
+    // Overwrite 2019-01-01/2019-01-02
+    add("2019-01-01/2019-01-02", "0", makeNumbered(3, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)));
+    add("2019-01-01/2019-01-02", "0", makeNumbered(4, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)));
+
+    // Overwrite 2019-01-01/2019-01-02
+    add("2019-01-01/2019-01-02", "0", makeNumbered(5, 2, ImmutableSet.of(3, 4), ImmutableSet.of(5, 6)));
+    add("2019-01-01/2019-01-02", "0", makeNumbered(6, 2, ImmutableSet.of(3, 4), ImmutableSet.of(5, 6)));
+
+    Assert.assertEquals(
+        ImmutableSet.of(
+            makeTimelineObjectHolder(
+                "2019-01-01/2019-01-02",
+                "0",
+                ImmutableList.of(
+                    makeNumbered(0, 0),
+                    makeNumbered(1, 0),
+                    makeNumbered(2, 0),
+                    makeNumbered(3, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)),
+                    makeNumbered(4, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4))
+                )
+            )
+        ),
+        timeline.findFullyOvershadowed()
+    );
+  }
+
+  @Test
+  public void testOvershadowedByReferenceAndThenVersion()
+  {
+    timeline = makeStringIntegerTimeline();
+
+    // 2019-01-01/2019-01-02
+    add("2019-01-01/2019-01-02", "0", makeNumbered(0, 0));
+    add("2019-01-01/2019-01-02", "0", makeNumbered(1, 0));
+    add("2019-01-01/2019-01-02", "0", makeNumbered(2, 0));
+
+    // 2019-01-02/2019-01-03
+    add("2019-01-02/2019-01-03", "0", makeNumbered(0, 0));
+    add("2019-01-02/2019-01-03", "0", makeNumbered(1, 0));
+
+    // Overwrite 2019-01-01/2019-01-02
+    add("2019-01-01/2019-01-02", "0", makeNumbered(3, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)));
+    add("2019-01-01/2019-01-02", "0", makeNumbered(4, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)));
+
+    // Overwrite 2019-01-01/2019-01-02
+    add("2019-01-01/2019-01-02", "1", makeNumbered(0, 0));
+    add("2019-01-01/2019-01-02", "1", makeNumbered(1, 0));
+
+    Assert.assertEquals(
+        ImmutableSet.of(
+            makeTimelineObjectHolder(
+                "2019-01-01/2019-01-02",
+                "0",
+                ImmutableList.of(
+                    makeNumbered(0, 0),
+                    makeNumbered(1, 0),
+                    makeNumbered(2, 0),
+                    makeNumbered(3, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)),
+                    makeNumbered(4, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4))
+                )
+            )
+        ),
+        timeline.findFullyOvershadowed()
+    );
+  }
+
+  @Test
+  public void testOvershadowedByVersionAndThenReference()
+  {
+    timeline = makeStringIntegerTimeline();
+
+    // 2019-01-01/2019-01-02
+    add("2019-01-01/2019-01-02", "0", makeNumbered(0, 0));
+    add("2019-01-01/2019-01-02", "0", makeNumbered(1, 0));
+    add("2019-01-01/2019-01-02", "0", makeNumbered(2, 0));
+
+    // 2019-01-02/2019-01-03
+    add("2019-01-02/2019-01-03", "0", makeNumbered(0, 0));
+    add("2019-01-02/2019-01-03", "0", makeNumbered(1, 0));
+
+    // Overwrite 2019-01-01/2019-01-02
+    add("2019-01-01/2019-01-02", "1", makeNumbered(0, 0));
+    add("2019-01-01/2019-01-02", "1", makeNumbered(1, 0));
+
+    // Overwrite 2019-01-01/2019-01-02
+    add("2019-01-01/2019-01-02", "1", makeNumbered(2, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4)));
+    add("2019-01-01/2019-01-02", "1", makeNumbered(3, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4)));
+    add("2019-01-01/2019-01-02", "1", makeNumbered(4, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4)));
+
+    Assert.assertEquals(
+        ImmutableSet.of(
+            makeTimelineObjectHolder(
+                "2019-01-01/2019-01-02",
+                "0",
+                ImmutableList.of(
+                    makeNumbered(0, 0),
+                    makeNumbered(1, 0),
+                    makeNumbered(2, 0)
+                )
+            ),
+            makeTimelineObjectHolder(
+                "2019-01-01/2019-01-02",
+                "1",
+                ImmutableList.of(
+                    makeNumbered(0, 0),
+                    makeNumbered(1, 0)
+                )
+            )
+        ),
+        timeline.findFullyOvershadowed()
+    );
+  }
+
+  @Test
+  public void testFallbackOnMissingSegment()
+  {
+    timeline = makeStringIntegerTimeline();
+
+    final Interval interval = Intervals.of("2019-01-01/2019-01-02");
+
+    add(interval, "0", makeNumbered(0, 0));
+    add(interval, "0", makeNumbered(1, 0));
+    add(interval, "0", makeNumbered(2, 0));
+
+    // Overwrite 2019-01-01/2019-01-02
+    add(interval, "1", makeNumbered(0, 0));
+    add(interval, "1", makeNumbered(1, 0));
+
+    // Overwrite 2019-01-01/2019-01-02
+    add(interval, "1", makeNumbered(2, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4)));
+    add(interval, "1", makeNumbered(3, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4)));
+    add(interval, "1", makeNumbered(4, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4)));
+
+    timeline.remove(
+        interval,
+        "1",
+        makeNumbered(4, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4))
+    );
+
+    final List<TimelineObjectHolder<String, OvershadowableInteger>> holders = timeline.lookup(interval);
+
+    Assert.assertEquals(
+        ImmutableList.of(
+            new TimelineObjectHolder<>(
+                interval,
+                "1",
+                new PartitionHolder<>(
+                    ImmutableList.of(makeNumbered(0, 0), makeNumbered(1, 0))
+                )
+            )
+        ),
+        holders
+    );
+  }
+
+  // TODO: test if the middle segment is missing (B among A <- B <- C)
+
+  // TODO: test fall back when the middle segment is missing
+
   private TimelineObjectHolder<String, OvershadowableInteger> makeTimelineObjectHolder(
       String interval,
       String version,
@@ -1748,10 +1921,6 @@ public class VersionedIntervalTimelineTest
         new PartitionHolder<>(chunks)
     );
   }
-
-  // TODO: test if the middle segment is missing (B among A <- B <- C)
-
-  // TODO: test fall back when the middle segment is missing
 
   private Pair<Interval, Pair<String, PartitionHolder<OvershadowableInteger>>> createExpected(
       String intervalString,
@@ -1932,6 +2101,17 @@ public class VersionedIntervalTimelineTest
     public int hashCode()
     {
       return Objects.hash(partitionNum, val);
+    }
+
+    @Override
+    public String toString()
+    {
+      return "OvershadowableInteger{" +
+             "partitionNum=" + partitionNum +
+             ", val=" + val +
+             ", overshadowedGroup=" + overshadowedGroup +
+             ", atomicUpdateGroup=" + atomicUpdateGroup +
+             '}';
     }
   }
 }

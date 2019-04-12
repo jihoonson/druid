@@ -21,7 +21,6 @@ package org.apache.druid.timeline.partition;
 
 import com.google.common.collect.Iterables;
 import org.apache.druid.timeline.Overshadowable;
-import org.apache.druid.timeline.PartitionChunkProvider;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -34,19 +33,19 @@ import java.util.Spliterator;
  */
 public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<PartitionChunk<T>>
 {
-  private final OvershadowableManagerPerTimeChunk<T> overshadowableManager;
+  private final SameVersionPartitionChunkManager<T> overshadowableManager;
 
   public PartitionHolder(PartitionChunk<T> initialChunk)
   {
     // TODO: proper provider
-    this.overshadowableManager = new OvershadowableManagerPerTimeChunk<>(PartitionChunkProvider.defaultProvider());
+    this.overshadowableManager = new SameVersionPartitionChunkManager<>();
     add(initialChunk);
   }
 
   public PartitionHolder(List<PartitionChunk<T>> initialChunks)
   {
     // TODO: proper provider
-    this.overshadowableManager = new OvershadowableManagerPerTimeChunk<>(PartitionChunkProvider.defaultProvider());
+    this.overshadowableManager = new SameVersionPartitionChunkManager<>();
     for (PartitionChunk<T> chunk : initialChunks) {
       add(chunk);
     }
@@ -54,7 +53,7 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
 
   public PartitionHolder(PartitionHolder<T> partitionHolder)
   {
-    this.overshadowableManager = new OvershadowableManagerPerTimeChunk<>(partitionHolder.overshadowableManager);
+    this.overshadowableManager = new SameVersionPartitionChunkManager<>(partitionHolder.overshadowableManager);
   }
 
   public void add(PartitionChunk<T> chunk)
