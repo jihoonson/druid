@@ -176,7 +176,7 @@ public class SegmentManager
           } else {
             final ReferenceCountingSegment referenceCountingSegment = new ReferenceCountingSegment(
                 adapter,
-                segment.getOvershadowedGroup(),
+                segment.getDirectOvershadowedGroup(),
                 segment.getAtomicUpdateGroup()
             );
             loadedIntervals.add(
@@ -230,7 +230,7 @@ public class SegmentManager
                 segment.getVersion(),
                 // remove() internally searches for a partitionChunk to remove which is *equal* to the given
                 // partitionChunk. Note that partitionChunk.equals() checks only the partitionNum, but not the object.
-                segment.getShardSpec().createChunk(new ReferenceCountingSegment(null, segment.getOvershadowedGroup(), segment.getAtomicUpdateGroup()))
+                segment.getShardSpec().createChunk(new ReferenceCountingSegment(null, segment.getDirectOvershadowedGroup(), segment.getAtomicUpdateGroup()))
             );
             final ReferenceCountingSegment oldQueryable = (removed == null) ? null : removed.getObject();
 

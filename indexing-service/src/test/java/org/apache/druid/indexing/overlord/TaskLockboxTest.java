@@ -1108,7 +1108,7 @@ public class TaskLockboxTest
       Assert.assertEquals(i + expectedOvershadowingSegments.size(), shardSpec.getPartitionNum());
       Assert.assertEquals(
           expectedOvershadowingSegments,
-          segmentIdentifiers.get(i).getOvershadowingSegments()
+          segmentIdentifiers.get(i).getDirectOvershadowedSegments()
       );
     }
   }

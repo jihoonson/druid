@@ -103,9 +103,9 @@ public class SegmentLoadInfo implements Overshadowable<SegmentLoadInfo>
   }
 
   @Override
-  public Set<Integer> getOvershadowedGroup()
+  public Set<Integer> getDirectOvershadowedGroup()
   {
-    return segment.getOvershadowedGroup();
+    return segment.getDirectOvershadowedGroup();
   }
 
   @Override

@@ -85,7 +85,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
       @JsonProperty("sequenceName") String sequenceName,
       @JsonProperty("previousSegmentId") String previousSegmentId,
       @JsonProperty("skipSegmentLineageCheck") boolean skipSegmentLineageCheck,
-      @JsonProperty("overshadowingSegments") @Nullable Set<Integer> overshadowingSegments // for backward compatibility
+      @JsonProperty("direcOvershadowingSegments") @Nullable Set<Integer> overshadowingSegments // for backward compatibility
   )
   {
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
@@ -352,7 +352,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
            ", sequenceName='" + sequenceName + '\'' +
            ", previousSegmentId='" + previousSegmentId + '\'' +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
-           ", overshadowingSegments=" + overshadowingSegments +
+           ", direcOvershadowingSegments=" + overshadowingSegments +
            '}';
   }
 }

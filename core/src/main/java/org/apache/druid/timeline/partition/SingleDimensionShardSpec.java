@@ -53,11 +53,12 @@ public class SingleDimensionShardSpec implements ShardSpec
   @JsonCreator
   public SingleDimensionShardSpec(
       @JsonProperty("dimension") String dimension,
-      @JsonProperty("start") String start,
-      @JsonProperty("end") String end,
+      @JsonProperty("start") @Nullable String start,
+      @JsonProperty("end") @Nullable String end,
       @JsonProperty("partitionNum") int partitionNum
   )
   {
+    Preconditions.checkArgument(partitionNum >= 0, "partitionNum >= 0");
     this.dimension = Preconditions.checkNotNull(dimension, "dimension");
     this.start = start;
     this.end = end;

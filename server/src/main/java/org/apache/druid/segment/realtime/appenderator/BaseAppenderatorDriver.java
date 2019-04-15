@@ -42,6 +42,8 @@ import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.loading.DataSegmentKiller;
 import org.apache.druid.segment.realtime.appenderator.SegmentWithState.SegmentState;
+import org.apache.druid.timeline.AtomicUpdateGroup;
+import org.apache.druid.timeline.AtomicUpdateGroup.Builder;
 import org.apache.druid.timeline.DataSegment;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
@@ -622,10 +624,10 @@ public abstract class BaseAppenderatorDriver implements Closeable
     for (Entry<Interval, List<DataSegment>> entry : intervalToSegments.entrySet()) {
       final Interval interval = entry.getKey();
       final List<DataSegment> segments = entry.getValue();
-      final boolean isOvershadowedSegmentsEmpty = segments.get(0).getOvershadowedGroup().isEmpty();
+      final boolean isOvershadowedSegmentsEmpty = segments.get(0).getDirectOvershadowedGroup().isEmpty();
 
       final boolean anyMismatch = segments.stream().anyMatch(
-          segment -> segment.getOvershadowedGroup().isEmpty() != isOvershadowedSegmentsEmpty
+          segment -> segment.getDirectOvershadowedGroup().isEmpty() != isOvershadowedSegmentsEmpty
       );
       if (anyMismatch) {
         throw new ISE(
@@ -633,25 +635,23 @@ public abstract class BaseAppenderatorDriver implements Closeable
             + "segments with overshadowedGroup: [%s],"
             + "segments with empty overshadowedGroup: [%s]",
             segments.stream()
-                    .filter(segment -> !segment.getOvershadowedGroup().isEmpty())
+                    .filter(segment -> !segment.getDirectOvershadowedGroup().isEmpty())
                     .collect(Collectors.toList()),
             segments.stream()
-                    .filter(segment -> segment.getOvershadowedGroup().isEmpty())
+                    .filter(segment -> segment.getDirectOvershadowedGroup().isEmpty())
                     .collect(Collectors.toList())
         );
       }
 
       if (!isOvershadowedSegmentsEmpty) {
         // The segments which are published together consist an atomicUpdateGroup.
-        final Set<Integer> atomicUpdateGroup = segments
-            .stream()
-            .map(segment -> segment.getShardSpec().getPartitionNum())
-            .collect(Collectors.toSet());
+        final Builder builder = AtomicUpdateGroup.builder();
+        segments.forEach(segment -> builder.add(segment.getShardSpec().getPartitionNum()));
         intervalToSegments.put(
             interval,
             segments
                 .stream()
-                .map(segment -> segment.withAtomicUpdateGroup(atomicUpdateGroup))
+                .map(segment -> segment.withAtomicUpdateGroup(builder.build()))
                 .collect(Collectors.toList())
         );
       }

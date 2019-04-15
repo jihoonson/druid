@@ -143,20 +143,20 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
     final boolean overshadowed = knownPartitionChunks
         .values()
         .stream()
-        .anyMatch(knownChunk -> knownChunk.getObject().getOvershadowedGroup().contains(knownChunk.getChunkNumber()));
+        .anyMatch(knownChunk -> knownChunk.getObject().getDirectOvershadowedGroup().contains(knownChunk.getChunkNumber()));
 
     if (overshadowed) {
       overshadowedSegments.put(chunk.getChunkNumber(), chunkWithAvailability);
     } else {
       // Check all segments in the atomicUpdateGroup have the same overshadowedGroup.
-      final Set<Integer> overshadowedGroup = chunk.getObject().getOvershadowedGroup();
+      final Set<Integer> overshadowedGroup = chunk.getObject().getDirectOvershadowedGroup();
       if (!overshadowedGroup.isEmpty()) {
         final Set<Integer> atomicUpdateGroup = chunk.getObject().getAtomicUpdateGroup();
 
         if (!atomicUpdateGroup.isEmpty()) {
 
           final boolean allAtomicUpdateGroupHaveSameOvershadowedGroup = partitionChunksOf(atomicUpdateGroup)
-              .allMatch(eachAug -> overshadowedGroup.equals(eachAug.getObject().getOvershadowedGroup()));
+              .allMatch(eachAug -> overshadowedGroup.equals(eachAug.getObject().getDirectOvershadowedGroup()));
 
           if (!allAtomicUpdateGroupHaveSameOvershadowedGroup) {
             throw new ISE("all partitions of the same atomicUpdateGroup should have the same overshadowedGroup");
@@ -167,12 +167,12 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
       addToStandby(chunkWithAvailability);
     }
 
-    chunk.getObject().getOvershadowedGroup()
+    chunk.getObject().getDirectOvershadowedGroup()
          .stream()
          .map(visibleSegments::get)
          .filter(Objects::nonNull)
          .forEach(visibleChunk -> transitPartitionChunkState(visibleChunk, State.VISIBLE, State.OVERSHADOWED));
-    chunk.getObject().getOvershadowedGroup()
+    chunk.getObject().getDirectOvershadowedGroup()
          .stream()
          .map(standbySegments::get)
          .filter(Objects::nonNull)
@@ -265,7 +265,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
     // Since a visible chunk is removed, the state of the atomicUpdateGroup of the removed chunk should be changed to
     // standby if there's any completely available atomic update group overshadowed by the removed chunk. Also, the
     // latest atomic update group overshadowed by the removed chunk should be visible.
-    final Set<Integer> overshadowedPartitionIds = removedObject.getOvershadowedGroup();
+    final Set<Integer> overshadowedPartitionIds = removedObject.getDirectOvershadowedGroup();
     final List<PartitionChunkWithAvailability> onlineSegmentsInOvershadowedGroup = findOvershadowedChunks(
         overshadowedPartitionIds
     );
@@ -440,7 +440,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
 
     private Set<Integer> getOvershadowedGroup()
     {
-      return chunk.getObject().getOvershadowedGroup();
+      return chunk.getObject().getDirectOvershadowedGroup();
     }
 
     private Set<Integer> getAtomicUpdateGroup()

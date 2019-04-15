@@ -52,7 +52,7 @@ public class CachingLocalSegmentAllocator extends CachingSegmentAllocator
   ) throws IOException
   {
     // This segment allocator doesn't need inputPartitionIds because the newly created segments don't have to store
-    // overshadowingSegments
+    // direcOvershadowingSegments
     super(toolbox, taskId, allocateSpec, Collections.emptyMap());
     this.dataSource = dataSource;
 

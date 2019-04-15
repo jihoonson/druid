@@ -426,7 +426,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
   }
 
   @Override
-  public Set<Integer> getOvershadowedGroup()
+  public Set<Integer> getDirectOvershadowedGroup()
   {
     // TODO: valid?
     return Collections.emptySet();

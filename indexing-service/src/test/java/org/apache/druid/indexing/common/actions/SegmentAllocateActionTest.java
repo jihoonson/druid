@@ -766,7 +766,7 @@ public class SegmentAllocateActionTest
     Assert.assertEquals(3, hashBasedNumberedShardSpec.getPartitions());
     Assert.assertEquals(ImmutableList.of("dim1", "dim2"), hashBasedNumberedShardSpec.getPartitionDimensions());
 
-    Assert.assertEquals(ImmutableSet.of(0, 1), segmentIdentifier.getOvershadowingSegments());
+    Assert.assertEquals(ImmutableSet.of(0, 1), segmentIdentifier.getDirectOvershadowedSegments());
   }
 
   private SegmentIdWithShardSpec allocate(

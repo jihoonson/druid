@@ -51,7 +51,7 @@ public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<
   public SegmentBulkAllocateAction(
       @JsonProperty("allocateSpec") Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec,
       @JsonProperty("baseSequenceName") String baseSequenceName,
-      @JsonProperty("overshadowingSegments") Map<Interval, Set<Integer>> overshadowingSegments
+      @JsonProperty("direcOvershadowingSegments") Map<Interval, Set<Integer>> overshadowingSegments
   )
   {
     this.allocateSpec = allocateSpec;
@@ -153,7 +153,7 @@ public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<
     return "SegmentBulkAllocateAction{" +
            "allocateSpec=" + allocateSpec +
            ", baseSequenceName='" + baseSequenceName + '\'' +
-           ", overshadowingSegments=" + overshadowingSegments +
+           ", direcOvershadowingSegments=" + overshadowingSegments +
            '}';
   }
 }

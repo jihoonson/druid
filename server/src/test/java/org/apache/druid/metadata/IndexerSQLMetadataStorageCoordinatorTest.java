@@ -1007,7 +1007,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
               identifier.getShardSpec(),
               0,
               10L,
-              identifier.getOvershadowingSegments(),
+              identifier.getDirectOvershadowedSegments(),
               null
           )
       );

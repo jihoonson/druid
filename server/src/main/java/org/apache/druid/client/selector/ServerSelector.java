@@ -180,9 +180,9 @@ public class ServerSelector implements DiscoverySelector<QueryableDruidServer>, 
   }
 
   @Override
-  public Set<Integer> getOvershadowedGroup()
+  public Set<Integer> getDirectOvershadowedGroup()
   {
-    return segment.get().getOvershadowedGroup();
+    return segment.get().getDirectOvershadowedGroup();
   }
 
   @Override

@@ -175,7 +175,7 @@ public class ReferenceCountingSegment extends AbstractSegment implements Oversha
   }
 
   @Override
-  public Set<Integer> getOvershadowedGroup()
+  public Set<Integer> getDirectOvershadowedGroup()
   {
     return overshadowedGroup;
   }

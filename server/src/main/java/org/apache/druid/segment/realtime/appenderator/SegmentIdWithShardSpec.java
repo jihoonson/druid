@@ -23,13 +23,13 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.IntRange;
+import org.apache.druid.timeline.Overshadowable;
 import org.apache.druid.timeline.SegmentId;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import java.util.Collections;
-import java.util.Set;
 
 /**
  * {@link SegmentId} with additional {@link ShardSpec} info. {@link #equals}/{@link #hashCode} and {@link
@@ -44,7 +44,8 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
   private final SegmentId id;
   private final ShardSpec shardSpec;
   private final String asString;
-  private final Set<Integer> overshadowingSegments;
+  private final IntRange directOvershadowedSegments;
+  private final IntRange[] indirectOvershadowedSegments;
 
   public SegmentIdWithShardSpec(
       String dataSource,
@@ -53,7 +54,7 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
       ShardSpec shardSpec
   )
   {
-    this(dataSource, interval, version, shardSpec, null);
+    this(dataSource, interval, version, shardSpec, null, null);
   }
 
   @JsonCreator
@@ -62,12 +63,16 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
       @JsonProperty("interval") Interval interval,
       @JsonProperty("version") String version,
       @JsonProperty("shardSpec") ShardSpec shardSpec,
-      @JsonProperty("overshadowingSegments") @Nullable Set<Integer> overshadowingSegments
+      @JsonProperty("directOvershadowedSegments") @Nullable IntRange directOvershadowedSegments,
+      @JsonProperty("indirectOvershadowedSegments") @Nullable IntRange[] indirectOvershadowedSegments
   )
   {
     this.id = SegmentId.of(dataSource, interval, version, shardSpec.getPartitionNum());
     this.shardSpec = Preconditions.checkNotNull(shardSpec, "shardSpec");
-    this.overshadowingSegments = overshadowingSegments == null ? Collections.emptySet() : overshadowingSegments;
+    this.directOvershadowedSegments = directOvershadowedSegments == null ? IntRange.empty() : directOvershadowedSegments;
+    this.indirectOvershadowedSegments = indirectOvershadowedSegments == null
+                                        ? Overshadowable.EMPTY_INT_RANGE_ARRAY
+                                        : indirectOvershadowedSegments;
     this.asString = id.toString();
   }
 
@@ -83,18 +88,20 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
         id.getInterval(),
         id.getVersion(),
         shardSpec,
-        overshadowingSegments
+        directOvershadowedSegments,
+        indirectOvershadowedSegments
     );
   }
 
-  public SegmentIdWithShardSpec withOvershadowedGroup(Set<Integer> overshadowedGroup)
+  public SegmentIdWithShardSpec withtOvershadowedSegments(IntRange directOvershadowingSegments, IntRange[] indirectOvershadowedSegments)
   {
     return new SegmentIdWithShardSpec(
         id.getDataSource(),
         id.getInterval(),
         id.getVersion(),
         shardSpec,
-        overshadowedGroup
+        directOvershadowingSegments,
+        indirectOvershadowedSegments
     );
   }
 
@@ -123,9 +130,15 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
   }
 
   @JsonProperty
-  public Set<Integer> getOvershadowingSegments()
+  public IntRange getDirectOvershadowedSegments()
   {
-    return overshadowingSegments;
+    return directOvershadowedSegments;
+  }
+
+  @JsonProperty
+  public IntRange[] getIndirectOvershadowedSegments()
+  {
+    return indirectOvershadowedSegments;
   }
 
   public String getIdentifierAsString()
@@ -171,7 +184,8 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
         segment.getInterval(),
         segment.getVersion(),
         segment.getShardSpec(),
-        segment.getOvershadowedGroup()
+        segment.getDirectOvershadowedGroup(),
+        segment.getIndirectOvershadowedGroup()
     );
   }
 }

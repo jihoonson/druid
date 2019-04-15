@@ -591,7 +591,7 @@ public class SchemalessIndexTest
     }
 
     @Override
-    public Set<Integer> getOvershadowedGroup()
+    public Set<Integer> getDirectOvershadowedGroup()
     {
       return Collections.emptySet();
     }

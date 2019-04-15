@@ -299,7 +299,7 @@ public class AppenderatorPlumber implements Plumber
               identifier.getShardSpec(),
               null,
               0,
-              identifier.getOvershadowingSegments(),
+              identifier.getDirectOvershadowedSegments(),
               null
           )
       );

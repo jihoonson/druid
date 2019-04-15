@@ -392,7 +392,7 @@ public class AppenderatorImpl implements Appenderator
           maxBytesTuningConfig,
           tuningConfig.isReportParseExceptions(),
           null,
-          identifier.getOvershadowingSegments()
+          identifier.getDirectOvershadowedSegments()
       );
 
       try {
@@ -1065,7 +1065,7 @@ public class AppenderatorImpl implements Appenderator
             tuningConfig.isReportParseExceptions(),
             null,
             hydrants,
-            identifier.getOvershadowingSegments()
+            identifier.getDirectOvershadowedSegments()
         );
         rowsSoFar += currSink.getNumRows();
         sinks.put(identifier, currSink);

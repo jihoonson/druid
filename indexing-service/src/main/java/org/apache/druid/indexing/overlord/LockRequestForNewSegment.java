@@ -52,6 +52,10 @@ public class LockRequestForNewSegment implements LockRequest
   private final boolean skipSegmentLineageCheck;
   private final Set<Integer> overshadowingSegments;
 
+  private final int startRootPartitionId;
+  private final int endRootPartitionId;
+  private final short minorVersion; // minor version for the new segmentId
+
   public LockRequestForNewSegment(
       TaskLockType lockType,
       String groupId,
@@ -219,7 +223,7 @@ public class LockRequestForNewSegment implements LockRequest
            ", baseSequenceName='" + baseSequenceName + '\'' +
            ", previsousSegmentId='" + previsousSegmentId + '\'' +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
-           ", overshadowingSegments=" + overshadowingSegments +
+           ", direcOvershadowingSegments=" + overshadowingSegments +
            ", shardSpecFactoryArgsList=" + shardSpecFactoryArgsList +
            '}';
   }

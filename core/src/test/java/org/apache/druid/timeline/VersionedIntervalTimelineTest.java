@@ -2072,7 +2072,7 @@ public class VersionedIntervalTimelineTest
     }
 
     @Override
-    public Set<Integer> getOvershadowedGroup()
+    public Set<Integer> getDirectOvershadowedGroup()
     {
       return overshadowedGroup;
     }

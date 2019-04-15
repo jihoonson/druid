@@ -32,9 +32,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Interner;
 import com.google.common.collect.Interners;
 import com.google.inject.Inject;
-import it.unimi.dsi.fastutil.ints.AbstractIntCollection;
-import it.unimi.dsi.fastutil.ints.IntArraySet;
-import it.unimi.dsi.fastutil.ints.IntSet;
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import org.apache.druid.guice.annotations.PublicApi;
 import org.apache.druid.jackson.CommaListJoinDeserializer;
@@ -47,13 +44,10 @@ import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import java.util.BitSet;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -76,10 +70,14 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     if (id.getDataSource().equals(other.id.getDataSource())
         && id.getInterval().overlaps(other.id.getInterval())
         && id.getVersion().equals(other.id.getVersion())) {
-//      return overshadowedSegments.contains(other.getShardSpec().getPartitionNum());
-      return overshadowedSegments.get(other.getShardSpec().getPartitionNum());
+      return includeRootPartitions(other) && minorVersion > other.minorVersion;
     }
     return false;
+  }
+
+  private boolean includeRootPartitions(DataSegment other)
+  {
+    return startRootPartitionId <= other.startRootPartitionId && endRootPartitionId >= other.endRootPartitionId;
   }
 
   /**
@@ -111,14 +109,12 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   private final List<String> metrics;
   private final ShardSpec shardSpec;
   private final long size;
-  // TODO: sometimes overshadowedSegments have invalid pids which include the overshadowed pids of the overshadowed pid ... why?
-//  private final Set<Integer> overshadowedSegments; // TODO: intSet? int rangeSet?
-//  private final Set<Integer> atomicUpdateGroup; // TODO: intSet? int rangeSet?
-//  private final IntSet overshadowedSegments;
-//  private final IntSet atomicUpdateGroup;
 
-  private final BitSet overshadowedSegments;
-  private final BitSet atomicUpdateGroup;
+  // metadata for minor
+  private final int startRootPartitionId;
+  private final int endRootPartitionId; // exclusive
+  private final short minorVersion;
+  private final short atomicUpdateGroupSize; // number of segments in atomicUpdateGroup
 
   public DataSegment(
       String dataSource,
@@ -144,6 +140,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
         size,
         null,
         null,
+        null,
+        null,
         PruneLoadSpecHolder.DEFAULT
     );
   }
@@ -158,8 +156,10 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       ShardSpec shardSpec,
       Integer binaryVersion,
       long size,
-      Set<Integer> overshadowedSegments,
-      Set<Integer> atomicUpdateGroup
+      Integer startRootPartitionId,
+      Integer endRootPartitionId,
+      Short minorVersion,
+      Short atomicUpdateGroupSize
   )
   {
     this(
@@ -172,8 +172,10 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
         shardSpec,
         binaryVersion,
         size,
-        overshadowedSegments,
-        atomicUpdateGroup,
+        startRootPartitionId,
+        endRootPartitionId,
+        minorVersion,
+        atomicUpdateGroupSize,
         PruneLoadSpecHolder.DEFAULT
     );
   }
@@ -196,8 +198,10 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       @JsonProperty("shardSpec") @Nullable ShardSpec shardSpec,
       @JsonProperty("binaryVersion") Integer binaryVersion,
       @JsonProperty("size") long size,
-      @JsonProperty("overshadowedSegments") @Nullable Set<Integer> overshadowedSegments, // TODO: rename this properly
-      @JsonProperty("atomicUpdateGroup") @Nullable Set<Integer> atomicUpdateGroup,
+      @JsonProperty("startRootPartitionId") @Nullable Integer startRootPartitionId,
+      @JsonProperty("endRootPartitionId") @Nullable Integer endRootPartitionId,
+      @JsonProperty("minorVersion") @Nullable Short minorVersion,
+      @JsonProperty("atomicUpdateGroupSize") @Nullable Short atomicUpdateGroupSize,
       @JacksonInject PruneLoadSpecHolder pruneLoadSpecHolder
   )
   {
@@ -210,36 +214,10 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     this.shardSpec = (shardSpec == null) ? new NumberedShardSpec(0, 1) : shardSpec;
     this.binaryVersion = binaryVersion;
     this.size = size;
-//    this.overshadowedSegments = overshadowedSegments == null ? Collections.emptySet() : overshadowedSegments;
-//    this.atomicUpdateGroup = atomicUpdateGroup == null ? Collections.emptySet() : atomicUpdateGroup;
-
-//    this.overshadowedSegments = overshadowedSegments == null ? new IntArraySet() : overshadowedSegments
-//        .stream()
-//        .mapToInt(i -> i)
-//        .collect(IntArraySet::new, IntArraySet::add, AbstractIntCollection::addAll);
-
-//    this.atomicUpdateGroup = atomicUpdateGroup == null ? new IntArraySet() : atomicUpdateGroup
-//        .stream()
-//        .mapToInt(i -> i)
-//        .collect(IntArraySet::new, IntArraySet::add, AbstractIntCollection::addAll);
-
-    if (overshadowedSegments != null) {
-      this.overshadowedSegments = new BitSet(overshadowedSegments.size());
-      for (Integer i : overshadowedSegments) {
-        this.overshadowedSegments.set(i);
-      }
-    } else {
-      this.overshadowedSegments = null;
-    }
-
-    if (atomicUpdateGroup != null) {
-      this.atomicUpdateGroup = new BitSet(atomicUpdateGroup.size());
-      for (Integer i : atomicUpdateGroup) {
-        this.atomicUpdateGroup.set(i);
-      }
-    } else {
-      this.atomicUpdateGroup = null;
-    }
+    this.startRootPartitionId = startRootPartitionId == null ? this.shardSpec.getPartitionNum() : startRootPartitionId;
+    this.endRootPartitionId = endRootPartitionId == null ? this.shardSpec.getPartitionNum() + 1 : endRootPartitionId;
+    this.minorVersion = minorVersion == null ? 0 : minorVersion;
+    this.atomicUpdateGroupSize = atomicUpdateGroupSize == null ? 1 : atomicUpdateGroupSize;
   }
 
   @Nullable
@@ -343,40 +321,31 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   }
 
   @Override
-  @JsonProperty("overshadowedSegments")
-  public Set<Integer> getOvershadowedGroup()
+  @JsonProperty
+  public int getStartRootPartitionId()
   {
-//    return overshadowedSegments;
-    if (overshadowedSegments != null) {
-      final Set<Integer> set = new HashSet<>();
-      for (int i = 0; i < overshadowedSegments.length(); i++) {
-        if (overshadowedSegments.get(i)) {
-          set.add(i);
-        }
-      }
-      return set;
-    } else {
-      return Collections.emptySet();
-    }
+    return startRootPartitionId;
   }
 
   @Override
   @JsonProperty
-  public Set<Integer> getAtomicUpdateGroup()
+  public int getEndRootPartitionId()
   {
-//    return atomicUpdateGroup;
+    return endRootPartitionId;
+  }
 
-    if (atomicUpdateGroup != null) {
-      final Set<Integer> set = new HashSet<>();
-      for (int i = 0; i < atomicUpdateGroup.length(); i++) {
-        if (atomicUpdateGroup.get(i)) {
-          set.add(i);
-        }
-      }
-      return set;
-    } else {
-      return Collections.emptySet();
-    }
+  @Override
+  @JsonProperty
+  public short getMinorVersion()
+  {
+    return minorVersion;
+  }
+
+  @Override
+  @JsonProperty
+  public short getAtomicUpdateGroupSize()
+  {
+    return atomicUpdateGroupSize;
   }
 
   public SegmentDescriptor toDescriptor()
@@ -414,7 +383,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     return builder(this).binaryVersion(binaryVersion).build();
   }
 
-  public DataSegment withAtomicUpdateGroup(Set<Integer> atomicUpdateGroup)
+  public DataSegment withAtomicUpdateGroup(AtomicUpdateGroup atomicUpdateGroup)
   {
     return builder(this).atomicUpdateGroup(atomicUpdateGroup).build();
   }
@@ -451,8 +420,10 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
            ", metrics=" + metrics +
            ", shardSpec=" + shardSpec +
            ", size=" + size +
-           ", overshadowedSegments=" + overshadowedSegments +
-           ", atomicUpdateGroup=" + atomicUpdateGroup +
+           ", startRootPartitionId=" + startRootPartitionId +
+           ", endRootPartitionId=" + endRootPartitionId +
+           ", minorVersion=" + minorVersion +
+           ", atomicUpdateGroupSize=" + atomicUpdateGroupSize +
            '}';
   }
 
@@ -500,8 +471,9 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     private ShardSpec shardSpec;
     private Integer binaryVersion;
     private long size;
-    private Set<Integer> overshadowingSegments;
-    private Set<Integer> atomicUpdateGroup;
+    private IntRange directOvershadowingSegments;
+    private IntRange[] indirectOvershadowingSegments;
+    private AtomicUpdateGroup atomicUpdateGroup;
 
     public Builder()
     {
@@ -523,8 +495,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       this.shardSpec = segment.getShardSpec();
       this.binaryVersion = segment.getBinaryVersion();
       this.size = segment.getSize();
-      this.overshadowingSegments = segment.getOvershadowedGroup();
-      this.atomicUpdateGroup = segment.getAtomicUpdateGroup();
     }
 
     public Builder dataSource(String dataSource)
@@ -581,13 +551,19 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       return this;
     }
 
-    public Builder overshadowingSegments(Set<Integer> overshadowingSegments)
+    public Builder direcOvershadowingSegments(IntRange directOvershadowingSegments)
     {
-      this.overshadowingSegments = overshadowingSegments;
+      this.directOvershadowingSegments = directOvershadowingSegments;
       return this;
     }
 
-    public Builder atomicUpdateGroup(Set<Integer> atomicUpdateGroup)
+    public Builder indirecOvershadowingSegments(IntRange[] indirectOvershadowingSegments)
+    {
+      this.indirectOvershadowingSegments = indirectOvershadowingSegments;
+      return this;
+    }
+
+    public Builder atomicUpdateGroup(AtomicUpdateGroup atomicUpdateGroup)
     {
       this.atomicUpdateGroup = atomicUpdateGroup;
       return this;
@@ -611,7 +587,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
           shardSpec,
           binaryVersion,
           size,
-          overshadowingSegments,
+          directOvershadowingSegments,
+          indirectOvershadowingSegments,
           atomicUpdateGroup
       );
     }

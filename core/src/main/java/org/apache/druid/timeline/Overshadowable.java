@@ -19,9 +19,6 @@
 
 package org.apache.druid.timeline;
 
-import java.util.Collections;
-import java.util.Set;
-
 public interface Overshadowable<T extends Overshadowable>
 {
   default boolean isOvershadow(T other)
@@ -29,15 +26,11 @@ public interface Overshadowable<T extends Overshadowable>
     return false;
   }
 
-  default Set<Integer> getOvershadowedGroup()
-  {
-    return Collections.emptySet();
-  }
+  int getStartRootPartitionId();
 
-  Set<Integer> getAtomicUpdateGroup();
+  int getEndRootPartitionId();
 
-  default Set<Integer> getNonEmptyAtomicUpdateGroup(int partitionId)
-  {
-    return getAtomicUpdateGroup().isEmpty() ? Collections.singleton(partitionId) : getAtomicUpdateGroup();
-  }
+  short getMinorVersion();
+
+  short getAtomicUpdateGroupSize();
 }

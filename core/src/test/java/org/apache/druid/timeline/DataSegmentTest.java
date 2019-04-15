@@ -157,7 +157,7 @@ public class DataSegmentTest
     Assert.assertEquals(segment.getShardSpec(), deserializedSegment.getShardSpec());
     Assert.assertEquals(segment.getSize(), deserializedSegment.getSize());
     Assert.assertEquals(segment.getId(), deserializedSegment.getId());
-    Assert.assertEquals(segment.getOvershadowedGroup(), deserializedSegment.getOvershadowedGroup());
+    Assert.assertEquals(segment.getDirectOvershadowedGroup(), deserializedSegment.getDirectOvershadowedGroup());
     Assert.assertEquals(segment.getAtomicUpdateGroup(), deserializedSegment.getAtomicUpdateGroup());
 
     deserializedSegment = mapper.readValue(mapper.writeValueAsString(segment), DataSegment.class);
