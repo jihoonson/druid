@@ -22,6 +22,7 @@ package org.apache.druid.timeline;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import org.apache.druid.java.util.common.DateTimes;
@@ -448,7 +449,7 @@ public class VersionedIntervalTimelineTest
 
     assertValues(
         Collections.singletonList(
-            createExpected("2011-01-01/2011-01-10", "2", 3) // TODO: 2 or 3?
+            createExpected("2011-01-01/2011-01-10", "2", 3)
         ),
         timeline.lookup(Intervals.of("2011-01-01/2011-01-10"))
     );
@@ -2032,7 +2033,18 @@ public class VersionedIntervalTimelineTest
 
       Assert.assertEquals(pair.lhs, holder.getInterval());
       Assert.assertEquals(pair.rhs.lhs, holder.getVersion());
-      Assert.assertEquals(pair.rhs.rhs, holder.getObject());
+
+      final List<PartitionChunk<OvershadowableInteger>> expectedChunks = Lists.newArrayList(pair.rhs.rhs);
+      final List<PartitionChunk<OvershadowableInteger>> actualChunks = Lists.newArrayList(holder.getObject());
+
+      Assert.assertEquals(expectedChunks.size(), actualChunks.size());
+      for (int i = 0; i < expectedChunks.size(); i++) {
+        // Check partitionNumber first
+        Assert.assertEquals(expectedChunks.get(i), actualChunks.get(i));
+        final OvershadowableInteger expectedInteger = expectedChunks.get(i).getObject();
+        final OvershadowableInteger actualInteger = actualChunks.get(i).getObject();
+        Assert.assertEquals(expectedInteger, actualInteger);
+      }
     }
   }
 

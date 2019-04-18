@@ -319,7 +319,9 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
         atomicUpdateGroup = searchForStateOf(chunk, State.VISIBLE);
 
         if (atomicUpdateGroup != null) {
-          final PartitionChunk<T> existing = atomicUpdateGroup.findChunk(chunk.getChunkNumber());
+          // A new chunk of the same major version and partitionId can be added in segment handoff
+          // from stream ingestion tasks to historicals
+          final PartitionChunk<T> existing = atomicUpdateGroup.replaceChunkWith(chunk);
           if (existing == null) {
             throw new ISE("Can't add a new partitionChunk to a visible atomicUpdateGroup");
           } else if (!chunk.equals(existing)) {

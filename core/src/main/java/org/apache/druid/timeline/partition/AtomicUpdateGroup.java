@@ -29,6 +29,7 @@ import java.util.Objects;
 
 class AtomicUpdateGroup<T extends Overshadowable<T>> implements Overshadowable<AtomicUpdateGroup<T>>
 {
+  // TODO: map??
   private final List<PartitionChunk<T>> chunks = new ArrayList<>();
 
   public AtomicUpdateGroup(PartitionChunk<T> chunk)
@@ -44,7 +45,9 @@ class AtomicUpdateGroup<T extends Overshadowable<T>> implements Overshadowable<A
     if (!isSameAtomicUpdateGroup(chunks.get(0), chunk)) {
       throw new IAE("Can't add chunk[%s] to a different atomicUpdateGroup[%s]", chunk, chunks);
     }
-    chunks.add(chunk);
+    if (replaceChunkWith(chunk) == null) {
+      chunks.add(chunk);
+    }
   }
 
   public void remove(PartitionChunk<T> chunk)
@@ -79,6 +82,19 @@ class AtomicUpdateGroup<T extends Overshadowable<T>> implements Overshadowable<A
   public PartitionChunk<T> findChunk(int partitionId)
   {
     return chunks.stream().filter(chunk -> chunk.getChunkNumber() == partitionId).findFirst().orElse(null);
+  }
+
+  @Nullable
+  public PartitionChunk<T> replaceChunkWith(PartitionChunk<T> newChunk)
+  {
+    PartitionChunk<T> oldChunk = null;
+    for (int i = 0; i < chunks.size(); i++) {
+      if (newChunk.getChunkNumber() == chunks.get(i).getChunkNumber()) {
+        oldChunk = chunks.set(i, newChunk);
+        break;
+      }
+    }
+    return oldChunk;
   }
 
   @Override
