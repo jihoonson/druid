@@ -16,37 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.druid.timeline.partition;
 
-package org.apache.druid.timeline;
-
-public interface Overshadowable<T extends Overshadowable>
+public interface OverwritingPartitionChunk<T> extends PartitionChunk<T>
 {
-  default boolean isOvershadow(T other)
-  {
-    return containsRootPartition(other) && getMinorVersion() > other.getMinorVersion();
-  }
-
-  default boolean containsRootPartition(T other)
-  {
-    return getStartRootPartitionId() <= other.getStartRootPartitionId()
-        && getEndRootPartitionId() >= other.getEndRootPartitionId();
-  }
-
-  int getStartRootPartitionId();
-
-  int getEndRootPartitionId();
-
-  default short getStartRootPartitionIdAsShort()
-  {
-    return (short) getStartRootPartitionId();
-  }
-
-  default short getEndRootPartitionIdAsShort()
-  {
-    return (short) getEndRootPartitionId();
-  }
-
-  short getMinorVersion();
-
-  short getAtomicUpdateGroupSize();
 }

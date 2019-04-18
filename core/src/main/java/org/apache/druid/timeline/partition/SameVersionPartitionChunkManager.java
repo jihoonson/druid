@@ -20,21 +20,22 @@
 package org.apache.druid.timeline.partition;
 
 import com.google.common.base.Preconditions;
+import it.unimi.dsi.fastutil.shorts.Short2ObjectMap;
+import it.unimi.dsi.fastutil.shorts.Short2ObjectRBTreeMap;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.timeline.Overshadowable;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 // TODO: bulk build
 
@@ -46,188 +47,408 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
 {
   private enum State
   {
-    STANDBY,
-    VISIBLE,
-    OVERSHADOWED
+    STANDBY, // have atomicUpdateGroup of higher versions than visible
+    VISIBLE, // have a single fully available atomicUpdateGroup of highest version
+    OVERSHADOWED // have atomicUpdateGroup of lower versions than visible
   }
 
-  private final Map<Integer, PartitionChunkWithAvailability> knownPartitionChunks; // served segments
+  private final Map<Integer, PartitionChunk<T>> knownPartitionChunks; // served segments
 
-  private final Map<Integer, PartitionChunkWithAvailability> standbySegments;
-  private final Map<Integer, PartitionChunkWithAvailability> visibleSegments;
-  private final Map<Integer, PartitionChunkWithAvailability> overshadowedSegments;
+  // start partitionId -> end partitionId -> minorVersion -> atomicUpdateGroup
+  private final TreeMap<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> standbyGroups;
+  private final TreeMap<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> visibleGroup; // TODO: singleton navigable map
+  private final TreeMap<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> overshadowedGroups;
 
   public SameVersionPartitionChunkManager()
   {
     this.knownPartitionChunks = new HashMap<>();
-    this.standbySegments = new HashMap<>();
-    this.visibleSegments = new HashMap<>();
-    this.overshadowedSegments = new HashMap<>();
+    this.standbyGroups = new TreeMap<>();
+    this.visibleGroup = new TreeMap<>();
+    this.overshadowedGroups = new TreeMap<>();
   }
 
   public SameVersionPartitionChunkManager(SameVersionPartitionChunkManager<T> other)
   {
     this.knownPartitionChunks = new HashMap<>(other.knownPartitionChunks);
-    this.standbySegments = new HashMap<>(other.standbySegments);
-    this.visibleSegments = new HashMap<>(other.visibleSegments);
-    this.overshadowedSegments = new HashMap<>(other.overshadowedSegments);
+    this.standbyGroups = new TreeMap<>(other.standbyGroups);
+    this.visibleGroup = new TreeMap<>(other.visibleGroup);
+    this.overshadowedGroups = new TreeMap<>(other.overshadowedGroups);
   }
 
-  private Map<Integer, PartitionChunkWithAvailability> getSegmentMapOf(State state)
+//  private AtomicUpdateGroup<T> findAtomicUpdateGroup(
+//      State state,
+//      short startRootPartitionId,
+//      short endRootPartitionId,
+//      short minorVersion
+//  )
+//  {
+//    final Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> versionToGroup = findVersionToGroup(
+//        state,
+//        startRootPartitionId,
+//        endRootPartitionId
+//    );
+//    final AtomicUpdateGroup<T> atomicUpdateGroup = versionToGroup.get(minorVersion);
+//    if (atomicUpdateGroup == null) {
+//      throw new ISE("Can't find atomicUpdateGroup for minorVersion[%s]", minorVersion);
+//    }
+//    return atomicUpdateGroup;
+//  }
+//
+//  private Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> findVersionToGroup(
+//      State state,
+//      short startRootPartitionId,
+//      short endRootPartitionId
+//  )
+//  {
+//    final Short2ObjectRBTreeMap<Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> endPidToMap = getStateMap(state)
+//        .get(startRootPartitionId);
+//    if (endPidToMap == null) {
+//      throw new ISE("WTH? Can't find versionToGroup for startRootPartitionId[%d]", startRootPartitionId);
+//    }
+//    final Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> versionToGroup = endPidToMap.get(endRootPartitionId);
+//    if (versionToGroup == null) {
+//      throw new ISE("WTH? Can't find versionToGroup for endRootPartitionId[%d]", endRootPartitionId);
+//    }
+//    return versionToGroup;
+//  }
+
+  private TreeMap<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> getStateMap(
+      State state
+  )
   {
     switch (state) {
       case STANDBY:
-        return standbySegments;
+        return standbyGroups;
       case VISIBLE:
-        return visibleSegments;
+        return visibleGroup;
       case OVERSHADOWED:
-        return overshadowedSegments;
+        return overshadowedGroups;
       default:
         throw new ISE("Unknown state[%s]", state);
     }
   }
 
-  private void transitPartitionChunkState(int partitionChunkNumber, State from, State to)
+//  private void transitPartitionChunkState(
+//      short startRootPartitionId,
+//      short endRootPartitionId,
+//      short minorVersion,
+//      State from,
+//      State to
+//  )
+//  {
+//    final RootPartitionRange rootPartitionRange = RootPartitionRange.of(startRootPartitionId, endRootPartitionId);
+//    final TreeMap<Short, AtomicUpdateGroup<T>> fromVersionToGroup = findVersionToGroup(from, rootPartitionRange);
+//    final AtomicUpdateGroup<T> atomicUpdateGroup = fromVersionToGroup.remove(minorVersion);
+//
+//
+//    if (atomicUpdateGroup == null) {
+//      throw new ISE(
+//          "Can't find atomicUpdateGroup with rootPartitionRange[%s] and minorVersion[%s]",
+//          rootPartitionRange,
+//          minorVersion
+//      );
+//    }
+//
+//    if (fromVersionToGroup.isEmpty()) {
+//      getStateMap(from).remove(rootPartitionRange);
+//    }
+//
+//    addTo(atomicUpdateGroup, to);
+//  }
+
+  private void transitPartitionChunkState(AtomicUpdateGroup<T> atomicUpdateGroup, State from, State to)
   {
-    final PartitionChunkWithAvailability partitionChunk = getSegmentMapOf(from).get(partitionChunkNumber);
-    transitPartitionChunkState(partitionChunk, from, to);
+    Preconditions.checkNotNull(atomicUpdateGroup, "atomicUpdateGroup");
+    Preconditions.checkArgument(!atomicUpdateGroup.isEmpty(), "empty atomicUpdateGroup");
+
+    removeFrom(atomicUpdateGroup, from);
+    addTo(atomicUpdateGroup, to);
   }
 
-  private void transitPartitionChunkState(PartitionChunkWithAvailability partitionChunk, State from, State to)
+  @Nullable
+  private AtomicUpdateGroup<T> searchForStateOf(PartitionChunk<T> chunk, State state)
   {
-    Preconditions.checkNotNull(partitionChunk, "partitionChunk");
-    final Map<Integer, PartitionChunkWithAvailability> fromMap = getSegmentMapOf(from);
-    final Map<Integer, PartitionChunkWithAvailability> toMap = getSegmentMapOf(to);
-    toMap.put(
-        partitionChunk.getChunkNumber(),
-        Preconditions.checkNotNull(
-            fromMap.remove(partitionChunk.getChunkNumber()),
-            "partitionChunk[%s] is not %s state",
-            partitionChunk,
-            from
-        )
+    final Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> versionToGroup = getStateMap(state).get(
+        RootPartitionRange.of(chunk)
     );
+    if (versionToGroup != null) {
+      final AtomicUpdateGroup<T> atomicUpdateGroup = versionToGroup.get(chunk.getObject().getMinorVersion());
+      if (atomicUpdateGroup != null) {
+        return atomicUpdateGroup;
+      }
+    }
+    return null;
   }
 
-  private Stream<PartitionChunkWithAvailability> partitionChunksOf(Set<Integer> partitionIds)
+  /**
+   * Returns null if atomicUpdateGroup is not found for the state.
+   * Can return an empty atomicUpdateGroup.
+   */
+  @Nullable
+  private AtomicUpdateGroup<T> tryRemoveFromState(PartitionChunk<T> chunk, State state)
   {
-    return partitionIds.stream().map(knownPartitionChunks::get).filter(Objects::nonNull);
+    final RootPartitionRange rangeKey = RootPartitionRange.of(chunk);
+    final Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> versionToGroup = getStateMap(state).get(rangeKey);
+    if (versionToGroup != null) {
+      final AtomicUpdateGroup<T> atomicUpdateGroup = versionToGroup.get(chunk.getObject().getMinorVersion());
+      if (atomicUpdateGroup != null) {
+        atomicUpdateGroup.remove(chunk);
+        if (atomicUpdateGroup.isEmpty()) {
+          versionToGroup.remove(chunk.getObject().getMinorVersion());
+          if (versionToGroup.isEmpty()) {
+            getStateMap(state).remove(rangeKey);
+          }
+        }
+
+        handleRemove(atomicUpdateGroup, RootPartitionRange.of(chunk), chunk.getObject().getMinorVersion(), state);
+        return atomicUpdateGroup;
+      }
+    }
+    return null;
+  }
+
+  private List<Short2ObjectMap.Entry<AtomicUpdateGroup<T>>> findOvershadowedBy(
+      AtomicUpdateGroup<T> aug,
+      State fromState
+  )
+  {
+    final RootPartitionRange rangeKeyOfGivenAug = RootPartitionRange.of(aug);
+    return findOvershadowedBy(rangeKeyOfGivenAug, aug.getMinorVersion(), fromState);
+  }
+
+  private List<Short2ObjectMap.Entry<AtomicUpdateGroup<T>>> findOvershadowedBy(
+      RootPartitionRange rangeOfAug,
+      short minorVersion,
+      State fromState
+  )
+  {
+    Entry<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> current = getStateMap(fromState)
+        .floorEntry(rangeOfAug);
+
+    if (current == null) {
+      return Collections.emptyList();
+    }
+
+    // Find the first key for searching for overshadowed atomicUpdateGroup
+    while (true) {
+      final Entry<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> lowerEntry = getStateMap(fromState)
+          .lowerEntry(current.getKey());
+      if (lowerEntry != null && lowerEntry.getKey().startPartitionId == rangeOfAug.startPartitionId) {
+        current = lowerEntry;
+      } else {
+        break;
+      }
+    }
+
+    final List<Short2ObjectMap.Entry<AtomicUpdateGroup<T>>> found = new ArrayList<>();
+    while (current != null && rangeOfAug.contains(current.getKey())) {
+      final Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> versionToGroup = current.getValue();
+      found.addAll(versionToGroup.subMap(versionToGroup.firstShortKey(), minorVersion).short2ObjectEntrySet());
+      current = getStateMap(fromState).higherEntry(current.getKey());
+    }
+    return found;
+  }
+
+  /**
+   * Handles addition of the atomicUpdateGroup to the given state
+   */
+  private void handleAdd(AtomicUpdateGroup<T> aug, State newStateOfAug)
+  {
+    if (newStateOfAug == State.STANDBY) {
+      // A standby atomicUpdateGroup becomes visible when its all segments are available.
+      if (aug.isFull()) {
+        // A visible atomicUpdateGroup becomes overshadowed when a fully available standby atomicUpdateGroup becomes
+        // visible which overshadows the current visible one.
+        findOvershadowedBy(aug, State.VISIBLE)
+            .forEach(entry -> transitPartitionChunkState(entry.getValue(), State.VISIBLE, State.OVERSHADOWED));
+        transitPartitionChunkState(aug, State.STANDBY, State.VISIBLE);
+      }
+
+//      // A standby atomicUpdateGroup becomes overshadowed when a new atomicUpdateGroup is added
+//      // which overshadows the standby one.
+//      findOvershadowedBy(aug, State.STANDBY).forEach(
+//          group -> transitPartitionChunkState(group, State.STANDBY, State.OVERSHADOWED)
+//      );
+
+    } else if (newStateOfAug == State.VISIBLE) {
+//      // A visible atomicUpdateGroup becomes overshadowed when a fully available standby atomicUpdateGroup becomes
+//      // visible which overshadows the current visible one.
+//      findOvershadowedBy(aug, State.VISIBLE).forEach(
+//          entry -> transitPartitionChunkState(entry.getValue(), State.VISIBLE, State.OVERSHADOWED)
+//      );
+    }
+  }
+
+  private void addTo(AtomicUpdateGroup<T> aug, State state)
+  {
+    final AtomicUpdateGroup<T> existing = getStateMap(state)
+        .computeIfAbsent(RootPartitionRange.of(aug), k -> new Short2ObjectRBTreeMap<>())
+        .put(aug.getMinorVersion(), aug);
+
+    if (existing != null) {
+      throw new ISE("AtomicUpdateGroup[%s] is already in state[%s]", aug, state);
+    }
+
+    handleAdd(aug, state);
   }
 
   public void add(PartitionChunk<T> chunk)
   {
-    add(chunk, true);
-  }
-
-  public void add(PartitionChunk<T> chunk, boolean available)
-  {
-    final PartitionChunkWithAvailability existingChunk = knownPartitionChunks.get(chunk.getChunkNumber());
-    final PartitionChunkWithAvailability chunkWithAvailability;
-    if (existingChunk == null) {
-      chunkWithAvailability = new PartitionChunkWithAvailability(chunk, available);
-    } else {
-      if (!existingChunk.chunk.equals(chunk)) {
-        throw new ISE(
-            "existingChunk[%s] is different from newChunk[%s] for partitionId[%d]",
-            existingChunk,
-            chunk,
-            chunk.getChunkNumber()
-        );
-      }
-
-      existingChunk.setAvailable(available);
-      chunkWithAvailability = existingChunk;
+    final PartitionChunk<T> existingChunk = knownPartitionChunks.put(chunk.getChunkNumber(), chunk);
+    if (existingChunk != null && !existingChunk.equals(chunk)) {
+      throw new ISE(
+          "existingChunk[%s] is different from newChunk[%s] for partitionId[%d]",
+          existingChunk,
+          chunk,
+          chunk.getChunkNumber()
+      );
     }
 
-    // Decide an initial state of the given chunk.
-    final boolean overshadowed = knownPartitionChunks
-        .values()
-        .stream()
-        .anyMatch(knownChunk -> knownChunk.getObject().getDirectOvershadowedGroup().contains(knownChunk.getChunkNumber()));
+    // Find atomicUpdateGroup of the new chunk
+    AtomicUpdateGroup<T> atomicUpdateGroup = searchForStateOf(chunk, State.OVERSHADOWED);
 
-    if (overshadowed) {
-      overshadowedSegments.put(chunk.getChunkNumber(), chunkWithAvailability);
+    if (atomicUpdateGroup != null) {
+      atomicUpdateGroup.add(chunk);
     } else {
-      // Check all segments in the atomicUpdateGroup have the same overshadowedGroup.
-      final Set<Integer> overshadowedGroup = chunk.getObject().getDirectOvershadowedGroup();
-      if (!overshadowedGroup.isEmpty()) {
-        final Set<Integer> atomicUpdateGroup = chunk.getObject().getAtomicUpdateGroup();
+      atomicUpdateGroup = searchForStateOf(chunk, State.STANDBY);
 
-        if (!atomicUpdateGroup.isEmpty()) {
+      if (atomicUpdateGroup != null) {
+        atomicUpdateGroup.add(chunk);
+        handleAdd(atomicUpdateGroup, State.STANDBY);
+      } else {
+        atomicUpdateGroup = searchForStateOf(chunk, State.VISIBLE);
 
-          final boolean allAtomicUpdateGroupHaveSameOvershadowedGroup = partitionChunksOf(atomicUpdateGroup)
-              .allMatch(eachAug -> overshadowedGroup.equals(eachAug.getObject().getDirectOvershadowedGroup()));
+        if (atomicUpdateGroup != null) {
+          final PartitionChunk<T> existing = atomicUpdateGroup.findChunk(chunk.getChunkNumber());
+          if (existing == null) {
+            throw new ISE("Can't add a new partitionChunk to a visible atomicUpdateGroup");
+          } else if (!chunk.equals(existing)) {
+            throw new ISE(
+                "WTH? a new partitionChunk[%s] has the same partitionId but different from existing chunk[%s]",
+                chunk,
+                existing
+            );
+          }
+        } else {
+          final AtomicUpdateGroup<T> newAtomicUpdateGroup = new AtomicUpdateGroup<>(chunk);
 
-          if (!allAtomicUpdateGroupHaveSameOvershadowedGroup) {
-            throw new ISE("all partitions of the same atomicUpdateGroup should have the same overshadowedGroup");
+          // Decide the initial state of the new atomicUpdateGroup
+          final boolean overshadowed = visibleGroup
+              .values()
+              .stream()
+              .flatMap(map -> map.values().stream())
+              .anyMatch(group -> group.isOvershadow(newAtomicUpdateGroup));
+
+          if (overshadowed) {
+            addTo(newAtomicUpdateGroup, State.OVERSHADOWED);
+          } else {
+            addTo(newAtomicUpdateGroup, State.STANDBY);
           }
         }
       }
-
-      addToStandby(chunkWithAvailability);
-    }
-
-    chunk.getObject().getDirectOvershadowedGroup()
-         .stream()
-         .map(visibleSegments::get)
-         .filter(Objects::nonNull)
-         .forEach(visibleChunk -> transitPartitionChunkState(visibleChunk, State.VISIBLE, State.OVERSHADOWED));
-    chunk.getObject().getDirectOvershadowedGroup()
-         .stream()
-         .map(standbySegments::get)
-         .filter(Objects::nonNull)
-         .forEach(standbyChunk -> transitPartitionChunkState(standbyChunk, State.STANDBY , State.OVERSHADOWED));
-  }
-
-  private void tryStandbyToVisible(PartitionChunkWithAvailability standbyChunk)
-  {
-    if (visibleSegments.isEmpty()) {
-      // Since the input segment is not overshadowed by any, it should be visible if there's no visible segment
-      transitPartitionChunkState(standbyChunk, State.STANDBY, State.VISIBLE);
-    } else {
-      final Set<Integer> atomicUpdateGroupIds = standbyChunk.getObject().getAtomicUpdateGroup();
-
-      // if the entire atomicUpdateGroup are standby, move them to visibleSegments.
-      final List<PartitionChunkWithAvailability> standbyAtomicUpdateGroup;
-      if (atomicUpdateGroupIds.isEmpty()) {
-        // atomicUpdateGroup is a singleton list of the segment itself if it's empty
-        standbyAtomicUpdateGroup = Collections.singletonList(standbyChunk);
-      } else {
-        standbyAtomicUpdateGroup = atomicUpdateGroupIds.stream().map(standbySegments::get).collect(Collectors.toList());
-      }
-
-      final Set<Integer> standbyAtomicUpdateGroupIds = standbyAtomicUpdateGroup
-          .stream()
-          .map(PartitionChunkWithAvailability::getChunkNumber)
-          .collect(Collectors.toSet());
-
-      if (atomicUpdateGroupIds.equals(standbyAtomicUpdateGroupIds)) {
-        standbyAtomicUpdateGroup.forEach(chunk -> transitPartitionChunkState(chunk, State.STANDBY, State.VISIBLE));
-      }
     }
   }
 
-  private void addToStandby(PartitionChunkWithAvailability chunk)
+  /**
+   * Handles of removal of an empty atomicUpdateGroup from a state.
+   */
+  private void handleRemove(
+      AtomicUpdateGroup<T> augOfRemovedChunk,
+      RootPartitionRange rangeOfAug,
+      short minorVersion,
+      State stateOfRemovedAug
+  )
   {
-    standbySegments.put(chunk.getChunkNumber(), chunk);
-    tryStandbyToVisible(chunk);
+    if (stateOfRemovedAug == State.STANDBY) {
+      // If an atomicUpdateGroup is overshadowed by another standby atomicUpdateGroup, there must be another visible
+      // atomicUpdateGroup which also overshadows the same atomicUpdateGroup.
+      // As a result, the state of overshadowed atomicUpdateGroup shouldn't be changed and we do nothing here.
+
+    } else if (stateOfRemovedAug == State.VISIBLE) {
+      // All segments in the visible atomicUpdateGroup which overshadows this atomicUpdateGroup is removed.
+      // Fall back if there is a fully available overshadowed atomicUpdateGroup
+
+      final List<AtomicUpdateGroup<T>> latestFullAugs = findLatestFullyAvailableOvershadowedAtomicUpdateGroup(
+          rangeOfAug,
+          minorVersion
+      );
+
+      if (!latestFullAugs.isEmpty()) {
+        // Move the atomicUpdateGroup to standby
+        // and move the fully available overshadowed atomicUpdateGroup to visible
+        if (!augOfRemovedChunk.isEmpty()) {
+          transitPartitionChunkState(augOfRemovedChunk, State.VISIBLE, State.STANDBY);
+        }
+        latestFullAugs.forEach(group -> transitPartitionChunkState(group, State.OVERSHADOWED, State.VISIBLE));
+      }
+    } else  {
+      // do nothing
+    }
+  }
+
+  private List<AtomicUpdateGroup<T>> findLatestFullyAvailableOvershadowedAtomicUpdateGroup(
+      RootPartitionRange rangeOfAug,
+      short minorVersion
+  )
+  {
+    final List<Short2ObjectMap.Entry<AtomicUpdateGroup<T>>> overshadowedGroups = findOvershadowedBy(
+        rangeOfAug,
+        minorVersion,
+        State.OVERSHADOWED
+    );
+    if (overshadowedGroups.isEmpty()) {
+      return Collections.emptyList();
+    }
+
+    final SameVersionPartitionChunkManager<T> manager = new SameVersionPartitionChunkManager<>();
+    overshadowedGroups.stream()
+                      .flatMap(entry -> entry.getValue().getChunks().stream())
+                      .forEach(manager::add);
+
+    return manager.visibleGroup
+        .values()
+        .stream()
+        .flatMap(versionToGroup -> versionToGroup.values().stream())
+        .collect(Collectors.toList());
+  }
+
+  private void removeFrom(AtomicUpdateGroup<T> aug, State state)
+  {
+    final RootPartitionRange rangeKey = RootPartitionRange.of(aug);
+    final Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> versionToGroup = getStateMap(state).get(rangeKey);
+    if (versionToGroup == null) {
+      throw new ISE("Unknown atomicUpdateGroup[%s] in state[%s]", aug, state);
+    }
+
+    final AtomicUpdateGroup<T> removed = versionToGroup.remove(aug.getMinorVersion());
+    if (removed == null) {
+      throw new ISE("Unknown atomicUpdateGroup[%s] in state[%s]", aug, state);
+    }
+
+    if (!removed.equals(aug)) {
+      throw new ISE(
+          "WTH? actually removed atomicUpdateGroup[%s] is different from the one which is supposed to be[%s]",
+          removed,
+          aug
+      );
+    }
+
+    if (versionToGroup.isEmpty()) {
+      getStateMap(state).remove(rangeKey);
+    }
+
+//    handleRemove(aug, aug.getStartRootPartitionId(), aug.getEndRootPartitionId(), aug.getMinorVersion(), state);
   }
 
   @Nullable
   public PartitionChunk<T> remove(PartitionChunk<T> partitionChunk)
   {
-    return remove(partitionChunk, true);
-  }
-
-  @Nullable
-  public PartitionChunk<T> remove(PartitionChunk<T> partitionChunk, boolean keepReference)
-  {
-    final PartitionChunkWithAvailability knownChunk = knownPartitionChunks.get(partitionChunk.getChunkNumber());
+    final PartitionChunk<T> knownChunk = knownPartitionChunks.get(partitionChunk.getChunkNumber());
     if (knownChunk == null) {
       return null;
     }
 
-    if (!knownChunk.chunk.equals(partitionChunk)) {
+    if (!knownChunk.equals(partitionChunk)) {
       throw new ISE(
           "WTH? Same partitionId[%d], but known partition[%s] is different from the input partition[%s]",
           partitionChunk.getChunkNumber(),
@@ -236,116 +457,24 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
       );
     }
 
-    if (visibleSegments.containsKey(partitionChunk.getChunkNumber())) {
-      tryVisibleToStandby(knownChunk, keepReference);
-    } else if (standbySegments.containsKey(partitionChunk.getChunkNumber())) {
-      standbySegments.remove(partitionChunk.getChunkNumber());
-    } else if (overshadowedSegments.containsKey(partitionChunk.getChunkNumber())) {
-      overshadowedSegments.remove(partitionChunk.getChunkNumber());
-    } else {
-      throw new ISE("Unknown status of partition[%s]", partitionChunk);
-    }
+    AtomicUpdateGroup<T> augOfRemovedChunk = tryRemoveFromState(partitionChunk, State.STANDBY);
 
-    if (keepReference) {
-      knownChunk.setAvailable(false);
-      return partitionChunk;
-    } else {
-      return knownPartitionChunks.remove(partitionChunk.getChunkNumber()).chunk;
-    }
-  }
-
-  private void tryVisibleToStandby(PartitionChunkWithAvailability removedChunk, boolean keepReference)
-  {
-    if (!visibleSegments.containsKey(removedChunk.getChunkNumber())) {
-      throw new ISE("partition[%s] is not in visible state", removedChunk);
-    }
-
-    final T removedObject = removedChunk.getObject();
-
-    // Since a visible chunk is removed, the state of the atomicUpdateGroup of the removed chunk should be changed to
-    // standby if there's any completely available atomic update group overshadowed by the removed chunk. Also, the
-    // latest atomic update group overshadowed by the removed chunk should be visible.
-    final Set<Integer> overshadowedPartitionIds = removedObject.getDirectOvershadowedGroup();
-    final List<PartitionChunkWithAvailability> onlineSegmentsInOvershadowedGroup = findOvershadowedChunks(
-        overshadowedPartitionIds
-    );
-
-    if (!onlineSegmentsInOvershadowedGroup.isEmpty()) {
-      final List<PartitionChunkWithAvailability> latestAvailableAtomicUpdateGroup = findLatestOnlineAtomicUpdateGroup(
-          onlineSegmentsInOvershadowedGroup
-      );
-
-      // sanity check
-      Preconditions.checkState(
-          latestAvailableAtomicUpdateGroup.stream().allMatch(candidate -> candidate.available),
-          "WTH? Entire latestOnlineAtomicUpdateGroup must be available"
-      );
-
-      if (!latestAvailableAtomicUpdateGroup.isEmpty()) {
-        // if found, replace the current atomicUpdateGroup with the latestOnlineAtomicUpdateGroup
-        removedObject.getNonEmptyAtomicUpdateGroup(removedChunk.getChunkNumber())
-                     .forEach(partitionId -> transitPartitionChunkState(partitionId, State.VISIBLE, State.STANDBY));
-        latestAvailableAtomicUpdateGroup.forEach(
-            eachChunk -> transitPartitionChunkState(eachChunk, State.OVERSHADOWED, State.VISIBLE)
-        );
-      } else {
-        if (!keepReference) {
-          visibleSegments.remove(removedChunk.getChunkNumber());
-        }
-
-        // If all atomicUpdateGroup of the removed chunk are not visible, we should fall back to the previous one.
-        final List<PartitionChunkWithAvailability> visibleAtomicUpdateGroupOfRemovedChunk = removedChunk
-            .getAtomicUpdateGroup()
-            .stream()
-            .map(visibleSegments::get)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-
-        if (visibleAtomicUpdateGroupOfRemovedChunk.isEmpty()
-            || visibleAtomicUpdateGroupOfRemovedChunk.stream().noneMatch(chunk -> chunk.available)) {
-          removedChunk.getOvershadowedGroup()
-                      .forEach(eachChunk -> transitPartitionChunkState(eachChunk, State.OVERSHADOWED, State.VISIBLE));
+    if (augOfRemovedChunk == null) {
+      augOfRemovedChunk = tryRemoveFromState(partitionChunk, State.VISIBLE);
+      if (augOfRemovedChunk == null) {
+        augOfRemovedChunk = tryRemoveFromState(partitionChunk, State.OVERSHADOWED);
+        if (augOfRemovedChunk == null) {
+          throw new ISE("Can't find atomicUpdateGroup for partitionChunk[%s]", partitionChunk);
         }
       }
     }
-  }
 
-  // TODO: improve this: looks like the first if is unnecessary sometimes
-  private List<PartitionChunkWithAvailability> findLatestOnlineAtomicUpdateGroup(List<PartitionChunkWithAvailability> chunks)
-  {
-    if (chunks.stream().allMatch(chunk -> chunk.available)) {
-      return chunks;
-    } else {
-      final Set<Integer> allOvershadowedGroupOfChunks = chunks.stream()
-                                                              .flatMap(chunk -> chunk.getOvershadowedGroup().stream())
-                                                              .collect(Collectors.toSet());
-
-      if (allOvershadowedGroupOfChunks.isEmpty()) {
-        return Collections.emptyList();
-      } else {
-        return findLatestOnlineAtomicUpdateGroup(findOvershadowedChunks(allOvershadowedGroupOfChunks));
-      }
-    }
-  }
-
-  /**
-   * Finds _available_ chunks corresponding to the given partitionIds from overshadowedSegments.
-   * Returns an empty list if all of them are not in overshadowedSegments. This can happen if the segment graph in
-   * knownPartitionChunks is incomplete, e.g., as in historicals.
-   */
-  private List<PartitionChunkWithAvailability> findOvershadowedChunks(Set<Integer> partitionIds)
-  {
-//    final Map<Integer, PartitionChunkWithAvailability> candidates = buildAllOnlineCandidates();
-    final List<PartitionChunkWithAvailability> found = partitionIds.stream()
-                                                                   .map(overshadowedSegments::get)
-                                                                   .filter(Objects::nonNull)
-                                                                   .collect(Collectors.toList());
-    return found.size() == partitionIds.size() ? found : Collections.emptyList();
+    return knownPartitionChunks.remove(partitionChunk.getChunkNumber());
   }
 
   public boolean isEmpty()
   {
-    return visibleSegments.isEmpty();
+    return visibleGroup.isEmpty();
   }
 
   public boolean isComplete()
@@ -363,20 +492,39 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
   @Nullable
   public PartitionChunk<T> getChunk(int partitionId)
   {
-    return visibleSegments.get(partitionId).chunk;
+    final PartitionChunk<T> chunk = knownPartitionChunks.get(partitionId);
+    if (chunk == null) {
+      return null;
+    }
+    final AtomicUpdateGroup<T> aug = searchForStateOf(chunk, State.VISIBLE);
+    if (aug == null) {
+      return null;
+    } else {
+      return Preconditions.checkNotNull(
+          aug.findChunk(partitionId),
+          "Can't find partitionChunk for partitionId[%s] in atomicUpdateGroup[%s]",
+          partitionId,
+          aug
+      );
+    }
   }
 
-  public SortedSet<PartitionChunk<T>> getVisibles()
+  public List<PartitionChunk<T>> getVisibles()
   {
-    return visibleSegments.values()
-                          .stream()
-                          .map(each -> each.chunk)
-                          .collect(Collectors.toCollection(TreeSet::new));
+    return visibleGroup.values()
+                       .stream()
+                       .flatMap(treeMap -> treeMap.values().stream())
+                       .flatMap(aug -> aug.getChunks().stream())
+                       .collect(Collectors.toList());
   }
 
   public Collection<PartitionChunk<T>> getOvershadowed()
   {
-    return overshadowedSegments.values().stream().map(each -> each.chunk).collect(Collectors.toList());
+    return overshadowedGroups.values()
+                             .stream()
+                             .flatMap(treeMap -> treeMap.values().stream())
+                             .flatMap(aug -> aug.getChunks().stream())
+                             .collect(Collectors.toList());
   }
 
   @Override
@@ -390,15 +538,15 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
     }
     SameVersionPartitionChunkManager<?> that = (SameVersionPartitionChunkManager<?>) o;
     return Objects.equals(knownPartitionChunks, that.knownPartitionChunks) &&
-           Objects.equals(standbySegments, that.standbySegments) &&
-           Objects.equals(visibleSegments, that.visibleSegments) &&
-           Objects.equals(overshadowedSegments, that.overshadowedSegments);
+           Objects.equals(standbyGroups, that.standbyGroups) &&
+           Objects.equals(visibleGroup, that.visibleGroup) &&
+           Objects.equals(overshadowedGroups, that.overshadowedGroups);
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(knownPartitionChunks, standbySegments, visibleSegments, overshadowedSegments);
+    return Objects.hash(knownPartitionChunks, standbyGroups, visibleGroup, overshadowedGroups);
   }
 
   @Override
@@ -406,46 +554,51 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
   {
     return "SameVersionPartitionChunkManager{" +
            "knownPartitionChunks=" + knownPartitionChunks +
-           ", standbySegments=" + standbySegments +
-           ", visibleSegments=" + visibleSegments +
-           ", overshadowedSegments=" + overshadowedSegments +
+           ", standbyGroups=" + standbyGroups +
+           ", visibleGroup=" + visibleGroup +
+           ", overshadowedGroups=" + overshadowedGroups +
            '}';
   }
 
-  private class PartitionChunkWithAvailability
+  private static class RootPartitionRange implements Comparable<RootPartitionRange>
   {
-    private final PartitionChunk<T> chunk;
-    private boolean available; // indicate this segment is available in any server
+    private final short startPartitionId;
+    private final short endPartitionId;
 
-    private PartitionChunkWithAvailability(PartitionChunk<T> chunk, boolean available)
+    private static <T extends Overshadowable<T>> RootPartitionRange of(PartitionChunk<T> chunk)
     {
-      this.chunk = chunk;
-      this.available = available;
+      return of(chunk.getObject().getStartRootPartitionId(), chunk.getObject().getEndRootPartitionId());
     }
 
-    private void setAvailable(boolean available)
+    private static <T extends Overshadowable<T>> RootPartitionRange of(AtomicUpdateGroup<T> aug)
     {
-      this.available = available;
+      return of(aug.getStartRootPartitionId(), aug.getEndRootPartitionId());
     }
 
-    private int getChunkNumber()
+    private static RootPartitionRange of(int startPartitionId, int endPartitionId)
     {
-      return chunk.getChunkNumber();
+      return new RootPartitionRange((short) startPartitionId, (short) endPartitionId);
     }
 
-    private T getObject()
+    private RootPartitionRange(short startPartitionId, short endPartitionId)
     {
-      return chunk.getObject();
+      this.startPartitionId = startPartitionId;
+      this.endPartitionId = endPartitionId;
     }
 
-    private Set<Integer> getOvershadowedGroup()
+    public boolean contains(RootPartitionRange that)
     {
-      return chunk.getObject().getDirectOvershadowedGroup();
+      return this.startPartitionId <= that.endPartitionId && this.endPartitionId >= that.endPartitionId;
     }
 
-    private Set<Integer> getAtomicUpdateGroup()
+    @Override
+    public int compareTo(RootPartitionRange o)
     {
-      return chunk.getObject().getAtomicUpdateGroup();
+      if (startPartitionId != o.startPartitionId) {
+        return Short.compare(startPartitionId, o.startPartitionId);
+      } else {
+        return Short.compare(endPartitionId, o.endPartitionId);
+      }
     }
 
     @Override
@@ -457,23 +610,23 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
       if (o == null || getClass() != o.getClass()) {
         return false;
       }
-      PartitionChunkWithAvailability that = (PartitionChunkWithAvailability) o;
-      return available == that.available &&
-             Objects.equals(chunk, that.chunk);
+      RootPartitionRange that = (RootPartitionRange) o;
+      return startPartitionId == that.startPartitionId &&
+             endPartitionId == that.endPartitionId;
     }
 
     @Override
     public int hashCode()
     {
-      return Objects.hash(chunk, available);
+      return Objects.hash(startPartitionId, endPartitionId);
     }
 
     @Override
     public String toString()
     {
-      return "PartitionChunkWithAvailability{" +
-             "chunk=" + chunk +
-             ", available=" + available +
+      return "RootPartitionRange{" +
+             "startPartitionId=" + startPartitionId +
+             ", endPartitionId=" + endPartitionId +
              '}';
     }
   }

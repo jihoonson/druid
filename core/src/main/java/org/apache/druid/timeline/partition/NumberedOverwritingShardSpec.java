@@ -20,32 +20,71 @@ package org.apache.druid.timeline.partition;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.RangeSet;
 import org.apache.druid.data.input.InputRow;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class NumberedOverwritingShardSpec implements ShardSpec
 {
-  private final int partitionNum;
+  private final int partitionId;
 
-  private final int startRootPartitionId;
-  private final int endRootPartitionId; // exclusive
+  private final short startRootPartitionId;
+  private final short endRootPartitionId; // exclusive
   private final short minorVersion;
   private final short atomicUpdateGroupSize; // number of segments in atomicUpdateGroup
 
   @JsonCreator
-  public NumberedOverwritingShardSpec(@JsonProperty("partitionNum") int partitionNum)
+  public NumberedOverwritingShardSpec(
+      @JsonProperty("partitionId") int partitionId,
+      @JsonProperty("startRootPartitionId") int startRootPartitionId,
+      @JsonProperty("endRootPartitionId") int endRootPartitionId,
+      @JsonProperty("minorVersion") short minorVersion,
+      @JsonProperty("atomicUpdateGroupSize") short atomicUpdateGroupSize
+  )
   {
-    this.partitionNum = partitionNum;
+    Preconditions.checkArgument(
+        partitionId >= NON_ROOT_GEN_START_PARTITION_ID && partitionId < NON_ROOT_GEN_END_PARTITION_ID,
+        "partitionNum[%s] >= %s && partitionNum[%s] < %s",
+        partitionId,
+        NON_ROOT_GEN_START_PARTITION_ID,
+        partitionId,
+        NON_ROOT_GEN_END_PARTITION_ID
+    );
+    Preconditions.checkArgument(
+        startRootPartitionId >= ROOT_GEN_START_PARTITION_ID && startRootPartitionId < ROOT_GEN_END_PARTITION_ID,
+        "startRootPartitionId[%s] >= %s && startRootPartitionId[%s] < %s",
+        startRootPartitionId,
+        ROOT_GEN_START_PARTITION_ID,
+        startRootPartitionId,
+        ROOT_GEN_END_PARTITION_ID
+    );
+    Preconditions.checkArgument(
+        endRootPartitionId >= ROOT_GEN_START_PARTITION_ID && endRootPartitionId < ROOT_GEN_END_PARTITION_ID,
+        "endRootPartitionId[%s] >= %s && endRootPartitionId[%s] < %s",
+        endRootPartitionId,
+        ROOT_GEN_START_PARTITION_ID,
+        endRootPartitionId,
+        ROOT_GEN_END_PARTITION_ID
+    );
+    Preconditions.checkArgument(minorVersion > 0, "minorVersion[%s] > 0", minorVersion);
+    Preconditions.checkArgument(atomicUpdateGroupSize > 0, "atomicUpdateGroupSize[%s] > 0", atomicUpdateGroupSize);
+
+    this.partitionId = partitionId;
+    this.startRootPartitionId = (short) startRootPartitionId;
+    this.endRootPartitionId = (short) endRootPartitionId;
+    this.minorVersion = minorVersion;
+    this.atomicUpdateGroupSize = atomicUpdateGroupSize;
   }
 
   @Override
   public <T> PartitionChunk<T> createChunk(T obj)
   {
-    return null;
+    return new NumberedOverwritingPartitionChunk<>(partitionId, obj);
   }
 
   @Override
@@ -54,11 +93,39 @@ public class NumberedOverwritingShardSpec implements ShardSpec
     return true;
   }
 
-  @JsonProperty
+  @JsonProperty("partitionId")
   @Override
   public int getPartitionNum()
   {
-    return partitionNum;
+    return partitionId;
+  }
+
+  @JsonProperty
+  @Override
+  public int getStartRootPartitionId()
+  {
+    return Short.toUnsignedInt(startRootPartitionId);
+  }
+
+  @JsonProperty
+  @Override
+  public int getEndRootPartitionId()
+  {
+    return Short.toUnsignedInt(endRootPartitionId);
+  }
+
+  @JsonProperty
+  @Override
+  public short getMinorVersion()
+  {
+    return minorVersion;
+  }
+
+  @JsonProperty
+  @Override
+  public short getAtomicUpdateGroupSize()
+  {
+    return atomicUpdateGroupSize;
   }
 
   @Override
@@ -70,13 +137,13 @@ public class NumberedOverwritingShardSpec implements ShardSpec
   @Override
   public List<String> getDomainDimensions()
   {
-    return null;
+    return Collections.emptyList();
   }
 
   @Override
   public boolean possibleInDomain(Map<String, RangeSet<String>> domain)
   {
-    return false;
+    return true;
   }
 
   @Override
@@ -89,20 +156,28 @@ public class NumberedOverwritingShardSpec implements ShardSpec
       return false;
     }
     NumberedOverwritingShardSpec that = (NumberedOverwritingShardSpec) o;
-    return partitionNum == that.partitionNum;
+    return partitionId == that.partitionId &&
+           startRootPartitionId == that.startRootPartitionId &&
+           endRootPartitionId == that.endRootPartitionId &&
+           minorVersion == that.minorVersion &&
+           atomicUpdateGroupSize == that.atomicUpdateGroupSize;
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(partitionNum);
+    return Objects.hash(partitionId, startRootPartitionId, endRootPartitionId, minorVersion, atomicUpdateGroupSize);
   }
 
   @Override
   public String toString()
   {
     return "NumberedOverwritingShardSpec{" +
-           "partitionNum=" + partitionNum +
+           "partitionNum=" + partitionId +
+           ", startRootPartitionId=" + startRootPartitionId +
+           ", endRootPartitionId=" + endRootPartitionId +
+           ", minorVersion=" + minorVersion +
+           ", atomicUpdateGroupSize=" + atomicUpdateGroupSize +
            '}';
   }
 }

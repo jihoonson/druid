@@ -23,9 +23,6 @@ import org.apache.druid.timeline.Overshadowable;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.Collections;
-import java.util.Set;
-
 /**
  */
 public class IntegerPartitionChunkTest
@@ -102,9 +99,27 @@ public class IntegerPartitionChunkTest
     }
 
     @Override
-    public Set<Integer> getAtomicUpdateGroup()
+    public int getStartRootPartitionId()
     {
-      return Collections.emptySet();
+      return 0;
+    }
+
+    @Override
+    public int getEndRootPartitionId()
+    {
+      return 1;
+    }
+
+    @Override
+    public short getMinorVersion()
+    {
+      return 0;
+    }
+
+    @Override
+    public short getAtomicUpdateGroupSize()
+    {
+      return 1;
     }
   }
 }

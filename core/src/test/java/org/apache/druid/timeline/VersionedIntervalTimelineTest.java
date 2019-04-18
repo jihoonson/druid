@@ -29,9 +29,11 @@ import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.timeline.partition.ImmutablePartitionHolder;
 import org.apache.druid.timeline.partition.IntegerPartitionChunk;
+import org.apache.druid.timeline.partition.NumberedOverwritingPartitionChunk;
 import org.apache.druid.timeline.partition.NumberedPartitionChunk;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
+import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.SingleElementPartitionChunk;
 import org.joda.time.DateTime;
 import org.joda.time.Days;
@@ -1720,8 +1722,8 @@ public class VersionedIntervalTimelineTest
     add("2019-01-01/2019-01-02", "0", makeNumbered(1, 0));
     add("2019-01-01/2019-01-02", "0", makeNumbered(2, 0));
 
-    add("2019-01-01/2019-01-02", "0", makeNumbered(3, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)));
-    add("2019-01-01/2019-01-02", "0", makeNumbered(4, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)));
+    add("2019-01-01/2019-01-02", "0", makeNumberedOverwriting(0, 1, 0, 3, 1, 2));
+    add("2019-01-01/2019-01-02", "0", makeNumberedOverwriting(1, 1, 0, 3, 1, 2));
 
     Assert.assertEquals(
         ImmutableSet.of(
@@ -1750,12 +1752,12 @@ public class VersionedIntervalTimelineTest
     add("2019-01-02/2019-01-03", "0", makeNumbered(1, 0));
 
     // Overwrite 2019-01-01/2019-01-02
-    add("2019-01-01/2019-01-02", "0", makeNumbered(3, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)));
-    add("2019-01-01/2019-01-02", "0", makeNumbered(4, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)));
+    add("2019-01-01/2019-01-02", "0", makeNumberedOverwriting(0, 1, 0, 3, 1, 2));
+    add("2019-01-01/2019-01-02", "0", makeNumberedOverwriting(1, 1, 0, 3, 1, 2));
 
     // Overwrite 2019-01-01/2019-01-02
-    add("2019-01-01/2019-01-02", "0", makeNumbered(5, 2, ImmutableSet.of(3, 4), ImmutableSet.of(5, 6)));
-    add("2019-01-01/2019-01-02", "0", makeNumbered(6, 2, ImmutableSet.of(3, 4), ImmutableSet.of(5, 6)));
+    add("2019-01-01/2019-01-02", "0", makeNumberedOverwriting(2, 2, 0, 3, 2, 2));
+    add("2019-01-01/2019-01-02", "0", makeNumberedOverwriting(3, 2, 0, 3, 2, 2));
 
     Assert.assertEquals(
         ImmutableSet.of(
@@ -1766,8 +1768,8 @@ public class VersionedIntervalTimelineTest
                     makeNumbered(0, 0),
                     makeNumbered(1, 0),
                     makeNumbered(2, 0),
-                    makeNumbered(3, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)),
-                    makeNumbered(4, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4))
+                    makeNumberedOverwriting(0, 1, 0, 3, 1, 2),
+                    makeNumberedOverwriting(1, 1, 0, 3, 1, 2)
                 )
             )
         ),
@@ -1790,8 +1792,8 @@ public class VersionedIntervalTimelineTest
     add("2019-01-02/2019-01-03", "0", makeNumbered(1, 0));
 
     // Overwrite 2019-01-01/2019-01-02
-    add("2019-01-01/2019-01-02", "0", makeNumbered(3, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)));
-    add("2019-01-01/2019-01-02", "0", makeNumbered(4, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)));
+    add("2019-01-01/2019-01-02", "0", makeNumberedOverwriting(0, 1, 0, 3, 1, 2));
+    add("2019-01-01/2019-01-02", "0", makeNumberedOverwriting(1, 1, 0, 3, 1, 2));
 
     // Overwrite 2019-01-01/2019-01-02
     add("2019-01-01/2019-01-02", "1", makeNumbered(0, 0));
@@ -1806,8 +1808,8 @@ public class VersionedIntervalTimelineTest
                     makeNumbered(0, 0),
                     makeNumbered(1, 0),
                     makeNumbered(2, 0),
-                    makeNumbered(3, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4)),
-                    makeNumbered(4, 1, ImmutableSet.of(0, 1, 2), ImmutableSet.of(3, 4))
+                    makeNumberedOverwriting(0, 1, 0, 3, 1, 2),
+                    makeNumberedOverwriting(1, 1, 0, 3, 1, 2)
                 )
             )
         ),
@@ -1834,9 +1836,9 @@ public class VersionedIntervalTimelineTest
     add("2019-01-01/2019-01-02", "1", makeNumbered(1, 0));
 
     // Overwrite 2019-01-01/2019-01-02
-    add("2019-01-01/2019-01-02", "1", makeNumbered(2, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4)));
-    add("2019-01-01/2019-01-02", "1", makeNumbered(3, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4)));
-    add("2019-01-01/2019-01-02", "1", makeNumbered(4, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4)));
+    add("2019-01-01/2019-01-02", "1", makeNumberedOverwriting(0, 1, 0, 2, 1, 3));
+    add("2019-01-01/2019-01-02", "1", makeNumberedOverwriting(1, 1, 0, 2, 1, 3));
+    add("2019-01-01/2019-01-02", "1", makeNumberedOverwriting(2, 1, 0, 2, 1, 3));
 
     Assert.assertEquals(
         ImmutableSet.of(
@@ -1878,14 +1880,14 @@ public class VersionedIntervalTimelineTest
     add(interval, "1", makeNumbered(1, 0));
 
     // Overwrite 2019-01-01/2019-01-02
-    add(interval, "1", makeNumbered(2, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4)));
-    add(interval, "1", makeNumbered(3, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4)));
-    add(interval, "1", makeNumbered(4, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4)));
+    add("2019-01-01/2019-01-02", "1", makeNumberedOverwriting(0, 1, 0, 2, 1, 3));
+    add("2019-01-01/2019-01-02", "1", makeNumberedOverwriting(1, 1, 0, 2, 1, 3));
+    add("2019-01-01/2019-01-02", "1", makeNumberedOverwriting(2, 1, 0, 2, 1, 3));
 
     timeline.remove(
         interval,
         "1",
-        makeNumbered(4, 1, ImmutableSet.of(0, 1), ImmutableSet.of(2, 3, 4))
+        makeNumberedOverwriting(2, 1, 0, 2, 1, 3)
     );
 
     final List<TimelineObjectHolder<String, OvershadowableInteger>> holders = timeline.lookup(interval);
@@ -1896,7 +1898,12 @@ public class VersionedIntervalTimelineTest
                 interval,
                 "1",
                 new PartitionHolder<>(
-                    ImmutableList.of(makeNumbered(0, 0), makeNumbered(1, 0))
+                    ImmutableList.of(
+                        makeNumbered(0, 0),
+                        makeNumbered(1, 0),
+                        makeNumberedOverwriting(0, 1, 0, 2, 1, 3),
+                        makeNumberedOverwriting(1, 1, 0, 2, 1, 3)
+                    )
                 )
             )
         ),
@@ -1957,10 +1964,7 @@ public class VersionedIntervalTimelineTest
     return new SingleElementPartitionChunk<>(new OvershadowableInteger(partitionNum, val));
   }
 
-  private PartitionChunk<OvershadowableInteger> makeNumbered(
-      int partitionNum,
-      int val
-  )
+  private PartitionChunk<OvershadowableInteger> makeNumbered(int partitionNum, int val)
   {
     return new NumberedPartitionChunk<>(
         partitionNum,
@@ -1969,17 +1973,26 @@ public class VersionedIntervalTimelineTest
     );
   }
 
-  private PartitionChunk<OvershadowableInteger> makeNumbered(
-      int partitionNum,
+  private PartitionChunk<OvershadowableInteger> makeNumberedOverwriting(
+      int partitionNumOrdinal,
       int val,
-      Set<Integer> overshadowedSegments,
-      Set<Integer> atomicUpdateGroup
+      int startRootPartitionId,
+      int endRootPartitionId,
+      int minorVersion,
+      int atomicUpdateGroupSize
   )
   {
-    return new NumberedPartitionChunk<>(
+    final int partitionNum = ShardSpec.NON_ROOT_GEN_START_PARTITION_ID + partitionNumOrdinal;
+    return new NumberedOverwritingPartitionChunk<>(
         partitionNum,
-        0,
-        new OvershadowableInteger(partitionNum, val, overshadowedSegments, atomicUpdateGroup)
+        new OvershadowableInteger(
+            partitionNum,
+            val,
+            startRootPartitionId,
+            endRootPartitionId,
+            minorVersion,
+            atomicUpdateGroupSize
+        )
     );
   }
 
@@ -2050,37 +2063,31 @@ public class VersionedIntervalTimelineTest
   {
     private final int partitionNum;
     private final int val;
-    private final Set<Integer> overshadowedGroup;
-    private final Set<Integer> atomicUpdateGroup;
+    private final int startRootPartitionId;
+    private final int endRootPartitionId;
+    private final short minorVersion;
+    private final short atomicUpdateGroupSize;
 
     private OvershadowableInteger(int partitionNum, int val)
     {
-      this(partitionNum, val, Collections.emptySet(), Collections.singleton(partitionNum));
+      this(partitionNum, val, partitionNum, partitionNum + 1, 0, 1);
     }
 
     private OvershadowableInteger(
         int partitionNum,
         int val,
-        Set<Integer> overshadowedGroup,
-        Set<Integer> atomicUpdateGroup
+        int startRootPartitionId,
+        int endRootPartitionId,
+        int minorVersion,
+        int atomicUpdateGroupSize
     )
     {
       this.partitionNum = partitionNum;
       this.val = val;
-      this.overshadowedGroup = overshadowedGroup;
-      this.atomicUpdateGroup = atomicUpdateGroup;
-    }
-
-    @Override
-    public Set<Integer> getDirectOvershadowedGroup()
-    {
-      return overshadowedGroup;
-    }
-
-    @Override
-    public Set<Integer> getAtomicUpdateGroup()
-    {
-      return atomicUpdateGroup;
+      this.startRootPartitionId = startRootPartitionId;
+      this.endRootPartitionId = endRootPartitionId;
+      this.minorVersion = (short) minorVersion;
+      this.atomicUpdateGroupSize = (short) atomicUpdateGroupSize;
     }
 
     @Override
@@ -2094,13 +2101,24 @@ public class VersionedIntervalTimelineTest
       }
       OvershadowableInteger that = (OvershadowableInteger) o;
       return partitionNum == that.partitionNum &&
-             val == that.val;
+             val == that.val &&
+             startRootPartitionId == that.startRootPartitionId &&
+             endRootPartitionId == that.endRootPartitionId &&
+             minorVersion == that.minorVersion &&
+             atomicUpdateGroupSize == that.atomicUpdateGroupSize;
     }
 
     @Override
     public int hashCode()
     {
-      return Objects.hash(partitionNum, val);
+      return Objects.hash(
+          partitionNum,
+          val,
+          startRootPartitionId,
+          endRootPartitionId,
+          minorVersion,
+          atomicUpdateGroupSize
+      );
     }
 
     @Override
@@ -2109,9 +2127,35 @@ public class VersionedIntervalTimelineTest
       return "OvershadowableInteger{" +
              "partitionNum=" + partitionNum +
              ", val=" + val +
-             ", overshadowedGroup=" + overshadowedGroup +
-             ", atomicUpdateGroup=" + atomicUpdateGroup +
+             ", startRootPartitionId=" + startRootPartitionId +
+             ", endRootPartitionId=" + endRootPartitionId +
+             ", minorVersion=" + minorVersion +
+             ", atomicUpdateGroupSize=" + atomicUpdateGroupSize +
              '}';
+    }
+
+    @Override
+    public int getStartRootPartitionId()
+    {
+      return startRootPartitionId;
+    }
+
+    @Override
+    public int getEndRootPartitionId()
+    {
+      return endRootPartitionId;
+    }
+
+    @Override
+    public short getMinorVersion()
+    {
+      return minorVersion;
+    }
+
+    @Override
+    public short getAtomicUpdateGroupSize()
+    {
+      return atomicUpdateGroupSize;
     }
   }
 }

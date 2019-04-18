@@ -31,6 +31,7 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.jackson.JacksonUtils;
 import org.apache.druid.timeline.partition.NoneShardSpec;
+import org.apache.druid.timeline.partition.NumberedOverwritingShardSpec;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecLookup;
@@ -119,11 +120,9 @@ public class DataSegmentTest
         loadSpec,
         Arrays.asList("dim1", "dim2"),
         Arrays.asList("met1", "met2"),
-        NoneShardSpec.instance(),
+        new NumberedOverwritingShardSpec(ShardSpec.NON_ROOT_GEN_START_PARTITION_ID, 0, 1, (short) 1, (short) 3),
         TEST_VERSION,
-        1,
-        ImmutableSet.of(0, 1),
-        ImmutableSet.of(2, 3, 4)
+        1
     );
 
     final Map<String, Object> objectMap = mapper.readValue(
@@ -157,8 +156,6 @@ public class DataSegmentTest
     Assert.assertEquals(segment.getShardSpec(), deserializedSegment.getShardSpec());
     Assert.assertEquals(segment.getSize(), deserializedSegment.getSize());
     Assert.assertEquals(segment.getId(), deserializedSegment.getId());
-    Assert.assertEquals(segment.getDirectOvershadowedGroup(), deserializedSegment.getDirectOvershadowedGroup());
-    Assert.assertEquals(segment.getAtomicUpdateGroup(), deserializedSegment.getAtomicUpdateGroup());
 
     deserializedSegment = mapper.readValue(mapper.writeValueAsString(segment), DataSegment.class);
     Assert.assertEquals(0, segment.compareTo(deserializedSegment));

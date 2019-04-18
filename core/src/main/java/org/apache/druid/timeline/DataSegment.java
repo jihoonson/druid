@@ -44,7 +44,6 @@ import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -70,14 +69,39 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     if (id.getDataSource().equals(other.id.getDataSource())
         && id.getInterval().overlaps(other.id.getInterval())
         && id.getVersion().equals(other.id.getVersion())) {
-      return includeRootPartitions(other) && minorVersion > other.minorVersion;
+      return includeRootPartitions(other) && shardSpec.getMinorVersion() > other.getMinorVersion();
     }
     return false;
   }
 
+  @Override
+  public int getStartRootPartitionId()
+  {
+    return shardSpec.getStartRootPartitionId();
+  }
+
+  @Override
+  public int getEndRootPartitionId()
+  {
+    return shardSpec.getEndRootPartitionId();
+  }
+
+  @Override
+  public short getMinorVersion()
+  {
+    return shardSpec.getMinorVersion();
+  }
+
+  @Override
+  public short getAtomicUpdateGroupSize()
+  {
+    return shardSpec.getAtomicUpdateGroupSize();
+  }
+
   private boolean includeRootPartitions(DataSegment other)
   {
-    return startRootPartitionId <= other.startRootPartitionId && endRootPartitionId >= other.endRootPartitionId;
+    return shardSpec.getStartRootPartitionId() <= other.shardSpec.getStartRootPartitionId()
+           && shardSpec.getEndRootPartitionId() >= other.shardSpec.getEndRootPartitionId();
   }
 
   /**
@@ -110,12 +134,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   private final ShardSpec shardSpec;
   private final long size;
 
-  // metadata for minor
-  private final int startRootPartitionId;
-  private final int endRootPartitionId; // exclusive
-  private final short minorVersion;
-  private final short atomicUpdateGroupSize; // number of segments in atomicUpdateGroup
-
   public DataSegment(
       String dataSource,
       Interval interval,
@@ -138,44 +156,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
         shardSpec,
         binaryVersion,
         size,
-        null,
-        null,
-        null,
-        null,
-        PruneLoadSpecHolder.DEFAULT
-    );
-  }
-
-  public DataSegment(
-      String dataSource,
-      Interval interval,
-      String version,
-      Map<String, Object> loadSpec,
-      List<String> dimensions,
-      List<String> metrics,
-      ShardSpec shardSpec,
-      Integer binaryVersion,
-      long size,
-      Integer startRootPartitionId,
-      Integer endRootPartitionId,
-      Short minorVersion,
-      Short atomicUpdateGroupSize
-  )
-  {
-    this(
-        dataSource,
-        interval,
-        version,
-        loadSpec,
-        dimensions,
-        metrics,
-        shardSpec,
-        binaryVersion,
-        size,
-        startRootPartitionId,
-        endRootPartitionId,
-        minorVersion,
-        atomicUpdateGroupSize,
         PruneLoadSpecHolder.DEFAULT
     );
   }
@@ -198,10 +178,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       @JsonProperty("shardSpec") @Nullable ShardSpec shardSpec,
       @JsonProperty("binaryVersion") Integer binaryVersion,
       @JsonProperty("size") long size,
-      @JsonProperty("startRootPartitionId") @Nullable Integer startRootPartitionId,
-      @JsonProperty("endRootPartitionId") @Nullable Integer endRootPartitionId,
-      @JsonProperty("minorVersion") @Nullable Short minorVersion,
-      @JsonProperty("atomicUpdateGroupSize") @Nullable Short atomicUpdateGroupSize,
       @JacksonInject PruneLoadSpecHolder pruneLoadSpecHolder
   )
   {
@@ -214,10 +190,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     this.shardSpec = (shardSpec == null) ? new NumberedShardSpec(0, 1) : shardSpec;
     this.binaryVersion = binaryVersion;
     this.size = size;
-    this.startRootPartitionId = startRootPartitionId == null ? this.shardSpec.getPartitionNum() : startRootPartitionId;
-    this.endRootPartitionId = endRootPartitionId == null ? this.shardSpec.getPartitionNum() + 1 : endRootPartitionId;
-    this.minorVersion = minorVersion == null ? 0 : minorVersion;
-    this.atomicUpdateGroupSize = atomicUpdateGroupSize == null ? 1 : atomicUpdateGroupSize;
   }
 
   @Nullable
@@ -320,34 +292,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     return id;
   }
 
-  @Override
-  @JsonProperty
-  public int getStartRootPartitionId()
-  {
-    return startRootPartitionId;
-  }
-
-  @Override
-  @JsonProperty
-  public int getEndRootPartitionId()
-  {
-    return endRootPartitionId;
-  }
-
-  @Override
-  @JsonProperty
-  public short getMinorVersion()
-  {
-    return minorVersion;
-  }
-
-  @Override
-  @JsonProperty
-  public short getAtomicUpdateGroupSize()
-  {
-    return atomicUpdateGroupSize;
-  }
-
   public SegmentDescriptor toDescriptor()
   {
     return new SegmentDescriptor(getInterval(), getVersion(), shardSpec.getPartitionNum());
@@ -383,11 +327,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     return builder(this).binaryVersion(binaryVersion).build();
   }
 
-  public DataSegment withAtomicUpdateGroup(AtomicUpdateGroup atomicUpdateGroup)
-  {
-    return builder(this).atomicUpdateGroup(atomicUpdateGroup).build();
-  }
-
   @Override
   public int compareTo(DataSegment dataSegment)
   {
@@ -420,10 +359,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
            ", metrics=" + metrics +
            ", shardSpec=" + shardSpec +
            ", size=" + size +
-           ", startRootPartitionId=" + startRootPartitionId +
-           ", endRootPartitionId=" + endRootPartitionId +
-           ", minorVersion=" + minorVersion +
-           ", atomicUpdateGroupSize=" + atomicUpdateGroupSize +
            '}';
   }
 
@@ -471,9 +406,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     private ShardSpec shardSpec;
     private Integer binaryVersion;
     private long size;
-    private IntRange directOvershadowingSegments;
-    private IntRange[] indirectOvershadowingSegments;
-    private AtomicUpdateGroup atomicUpdateGroup;
 
     public Builder()
     {
@@ -551,24 +483,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       return this;
     }
 
-    public Builder direcOvershadowingSegments(IntRange directOvershadowingSegments)
-    {
-      this.directOvershadowingSegments = directOvershadowingSegments;
-      return this;
-    }
-
-    public Builder indirecOvershadowingSegments(IntRange[] indirectOvershadowingSegments)
-    {
-      this.indirectOvershadowingSegments = indirectOvershadowingSegments;
-      return this;
-    }
-
-    public Builder atomicUpdateGroup(AtomicUpdateGroup atomicUpdateGroup)
-    {
-      this.atomicUpdateGroup = atomicUpdateGroup;
-      return this;
-    }
-
     public DataSegment build()
     {
       // Check stuff that goes into the id, at least.
@@ -586,10 +500,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
           metrics,
           shardSpec,
           binaryVersion,
-          size,
-          directOvershadowingSegments,
-          indirectOvershadowingSegments,
-          atomicUpdateGroup
+          size
       );
     }
   }

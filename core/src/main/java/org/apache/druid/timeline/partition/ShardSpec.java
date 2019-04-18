@@ -37,15 +37,41 @@ import java.util.Map;
     @JsonSubTypes.Type(name = "single", value = SingleDimensionShardSpec.class),
     @JsonSubTypes.Type(name = "linear", value = LinearShardSpec.class),
     @JsonSubTypes.Type(name = "numbered", value = NumberedShardSpec.class),
-    @JsonSubTypes.Type(name = "hashed", value = HashBasedNumberedShardSpec.class)
+    @JsonSubTypes.Type(name = "hashed", value = HashBasedNumberedShardSpec.class),
+    @JsonSubTypes.Type(name = "numbered_overwrite", value = NumberedOverwritingShardSpec.class)
 })
 public interface ShardSpec
 {
+  int ROOT_GEN_START_PARTITION_ID = 0;
+  int ROOT_GEN_END_PARTITION_ID = 32768; // exclusive
+  int NON_ROOT_GEN_START_PARTITION_ID = 32768;
+  int NON_ROOT_GEN_END_PARTITION_ID = 65536; // exclusive
+
   <T> PartitionChunk<T> createChunk(T obj);
 
   boolean isInChunk(long timestamp, InputRow inputRow);
 
   int getPartitionNum();
+
+  default int getStartRootPartitionId()
+  {
+    return getPartitionNum();
+  }
+
+  default int getEndRootPartitionId()
+  {
+    return getPartitionNum() + 1;
+  }
+
+  default short getMinorVersion()
+  {
+    return 0;
+  }
+
+  default short getAtomicUpdateGroupSize()
+  {
+    return 1;
+  }
 
   ShardSpecLookup getLookup(List<ShardSpec> shardSpecs);
 
