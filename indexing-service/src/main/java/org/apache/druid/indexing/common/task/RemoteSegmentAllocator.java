@@ -23,15 +23,15 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
 {
@@ -42,7 +42,7 @@ public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
       TaskToolbox toolbox,
       String taskId,
       DataSchema dataSchema,
-      Map<Interval, Set<Integer>> inputPartitionIds
+      Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec
   )
   {
     this.taskId = taskId;
@@ -51,18 +51,11 @@ public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
         dataSchema,
         (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
           final GranularitySpec granularitySpec = schema.getGranularitySpec();
-          final Set<Integer> overshadowingSegments;
-          // inputPartitionIds can be empty if isAppendToExisting = true or there's no input segments
-          // TODO: set overwriting shardSpecFactory
-          if (inputPartitionIds.isEmpty()) {
-            overshadowingSegments = Collections.emptySet();
-          } else {
-            overshadowingSegments = inputPartitionIds.get(
-                granularitySpec
-                    .bucketInterval(row.getTimestamp())
-                    .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()))
-            );
-          }
+          final ShardSpecFactory shardSpecFactory = allocateSpec.get(
+              granularitySpec
+                  .bucketInterval(row.getTimestamp())
+                  .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()))
+          ).lhs;
           return new SegmentAllocateAction(
               schema.getDataSource(),
               row.getTimestamp(),
@@ -70,7 +63,8 @@ public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
               schema.getGranularitySpec().getSegmentGranularity(),
               sequenceName,
               previousSegmentId,
-              skipSegmentLineageCheck
+              skipSegmentLineageCheck,
+              shardSpecFactory
           );
         }
     );

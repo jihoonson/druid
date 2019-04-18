@@ -607,6 +607,8 @@ public class TaskLockbox
           .entrySet()
           .stream()
           .allMatch(entry -> {
+            // TODO: segment lock validation
+            // needs to check used segments, valid segment locks for used segments,
             final List<TaskLockPosse> lockPosses = getOnlyTaskLockPosseContainingInterval(
                 task,
                 entry.getKey(),

@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 // TODO: caching??
 public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocator
@@ -53,8 +52,7 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
   public CachingSegmentAllocator(
       TaskToolbox toolbox,
       String taskId,
-      Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec,
-      Map<Interval, Set<Integer>> inputPartitionIds
+      Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec
   ) throws IOException
   {
     this.toolbox = toolbox;
@@ -62,7 +60,7 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
     this.allocateSpec = allocateSpec;
     this.sequenceNameToSegmentId = new HashMap<>();
 
-    final Map<Interval, List<SegmentIdWithShardSpec>> intervalToIds = getIntervalToSegmentIds(inputPartitionIds);
+    final Map<Interval, List<SegmentIdWithShardSpec>> intervalToIds = getIntervalToSegmentIds();
     final Map<Interval, List<ShardSpec>> shardSpecMap = new HashMap<>();
 
     for (Map.Entry<Interval, List<SegmentIdWithShardSpec>> entry : intervalToIds.entrySet()) {
@@ -89,8 +87,7 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
     return new NumberedShardSpec(shardSpec.getPartitionNum(), numTotalPartitions);
   }
 
-  abstract Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds(Map<Interval, Set<Integer>> inputPartitionIds)
-      throws IOException;
+  abstract Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds() throws IOException;
 
   TaskToolbox getToolbox()
   {

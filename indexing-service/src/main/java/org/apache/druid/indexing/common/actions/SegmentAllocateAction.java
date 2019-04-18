@@ -37,9 +37,11 @@ import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
+import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -72,6 +74,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
   private final String sequenceName;
   private final String previousSegmentId;
   private final boolean skipSegmentLineageCheck;
+  private final ShardSpecFactory shardSpecFactory;
 
   @JsonCreator
   public SegmentAllocateAction(
@@ -81,7 +84,8 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
       @JsonProperty("preferredSegmentGranularity") Granularity preferredSegmentGranularity,
       @JsonProperty("sequenceName") String sequenceName,
       @JsonProperty("previousSegmentId") String previousSegmentId,
-      @JsonProperty("skipSegmentLineageCheck") boolean skipSegmentLineageCheck
+      @JsonProperty("skipSegmentLineageCheck") boolean skipSegmentLineageCheck,
+      @JsonProperty("shardSpecFactory") @Nullable ShardSpecFactory shardSpecFactory
   )
   {
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
@@ -94,6 +98,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
     this.sequenceName = Preconditions.checkNotNull(sequenceName, "sequenceName");
     this.previousSegmentId = previousSegmentId;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
+    this.shardSpecFactory = shardSpecFactory == null ? new NumberedShardSpecFactory(0) : shardSpecFactory;
   }
 
   @JsonProperty
@@ -136,6 +141,12 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
   public boolean isSkipSegmentLineageCheck()
   {
     return skipSegmentLineageCheck;
+  }
+
+  @JsonProperty
+  public ShardSpecFactory getShardSpecFactory()
+  {
+    return shardSpecFactory;
   }
 
   @Override
@@ -271,7 +282,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
             task.getGroupId(),
             dataSource,
             tryInterval,
-            new NumberedShardSpecFactory(0),
+            shardSpecFactory,
             1,
             task.getPriority(),
             sequenceName,
@@ -338,6 +349,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
            ", sequenceName='" + sequenceName + '\'' +
            ", previousSegmentId='" + previousSegmentId + '\'' +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
+           ", shardSpecFactory=" + shardSpecFactory +
            '}';
   }
 }

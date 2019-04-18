@@ -22,6 +22,7 @@ package org.apache.druid.indexing.common.actions;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.google.common.base.Preconditions;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.indexing.overlord.LockRequest;
@@ -82,7 +83,11 @@ public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<
     for (Entry<Interval, Pair<ShardSpecFactory, Integer>> entry : allocateSpec.entrySet()) {
       final Interval interval = entry.getKey();
       final ShardSpecFactory shardSpecFactory = entry.getValue().lhs;
-      final int numSegmentsToAllocate = entry.getValue().rhs;
+      final int numSegmentsToAllocate = Preconditions.checkNotNull(
+          entry.getValue().rhs,
+          "numSegmentsToAllocate for interval[%s]",
+          interval
+      );
       final LockRequest lockRequest = new LockRequestForNewSegment(
           TaskLockType.EXCLUSIVE,
           task.getGroupId(),

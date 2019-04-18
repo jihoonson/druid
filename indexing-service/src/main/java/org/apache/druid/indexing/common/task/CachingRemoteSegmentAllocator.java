@@ -29,29 +29,25 @@ import org.joda.time.Interval;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class CachingRemoteSegmentAllocator extends CachingSegmentAllocator
 {
   public CachingRemoteSegmentAllocator(
       TaskToolbox toolbox,
       String taskId,
-      Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec,
-      Map<Interval, Set<Integer>> inputPartitionIds
+      Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec
   ) throws IOException
   {
-    super(toolbox, taskId, allocateSpec, inputPartitionIds);
+    super(toolbox, taskId, allocateSpec);
   }
 
   @Override
-  Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds(Map<Interval, Set<Integer>> inputPartitionIds)
-      throws IOException
+  Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds() throws IOException
   {
     return getToolbox().getTaskActionClient().submit(
         new SegmentBulkAllocateAction(
             getAllocateSpec(),
             getTaskId()
-            //inputPartitionIds TODO: set root partitionRange in the shardSpecFactory
         )
     );
   }

@@ -75,43 +75,6 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
     this.overshadowedGroups = new TreeMap<>(other.overshadowedGroups);
   }
 
-//  private AtomicUpdateGroup<T> findAtomicUpdateGroup(
-//      State state,
-//      short startRootPartitionId,
-//      short endRootPartitionId,
-//      short minorVersion
-//  )
-//  {
-//    final Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> versionToGroup = findVersionToGroup(
-//        state,
-//        startRootPartitionId,
-//        endRootPartitionId
-//    );
-//    final AtomicUpdateGroup<T> atomicUpdateGroup = versionToGroup.get(minorVersion);
-//    if (atomicUpdateGroup == null) {
-//      throw new ISE("Can't find atomicUpdateGroup for minorVersion[%s]", minorVersion);
-//    }
-//    return atomicUpdateGroup;
-//  }
-//
-//  private Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> findVersionToGroup(
-//      State state,
-//      short startRootPartitionId,
-//      short endRootPartitionId
-//  )
-//  {
-//    final Short2ObjectRBTreeMap<Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> endPidToMap = getStateMap(state)
-//        .get(startRootPartitionId);
-//    if (endPidToMap == null) {
-//      throw new ISE("WTH? Can't find versionToGroup for startRootPartitionId[%d]", startRootPartitionId);
-//    }
-//    final Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> versionToGroup = endPidToMap.get(endRootPartitionId);
-//    if (versionToGroup == null) {
-//      throw new ISE("WTH? Can't find versionToGroup for endRootPartitionId[%d]", endRootPartitionId);
-//    }
-//    return versionToGroup;
-//  }
-
   private TreeMap<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> getStateMap(
       State state
   )
@@ -127,34 +90,6 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
         throw new ISE("Unknown state[%s]", state);
     }
   }
-
-//  private void transitPartitionChunkState(
-//      short startRootPartitionId,
-//      short endRootPartitionId,
-//      short minorVersion,
-//      State from,
-//      State to
-//  )
-//  {
-//    final RootPartitionRange rootPartitionRange = RootPartitionRange.of(startRootPartitionId, endRootPartitionId);
-//    final TreeMap<Short, AtomicUpdateGroup<T>> fromVersionToGroup = findVersionToGroup(from, rootPartitionRange);
-//    final AtomicUpdateGroup<T> atomicUpdateGroup = fromVersionToGroup.remove(minorVersion);
-//
-//
-//    if (atomicUpdateGroup == null) {
-//      throw new ISE(
-//          "Can't find atomicUpdateGroup with rootPartitionRange[%s] and minorVersion[%s]",
-//          rootPartitionRange,
-//          minorVersion
-//      );
-//    }
-//
-//    if (fromVersionToGroup.isEmpty()) {
-//      getStateMap(from).remove(rootPartitionRange);
-//    }
-//
-//    addTo(atomicUpdateGroup, to);
-//  }
 
   private void transitPartitionChunkState(AtomicUpdateGroup<T> atomicUpdateGroup, State from, State to)
   {
@@ -597,9 +532,9 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
     public int compareTo(RootPartitionRange o)
     {
       if (startPartitionId != o.startPartitionId) {
-        return Short.compare(startPartitionId, o.startPartitionId);
+        return Integer.compare(Short.toUnsignedInt(startPartitionId), Short.toUnsignedInt(o.startPartitionId));
       } else {
-        return Short.compare(endPartitionId, o.endPartitionId);
+        return Integer.compare(Short.toUnsignedInt(endPartitionId), Short.toUnsignedInt(o.endPartitionId));
       }
     }
 

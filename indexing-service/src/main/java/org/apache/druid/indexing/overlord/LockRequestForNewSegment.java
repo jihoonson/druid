@@ -35,6 +35,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.stream.Collectors;
 
+// TODO: remove this
 public class LockRequestForNewSegment implements LockRequest
 {
   private final TaskLockType lockType;

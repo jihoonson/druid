@@ -42,6 +42,7 @@ import java.util.Map;
 })
 public interface ShardSpec
 {
+  // TODO: move to somewhere..?
   int ROOT_GEN_START_PARTITION_ID = 0;
   int ROOT_GEN_END_PARTITION_ID = 32768; // exclusive
   int NON_ROOT_GEN_START_PARTITION_ID = 32768;

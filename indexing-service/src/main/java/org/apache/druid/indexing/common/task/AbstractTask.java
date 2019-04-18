@@ -77,11 +77,41 @@ public abstract class AbstractTask implements Task
 
   private final Map<String, Object> context;
 
-  private final Map<Interval, Set<Integer>> inputSegmentPartitionIds = new HashMap<>(); // TODO: Intset
+//  private final Map<Interval, Set<Integer>> inputSegmentPartitionIds = new HashMap<>(); // TODO: Intset
+  private final Map<Interval, OverwritingSegmentMeta> overwritingSegmentMetas = new HashMap<>();
 
   private boolean initializedLock;
 
   private boolean changeSegmentGranularity;
+
+  public static class OverwritingSegmentMeta
+  {
+    private final int startRootPartitionId;
+    private final int endRootPartitionId;
+    private final short minorVersionForNewSegments;
+
+    private OverwritingSegmentMeta(int startRootPartitionId, int endRootPartitionId, short minorVersionForNewSegments)
+    {
+      this.startRootPartitionId = startRootPartitionId;
+      this.endRootPartitionId = endRootPartitionId;
+      this.minorVersionForNewSegments = minorVersionForNewSegments;
+    }
+
+    public int getStartRootPartitionId()
+    {
+      return startRootPartitionId;
+    }
+
+    public int getEndRootPartitionId()
+    {
+      return endRootPartitionId;
+    }
+
+    public short getMinorVersionForNewSegments()
+    {
+      return minorVersionForNewSegments;
+    }
+  }
 
   protected AbstractTask(String id, String dataSource, Map<String, Object> context)
   {
@@ -356,13 +386,18 @@ public abstract class AbstractTask implements Task
         initializedLock = true;
         return true;
       } else {
-        for (DataSegment segment : visibleSegments) {
-          inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new HashSet<>())
-                                  .add(segment.getShardSpec().getPartitionNum());
+        final Map<Interval, List<DataSegment>> intervalToSegments = new HashMap<>();
+        for (DataSegment segment : segments) {
+          intervalToSegments.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>()).add(segment);
         }
-        for (Entry<Interval, Set<Integer>> entry : inputSegmentPartitionIds.entrySet()) {
+        intervalToSegments.values().forEach(this::verifyAndFindRootPartitionRangeAndMinorVersion);
+        for (Entry<Interval, List<DataSegment>> entry : intervalToSegments.entrySet()) {
+          final Interval interval = entry.getKey();
+          final Set<Integer> partitionIds = entry.getValue().stream()
+                                                 .map(s -> s.getShardSpec().getPartitionNum())
+                                                 .collect(Collectors.toSet());
           final TaskLock lock = client.submit(
-              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, entry.getKey(), visibleSegments.get(0).getVersion(), entry.getValue())
+              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, interval, visibleSegments.get(0).getVersion(), partitionIds)
           );
           if (lock == null) {
             return false;
@@ -428,13 +463,16 @@ public abstract class AbstractTask implements Task
           }
         }
       } else {
+        final Map<Interval, List<DataSegment>> intervalToSegments = new HashMap<>();
         for (DataSegment segment : segments) {
-          inputSegmentPartitionIds.computeIfAbsent(segment.getInterval(), k -> new HashSet<>())
-                                  .add(segment.getShardSpec().getPartitionNum());
+          intervalToSegments.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>()).add(segment);
         }
-        for (Entry<Interval, Set<Integer>> entry : inputSegmentPartitionIds.entrySet()) {
+        intervalToSegments.values().forEach(this::verifyAndFindRootPartitionRangeAndMinorVersion);
+        for (Entry<Interval, List<DataSegment>> entry : intervalToSegments.entrySet()) {
           final Interval interval = entry.getKey();
-          final Set<Integer> partitionIds = entry.getValue();
+          final Set<Integer> partitionIds = entry.getValue().stream()
+                                                 .map(s -> s.getShardSpec().getPartitionNum())
+                                                 .collect(Collectors.toSet());
           final TaskLock lock = client.submit(
               LockAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, interval, segments.get(0).getVersion(), partitionIds, timeoutMs)
           );
@@ -448,20 +486,93 @@ public abstract class AbstractTask implements Task
     initializedLock = true;
   }
 
+  private void verifyAndFindRootPartitionRangeAndMinorVersion(List<DataSegment> inputSegments)
+  {
+    if (inputSegments.isEmpty()) {
+      return;
+    }
+
+    Preconditions.checkArgument(
+        inputSegments.stream().allMatch(segment -> segment.getInterval().equals(inputSegments.get(0).getInterval()))
+    );
+    final Interval interval = inputSegments.get(0).getInterval();
+
+    inputSegments.sort((s1, s2) -> {
+      if (s1.getStartRootPartitionId() != s2.getStartRootPartitionId()) {
+        return Integer.compare(s1.getStartRootPartitionId(), s2.getStartRootPartitionId());
+      } else {
+        return Integer.compare(s1.getEndRootPartitionId(), s2.getEndRootPartitionId());
+      }
+    });
+
+    short prevMaxMinorVersion = 0;
+    short atomicUpdateGroupSize = 1;
+    // sanity check
+    for (int i = 0; i < inputSegments.size() - 1; i++) {
+      final DataSegment curSegment = inputSegments.get(i);
+      final DataSegment nextSegment = inputSegments.get(i + 1);
+      if (curSegment.getStartRootPartitionId() == nextSegment.getStartRootPartitionId()
+          && curSegment.getEndRootPartitionId() == nextSegment.getEndRootPartitionId())
+      {
+        // Input segments should have the same or consecutive rootPartition range
+        if (curSegment.getMinorVersion() != nextSegment.getMinorVersion()
+            || curSegment.getAtomicUpdateGroupSize() != nextSegment.getAtomicUpdateGroupSize())
+        {
+          throw new ISE(
+              "segment[%s] and segment[%s] have the same rootPartitionRange, but different minorVersion or atomicUpdateGroupSize",
+              curSegment,
+              nextSegment
+          );
+        }
+        prevMaxMinorVersion = (short) Math.max(prevMaxMinorVersion, curSegment.getMinorVersion());
+        atomicUpdateGroupSize++;
+      } else {
+        if (curSegment.getEndRootPartitionId() != nextSegment.getStartRootPartitionId()) {
+          throw new ISE("Can't compact segments of non-consecutive rootPartition range");
+        }
+        prevMaxMinorVersion = curSegment.getMinorVersion() > nextSegment.getMinorVersion()
+                              ? (short) Math.max(prevMaxMinorVersion, curSegment.getMinorVersion())
+                              : (short) Math.max(prevMaxMinorVersion, nextSegment.getMinorVersion());
+
+        if (atomicUpdateGroupSize != curSegment.getAtomicUpdateGroupSize()) {
+          throw new ISE("All atomicUpdateGroup must be compacted together");
+        }
+        atomicUpdateGroupSize = 1;
+      }
+    }
+
+    overwritingSegmentMetas.put(
+        interval,
+        new OverwritingSegmentMeta(
+            inputSegments.get(0).getStartRootPartitionId(),
+            inputSegments.get(inputSegments.size() - 1).getEndRootPartitionId(),
+            (short) (prevMaxMinorVersion + 1)
+        )
+    );
+  }
+
   protected boolean isChangeSegmentGranularity()
   {
     Preconditions.checkState(initializedLock, "Lock must be initialized before calling this method");
     return changeSegmentGranularity;
   }
 
-  public Map<Interval, Set<Integer>> getAllInputPartitionIds()
+  public Map<Interval, OverwritingSegmentMeta> getAllOverwritingSegmentMeta()
   {
-    return inputSegmentPartitionIds;
+    Preconditions.checkState(initializedLock, "Lock must be initialized before calling this method");
+    return overwritingSegmentMetas;
   }
 
   @Nullable
-  public Set<Integer> getInputPartitionIdsFor(Interval interval)
+  public OverwritingSegmentMeta getOverwritingSegmentMeta(Interval interval)
   {
-    return inputSegmentPartitionIds.get(interval);
+    Preconditions.checkState(initializedLock, "Lock must be initialized before calling this method");
+    return overwritingSegmentMetas.get(interval);
+  }
+
+  public boolean isOverwriteMode()
+  {
+    Preconditions.checkState(initializedLock, "Lock must be initialized before calling this method");
+    return !overwritingSegmentMetas.isEmpty();
   }
 }

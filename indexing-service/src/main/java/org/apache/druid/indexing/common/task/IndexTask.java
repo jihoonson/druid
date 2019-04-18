@@ -86,7 +86,9 @@ import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.NumberedOverwritingShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.utils.CircularBuffer;
@@ -605,11 +607,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
     // if we were given number of shards per interval and the intervals, we don't need to scan the data
     if (!determineNumPartitions && !determineIntervals) {
       log.info("Skipping determine partition scan");
-      return createShardSpecWithoutInputScan(
-          granularitySpec,
-          ioConfig,
-          tuningConfig
-      );
+      return createShardSpecWithoutInputScan(granularitySpec, ioConfig, tuningConfig);
     } else {
       // determine intervals containing data and prime HLL collectors
       return createShardSpecsFromInput(
@@ -626,7 +624,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
     }
   }
 
-  private static Map<Interval, Pair<ShardSpecFactory, Integer>> createShardSpecWithoutInputScan(
+  private Map<Interval, Pair<ShardSpecFactory, Integer>> createShardSpecWithoutInputScan(
       GranularitySpec granularitySpec,
       IndexIOConfig ioConfig,
       IndexTuningConfig tuningConfig
@@ -639,11 +637,11 @@ public class IndexTask extends AbstractTask implements ChatHandler
       // Overwrite mode, guaranteed rollup: shardSpecs must be known in advance.
       final int numShards = tuningConfig.getNumShards() == null ? 1 : tuningConfig.getNumShards();
       for (Interval interval : intervals) {
-        allocateSpec.put(interval, createShardSpecFactory(numShards, tuningConfig.partitionDimensions));
+        allocateSpec.put(interval, createShardSpecFactoryForGuaranteedRollup(numShards, tuningConfig.partitionDimensions));
       }
     } else {
       for (Interval interval : intervals) {
-        allocateSpec.put(interval, null);
+        allocateSpec.put(interval, createShardSpecFactoryForBestEffortRollup(isOverwriteMode(), interval));
       }
     }
 
@@ -694,10 +692,10 @@ public class IndexTask extends AbstractTask implements ChatHandler
       }
 
       if (isGuaranteedRollup(ingestionSchema.getIOConfig(), ingestionSchema.getTuningConfig())) {
-        allocateSpecs.put(interval, createShardSpecFactory(numShards, tuningConfig.partitionDimensions));
         // Overwrite mode, guaranteed rollup: # of shards must be known in advance.
+        allocateSpecs.put(interval, createShardSpecFactoryForGuaranteedRollup(numShards, tuningConfig.partitionDimensions));
       } else {
-        allocateSpecs.put(interval, null);
+        allocateSpecs.put(interval, createShardSpecFactoryForBestEffortRollup(isOverwriteMode(), interval));
       }
     }
     log.info("Found intervals and shardSpecs in %,dms", System.currentTimeMillis() - determineShardSpecsStartMillis);
@@ -705,12 +703,36 @@ public class IndexTask extends AbstractTask implements ChatHandler
     return allocateSpecs;
   }
 
-  private static Pair<ShardSpecFactory, Integer> createShardSpecFactory(
+  private Pair<ShardSpecFactory, Integer> createShardSpecFactoryForGuaranteedRollup(
       int numShards,
       @Nullable List<String> partitionDimensions
   )
   {
     return Pair.of(new HashBasedNumberedShardSpecFactory(partitionDimensions, numShards), numShards);
+  }
+
+  private Pair<ShardSpecFactory, Integer> createShardSpecFactoryForBestEffortRollup(
+      boolean overwrite,
+      Interval interval
+  )
+  {
+    if (overwrite && !isChangeSegmentGranularity()) {
+      final OverwritingSegmentMeta overwritingSegmentMeta = Preconditions.checkNotNull(
+          getOverwritingSegmentMeta(interval),
+          "Can't find overwritingSegmentMeta for interval[%s]",
+          interval
+      );
+      return Pair.of(
+          new NumberedOverwritingShardSpecFactory(
+              overwritingSegmentMeta.getStartRootPartitionId(),
+              overwritingSegmentMeta.getEndRootPartitionId(),
+              overwritingSegmentMeta.getMinorVersionForNewSegments()
+          ),
+          null
+      );
+    } else {
+      return Pair.of(new NumberedShardSpecFactory(0), null);
+    }
   }
 
   private Map<Interval, Optional<HyperLogLogCollector>> collectIntervalsAndShardSpecs(
@@ -819,37 +841,17 @@ public class IndexTask extends AbstractTask implements ChatHandler
   {
     if (ingestionSchema.ioConfig.isAppendToExisting() || !isChangeSegmentGranularity()) {
       if (isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)) {
-        return new CachingRemoteSegmentAllocator(
-            toolbox,
-            getId(),
-            allocateSpec,
-            getAllInputPartitionIds()
-        );
+        return new CachingRemoteSegmentAllocator(toolbox, getId(), allocateSpec);
       } else {
-        return new RemoteSegmentAllocator(
-            toolbox,
-            getId(),
-            dataSchema,
-            ingestionSchema.ioConfig.isAppendToExisting() ? Collections.emptyMap() : getAllInputPartitionIds()
-        );
+        return new RemoteSegmentAllocator(toolbox, getId(), dataSchema, allocateSpec);
       }
     } else {
       // We use the timeChunk lock and don't have to ask the overlord to create segmentIds.
       // Instead, a local allocator is used.
       if (isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)) {
-        return new CachingLocalSegmentAllocator(
-            toolbox,
-            getId(),
-            getDataSource(),
-            allocateSpec
-        );
+        return new CachingLocalSegmentAllocator(toolbox, getId(), getDataSource(), allocateSpec);
       } else {
-        return new LocalSegmentAllocator(
-            toolbox,
-            getId(),
-            getDataSource(),
-            dataSchema.getGranularitySpec()
-        );
+        return new LocalSegmentAllocator(toolbox, getId(), getDataSource(), dataSchema.getGranularitySpec());
       }
     }
   }

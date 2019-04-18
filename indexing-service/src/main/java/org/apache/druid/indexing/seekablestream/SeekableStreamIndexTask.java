@@ -56,6 +56,7 @@ import org.apache.druid.segment.realtime.firehose.ChatHandler;
 import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
 import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.utils.CircularBuffer;
 import org.joda.time.Interval;
 
@@ -235,7 +236,8 @@ public abstract class SeekableStreamIndexTask<PartitionIdType, SequenceOffsetTyp
                 schema.getGranularitySpec().getSegmentGranularity(),
                 sequenceName,
                 previousSegmentId,
-                skipSegmentLineageCheck
+                skipSegmentLineageCheck,
+                new NumberedShardSpecFactory(0)
             )
         ),
         toolbox.getSegmentHandoffNotifierFactory(),

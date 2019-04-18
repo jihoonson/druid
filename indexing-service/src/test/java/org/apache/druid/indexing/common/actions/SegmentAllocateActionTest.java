@@ -37,6 +37,7 @@ import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
 import org.easymock.EasyMock;
@@ -699,7 +700,8 @@ public class SegmentAllocateActionTest
         Granularities.HOUR,
         "s1",
         "prev",
-        false
+        false,
+        new NumberedShardSpecFactory(0)
     );
 
     final SegmentAllocateAction action2 = (SegmentAllocateAction) objectMapper.readValue(
@@ -748,7 +750,8 @@ public class SegmentAllocateActionTest
         Granularities.HOUR,
         "seq",
         null,
-        true
+        true,
+        new NumberedShardSpecFactory(0)
     );
     final SegmentIdWithShardSpec segmentIdentifier = action.perform(task, taskActionTestKit.getTaskActionToolbox());
     Assert.assertNotNull(segmentIdentifier);
@@ -781,7 +784,8 @@ public class SegmentAllocateActionTest
         preferredSegmentGranularity,
         sequenceName,
         sequencePreviousId,
-        false
+        false,
+        new NumberedShardSpecFactory(0)
     );
     return action.perform(task, taskActionTestKit.getTaskActionToolbox());
   }

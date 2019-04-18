@@ -19,6 +19,7 @@
 
 package org.apache.druid.indexing.common.task;
 
+import com.google.common.base.Preconditions;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
@@ -29,12 +30,10 @@ import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -53,7 +52,7 @@ public class CachingLocalSegmentAllocator extends CachingSegmentAllocator
   {
     // This segment allocator doesn't need inputPartitionIds because the newly created segments don't have to store
     // direcOvershadowingSegments
-    super(toolbox, taskId, allocateSpec, Collections.emptyMap());
+    super(toolbox, taskId, allocateSpec);
     this.dataSource = dataSource;
 
     intervalToVersion = toolbox.getTaskActionClient()
@@ -63,14 +62,18 @@ public class CachingLocalSegmentAllocator extends CachingSegmentAllocator
   }
 
   @Override
-  Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds(Map<Interval, Set<Integer>> inputPartitionIds)
+  Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds()
   {
     final Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec = getAllocateSpec();
     final Map<Interval, List<SegmentIdWithShardSpec>> intervalToSegmentIds = new HashMap<>(allocateSpec.size());
     for (Entry<Interval, Pair<ShardSpecFactory, Integer>> entry : allocateSpec.entrySet()) {
       final Interval interval = entry.getKey();
       final ShardSpecFactory shardSpecFactory = entry.getValue().lhs;
-      final int numSegmentsToAllocate = entry.getValue().rhs;
+      final int numSegmentsToAllocate = Preconditions.checkNotNull(
+          entry.getValue().rhs,
+          "numSegmentsToAllocate for interval[%s]",
+          interval
+      );
 
       intervalToSegmentIds.put(
           interval,

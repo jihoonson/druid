@@ -67,6 +67,9 @@ import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentsAndMetadata;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.partition.NumberedOverwritingShardSpecFactory;
+import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -76,7 +79,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -257,7 +259,10 @@ public class ParallelIndexSubTask extends AbstractTask
      */
     private SegmentAllocator internalAllocator;
 
-    private WrappingSegmentAllocator(TaskToolbox toolbox, ParallelIndexTaskClient taskClient)
+    private WrappingSegmentAllocator(
+        TaskToolbox toolbox,
+        ParallelIndexTaskClient taskClient
+    )
     {
       this.toolbox = toolbox;
       this.taskClient = taskClient;
@@ -286,12 +291,24 @@ public class ParallelIndexSubTask extends AbstractTask
             ingestionSchema.getDataSchema(),
             (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
               final GranularitySpec granularitySpec = ingestionSchema.getDataSchema().getGranularitySpec();
-              final Set<Integer> inputSegmentIds = ingestionSchema.getIOConfig().isAppendToExisting()
-                                                   ? null
-                                                   : getInputPartitionIdsFor(
-                                                       granularitySpec.bucketInterval(row.getTimestamp())
-                                                                      .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()))
-                                                   );
+              final Interval interval = granularitySpec
+                  .bucketInterval(row.getTimestamp())
+                  .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()));
+              final ShardSpecFactory shardSpecFactory;
+              if (isOverwriteMode() && !isChangeSegmentGranularity()) {
+                final OverwritingSegmentMeta overwritingSegmentMeta = getOverwritingSegmentMeta(interval);
+                if (overwritingSegmentMeta == null) {
+                  throw new ISE("Can't find overwritingSegmentMeta for interval[%s]", interval);
+                }
+                shardSpecFactory = new NumberedOverwritingShardSpecFactory(
+                    overwritingSegmentMeta.getStartRootPartitionId(),
+                    overwritingSegmentMeta.getEndRootPartitionId(),
+                    overwritingSegmentMeta.getMinorVersionForNewSegments()
+                );
+              } else {
+                shardSpecFactory = new NumberedShardSpecFactory(0);
+              }
+
               // TODO: overwriting shardSpecFactory
               return new SurrogateAction<>(
                   supervisorTaskId,
@@ -302,7 +319,8 @@ public class ParallelIndexSubTask extends AbstractTask
                       schema.getGranularitySpec().getSegmentGranularity(),
                       sequenceName,
                       previousSegmentId,
-                      skipSegmentLineageCheck
+                      skipSegmentLineageCheck,
+                      shardSpecFactory
                   )
               );
             }
