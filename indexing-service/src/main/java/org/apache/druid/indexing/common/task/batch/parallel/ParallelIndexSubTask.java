@@ -292,6 +292,7 @@ public class ParallelIndexSubTask extends AbstractTask
                                                        granularitySpec.bucketInterval(row.getTimestamp())
                                                                       .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()))
                                                    );
+              // TODO: overwriting shardSpecFactory
               return new SurrogateAction<>(
                   supervisorTaskId,
                   new SegmentAllocateAction(
@@ -301,8 +302,7 @@ public class ParallelIndexSubTask extends AbstractTask
                       schema.getGranularitySpec().getSegmentGranularity(),
                       sequenceName,
                       previousSegmentId,
-                      skipSegmentLineageCheck,
-                      inputSegmentIds
+                      skipSegmentLineageCheck
                   )
               );
             }

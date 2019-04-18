@@ -22,9 +22,8 @@ package org.apache.druid.timeline.partition;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.timeline.partition.ShardSpecFactoryArgs.EmptyShardSpecFactoryArgs;
 
-public class NumberedShardSpecFactory implements ShardSpecFactory<EmptyShardSpecFactoryArgs>
+public class NumberedShardSpecFactory implements ShardSpecFactory
 {
   private final int numPartitions;
 
@@ -41,7 +40,7 @@ public class NumberedShardSpecFactory implements ShardSpecFactory<EmptyShardSpec
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId, EmptyShardSpecFactoryArgs args)
+  public ShardSpec create(ObjectMapper objectMapper, int partitionId)
   {
     return new NumberedShardSpec(partitionId, numPartitions);
   }

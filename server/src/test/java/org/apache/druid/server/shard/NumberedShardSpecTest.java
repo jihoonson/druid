@@ -115,11 +115,14 @@ public class NumberedShardSpecTest
   public void testVersionedIntervalTimelineBehaviorForNumberedShardSpec()
   {
     //core partition chunks
-    PartitionChunk<OvershadowableString> chunk0 = new NumberedShardSpec(0, 2).createChunk(new OvershadowableString("0"));
-    PartitionChunk<OvershadowableString> chunk1 = new NumberedShardSpec(1, 2).createChunk(new OvershadowableString("1"));
+    PartitionChunk<OvershadowableString> chunk0 = new NumberedShardSpec(0, 2)
+        .createChunk(new OvershadowableString("0", 0));
+    PartitionChunk<OvershadowableString> chunk1 = new NumberedShardSpec(1, 2)
+        .createChunk(new OvershadowableString("1", 1));
 
     //appended partition chunk
-    PartitionChunk<OvershadowableString> chunk4 = new NumberedShardSpec(4, 2).createChunk(new OvershadowableString("4"));
+    PartitionChunk<OvershadowableString> chunk4 = new NumberedShardSpec(4, 2)
+        .createChunk(new OvershadowableString("4", 4));
 
     //incomplete partition sets
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
@@ -152,31 +155,35 @@ public class NumberedShardSpecTest
     //complete partition sets
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
         ImmutableList.of(chunk1, chunk0),
-        ImmutableSet.of(new OvershadowableString("0"), new OvershadowableString("1"))
+        ImmutableSet.of(new OvershadowableString("0", 0), new OvershadowableString("1", 0))
     );
 
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
         ImmutableList.of(chunk4, chunk1, chunk0),
-        ImmutableSet.of(new OvershadowableString("0"), new OvershadowableString("1"), new OvershadowableString("4"))
+        ImmutableSet.of(
+            new OvershadowableString("0", 0),
+            new OvershadowableString("1", 1),
+            new OvershadowableString("4", 4)
+        )
     );
 
     // a partition set with 0 core partitions
-    chunk0 = new NumberedShardSpec(0, 0).createChunk(new OvershadowableString("0"));
-    chunk4 = new NumberedShardSpec(4, 0).createChunk(new OvershadowableString("4"));
+    chunk0 = new NumberedShardSpec(0, 0).createChunk(new OvershadowableString("0", 0));
+    chunk4 = new NumberedShardSpec(4, 0).createChunk(new OvershadowableString("4", 4));
 
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
         ImmutableList.of(chunk0),
-        ImmutableSet.of(new OvershadowableString("0"))
+        ImmutableSet.of(new OvershadowableString("0", 0))
     );
 
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
         ImmutableList.of(chunk4),
-        ImmutableSet.of(new OvershadowableString("4"))
+        ImmutableSet.of(new OvershadowableString("4", 4))
     );
 
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
         ImmutableList.of(chunk4, chunk0),
-        ImmutableSet.of(new OvershadowableString("0"), new OvershadowableString("4"))
+        ImmutableSet.of(new OvershadowableString("0", 0), new OvershadowableString("4", 4))
     );
   }
 
@@ -204,17 +211,13 @@ public class NumberedShardSpecTest
 
   private static final class OvershadowableString implements Overshadowable<OvershadowableString>
   {
+    private final int partitionId;
     private final String val;
 
-    OvershadowableString(String val)
+    OvershadowableString(String val, int partitionId)
     {
       this.val = val;
-    }
-
-    @Override
-    public Set<Integer> getAtomicUpdateGroup()
-    {
-      return Collections.singleton(Integer.parseInt(val));
+      this.partitionId = partitionId;
     }
 
     @Override
@@ -227,13 +230,44 @@ public class NumberedShardSpecTest
         return false;
       }
       OvershadowableString that = (OvershadowableString) o;
-      return Objects.equals(val, that.val);
+      return partitionId == that.partitionId &&
+             Objects.equals(val, that.val);
     }
 
     @Override
     public int hashCode()
     {
-      return Objects.hash(val);
+      return Objects.hash(partitionId, val);
+    }
+
+    @Override
+    public boolean isOvershadow(OvershadowableString other)
+    {
+      return false;
+    }
+
+    @Override
+    public int getStartRootPartitionId()
+    {
+      return partitionId;
+    }
+
+    @Override
+    public int getEndRootPartitionId()
+    {
+      return partitionId + 1;
+    }
+
+    @Override
+    public short getMinorVersion()
+    {
+      return 0;
+    }
+
+    @Override
+    public short getAtomicUpdateGroupSize()
+    {
+      return 1;
     }
   }
 }

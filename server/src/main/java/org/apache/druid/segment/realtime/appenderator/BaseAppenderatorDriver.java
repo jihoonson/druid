@@ -42,9 +42,8 @@ import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.loading.DataSegmentKiller;
 import org.apache.druid.segment.realtime.appenderator.SegmentWithState.SegmentState;
-import org.apache.druid.timeline.AtomicUpdateGroup;
-import org.apache.druid.timeline.AtomicUpdateGroup.Builder;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.partition.OverwritingShardSpec;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
@@ -551,7 +550,7 @@ public abstract class BaseAppenderatorDriver implements Closeable
           if (segmentsAndMetadata.getSegments().isEmpty()) {
             log.info("Nothing to publish, skipping publish step.");
           } else {
-            final SegmentsAndMetadata annotatedSegmentsAndMetadata = annotateAtomicUpdateGroup(segmentsAndMetadata);
+            final SegmentsAndMetadata annotatedSegmentsAndMetadata = annotateAtomicUpdateGroupSize(segmentsAndMetadata);
             log.info(
                 "Publishing segments with commitMetadata[%s]: [%s]",
                 annotatedSegmentsAndMetadata.getCommitMetadata(),
@@ -614,7 +613,8 @@ public abstract class BaseAppenderatorDriver implements Closeable
     );
   }
 
-  private SegmentsAndMetadata annotateAtomicUpdateGroup(SegmentsAndMetadata segmentsAndMetadata)
+  // TODO: move to batch
+  private SegmentsAndMetadata annotateAtomicUpdateGroupSize(SegmentsAndMetadata segmentsAndMetadata)
   {
     final Map<Interval, List<DataSegment>> intervalToSegments = new HashMap<>();
     segmentsAndMetadata
@@ -624,34 +624,36 @@ public abstract class BaseAppenderatorDriver implements Closeable
     for (Entry<Interval, List<DataSegment>> entry : intervalToSegments.entrySet()) {
       final Interval interval = entry.getKey();
       final List<DataSegment> segments = entry.getValue();
-      final boolean isOvershadowedSegmentsEmpty = segments.get(0).getDirectOvershadowedGroup().isEmpty();
+      final boolean isNonFirstGeneration = segments.get(0).getShardSpec() instanceof OverwritingShardSpec;
 
       final boolean anyMismatch = segments.stream().anyMatch(
-          segment -> segment.getDirectOvershadowedGroup().isEmpty() != isOvershadowedSegmentsEmpty
+          segment -> (segment.getShardSpec() instanceof OverwritingShardSpec) == isNonFirstGeneration
       );
       if (anyMismatch) {
         throw new ISE(
             "WTH? some segments have empty overshadwedSegments but others are not? "
-            + "segments with overshadowedGroup: [%s],"
-            + "segments with empty overshadowedGroup: [%s]",
+            + "segments with non-overwritingShardSpec: [%s],"
+            + "segments with overwritingShardSpec: [%s]",
             segments.stream()
-                    .filter(segment -> !segment.getDirectOvershadowedGroup().isEmpty())
+                    .filter(segment -> !(segment.getShardSpec() instanceof OverwritingShardSpec))
                     .collect(Collectors.toList()),
             segments.stream()
-                    .filter(segment -> segment.getDirectOvershadowedGroup().isEmpty())
+                    .filter(segment -> segment.getShardSpec() instanceof OverwritingShardSpec)
                     .collect(Collectors.toList())
         );
       }
 
-      if (!isOvershadowedSegmentsEmpty) {
+      if (isNonFirstGeneration) {
         // The segments which are published together consist an atomicUpdateGroup.
-        final Builder builder = AtomicUpdateGroup.builder();
-        segments.forEach(segment -> builder.add(segment.getShardSpec().getPartitionNum()));
+
         intervalToSegments.put(
             interval,
             segments
                 .stream()
-                .map(segment -> segment.withAtomicUpdateGroup(builder.build()))
+                .map(segment -> {
+                  final OverwritingShardSpec shardSpec = (OverwritingShardSpec) segment.getShardSpec();
+                  return segment.withShardSpec(shardSpec.withAtomicUpdateGroupSize((short) segments.size()));
+                })
                 .collect(Collectors.toList())
         );
       }

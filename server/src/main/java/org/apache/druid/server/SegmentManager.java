@@ -174,11 +174,7 @@ public class SegmentManager
             log.warn("Told to load an adapter for segment[%s] that already exists", segment.getId());
             resultSupplier.set(false);
           } else {
-            final ReferenceCountingSegment referenceCountingSegment = new ReferenceCountingSegment(
-                adapter,
-                segment.getDirectOvershadowedGroup(),
-                segment.getAtomicUpdateGroup()
-            );
+            final ReferenceCountingSegment referenceCountingSegment = new ReferenceCountingSegment(adapter);
             loadedIntervals.add(
                 segment.getInterval(),
                 segment.getVersion(),
@@ -230,7 +226,7 @@ public class SegmentManager
                 segment.getVersion(),
                 // remove() internally searches for a partitionChunk to remove which is *equal* to the given
                 // partitionChunk. Note that partitionChunk.equals() checks only the partitionNum, but not the object.
-                segment.getShardSpec().createChunk(new ReferenceCountingSegment(null, segment.getDirectOvershadowedGroup(), segment.getAtomicUpdateGroup()))
+                segment.getShardSpec().createChunk(new ReferenceCountingSegment(null))
             );
             final ReferenceCountingSegment oldQueryable = (removed == null) ? null : removed.getObject();
 

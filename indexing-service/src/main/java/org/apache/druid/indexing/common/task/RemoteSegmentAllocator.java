@@ -53,6 +53,7 @@ public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
           final GranularitySpec granularitySpec = schema.getGranularitySpec();
           final Set<Integer> overshadowingSegments;
           // inputPartitionIds can be empty if isAppendToExisting = true or there's no input segments
+          // TODO: set overwriting shardSpecFactory
           if (inputPartitionIds.isEmpty()) {
             overshadowingSegments = Collections.emptySet();
           } else {
@@ -69,8 +70,7 @@ public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
               schema.getGranularitySpec().getSegmentGranularity(),
               sequenceName,
               previousSegmentId,
-              skipSegmentLineageCheck,
-              overshadowingSegments
+              skipSegmentLineageCheck
           );
         }
     );

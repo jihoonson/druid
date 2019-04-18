@@ -28,7 +28,6 @@ import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -44,7 +43,7 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
 {
   private final TaskToolbox toolbox;
   private final String taskId;
-  private final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec;
+  private final Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec;
   @Nullable
   private final ShardSpecs shardSpecs;
 
@@ -54,7 +53,7 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
   public CachingSegmentAllocator(
       TaskToolbox toolbox,
       String taskId,
-      Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec,
+      Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec,
       Map<Interval, Set<Integer>> inputPartitionIds
   ) throws IOException
   {
@@ -103,7 +102,7 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
     return taskId;
   }
 
-  Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> getAllocateSpec()
+  Map<Interval, Pair<ShardSpecFactory, Integer>> getAllocateSpec()
   {
     return allocateSpec;
   }

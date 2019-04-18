@@ -85,7 +85,6 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -261,8 +260,7 @@ public class RealtimePlumber implements Plumber
           config.getMaxRowsInMemory(),
           TuningConfigs.getMaxBytesInMemoryOrDefault(config.getMaxBytesInMemory()),
           config.isReportParseExceptions(),
-          config.getDedupColumn(),
-          Collections.emptySet()
+          config.getDedupColumn()
       );
       addSink(retVal);
 
@@ -725,8 +723,7 @@ public class RealtimePlumber implements Plumber
           TuningConfigs.getMaxBytesInMemoryOrDefault(config.getMaxBytesInMemory()),
           config.isReportParseExceptions(),
           config.getDedupColumn(),
-          hydrants,
-          Collections.emptySet()
+          hydrants
       );
       addSink(currSink);
     }

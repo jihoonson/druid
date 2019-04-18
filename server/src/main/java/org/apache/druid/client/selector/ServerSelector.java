@@ -180,14 +180,26 @@ public class ServerSelector implements DiscoverySelector<QueryableDruidServer>, 
   }
 
   @Override
-  public Set<Integer> getDirectOvershadowedGroup()
+  public int getStartRootPartitionId()
   {
-    return segment.get().getDirectOvershadowedGroup();
+    return segment.get().getStartRootPartitionId();
   }
 
   @Override
-  public Set<Integer> getAtomicUpdateGroup()
+  public int getEndRootPartitionId()
   {
-    return segment.get().getAtomicUpdateGroup();
+    return segment.get().getEndRootPartitionId();
+  }
+
+  @Override
+  public short getMinorVersion()
+  {
+    return segment.get().getMinorVersion();
+  }
+
+  @Override
+  public short getAtomicUpdateGroupSize()
+  {
+    return segment.get().getAtomicUpdateGroupSize();
   }
 }

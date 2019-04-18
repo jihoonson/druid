@@ -566,7 +566,6 @@ public class CachingClusteredClientTest
     final DruidServer lastServer = servers[random.nextInt(servers.length)];
     final DataSegment dataSegment = EasyMock.createNiceMock(DataSegment.class);
     EasyMock.expect(dataSegment.getId()).andReturn(SegmentId.dummy(DATA_SOURCE)).anyTimes();
-    EasyMock.expect(dataSegment.getDirectOvershadowedGroup()).andReturn(Collections.emptySet()).anyTimes();
     EasyMock.replay(dataSegment);
     final ServerSelector selector = new ServerSelector(
         dataSegment,
@@ -1767,8 +1766,6 @@ public class CachingClusteredClientTest
     DataSegment segment = EasyMock.createNiceMock(DataSegment.class);
     EasyMock.expect(segment.getId()).andReturn(SegmentId.dummy(DATA_SOURCE)).anyTimes();
     EasyMock.expect(segment.getShardSpec()).andReturn(new SingleDimensionShardSpec(dimension, start, end, partitionNum))
-            .anyTimes();
-    EasyMock.expect(segment.getDirectOvershadowedGroup()).andReturn(Collections.emptySet())
             .anyTimes();
     EasyMock.replay(segment);
 

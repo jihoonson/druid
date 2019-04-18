@@ -235,8 +235,7 @@ public abstract class SeekableStreamIndexTask<PartitionIdType, SequenceOffsetTyp
                 schema.getGranularitySpec().getSegmentGranularity(),
                 sequenceName,
                 previousSegmentId,
-                skipSegmentLineageCheck,
-                Collections.emptySet()
+                skipSegmentLineageCheck
             )
         ),
         toolbox.getSegmentHandoffNotifierFactory(),

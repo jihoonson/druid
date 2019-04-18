@@ -391,8 +391,7 @@ public class AppenderatorImpl implements Appenderator
           tuningConfig.getMaxRowsInMemory(),
           maxBytesTuningConfig,
           tuningConfig.isReportParseExceptions(),
-          null,
-          identifier.getDirectOvershadowedSegments()
+          null
       );
 
       try {
@@ -1064,8 +1063,7 @@ public class AppenderatorImpl implements Appenderator
             maxBytesTuningConfig,
             tuningConfig.isReportParseExceptions(),
             null,
-            hydrants,
-            identifier.getDirectOvershadowedSegments()
+            hydrants
         );
         rowsSoFar += currSink.getNumRows();
         sinks.put(identifier, currSink);

@@ -26,7 +26,6 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
 
 import java.io.IOException;
@@ -37,6 +36,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class CachingLocalSegmentAllocator extends CachingSegmentAllocator
 {
@@ -48,7 +48,7 @@ public class CachingLocalSegmentAllocator extends CachingSegmentAllocator
       TaskToolbox toolbox,
       String taskId,
       String dataSource,
-      Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec
+      Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec
   ) throws IOException
   {
     // This segment allocator doesn't need inputPartitionIds because the newly created segments don't have to store
@@ -65,33 +65,24 @@ public class CachingLocalSegmentAllocator extends CachingSegmentAllocator
   @Override
   Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds(Map<Interval, Set<Integer>> inputPartitionIds)
   {
-    final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec = getAllocateSpec();
+    final Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec = getAllocateSpec();
     final Map<Interval, List<SegmentIdWithShardSpec>> intervalToSegmentIds = new HashMap<>(allocateSpec.size());
-    for (Entry<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> entry : allocateSpec.entrySet()) {
+    for (Entry<Interval, Pair<ShardSpecFactory, Integer>> entry : allocateSpec.entrySet()) {
       final Interval interval = entry.getKey();
       final ShardSpecFactory shardSpecFactory = entry.getValue().lhs;
-      final List<ShardSpecFactoryArgs> shardSpecFactoryArgsList = entry.getValue().rhs;
+      final int numSegmentsToAllocate = entry.getValue().rhs;
 
-      for (int i = 0; i < shardSpecFactoryArgsList.size(); i++) {
-        final int ordinal = i;
-        //noinspection unchecked
-        intervalToSegmentIds.put(
-            interval,
-            shardSpecFactoryArgsList
-                .stream()
-                .map(args -> new SegmentIdWithShardSpec(
-                    dataSource,
-                    interval,
-                    findVersion(interval),
-                    shardSpecFactory.create(
-                        getToolbox().getObjectMapper(),
-                        ordinal,
-                        shardSpecFactoryArgsList.get(ordinal)
-                    )
-                ))
-                .collect(Collectors.toList())
-        );
-      }
+      intervalToSegmentIds.put(
+          interval,
+          IntStream.range(0, numSegmentsToAllocate)
+                   .mapToObj(i -> new SegmentIdWithShardSpec(
+                       dataSource,
+                       interval,
+                       findVersion(interval),
+                       shardSpecFactory.create(getToolbox().getObjectMapper(), i)
+                   ))
+                   .collect(Collectors.toList())
+      );
     }
     return intervalToSegmentIds;
   }

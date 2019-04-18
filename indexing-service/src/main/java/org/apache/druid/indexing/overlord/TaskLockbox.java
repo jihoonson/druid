@@ -547,7 +547,7 @@ public class TaskLockbox
 
   private List<SegmentIdWithShardSpec> createNewSegmentIds(LockRequestForNewSegment request, String version)
   {
-    final int numNewSegments = request.getShardSpecFactoryArgsList().size();
+    final int numNewSegments = request.getNumSegmentsToAllocate();
     final List<SegmentIdWithShardSpec> newSegmentIds = new ArrayList<>(numNewSegments);
     for (int i = 0; i < numNewSegments; i++) {
       final String sequenceName = request.isSkipSegmentLineageCheck()
@@ -561,9 +561,7 @@ public class TaskLockbox
               request.getPrevisousSegmentId(),
               request.getInterval(),
               request.getShardSpecFactory(),
-              request.getShardSpecFactoryArgsList().get(i),
               version,
-              request.getOvershadowingSegments(),
               request.isSkipSegmentLineageCheck()
           )
       );

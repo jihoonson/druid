@@ -591,15 +591,27 @@ public class SchemalessIndexTest
     }
 
     @Override
-    public Set<Integer> getDirectOvershadowedGroup()
+    public int getStartRootPartitionId()
     {
-      return Collections.emptySet();
+      return 0;
     }
 
     @Override
-    public Set<Integer> getAtomicUpdateGroup()
+    public int getEndRootPartitionId()
     {
-      return Collections.emptySet();
+      return 0;
+    }
+
+    @Override
+    public short getMinorVersion()
+    {
+      return 0;
+    }
+
+    @Override
+    public short getAtomicUpdateGroupSize()
+    {
+      return 0;
     }
   }
 }

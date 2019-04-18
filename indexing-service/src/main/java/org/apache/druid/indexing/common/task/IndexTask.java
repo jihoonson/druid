@@ -86,11 +86,9 @@ import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
-import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecFactoryArgs;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.apache.druid.utils.CircularBuffer;
 import org.codehaus.plexus.util.FileUtils;
 import org.joda.time.Interval;
@@ -120,8 +118,6 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class IndexTask extends AbstractTask implements ChatHandler
 {
@@ -454,7 +450,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
       @Nullable final Long maxTotalRows = getValidMaxTotalRows(tuningConfig);
       // Spec for segment allocation. This is used only for perfect rollup mode.
       // See createSegmentAllocator().
-      final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec = determineShardSpecs(
+      final Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec = determineShardSpecs(
           toolbox,
           firehoseFactory,
           firehoseTempDir,
@@ -586,7 +582,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
    *
    * @return generated {@link ShardSpecs} representing a map of intervals and corresponding shard specs
    */
-  private Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> determineShardSpecs(
+  private Map<Interval, Pair<ShardSpecFactory, Integer>> determineShardSpecs(
       final TaskToolbox toolbox,
       final FirehoseFactory firehoseFactory,
       final File firehoseTempDir,
@@ -630,13 +626,13 @@ public class IndexTask extends AbstractTask implements ChatHandler
     }
   }
 
-  private static Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> createShardSpecWithoutInputScan(
+  private static Map<Interval, Pair<ShardSpecFactory, Integer>> createShardSpecWithoutInputScan(
       GranularitySpec granularitySpec,
       IndexIOConfig ioConfig,
       IndexTuningConfig tuningConfig
   )
   {
-    final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec = new HashMap<>();
+    final Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec = new HashMap<>();
     final SortedSet<Interval> intervals = granularitySpec.bucketIntervals().get();
 
     if (isGuaranteedRollup(ioConfig, tuningConfig)) {
@@ -654,7 +650,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
     return allocateSpec;
   }
 
-  private Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> createShardSpecsFromInput(
+  private Map<Interval, Pair<ShardSpecFactory, Integer>> createShardSpecsFromInput(
       ObjectMapper jsonMapper,
       IndexIngestionSpec ingestionSchema,
       FirehoseFactory firehoseFactory,
@@ -679,7 +675,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
         determineNumPartitions
     );
 
-    final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpecs = new HashMap<>();
+    final Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpecs = new HashMap<>();
     final int defaultNumShards = tuningConfig.getNumShards() == null ? 1 : tuningConfig.getNumShards();
     for (final Map.Entry<Interval, Optional<HyperLogLogCollector>> entry : hllCollectors.entrySet()) {
       final Interval interval = entry.getKey();
@@ -709,17 +705,12 @@ public class IndexTask extends AbstractTask implements ChatHandler
     return allocateSpecs;
   }
 
-  private static Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>> createShardSpecFactory(
+  private static Pair<ShardSpecFactory, Integer> createShardSpecFactory(
       int numShards,
       @Nullable List<String> partitionDimensions
   )
   {
-    return Pair.of(
-        new HashBasedNumberedShardSpecFactory(partitionDimensions, numShards),
-        IntStream.range(0, numShards)
-                 .mapToObj(HashBasedNumberedShardSpecFactoryArgs::new)
-                 .collect(Collectors.toList())
-    );
+    return Pair.of(new HashBasedNumberedShardSpecFactory(partitionDimensions, numShards), numShards);
   }
 
   private Map<Interval, Optional<HyperLogLogCollector>> collectIntervalsAndShardSpecs(
@@ -823,7 +814,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
   private IndexTaskSegmentAllocator createSegmentAllocator(
       TaskToolbox toolbox,
       DataSchema dataSchema,
-      Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec
+      Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec
   ) throws IOException
   {
     if (ingestionSchema.ioConfig.isAppendToExisting() || !isChangeSegmentGranularity()) {
@@ -884,7 +875,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
   private TaskStatus generateAndPublishSegments(
       final TaskToolbox toolbox,
       final DataSchema dataSchema,
-      final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec,
+      final Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec,
       final FirehoseFactory firehoseFactory,
       final File firehoseTempDir,
       @Nullable final Integer maxRowsPerSegment,

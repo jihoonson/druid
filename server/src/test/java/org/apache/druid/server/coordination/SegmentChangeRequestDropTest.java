@@ -21,7 +21,6 @@ package org.apache.druid.server.coordination;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.jackson.JacksonUtils;
@@ -33,8 +32,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -58,9 +55,7 @@ public class SegmentChangeRequestDropTest
         Arrays.asList("met1", "met2"),
         NoneShardSpec.instance(),
         IndexIO.CURRENT_VERSION_ID,
-        1,
-        ImmutableSet.of(0, 1),
-        ImmutableSet.of(2, 3, 4)
+        1
     );
 
     final SegmentChangeRequestDrop segmentDrop = new SegmentChangeRequestDrop(segment);
@@ -81,7 +76,5 @@ public class SegmentChangeRequestDropTest
     Assert.assertEquals(ImmutableMap.of("type", "none"), objectMap.get("shardSpec"));
     Assert.assertEquals(IndexIO.CURRENT_VERSION_ID, objectMap.get("binaryVersion"));
     Assert.assertEquals(1, objectMap.get("size"));
-    Assert.assertEquals(ImmutableSet.of(0, 1), new HashSet<>((List<Integer>) objectMap.get("overshadowedSegments")));
-    Assert.assertEquals(ImmutableSet.of(2, 3, 4), new HashSet<>((List<Integer>) objectMap.get("atomicUpdateGroup")));
   }
 }

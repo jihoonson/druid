@@ -18,6 +18,7 @@
  */
 package org.apache.druid.timeline.partition;
 
+// TODO: rename
 public interface OverwritingPartitionChunk<T> extends PartitionChunk<T>
 {
 }

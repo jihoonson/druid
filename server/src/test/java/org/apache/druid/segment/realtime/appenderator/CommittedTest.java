@@ -38,24 +38,21 @@ public class CommittedTest
       "foo",
       Intervals.of("2000/2001"),
       "2000",
-      new LinearShardSpec(1),
-      null
+      new LinearShardSpec(1)
   );
 
   private static final SegmentIdWithShardSpec IDENTIFIER_OBJECT2 = new SegmentIdWithShardSpec(
       "foo",
       Intervals.of("2001/2002"),
       "2001",
-      new LinearShardSpec(1),
-      null
+      new LinearShardSpec(1)
   );
 
   private static final SegmentIdWithShardSpec IDENTIFIER_OBJECT3 = new SegmentIdWithShardSpec(
       "foo",
       Intervals.of("2001/2002"),
       "2001",
-      new LinearShardSpec(2),
-      null
+      new LinearShardSpec(2)
   );
 
   private static final String IDENTIFIER1 = IDENTIFIER_OBJECT1.toString();

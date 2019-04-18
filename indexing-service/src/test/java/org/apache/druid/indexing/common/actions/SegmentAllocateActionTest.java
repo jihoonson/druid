@@ -48,7 +48,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -700,8 +699,7 @@ public class SegmentAllocateActionTest
         Granularities.HOUR,
         "s1",
         "prev",
-        false,
-        Collections.emptySet()
+        false
     );
 
     final SegmentAllocateAction action2 = (SegmentAllocateAction) objectMapper.readValue(
@@ -716,7 +714,6 @@ public class SegmentAllocateActionTest
     Assert.assertEquals(action.getSequenceName(), action2.getSequenceName());
     Assert.assertEquals(action.getPreviousSegmentId(), action2.getPreviousSegmentId());
     Assert.assertEquals(action.isSkipSegmentLineageCheck(), action2.isSkipSegmentLineageCheck());
-    Assert.assertEquals(action.getOvershadowingSegments(), action2.getOvershadowingSegments());
   }
 
   @Test
@@ -751,8 +748,7 @@ public class SegmentAllocateActionTest
         Granularities.HOUR,
         "seq",
         null,
-        true,
-        ImmutableSet.of(0, 1)
+        true
     );
     final SegmentIdWithShardSpec segmentIdentifier = action.perform(task, taskActionTestKit.getTaskActionToolbox());
     Assert.assertNotNull(segmentIdentifier);
@@ -762,11 +758,11 @@ public class SegmentAllocateActionTest
 
     Assert.assertTrue(shardSpec instanceof HashBasedNumberedShardSpec);
     final HashBasedNumberedShardSpec hashBasedNumberedShardSpec = (HashBasedNumberedShardSpec) shardSpec;
-    Assert.assertEquals(0, hashBasedNumberedShardSpec.getOrdinal());
     Assert.assertEquals(3, hashBasedNumberedShardSpec.getPartitions());
     Assert.assertEquals(ImmutableList.of("dim1", "dim2"), hashBasedNumberedShardSpec.getPartitionDimensions());
 
-    Assert.assertEquals(ImmutableSet.of(0, 1), segmentIdentifier.getDirectOvershadowedSegments());
+//    Assert.assertEquals(ImmutableSet.of(0, 1), segmentIdentifier.getDirectOvershadowedSegments());
+    // TODO: check shardSpec
   }
 
   private SegmentIdWithShardSpec allocate(
@@ -785,8 +781,7 @@ public class SegmentAllocateActionTest
         preferredSegmentGranularity,
         sequenceName,
         sequencePreviousId,
-        false,
-        Collections.emptySet()
+        false
     );
     return action.perform(task, taskActionTestKit.getTaskActionToolbox());
   }

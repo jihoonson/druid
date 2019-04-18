@@ -41,7 +41,6 @@ import org.apache.druid.timeline.Overshadowable;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -73,8 +72,6 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
   private volatile boolean writable = true;
   private final String dedupColumn;
   private final Set<Long> dedupSet = new HashSet<>();
-  @Nullable
-  private final Set<Integer> overshadowedSegments;
 
   public Sink(
       Interval interval,
@@ -84,8 +81,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
       int maxRowsInMemory,
       long maxBytesInMemory,
       boolean reportParseExceptions,
-      String dedupColumn,
-      @Nullable Set<Integer> overshadowedSegments
+      String dedupColumn
   )
   {
     this.schema = schema;
@@ -96,7 +92,6 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
     this.maxBytesInMemory = maxBytesInMemory;
     this.reportParseExceptions = reportParseExceptions;
     this.dedupColumn = dedupColumn;
-    this.overshadowedSegments = overshadowedSegments;
 
     makeNewCurrIndex(interval.getStartMillis(), schema);
   }
@@ -110,8 +105,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
       long maxBytesInMemory,
       boolean reportParseExceptions,
       String dedupColumn,
-      List<FireHydrant> hydrants,
-      @Nullable Set<Integer> overshadowedSegments
+      List<FireHydrant> hydrants
   )
   {
     this.schema = schema;
@@ -122,7 +116,6 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
     this.maxBytesInMemory = maxBytesInMemory;
     this.reportParseExceptions = reportParseExceptions;
     this.dedupColumn = dedupColumn;
-    this.overshadowedSegments = overshadowedSegments;
 
     int maxCount = -1;
     for (int i = 0; i < hydrants.size(); ++i) {
@@ -256,9 +249,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
         Lists.transform(Arrays.asList(schema.getAggregators()), AggregatorFactory::getName),
         shardSpec,
         null,
-        0,
-        overshadowedSegments,
-        null
+        0
     );
   }
 
@@ -421,21 +412,32 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
   @Override
   public boolean isOvershadow(Sink other)
   {
-    // TODO: valid?
+    // Sink is currently used in timeline only for querying stream data.
+    // In this case, sinks never overshadow each other.
     return false;
   }
 
   @Override
-  public Set<Integer> getDirectOvershadowedGroup()
+  public int getStartRootPartitionId()
   {
-    // TODO: valid?
-    return Collections.emptySet();
+    return shardSpec.getStartRootPartitionId();
   }
 
   @Override
-  public Set<Integer> getAtomicUpdateGroup()
+  public int getEndRootPartitionId()
   {
-    // TODO: valid?
-    return Collections.singleton(shardSpec.getPartitionNum());
+    return shardSpec.getEndRootPartitionId();
+  }
+
+  @Override
+  public short getMinorVersion()
+  {
+    return shardSpec.getMinorVersion();
+  }
+
+  @Override
+  public short getAtomicUpdateGroupSize()
+  {
+    return shardSpec.getAtomicUpdateGroupSize();
   }
 }

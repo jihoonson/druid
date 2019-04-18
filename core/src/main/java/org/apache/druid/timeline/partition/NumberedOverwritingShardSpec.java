@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class NumberedOverwritingShardSpec implements ShardSpec
+public class NumberedOverwritingShardSpec implements OverwritingShardSpec
 {
   private final int partitionId;
 
@@ -72,13 +72,46 @@ public class NumberedOverwritingShardSpec implements ShardSpec
         ROOT_GEN_END_PARTITION_ID
     );
     Preconditions.checkArgument(minorVersion > 0, "minorVersion[%s] > 0", minorVersion);
-    Preconditions.checkArgument(atomicUpdateGroupSize > 0, "atomicUpdateGroupSize[%s] > 0", atomicUpdateGroupSize);
+    Preconditions.checkArgument(
+        atomicUpdateGroupSize > 0 || atomicUpdateGroupSize == ShardSpec.UNKNOWN_ATOMIC_UPDATE_GROUP_SIZE,
+        "atomicUpdateGroupSize[%s] > 0 or == %s",
+        atomicUpdateGroupSize,
+        ShardSpec.UNKNOWN_ATOMIC_UPDATE_GROUP_SIZE
+    );
 
     this.partitionId = partitionId;
     this.startRootPartitionId = (short) startRootPartitionId;
     this.endRootPartitionId = (short) endRootPartitionId;
     this.minorVersion = minorVersion;
     this.atomicUpdateGroupSize = atomicUpdateGroupSize;
+  }
+
+  public NumberedOverwritingShardSpec(
+      int partitionId,
+      int startRootPartitionId,
+      int endRootPartitionId,
+      short minorVersion
+  )
+  {
+    this(
+        partitionId,
+        startRootPartitionId,
+        endRootPartitionId,
+        minorVersion,
+        ShardSpec.UNKNOWN_ATOMIC_UPDATE_GROUP_SIZE
+    );
+  }
+
+  @Override
+  public OverwritingShardSpec withAtomicUpdateGroupSize(short atomicUpdateGroupSize)
+  {
+    return new NumberedOverwritingShardSpec(
+        this.partitionId,
+        this.startRootPartitionId,
+        this.endRootPartitionId,
+        this.minorVersion,
+        atomicUpdateGroupSize
+    );
   }
 
   @Override

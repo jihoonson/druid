@@ -24,7 +24,6 @@ import org.apache.druid.indexing.common.actions.SegmentBulkAllocateAction;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
 
 import java.io.IOException;
@@ -37,7 +36,7 @@ public class CachingRemoteSegmentAllocator extends CachingSegmentAllocator
   public CachingRemoteSegmentAllocator(
       TaskToolbox toolbox,
       String taskId,
-      Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec,
+      Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec,
       Map<Interval, Set<Integer>> inputPartitionIds
   ) throws IOException
   {
@@ -51,8 +50,8 @@ public class CachingRemoteSegmentAllocator extends CachingSegmentAllocator
     return getToolbox().getTaskActionClient().submit(
         new SegmentBulkAllocateAction(
             getAllocateSpec(),
-            getTaskId(),
-            inputPartitionIds
+            getTaskId()
+            //inputPartitionIds TODO: set root partitionRange in the shardSpecFactory
         )
     );
   }

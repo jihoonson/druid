@@ -20,9 +20,8 @@
 package org.apache.druid.timeline.partition;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.timeline.partition.ShardSpecFactoryArgs.EmptyShardSpecFactoryArgs;
 
-public class LinearShardSpecFactory implements ShardSpecFactory<EmptyShardSpecFactoryArgs>
+public class LinearShardSpecFactory implements ShardSpecFactory
 {
   private static final LinearShardSpecFactory INSTANCE = new LinearShardSpecFactory();
 
@@ -36,7 +35,7 @@ public class LinearShardSpecFactory implements ShardSpecFactory<EmptyShardSpecFa
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId, EmptyShardSpecFactoryArgs args)
+  public ShardSpec create(ObjectMapper objectMapper, int partitionId)
   {
     return new LinearShardSpec(partitionId);
   }

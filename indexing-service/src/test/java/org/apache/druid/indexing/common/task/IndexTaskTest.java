@@ -202,16 +202,12 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
     Assert.assertEquals(2, ((NumberedShardSpec) segments.get(0).getShardSpec()).getPartitions());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getDirectOvershadowedGroup());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(1).getDataSource());
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
     Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
     Assert.assertEquals(1, segments.get(1).getShardSpec().getPartitionNum());
     Assert.assertEquals(2, ((NumberedShardSpec) segments.get(1).getShardSpec()).getPartitions());
-    Assert.assertEquals(Collections.emptySet(), segments.get(1).getDirectOvershadowedGroup());
-    Assert.assertEquals(Collections.emptySet(), segments.get(1).getAtomicUpdateGroup());
   }
 
   @Test
@@ -260,8 +256,6 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getDirectOvershadowedGroup());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getAtomicUpdateGroup());
   }
 
   @Test
@@ -377,8 +371,6 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
     Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getDirectOvershadowedGroup());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getAtomicUpdateGroup());
   }
 
   @Test
@@ -496,15 +488,11 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getDirectOvershadowedGroup());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(1).getDataSource());
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
     Assert.assertEquals(1, segments.get(1).getShardSpec().getPartitionNum());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getDirectOvershadowedGroup());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getAtomicUpdateGroup());
   }
 
   @Test
@@ -548,22 +536,16 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014-01-01T00/PT1H"), segments.get(0).getInterval());
     Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getDirectOvershadowedGroup());
-    Assert.assertEquals(Collections.emptySet(), segments.get(0).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(1).getDataSource());
     Assert.assertEquals(Intervals.of("2014-01-01T01/PT1H"), segments.get(1).getInterval());
     Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(1).getShardSpec().getPartitionNum());
-    Assert.assertEquals(Collections.emptySet(), segments.get(1).getDirectOvershadowedGroup());
-    Assert.assertEquals(Collections.emptySet(), segments.get(1).getAtomicUpdateGroup());
 
     Assert.assertEquals("test", segments.get(2).getDataSource());
     Assert.assertEquals(Intervals.of("2014-01-01T02/PT1H"), segments.get(2).getInterval());
     Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(2).getShardSpec().getClass());
     Assert.assertEquals(0, segments.get(2).getShardSpec().getPartitionNum());
-    Assert.assertEquals(Collections.emptySet(), segments.get(2).getDirectOvershadowedGroup());
-    Assert.assertEquals(Collections.emptySet(), segments.get(2).getAtomicUpdateGroup());
   }
 
   @Test
@@ -724,8 +706,6 @@ public class IndexTaskTest extends IngestionTestBase
       Assert.assertEquals(expectedInterval, segment.getInterval());
       Assert.assertEquals(NumberedShardSpec.class, segment.getShardSpec().getClass());
       Assert.assertEquals(expectedPartitionNum, segment.getShardSpec().getPartitionNum());
-      Assert.assertEquals(Collections.emptySet(), segment.getDirectOvershadowedGroup());
-      Assert.assertEquals(Collections.emptySet(), segment.getAtomicUpdateGroup());
     }
   }
 
@@ -771,8 +751,6 @@ public class IndexTaskTest extends IngestionTestBase
       Assert.assertEquals(expectedInterval, segment.getInterval());
       Assert.assertTrue(segment.getShardSpec().getClass().equals(HashBasedNumberedShardSpec.class));
       Assert.assertEquals(i, segment.getShardSpec().getPartitionNum());
-      Assert.assertEquals(Collections.emptySet(), segment.getDirectOvershadowedGroup());
-      Assert.assertEquals(Collections.emptySet(), segment.getAtomicUpdateGroup());
     }
   }
 
@@ -818,8 +796,6 @@ public class IndexTaskTest extends IngestionTestBase
       Assert.assertEquals(expectedInterval, segment.getInterval());
       Assert.assertEquals(NumberedShardSpec.class, segment.getShardSpec().getClass());
       Assert.assertEquals(i, segment.getShardSpec().getPartitionNum());
-      Assert.assertEquals(Collections.emptySet(), segment.getDirectOvershadowedGroup());
-      Assert.assertEquals(Collections.emptySet(), segment.getAtomicUpdateGroup());
     }
   }
 

@@ -27,10 +27,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @JsonSubTypes({
     @JsonSubTypes.Type(name = "none", value = NoneShardSpecFactory.class),
 })
-public interface ShardSpecFactory<T extends ShardSpecFactoryArgs>
+public interface ShardSpecFactory
 {
   // TODO: move numPartitions to context??
-  ShardSpec create(ObjectMapper objectMapper, int partitionId, T args);
+  ShardSpec create(ObjectMapper objectMapper, int partitionId);
 
   Class<? extends ShardSpec> getShardSpecClass();
 

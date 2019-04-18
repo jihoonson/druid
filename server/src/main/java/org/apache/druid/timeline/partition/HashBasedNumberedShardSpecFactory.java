@@ -22,13 +22,12 @@ package org.apache.druid.timeline.partition;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory.HashBasedNumberedShardSpecFactoryArgs;
 
 import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 
-public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashBasedNumberedShardSpecFactoryArgs>
+public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
 {
   @Nullable
   private final List<String> partitionDimensions;
@@ -58,13 +57,12 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashB
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId, HashBasedNumberedShardSpecFactoryArgs args)
+  public ShardSpec create(ObjectMapper objectMapper, int partitionId)
   {
     return new HashBasedNumberedShardSpec(
         partitionId,
         numPartitions,
         partitionDimensions,
-        args.ordinal,
         objectMapper
     );
   }
@@ -93,22 +91,5 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory<HashB
   public int hashCode()
   {
     return Objects.hash(partitionDimensions, numPartitions);
-  }
-
-  public static class HashBasedNumberedShardSpecFactoryArgs implements ShardSpecFactoryArgs
-  {
-    private final int ordinal;
-
-    @JsonCreator
-    public HashBasedNumberedShardSpecFactoryArgs(@JsonProperty("ordinal") int ordinal)
-    {
-      this.ordinal = ordinal;
-    }
-
-    @JsonProperty
-    public int getOrdinal()
-    {
-      return ordinal;
-    }
   }
 }

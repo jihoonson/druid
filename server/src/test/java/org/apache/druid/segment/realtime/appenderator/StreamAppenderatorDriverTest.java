@@ -436,8 +436,7 @@ public class StreamAppenderatorDriverTest extends EasyMockSupport
             dataSource,
             granularity.bucket(dateTimeTruncated),
             VERSION,
-            new NumberedShardSpec(partitionNum, 0),
-            null
+            new NumberedShardSpec(partitionNum, 0)
         );
       }
     }

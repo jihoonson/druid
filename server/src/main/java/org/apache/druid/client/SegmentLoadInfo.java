@@ -103,14 +103,26 @@ public class SegmentLoadInfo implements Overshadowable<SegmentLoadInfo>
   }
 
   @Override
-  public Set<Integer> getDirectOvershadowedGroup()
+  public int getStartRootPartitionId()
   {
-    return segment.getDirectOvershadowedGroup();
+    return segment.getStartRootPartitionId();
   }
 
   @Override
-  public Set<Integer> getAtomicUpdateGroup()
+  public int getEndRootPartitionId()
   {
-    return segment.getAtomicUpdateGroup();
+    return segment.getEndRootPartitionId();
+  }
+
+  @Override
+  public short getMinorVersion()
+  {
+    return segment.getMinorVersion();
+  }
+
+  @Override
+  public short getAtomicUpdateGroupSize()
+  {
+    return segment.getAtomicUpdateGroupSize();
   }
 }

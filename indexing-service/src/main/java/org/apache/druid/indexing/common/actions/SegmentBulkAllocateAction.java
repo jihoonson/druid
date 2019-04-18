@@ -31,36 +31,31 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 
 public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<SegmentIdWithShardSpec>>>
 {
   // interval -> # of segments to allocate
-  private final Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec;
+  private final Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec;
   private final String baseSequenceName;
-  private final Map<Interval, Set<Integer>> overshadowingSegments;
 
   @JsonCreator
   public SegmentBulkAllocateAction(
-      @JsonProperty("allocateSpec") Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> allocateSpec,
-      @JsonProperty("baseSequenceName") String baseSequenceName,
-      @JsonProperty("direcOvershadowingSegments") Map<Interval, Set<Integer>> overshadowingSegments
+      @JsonProperty("allocateSpec") Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec,
+      @JsonProperty("baseSequenceName") String baseSequenceName
   )
   {
     this.allocateSpec = allocateSpec;
     this.baseSequenceName = baseSequenceName;
-    this.overshadowingSegments = overshadowingSegments;
   }
 
   @JsonProperty
-  public Map<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> getAllocateSpec()
+  public Map<Interval, Pair<ShardSpecFactory, Integer>> getAllocateSpec()
   {
     return allocateSpec;
   }
@@ -69,12 +64,6 @@ public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<
   public String getBaseSequenceName()
   {
     return baseSequenceName;
-  }
-
-  @JsonProperty
-  public Map<Interval, Set<Integer>> getOvershadowingSegments()
-  {
-    return overshadowingSegments;
   }
 
   @Override
@@ -90,24 +79,21 @@ public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<
   {
     final Map<Interval, List<SegmentIdWithShardSpec>> segmentIds = new HashMap<>(allocateSpec.size());
 
-    for (Entry<Interval, Pair<ShardSpecFactory, List<ShardSpecFactoryArgs>>> entry : allocateSpec.entrySet()) {
+    for (Entry<Interval, Pair<ShardSpecFactory, Integer>> entry : allocateSpec.entrySet()) {
       final Interval interval = entry.getKey();
       final ShardSpecFactory shardSpecFactory = entry.getValue().lhs;
-      final List<ShardSpecFactoryArgs> shardSpecFactoryArgsList = entry.getValue().rhs;
-      final int numSegmentsToAllocate = shardSpecFactoryArgsList.size();
-      //noinspection unchecked
+      final int numSegmentsToAllocate = entry.getValue().rhs;
       final LockRequest lockRequest = new LockRequestForNewSegment(
           TaskLockType.EXCLUSIVE,
           task.getGroupId(),
           task.getDataSource(),
           interval,
           shardSpecFactory,
-          shardSpecFactoryArgsList,
+          numSegmentsToAllocate,
           task.getPriority(),
           baseSequenceName,
           null,
-          true,
-          overshadowingSegments.get(interval)
+          true
       );
 
       final LockResult lockResult = toolbox.getTaskLockbox().tryLock(task, lockRequest);
@@ -153,7 +139,6 @@ public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<
     return "SegmentBulkAllocateAction{" +
            "allocateSpec=" + allocateSpec +
            ", baseSequenceName='" + baseSequenceName + '\'' +
-           ", direcOvershadowingSegments=" + overshadowingSegments +
            '}';
   }
 }

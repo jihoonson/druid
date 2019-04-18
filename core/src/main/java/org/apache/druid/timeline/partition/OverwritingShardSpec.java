@@ -16,28 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.druid.timeline.partition;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import org.apache.druid.timeline.partition.ShardSpecFactoryArgs.EmptyShardSpecFactoryArgs;
-
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
-@JsonSubTypes({
-    @JsonSubTypes.Type(name = "empty", value = EmptyShardSpecFactoryArgs.class),
-})
-public interface ShardSpecFactoryArgs
+// TODO: rename
+public interface OverwritingShardSpec extends ShardSpec
 {
-  class EmptyShardSpecFactoryArgs implements ShardSpecFactoryArgs
-  {
-    private static final EmptyShardSpecFactoryArgs INSTANCE = new EmptyShardSpecFactoryArgs();
-
-    public static EmptyShardSpecFactoryArgs instance()
-    {
-      return INSTANCE;
-    }
-
-    private EmptyShardSpecFactoryArgs() {}
-  }
+  OverwritingShardSpec withAtomicUpdateGroupSize(short atomicUpdateGroupSize);
 }

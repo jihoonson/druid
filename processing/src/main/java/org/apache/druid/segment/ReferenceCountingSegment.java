@@ -41,6 +41,10 @@ public class ReferenceCountingSegment extends AbstractSegment implements Oversha
   private static final EmittingLogger log = new EmittingLogger(ReferenceCountingSegment.class);
 
   private final Segment baseSegment;
+  private final short startRootPartitionId;
+  private final short endRootPartitionId;
+  private final short minorVersion;
+  private final short atomicUpdateGroupSize;
   private final AtomicBoolean closed = new AtomicBoolean(false);
   private final Phaser referents = new Phaser(1)
   {
@@ -67,23 +71,30 @@ public class ReferenceCountingSegment extends AbstractSegment implements Oversha
     }
   };
 
-  private final Set<Integer> overshadowedGroup;
-  private final Set<Integer> atomicUpdateGroup;
-
   public ReferenceCountingSegment(Segment baseSegment)
   {
-    this(baseSegment, Collections.emptySet(), Collections.emptySet());
+    this(
+        baseSegment,
+        baseSegment.getId().getPartitionNum(),
+        (baseSegment.getId().getPartitionNum() + 1),
+        (short) 0,
+        (short) 1
+    );
   }
 
   public ReferenceCountingSegment(
       Segment baseSegment,
-      Set<Integer> overshadowedGroup,
-      Set<Integer> atomicUpdateGroup
+      int startRootPartitionId,
+      int endRootPartitionId,
+      short minorVersion,
+      short atomicUpdateGroupSize
   )
   {
     this.baseSegment = baseSegment;
-    this.overshadowedGroup = overshadowedGroup;
-    this.atomicUpdateGroup = atomicUpdateGroup;
+    this.startRootPartitionId = (short) startRootPartitionId;
+    this.endRootPartitionId = (short) endRootPartitionId;
+    this.minorVersion = minorVersion;
+    this.atomicUpdateGroupSize = atomicUpdateGroupSize;
   }
 
   public Segment getBaseSegment()
@@ -175,14 +186,26 @@ public class ReferenceCountingSegment extends AbstractSegment implements Oversha
   }
 
   @Override
-  public Set<Integer> getDirectOvershadowedGroup()
+  public int getStartRootPartitionId()
   {
-    return overshadowedGroup;
+    return startRootPartitionId;
   }
 
   @Override
-  public Set<Integer> getAtomicUpdateGroup()
+  public int getEndRootPartitionId()
   {
-    return atomicUpdateGroup;
+    return endRootPartitionId;
+  }
+
+  @Override
+  public short getMinorVersion()
+  {
+    return minorVersion;
+  }
+
+  @Override
+  public short getAtomicUpdateGroupSize()
+  {
+    return atomicUpdateGroupSize;
   }
 }

@@ -312,6 +312,11 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     return builder(this).metrics(metrics).build();
   }
 
+  public DataSegment withShardSpec(ShardSpec newSpec)
+  {
+    return builder(this).shardSpec(newSpec).build();
+  }
+
   public DataSegment withSize(long size)
   {
     return builder(this).size(size).build();

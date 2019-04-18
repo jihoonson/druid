@@ -23,13 +23,9 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.timeline.DataSegment;
-import org.apache.druid.timeline.IntRange;
-import org.apache.druid.timeline.Overshadowable;
 import org.apache.druid.timeline.SegmentId;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
-
-import javax.annotation.Nullable;
 
 /**
  * {@link SegmentId} with additional {@link ShardSpec} info. {@link #equals}/{@link #hashCode} and {@link
@@ -44,35 +40,17 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
   private final SegmentId id;
   private final ShardSpec shardSpec;
   private final String asString;
-  private final IntRange directOvershadowedSegments;
-  private final IntRange[] indirectOvershadowedSegments;
-
-  public SegmentIdWithShardSpec(
-      String dataSource,
-      Interval interval,
-      String version,
-      ShardSpec shardSpec
-  )
-  {
-    this(dataSource, interval, version, shardSpec, null, null);
-  }
 
   @JsonCreator
   public SegmentIdWithShardSpec(
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("interval") Interval interval,
       @JsonProperty("version") String version,
-      @JsonProperty("shardSpec") ShardSpec shardSpec,
-      @JsonProperty("directOvershadowedSegments") @Nullable IntRange directOvershadowedSegments,
-      @JsonProperty("indirectOvershadowedSegments") @Nullable IntRange[] indirectOvershadowedSegments
+      @JsonProperty("shardSpec") ShardSpec shardSpec
   )
   {
     this.id = SegmentId.of(dataSource, interval, version, shardSpec.getPartitionNum());
     this.shardSpec = Preconditions.checkNotNull(shardSpec, "shardSpec");
-    this.directOvershadowedSegments = directOvershadowedSegments == null ? IntRange.empty() : directOvershadowedSegments;
-    this.indirectOvershadowedSegments = indirectOvershadowedSegments == null
-                                        ? Overshadowable.EMPTY_INT_RANGE_ARRAY
-                                        : indirectOvershadowedSegments;
     this.asString = id.toString();
   }
 
@@ -87,21 +65,7 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
         id.getDataSource(),
         id.getInterval(),
         id.getVersion(),
-        shardSpec,
-        directOvershadowedSegments,
-        indirectOvershadowedSegments
-    );
-  }
-
-  public SegmentIdWithShardSpec withtOvershadowedSegments(IntRange directOvershadowingSegments, IntRange[] indirectOvershadowedSegments)
-  {
-    return new SegmentIdWithShardSpec(
-        id.getDataSource(),
-        id.getInterval(),
-        id.getVersion(),
-        shardSpec,
-        directOvershadowingSegments,
-        indirectOvershadowedSegments
+        shardSpec
     );
   }
 
@@ -127,18 +91,6 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
   public ShardSpec getShardSpec()
   {
     return shardSpec;
-  }
-
-  @JsonProperty
-  public IntRange getDirectOvershadowedSegments()
-  {
-    return directOvershadowedSegments;
-  }
-
-  @JsonProperty
-  public IntRange[] getIndirectOvershadowedSegments()
-  {
-    return indirectOvershadowedSegments;
   }
 
   public String getIdentifierAsString()
@@ -183,9 +135,7 @@ public final class SegmentIdWithShardSpec implements Comparable<SegmentIdWithSha
         segment.getDataSource(),
         segment.getInterval(),
         segment.getVersion(),
-        segment.getShardSpec(),
-        segment.getDirectOvershadowedGroup(),
-        segment.getIndirectOvershadowedGroup()
+        segment.getShardSpec()
     );
   }
 }

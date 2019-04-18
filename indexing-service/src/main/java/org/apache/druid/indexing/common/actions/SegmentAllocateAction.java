@@ -37,12 +37,10 @@ import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactoryArgs.EmptyShardSpecFactoryArgs;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
-import javax.annotation.Nullable;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
@@ -74,7 +72,6 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
   private final String sequenceName;
   private final String previousSegmentId;
   private final boolean skipSegmentLineageCheck;
-  private final Set<Integer> overshadowingSegments;
 
   @JsonCreator
   public SegmentAllocateAction(
@@ -84,8 +81,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
       @JsonProperty("preferredSegmentGranularity") Granularity preferredSegmentGranularity,
       @JsonProperty("sequenceName") String sequenceName,
       @JsonProperty("previousSegmentId") String previousSegmentId,
-      @JsonProperty("skipSegmentLineageCheck") boolean skipSegmentLineageCheck,
-      @JsonProperty("direcOvershadowingSegments") @Nullable Set<Integer> overshadowingSegments // for backward compatibility
+      @JsonProperty("skipSegmentLineageCheck") boolean skipSegmentLineageCheck
   )
   {
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
@@ -98,7 +94,6 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
     this.sequenceName = Preconditions.checkNotNull(sequenceName, "sequenceName");
     this.previousSegmentId = previousSegmentId;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
-    this.overshadowingSegments = overshadowingSegments == null ? Collections.emptySet() : overshadowingSegments;
   }
 
   @JsonProperty
@@ -143,12 +138,6 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
     return skipSegmentLineageCheck;
   }
 
-  @JsonProperty
-  public Set<Integer> getOvershadowingSegments()
-  {
-    return overshadowingSegments;
-  }
-
   @Override
   public TypeReference<SegmentIdWithShardSpec> getReturnTypeReference()
   {
@@ -178,20 +167,18 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
 
       final Interval rowInterval = queryGranularity.bucket(timestamp);
 
-      final Set<DataSegment> usedSegmentsForRow = msc
-          .getUsedSegmentsForInterval(dataSource, rowInterval)
-          .stream()
-          .filter(segment -> !overshadowingSegments.contains(segment.getShardSpec().getPartitionNum()))
-          .collect(Collectors.toSet());
+      final Set<DataSegment> usedSegmentsForRow = new HashSet<>(
+          msc.getUsedSegmentsForInterval(dataSource, rowInterval)
+      );
 
       final SegmentIdWithShardSpec identifier = usedSegmentsForRow.isEmpty() ?
                                                 tryAllocateFirstSegment(toolbox, task, rowInterval) :
                                                 tryAllocateSubsequentSegment(
-                                               toolbox,
-                                               task,
-                                               rowInterval,
-                                               usedSegmentsForRow.iterator().next()
-                                           );
+                                                    toolbox,
+                                                    task,
+                                                    rowInterval,
+                                                    usedSegmentsForRow.iterator().next()
+                                                );
       if (identifier != null) {
         return identifier;
       }
@@ -285,12 +272,11 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
             dataSource,
             tryInterval,
             new NumberedShardSpecFactory(0),
-            Collections.singletonList(EmptyShardSpecFactoryArgs.instance()),
+            1,
             task.getPriority(),
             sequenceName,
             previousSegmentId,
-            skipSegmentLineageCheck,
-            overshadowingSegments
+            skipSegmentLineageCheck
         )
     );
 
@@ -352,7 +338,6 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
            ", sequenceName='" + sequenceName + '\'' +
            ", previousSegmentId='" + previousSegmentId + '\'' +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
-           ", direcOvershadowingSegments=" + overshadowingSegments +
            '}';
   }
 }

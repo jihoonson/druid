@@ -29,12 +29,10 @@ import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class LockRequestForNewSegment implements LockRequest
@@ -44,17 +42,12 @@ public class LockRequestForNewSegment implements LockRequest
   private final String dataSource;
   private final Interval interval;
   private final ShardSpecFactory shardSpecFactory;
-  private final List<ShardSpecFactoryArgs> shardSpecFactoryArgsList;
+  private final int numSegmentsToAllocate;
   private final int priority;
   private final String baseSequenceName;
   @Nullable
   private final String previsousSegmentId;
   private final boolean skipSegmentLineageCheck;
-  private final Set<Integer> overshadowingSegments;
-
-  private final int startRootPartitionId;
-  private final int endRootPartitionId;
-  private final short minorVersion; // minor version for the new segmentId
 
   public LockRequestForNewSegment(
       TaskLockType lockType,
@@ -62,12 +55,11 @@ public class LockRequestForNewSegment implements LockRequest
       String dataSource,
       Interval interval,
       ShardSpecFactory shardSpecFactory,
-      List<ShardSpecFactoryArgs> shardSpecFactoryArgsList,
+      int numSegmentsToAllocate,
       int priority,
       String baseSequenceName,
       @Nullable String previsousSegmentId,
-      boolean skipSegmentLineageCheck,
-      Set<Integer> overshadowingSegments
+      boolean skipSegmentLineageCheck
   )
   {
     this.lockType = lockType;
@@ -79,8 +71,7 @@ public class LockRequestForNewSegment implements LockRequest
     this.baseSequenceName = baseSequenceName;
     this.previsousSegmentId = previsousSegmentId;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
-    this.overshadowingSegments = overshadowingSegments;
-    this.shardSpecFactoryArgsList = shardSpecFactoryArgsList;
+    this.numSegmentsToAllocate = numSegmentsToAllocate;
   }
 
   @VisibleForTesting
@@ -89,11 +80,10 @@ public class LockRequestForNewSegment implements LockRequest
       Task task,
       Interval interval,
       ShardSpecFactory shardSpecFactory,
-      List<ShardSpecFactoryArgs> shardSpecFactoryArgsList,
+      int numSegmentsToAllocate,
       String baseSequenceName,
       @Nullable String previsousSegmentId,
-      boolean skipSegmentLineageCheck,
-      Set<Integer> overshadowingSegments
+      boolean skipSegmentLineageCheck
   )
   {
     this(
@@ -102,12 +92,11 @@ public class LockRequestForNewSegment implements LockRequest
         task.getDataSource(),
         interval,
         shardSpecFactory,
-        shardSpecFactoryArgsList,
+        numSegmentsToAllocate,
         task.getPriority(),
         baseSequenceName,
         previsousSegmentId,
-        skipSegmentLineageCheck,
-        overshadowingSegments
+        skipSegmentLineageCheck
     );
   }
 
@@ -147,7 +136,7 @@ public class LockRequestForNewSegment implements LockRequest
     return priority;
   }
 
-  public ShardSpecFactory<ShardSpecFactoryArgs> getShardSpecFactory()
+  public ShardSpecFactory getShardSpecFactory()
   {
     return shardSpecFactory;
   }
@@ -180,14 +169,9 @@ public class LockRequestForNewSegment implements LockRequest
     return skipSegmentLineageCheck;
   }
 
-  public Set<Integer> getOvershadowingSegments()
+  public int getNumSegmentsToAllocate()
   {
-    return overshadowingSegments;
-  }
-
-  public List<ShardSpecFactoryArgs> getShardSpecFactoryArgsList()
-  {
-    return shardSpecFactoryArgsList;
+    return numSegmentsToAllocate;
   }
 
   public TaskLock toLock(List<SegmentIdWithShardSpec> newSegmentIds)
@@ -219,12 +203,11 @@ public class LockRequestForNewSegment implements LockRequest
            ", dataSource='" + dataSource + '\'' +
            ", interval=" + interval +
            ", shardSpecFactory=" + shardSpecFactory +
+           ", numSegmentsToAllocate=" + numSegmentsToAllocate +
            ", priority=" + priority +
            ", baseSequenceName='" + baseSequenceName + '\'' +
            ", previsousSegmentId='" + previsousSegmentId + '\'' +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
-           ", direcOvershadowingSegments=" + overshadowingSegments +
-           ", shardSpecFactoryArgsList=" + shardSpecFactoryArgsList +
            '}';
   }
 }

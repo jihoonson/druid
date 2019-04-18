@@ -23,7 +23,6 @@ import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpecFactoryArgs;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -109,9 +108,7 @@ public interface IndexerMetadataStorageCoordinator
       @Nullable String previousSegmentId,
       Interval interval,
       ShardSpecFactory shardSpecFactory,
-      ShardSpecFactoryArgs shardSpecFactoryArgs,
       String maxVersion,
-      Set<Integer> overshadowingSegments,
       boolean skipSegmentLineageCheck
   );
 
