@@ -271,7 +271,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
     for (int i = 0; i < 3; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
-      Assert.assertEquals(new NumberedShardSpec(3, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(new NumberedOverwritingShardSpec(ShardSpec.NON_ROOT_GEN_START_PARTITION_ID + 1, 0, 2, (short) 2, (short) 1), segments.get(i).getShardSpec());
 //      Assert.assertEquals(ImmutableSet.of(2), segments.get(i).getDirectOvershadowedGroup());
 //      Assert.assertEquals(ImmutableSet.of(3), segments.get(i).getAtomicUpdateGroup());
       // TODO: check shardSpec

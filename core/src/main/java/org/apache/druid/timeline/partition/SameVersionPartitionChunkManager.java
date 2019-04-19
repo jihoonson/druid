@@ -256,7 +256,11 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
           // from stream ingestion tasks to historicals
           final PartitionChunk<T> existing = atomicUpdateGroup.replaceChunkWith(chunk);
           if (existing == null) {
-            throw new ISE("Can't add a new partitionChunk to a visible atomicUpdateGroup");
+            throw new ISE(
+                "Can't add a new partitionChunk[%s] to a visible atomicUpdateGroup[%s]",
+                chunk,
+                atomicUpdateGroup
+            );
           } else if (!chunk.equals(existing)) {
             throw new ISE(
                 "WTH? a new partitionChunk[%s] has the same partitionId but different from existing chunk[%s]",

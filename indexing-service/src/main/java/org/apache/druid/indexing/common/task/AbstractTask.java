@@ -505,7 +505,6 @@ public abstract class AbstractTask implements Task
       }
     });
 
-    short prevMaxMinorVersion = 0;
     short atomicUpdateGroupSize = 1;
     // sanity check
     for (int i = 0; i < inputSegments.size() - 1; i++) {
@@ -524,22 +523,23 @@ public abstract class AbstractTask implements Task
               nextSegment
           );
         }
-        prevMaxMinorVersion = (short) Math.max(prevMaxMinorVersion, curSegment.getMinorVersion());
         atomicUpdateGroupSize++;
       } else {
         if (curSegment.getEndRootPartitionId() != nextSegment.getStartRootPartitionId()) {
           throw new ISE("Can't compact segments of non-consecutive rootPartition range");
         }
-        prevMaxMinorVersion = curSegment.getMinorVersion() > nextSegment.getMinorVersion()
-                              ? (short) Math.max(prevMaxMinorVersion, curSegment.getMinorVersion())
-                              : (short) Math.max(prevMaxMinorVersion, nextSegment.getMinorVersion());
-
         if (atomicUpdateGroupSize != curSegment.getAtomicUpdateGroupSize()) {
           throw new ISE("All atomicUpdateGroup must be compacted together");
         }
         atomicUpdateGroupSize = 1;
       }
     }
+
+    final short prevMaxMinorVersion = (short) inputSegments
+        .stream()
+        .mapToInt(DataSegment::getMinorVersion)
+        .max()
+        .orElseThrow(() -> new ISE("Empty inputSegments"));
 
     overwritingSegmentMetas.put(
         interval,
