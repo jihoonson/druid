@@ -627,7 +627,7 @@ public abstract class BaseAppenderatorDriver implements Closeable
       final boolean isNonFirstGeneration = segments.get(0).getShardSpec() instanceof OverwritingShardSpec;
 
       final boolean anyMismatch = segments.stream().anyMatch(
-          segment -> (segment.getShardSpec() instanceof OverwritingShardSpec) == isNonFirstGeneration
+          segment -> (segment.getShardSpec() instanceof OverwritingShardSpec) != isNonFirstGeneration
       );
       if (anyMismatch) {
         throw new ISE(

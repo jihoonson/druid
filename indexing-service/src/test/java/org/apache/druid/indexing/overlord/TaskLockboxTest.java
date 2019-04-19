@@ -1040,7 +1040,7 @@ public class TaskLockboxTest
             TaskLockType.EXCLUSIVE,
             task,
             Intervals.of("2015-01-01/2015-01-05"),
-            new NumberedShardSpecFactory(0),
+            NumberedShardSpecFactory.instance(),
             numSegmentsToAllocate,
             baseSequenceName,
             null,

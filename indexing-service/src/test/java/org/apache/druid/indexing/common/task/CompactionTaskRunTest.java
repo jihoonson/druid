@@ -54,7 +54,9 @@ import org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager;
 import org.apache.druid.segment.loading.StorageLocationConfig;
 import org.apache.druid.server.security.AuthTestUtils;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.partition.NumberedOverwritingShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 import org.junit.After;
 import org.junit.Assert;
@@ -165,7 +167,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
     for (int i = 0; i < 3; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
-      Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(new NumberedOverwritingShardSpec(32768, 0, 2, (short) 1, (short) 1), segments.get(i).getShardSpec());
       // TODO: check shardSpec
 //      Assert.assertEquals(ImmutableSet.of(0, 1), segments.get(i).getDirectOvershadowedGroup());
 //      Assert.assertEquals(ImmutableSet.of(2), segments.get(i).getAtomicUpdateGroup());
@@ -249,7 +251,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
     for (int i = 0; i < 3; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
-      Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(new NumberedOverwritingShardSpec(ShardSpec.NON_ROOT_GEN_START_PARTITION_ID, 0, 2, (short) 1, (short) 1), segments.get(i).getShardSpec());
 //      Assert.assertEquals(ImmutableSet.of(0, 1), segments.get(i).getDirectOvershadowedGroup());
 //      Assert.assertEquals(ImmutableSet.of(2), segments.get(i).getAtomicUpdateGroup());
       // TODO: check shardSpec
@@ -357,7 +359,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
     for (int i = 0; i < 3; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
-      Assert.assertEquals(new NumberedShardSpec(2, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(new NumberedOverwritingShardSpec(ShardSpec.NON_ROOT_GEN_START_PARTITION_ID, 0, 2, (short) 1, (short) 1), segments.get(i).getShardSpec());
 //      Assert.assertEquals(ImmutableSet.of(0, 1), segments.get(i).getDirectOvershadowedGroup());
 //      Assert.assertEquals(ImmutableSet.of(2), segments.get(i).getAtomicUpdateGroup());
       // TODO: check shardSpec
@@ -457,7 +459,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
     for (int i = 0; i < 6; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i / 2, i / 2 + 1), segments.get(i).getInterval());
-      Assert.assertEquals(new NumberedShardSpec(2 + i % 2, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(new NumberedOverwritingShardSpec(ShardSpec.NON_ROOT_GEN_START_PARTITION_ID + i % 2, 0, 2, (short) 1, (short) 2), segments.get(i).getShardSpec());
 //      Assert.assertEquals(ImmutableSet.of(0, 1), segments.get(i).getDirectOvershadowedGroup());
 //      Assert.assertEquals(ImmutableSet.of(2, 3), segments.get(i).getAtomicUpdateGroup());
       // TODO: check shardSpec
@@ -515,7 +517,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
     for (int i = 0; i < 6; i++) {
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i / 2, i / 2 + 1), segments.get(i).getInterval());
-      Assert.assertEquals(new NumberedShardSpec(2 + i % 2, 0), segments.get(i).getShardSpec());
+      Assert.assertEquals(new NumberedOverwritingShardSpec(ShardSpec.NON_ROOT_GEN_START_PARTITION_ID + i % 2, 0, 2, (short) 1, (short) 2), segments.get(i).getShardSpec());
 //      Assert.assertEquals(ImmutableSet.of(0, 1), segments.get(i).getDirectOvershadowedGroup());
 //      Assert.assertEquals(ImmutableSet.of(2, 3), segments.get(i).getAtomicUpdateGroup());
       // TODO: check shardSpec

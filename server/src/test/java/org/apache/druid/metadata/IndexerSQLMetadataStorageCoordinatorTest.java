@@ -848,7 +848,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   @Test
   public void testAllocatePendingSegment()
   {
-    final ShardSpecFactory shardSpecFactory = new NumberedShardSpecFactory(0);
+    final ShardSpecFactory shardSpecFactory = NumberedShardSpecFactory.instance();
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
     final SegmentIdWithShardSpec identifier = coordinator.allocatePendingSegment(
@@ -916,7 +916,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   @Test
   public void testDeletePendingSegment() throws InterruptedException
   {
-    final ShardSpecFactory shardSpecFactory = new NumberedShardSpecFactory(0);
+    final ShardSpecFactory shardSpecFactory = NumberedShardSpecFactory.instance();
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
     String prevSegmentId = null;
@@ -959,7 +959,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   @Test
   public void testAllocatePendingSegmentsWithOvershadowingSegments() throws IOException
   {
-    final ShardSpecFactory shardSpecFactory = new NumberedShardSpecFactory(0);
+    final ShardSpecFactory shardSpecFactory = NumberedShardSpecFactory.instance();
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
     String prevSegmentId = null;

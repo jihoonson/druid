@@ -23,6 +23,8 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import javax.annotation.Nullable;
+
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(name = "none", value = NoneShardSpecFactory.class),
@@ -33,6 +35,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public interface ShardSpecFactory
 {
   // TODO: move numPartitions to context??
+  ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId);
+
   ShardSpec create(ObjectMapper objectMapper, int partitionId);
 
   Class<? extends ShardSpec> getShardSpecClass();

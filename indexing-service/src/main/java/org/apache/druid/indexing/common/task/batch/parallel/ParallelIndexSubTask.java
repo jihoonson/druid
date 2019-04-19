@@ -306,7 +306,7 @@ public class ParallelIndexSubTask extends AbstractTask
                     overwritingSegmentMeta.getMinorVersionForNewSegments()
                 );
               } else {
-                shardSpecFactory = new NumberedShardSpecFactory(0);
+                shardSpecFactory = NumberedShardSpecFactory.instance();
               }
 
               // TODO: overwriting shardSpecFactory

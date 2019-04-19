@@ -36,9 +36,11 @@ import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.LinearShardSpec;
+import org.apache.druid.timeline.partition.LinearShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpec;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
 import org.easymock.EasyMock;
 import org.joda.time.DateTime;
@@ -452,7 +454,8 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        null
+        null,
+        LinearShardSpecFactory.instance()
     );
     final SegmentIdWithShardSpec id2 = allocate(
         task,
@@ -460,7 +463,8 @@ public class SegmentAllocateActionTest
         Granularities.NONE,
         Granularities.HOUR,
         "s1",
-        id1.toString()
+        id1.toString(),
+        LinearShardSpecFactory.instance()
     );
 
     assertSameIdentifier(
@@ -691,7 +695,7 @@ public class SegmentAllocateActionTest
   public void testSerde() throws Exception
   {
     final ObjectMapper objectMapper = new DefaultObjectMapper();
-    objectMapper.registerSubtypes(HashBasedNumberedShardSpecFactory.class);
+    objectMapper.registerSubtypes(NumberedShardSpecFactory.class);
 
     final SegmentAllocateAction action = new SegmentAllocateAction(
         DATA_SOURCE,
@@ -701,7 +705,7 @@ public class SegmentAllocateActionTest
         "s1",
         "prev",
         false,
-        new NumberedShardSpecFactory(0)
+        NumberedShardSpecFactory.instance()
     );
 
     final SegmentAllocateAction action2 = (SegmentAllocateAction) objectMapper.readValue(
@@ -751,7 +755,7 @@ public class SegmentAllocateActionTest
         "seq",
         null,
         true,
-        new NumberedShardSpecFactory(0)
+        new HashBasedNumberedShardSpecFactory(ImmutableList.of("dim1"), 2)
     );
     final SegmentIdWithShardSpec segmentIdentifier = action.perform(task, taskActionTestKit.getTaskActionToolbox());
     Assert.assertNotNull(segmentIdentifier);
@@ -761,8 +765,8 @@ public class SegmentAllocateActionTest
 
     Assert.assertTrue(shardSpec instanceof HashBasedNumberedShardSpec);
     final HashBasedNumberedShardSpec hashBasedNumberedShardSpec = (HashBasedNumberedShardSpec) shardSpec;
-    Assert.assertEquals(3, hashBasedNumberedShardSpec.getPartitions());
-    Assert.assertEquals(ImmutableList.of("dim1", "dim2"), hashBasedNumberedShardSpec.getPartitionDimensions());
+    Assert.assertEquals(2, hashBasedNumberedShardSpec.getPartitions());
+    Assert.assertEquals(ImmutableList.of("dim1"), hashBasedNumberedShardSpec.getPartitionDimensions());
 
 //    Assert.assertEquals(ImmutableSet.of(0, 1), segmentIdentifier.getDirectOvershadowedSegments());
     // TODO: check shardSpec
@@ -777,6 +781,27 @@ public class SegmentAllocateActionTest
       final String sequencePreviousId
   )
   {
+    return allocate(
+        task,
+        timestamp,
+        queryGranularity,
+        preferredSegmentGranularity,
+        sequenceName,
+        sequencePreviousId,
+        NumberedShardSpecFactory.instance()
+    );
+  }
+
+  private SegmentIdWithShardSpec allocate(
+      final Task task,
+      final DateTime timestamp,
+      final Granularity queryGranularity,
+      final Granularity preferredSegmentGranularity,
+      final String sequenceName,
+      final String sequencePreviousId,
+      final ShardSpecFactory shardSpecFactory
+      )
+  {
     final SegmentAllocateAction action = new SegmentAllocateAction(
         DATA_SOURCE,
         timestamp,
@@ -785,7 +810,7 @@ public class SegmentAllocateActionTest
         sequenceName,
         sequencePreviousId,
         false,
-        new NumberedShardSpecFactory(0)
+        shardSpecFactory
     );
     return action.perform(task, taskActionTestKit.getTaskActionToolbox());
   }

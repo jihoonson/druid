@@ -21,6 +21,8 @@ package org.apache.druid.timeline.partition;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import javax.annotation.Nullable;
+
 public class LinearShardSpecFactory implements ShardSpecFactory
 {
   private static final LinearShardSpecFactory INSTANCE = new LinearShardSpecFactory();
@@ -32,6 +34,14 @@ public class LinearShardSpecFactory implements ShardSpecFactory
 
   private LinearShardSpecFactory()
   {
+  }
+
+  @Override
+  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
+  {
+    return new LinearShardSpec(
+        specOfPreviousMaxPartitionId == null ? 0 : specOfPreviousMaxPartitionId.getPartitionNum() + 1
+    );
   }
 
   @Override

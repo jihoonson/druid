@@ -25,7 +25,6 @@ import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
-import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
@@ -66,25 +65,14 @@ public abstract class CachingSegmentAllocator implements IndexTaskSegmentAllocat
     for (Map.Entry<Interval, List<SegmentIdWithShardSpec>> entry : intervalToIds.entrySet()) {
       final Interval interval = entry.getKey();
       final List<SegmentIdWithShardSpec> idsPerInterval = intervalToIds.get(interval);
-      final int numTotalPartitions = idsPerInterval.size();
 
       for (SegmentIdWithShardSpec segmentIdentifier : idsPerInterval) {
         shardSpecMap.computeIfAbsent(interval, k -> new ArrayList<>()).add(segmentIdentifier.getShardSpec());
         // The shardSpecs for partitinoing and publishing can be different if isExtendableShardSpecs = true.
-        sequenceNameToSegmentId.put(
-            getSequenceName(interval, segmentIdentifier.getShardSpec()),
-            segmentIdentifier.withShardSpec(
-                makeShardSpec(segmentIdentifier.getShardSpec(), numTotalPartitions)
-            )
-        );
+        sequenceNameToSegmentId.put(getSequenceName(interval, segmentIdentifier.getShardSpec()), segmentIdentifier);
       }
     }
     shardSpecs = new ShardSpecs(shardSpecMap);
-  }
-
-  private ShardSpec makeShardSpec(ShardSpec shardSpec, int numTotalPartitions)
-  {
-    return new NumberedShardSpec(shardSpec.getPartitionNum(), numTotalPartitions);
   }
 
   abstract Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds() throws IOException;

@@ -50,21 +50,27 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
     return partitionDimensions;
   }
 
-  @JsonProperty
-  public int getNumPartitions()
+  @JsonProperty public int getNumPartitions()
   {
     return numPartitions;
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId)
+  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
   {
+    final HashBasedNumberedShardSpec prevSpec = (HashBasedNumberedShardSpec) specOfPreviousMaxPartitionId;
     return new HashBasedNumberedShardSpec(
-        partitionId,
+        prevSpec == null ? 0 : prevSpec.getPartitionNum() + 1,
         numPartitions,
         partitionDimensions,
         objectMapper
     );
+  }
+
+  @Override
+  public ShardSpec create(ObjectMapper objectMapper, int partitionId)
+  {
+    return new HashBasedNumberedShardSpec(partitionId, numPartitions, partitionDimensions, objectMapper);
   }
 
   @Override

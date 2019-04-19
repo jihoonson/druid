@@ -641,7 +641,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
       }
     } else {
       for (Interval interval : intervals) {
-        allocateSpec.put(interval, createShardSpecFactoryForBestEffortRollup(isOverwriteMode(), interval));
+        allocateSpec.put(interval, null);
       }
     }
 
@@ -695,7 +695,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
         // Overwrite mode, guaranteed rollup: # of shards must be known in advance.
         allocateSpecs.put(interval, createShardSpecFactoryForGuaranteedRollup(numShards, tuningConfig.partitionDimensions));
       } else {
-        allocateSpecs.put(interval, createShardSpecFactoryForBestEffortRollup(isOverwriteMode(), interval));
+        allocateSpecs.put(interval, null);
       }
     }
     log.info("Found intervals and shardSpecs in %,dms", System.currentTimeMillis() - determineShardSpecsStartMillis);
@@ -731,7 +731,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
           null
       );
     } else {
-      return Pair.of(new NumberedShardSpecFactory(0), null);
+      return Pair.of(NumberedShardSpecFactory.instance(), null);
     }
   }
 
@@ -843,7 +843,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
       if (isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)) {
         return new CachingRemoteSegmentAllocator(toolbox, getId(), allocateSpec);
       } else {
-        return new RemoteSegmentAllocator(toolbox, getId(), dataSchema, allocateSpec);
+        return new RemoteSegmentAllocator(toolbox, getId(), dataSchema, isOverwriteMode(), isChangeSegmentGranularity(), getAllOverwritingSegmentMeta());
       }
     } else {
       // We use the timeChunk lock and don't have to ask the overlord to create segmentIds.

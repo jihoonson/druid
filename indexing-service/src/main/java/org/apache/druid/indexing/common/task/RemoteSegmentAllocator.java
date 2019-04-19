@@ -23,10 +23,13 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
-import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.indexing.common.task.AbstractTask.OverwritingSegmentMeta;
+import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
+import org.apache.druid.timeline.partition.NumberedOverwritingShardSpecFactory;
+import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
@@ -42,7 +45,9 @@ public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
       TaskToolbox toolbox,
       String taskId,
       DataSchema dataSchema,
-      Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec
+      boolean isOverwriteMode,
+      boolean isChangeSegmentGranularity,
+      Map<Interval, OverwritingSegmentMeta> overwritingSegmentMetaMap
   )
   {
     this.taskId = taskId;
@@ -51,11 +56,23 @@ public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
         dataSchema,
         (schema, row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
           final GranularitySpec granularitySpec = schema.getGranularitySpec();
-          final ShardSpecFactory shardSpecFactory = allocateSpec.get(
-              granularitySpec
-                  .bucketInterval(row.getTimestamp())
-                  .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()))
-          ).lhs;
+          final Interval interval = granularitySpec
+              .bucketInterval(row.getTimestamp())
+              .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()));
+          final ShardSpecFactory shardSpecFactory;
+          if (isOverwriteMode && !isChangeSegmentGranularity) {
+            final OverwritingSegmentMeta overwritingSegmentMeta = overwritingSegmentMetaMap.get(interval);
+            if (overwritingSegmentMeta == null) {
+              throw new ISE("Can't find overwritingSegmentMeta for interval[%s]", interval);
+            }
+            shardSpecFactory = new NumberedOverwritingShardSpecFactory(
+                overwritingSegmentMeta.getStartRootPartitionId(),
+                overwritingSegmentMeta.getEndRootPartitionId(),
+                overwritingSegmentMeta.getMinorVersionForNewSegments()
+            );
+          } else {
+            shardSpecFactory = NumberedShardSpecFactory.instance();
+          }
           return new SegmentAllocateAction(
               schema.getDataSource(),
               row.getTimestamp(),

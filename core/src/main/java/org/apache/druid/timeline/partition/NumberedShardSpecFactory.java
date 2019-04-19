@@ -19,30 +19,38 @@
 
 package org.apache.druid.timeline.partition;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import javax.annotation.Nullable;
 
 public class NumberedShardSpecFactory implements ShardSpecFactory
 {
-  private final int numPartitions;
+  private static final NumberedShardSpecFactory INSTANCE = new NumberedShardSpecFactory();
 
-  @JsonCreator
-  public NumberedShardSpecFactory(@JsonProperty("numPartitions") int numPartitions)
+  public static NumberedShardSpecFactory instance()
   {
-    this.numPartitions = numPartitions;
+    return INSTANCE;
   }
 
-  @JsonProperty
-  public int getNumPartitions()
+  private NumberedShardSpecFactory()
   {
-    return numPartitions;
+  }
+
+  @Override
+  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
+  {
+    if (specOfPreviousMaxPartitionId == null) {
+      return new NumberedShardSpec(0, 0);
+    } else {
+      final NumberedShardSpec prevSpec = (NumberedShardSpec) specOfPreviousMaxPartitionId;
+      return new NumberedShardSpec(prevSpec.getPartitionNum() + 1, prevSpec.getPartitions());
+    }
   }
 
   @Override
   public ShardSpec create(ObjectMapper objectMapper, int partitionId)
   {
-    return new NumberedShardSpec(partitionId, numPartitions);
+    return new NumberedShardSpec(partitionId, 0);
   }
 
   @Override

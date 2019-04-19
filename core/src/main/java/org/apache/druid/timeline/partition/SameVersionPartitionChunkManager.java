@@ -75,9 +75,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
     this.overshadowedGroups = new TreeMap<>(other.overshadowedGroups);
   }
 
-  private TreeMap<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> getStateMap(
-      State state
-  )
+  private TreeMap<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> getStateMap(State state)
   {
     switch (state) {
       case STANDBY:

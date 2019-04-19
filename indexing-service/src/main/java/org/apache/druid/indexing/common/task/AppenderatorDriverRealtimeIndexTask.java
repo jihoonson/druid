@@ -757,7 +757,7 @@ public class AppenderatorDriverRealtimeIndexTask extends AbstractTask implements
                 sequenceName,
                 previousSegmentId,
                 skipSegmentLineageCheck,
-                new NumberedShardSpecFactory(0)
+                NumberedShardSpecFactory.instance()
             )
         ),
         toolbox.getSegmentHandoffNotifierFactory(),

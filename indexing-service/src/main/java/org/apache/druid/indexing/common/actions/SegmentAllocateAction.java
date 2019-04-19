@@ -98,7 +98,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
     this.sequenceName = Preconditions.checkNotNull(sequenceName, "sequenceName");
     this.previousSegmentId = previousSegmentId;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
-    this.shardSpecFactory = shardSpecFactory == null ? new NumberedShardSpecFactory(0) : shardSpecFactory;
+    this.shardSpecFactory = shardSpecFactory == null ? NumberedShardSpecFactory.instance() : shardSpecFactory;
   }
 
   @JsonProperty
