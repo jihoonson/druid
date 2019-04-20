@@ -19,6 +19,7 @@
 
 package org.apache.druid.segment;
 
+import com.google.common.base.Preconditions;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.timeline.Overshadowable;
 import org.apache.druid.timeline.SegmentId;
@@ -74,7 +75,7 @@ public class ReferenceCountingSegment extends AbstractSegment implements Oversha
   public ReferenceCountingSegment(Segment baseSegment)
   {
     this(
-        baseSegment,
+        Preconditions.checkNotNull(baseSegment, "baseSegment"),
         baseSegment.getId().getPartitionNum(),
         (baseSegment.getId().getPartitionNum() + 1),
         (short) 0,

@@ -19,7 +19,9 @@
 
 package org.apache.druid.client;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
@@ -2216,33 +2218,25 @@ public class CachingClusteredClientTest
           }
           shardSpec = new SingleDimensionShardSpec("dim" + k, start, end, j);
         }
-        final SegmentId segmentId = SegmentId.of(StringUtils.format("%s_%s", k, j), queryIntervals.get(k), "version", 0);
-        final DataSegment segment = new DataSegment(
-            segmentId.getDataSource(),
-            segmentId.getInterval(),
-            segmentId.getVersion(),
-            null,
-            null,
-            null,
-            shardSpec,
-            null,
-            0L
-        );
-//        DataSegment mockSegment = makeMock(mocks, DataSegment.class);
+        DataSegment mockSegment = makeMock(mocks, DataSegment.class);
         ServerExpectation<Object> expectation = new ServerExpectation<>(
-            segmentId, // interval/chunk
+            SegmentId.dummy(StringUtils.format("%s_%s", k, j)), // interval/chunk
             queryIntervals.get(k),
-            segment,
+            mockSegment,
             expectedResults.get(k).get(j)
         );
         serverExpectations.get(lastServer).addExpectation(expectation);
-//        EasyMock.expect(mockSegment.getSize()).andReturn(0L).anyTimes();
+        EasyMock.expect(mockSegment.getSize()).andReturn(0L).anyTimes();
+        EasyMock.expect(mockSegment.getShardSpec())
+                .andReturn(shardSpec)
+                .anyTimes();
 //        EasyMock.replay(mockSegment);
         ServerSelector selector = new ServerSelector(
             expectation.getSegment(),
             new HighestPriorityTierSelectorStrategy(new RandomServerSelectorStrategy())
         );
         selector.addServerAndUpdateSegment(new QueryableDruidServer(lastServer, null), selector.getSegment());
+
 //        EasyMock.reset(mockSegment);
 //        EasyMock.expect(mockSegment.getShardSpec())
 //                .andReturn(shardSpec)
@@ -2783,7 +2777,7 @@ public class CachingClusteredClientTest
 
     public DataSegment getSegment()
     {
-      return DataSegment.builder(segment).build();
+      return new MyDataSegment();
     }
 
     public Iterable<Result<T>> getResults()
@@ -2791,127 +2785,164 @@ public class CachingClusteredClientTest
       return results;
     }
 
-//    private class MyDataSegment extends DataSegment
-//    {
-//      private final DataSegment baseSegment = segment;
-//
-//      private MyDataSegment()
-//      {
-//        super(
-//            "",
-//            Intervals.utc(0, 1),
-//            "",
-//            null,
-//            null,
-//            null,
-//            segment.getShardSpec(),
-//            null,
-//            -1
-//        );
-//      }
-//
-//      @Override
-//      @JsonProperty
-//      public String getDataSource()
-//      {
-//        return baseSegment.getDataSource();
-//      }
-//
-//      @Override
-//      @JsonProperty
-//      public Interval getInterval()
-//      {
-//        return baseSegment.getInterval();
-//      }
-//
-//      @Override
-//      @JsonProperty
-//      public Map<String, Object> getLoadSpec()
-//      {
-//        return baseSegment.getLoadSpec();
-//      }
-//
-//      @Override
-//      @JsonProperty
-//      public String getVersion()
-//      {
-//        return baseSegment.getVersion();
-//      }
-//
-//      @Override
-//      @JsonSerialize
-//      @JsonProperty
-//      public List<String> getDimensions()
-//      {
-//        return baseSegment.getDimensions();
-//      }
-//
-//      @Override
-//      @JsonSerialize
-//      @JsonProperty
-//      public List<String> getMetrics()
-//      {
-//        return baseSegment.getMetrics();
-//      }
-//
-//      @Override
-//      @JsonProperty
-//      public ShardSpec getShardSpec()
-//      {
-//        try {
-//          return baseSegment.getShardSpec();
-//        }
-//        catch (IllegalStateException e) {
-//          return NoneShardSpec.instance();
-//        }
-//      }
-//
-//      @Override
-//      @JsonProperty
-//      public long getSize()
-//      {
-//        return baseSegment.getSize();
-//      }
-//
-//      @Override
-//      public SegmentId getId()
-//      {
-//        return segmentId;
-//      }
-//
-//      @Override
-//      public SegmentDescriptor toDescriptor()
-//      {
-//        return baseSegment.toDescriptor();
-//      }
-//
-//      @Override
-//      public int compareTo(DataSegment dataSegment)
-//      {
-//        return baseSegment.compareTo(dataSegment);
-//      }
-//
-//      @Override
-//      public boolean equals(Object o)
-//      {
-//        if (!(o instanceof DataSegment)) {
-//          return false;
-//        }
-//        return baseSegment.equals(o);
-//      }
-//
-//      @Override
-//      public int hashCode()
-//      {
-//        return baseSegment.hashCode();
-//      }
-//
-//      @Override
-//      public String toString()
-//      {
-//        return baseSegment.toString();
-//      }
-//    }
+    private class MyDataSegment extends DataSegment
+    {
+      private final DataSegment baseSegment = segment;
+
+      private MyDataSegment()
+      {
+        super(
+            "",
+            Intervals.utc(0, 1),
+            "",
+            null,
+            null,
+            null,
+            NoneShardSpec.instance(),
+            null,
+            -1
+        );
+      }
+
+      @Override
+      @JsonProperty
+      public String getDataSource()
+      {
+        return baseSegment.getDataSource();
+      }
+
+      @Override
+      @JsonProperty
+      public Interval getInterval()
+      {
+        return baseSegment.getInterval();
+      }
+
+      @Override
+      @JsonProperty
+      public Map<String, Object> getLoadSpec()
+      {
+        return baseSegment.getLoadSpec();
+      }
+
+      @Override
+      @JsonProperty
+      public String getVersion()
+      {
+        return baseSegment.getVersion();
+      }
+
+      @Override
+      @JsonSerialize
+      @JsonProperty
+      public List<String> getDimensions()
+      {
+        return baseSegment.getDimensions();
+      }
+
+      @Override
+      @JsonSerialize
+      @JsonProperty
+      public List<String> getMetrics()
+      {
+        return baseSegment.getMetrics();
+      }
+
+      @Override
+      @JsonProperty
+      public ShardSpec getShardSpec()
+      {
+        try {
+          return baseSegment.getShardSpec();
+        }
+        catch (IllegalStateException e) {
+          return NoneShardSpec.instance();
+        }
+      }
+
+      @Override
+      @JsonProperty
+      public long getSize()
+      {
+        return baseSegment.getSize();
+      }
+
+      @Override
+      public SegmentId getId()
+      {
+        return segmentId;
+      }
+
+      @Override
+      public SegmentDescriptor toDescriptor()
+      {
+        return baseSegment.toDescriptor();
+      }
+
+      @Override
+      public int compareTo(DataSegment dataSegment)
+      {
+        return baseSegment.compareTo(dataSegment);
+      }
+
+      @Override
+      public boolean equals(Object o)
+      {
+        if (!(o instanceof DataSegment)) {
+          return false;
+        }
+        return baseSegment.equals(o);
+      }
+
+      @Override
+      public int hashCode()
+      {
+        return baseSegment.hashCode();
+      }
+
+      @Override
+      public String toString()
+      {
+        return baseSegment.toString();
+      }
+
+      @Override
+      public int getStartRootPartitionId()
+      {
+        return getShardSpec().getStartRootPartitionId();
+      }
+
+      @Override
+      public int getEndRootPartitionId()
+      {
+        return getShardSpec().getEndRootPartitionId();
+      }
+
+      @Override
+      public short getMinorVersion()
+      {
+        return getShardSpec().getMinorVersion();
+      }
+
+      @Override
+      public short getAtomicUpdateGroupSize()
+      {
+        return getShardSpec().getAtomicUpdateGroupSize();
+      }
+
+      @Override
+      public boolean isOvershadow(DataSegment other)
+      {
+        if (getDataSource().equals(other.getDataSource())
+            && getInterval().overlaps(other.getInterval())
+            && getVersion().equals(other.getVersion())) {
+          return getStartRootPartitionId() <= other.getStartRootPartitionId()
+                 && getEndRootPartitionId() >= other.getEndRootPartitionId()
+                 && getMinorVersion() > other.getMinorVersion();
+        }
+        return false;
+      }
+    }
   }
 
   private static class ServerExpectations implements Iterable<ServerExpectation>

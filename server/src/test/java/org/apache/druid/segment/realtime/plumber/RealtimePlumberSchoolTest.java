@@ -275,8 +275,7 @@ public class RealtimePlumberSchoolTest
         tuningConfig.getMaxRowsInMemory(),
         TuningConfigs.getMaxBytesInMemoryOrDefault(tuningConfig.getMaxBytesInMemory()),
         tuningConfig.isReportParseExceptions(),
-        tuningConfig.getDedupColumn(),
-        null
+        tuningConfig.getDedupColumn()
     );
     plumber.getSinks().put(0L, sink);
     Assert.assertNull(plumber.startJob());
@@ -322,8 +321,7 @@ public class RealtimePlumberSchoolTest
         tuningConfig.getMaxRowsInMemory(),
         TuningConfigs.getMaxBytesInMemoryOrDefault(tuningConfig.getMaxBytesInMemory()),
         tuningConfig.isReportParseExceptions(),
-        tuningConfig.getDedupColumn(),
-        null
+        tuningConfig.getDedupColumn()
     );
     plumber.getSinks().put(0L, sink);
     plumber.startJob();
@@ -379,8 +377,7 @@ public class RealtimePlumberSchoolTest
         tuningConfig.getMaxRowsInMemory(),
         TuningConfigs.getMaxBytesInMemoryOrDefault(tuningConfig.getMaxBytesInMemory()),
         tuningConfig.isReportParseExceptions(),
-        tuningConfig.getDedupColumn(),
-        null
+        tuningConfig.getDedupColumn()
     );
     plumber2.getSinks().put(0L, sink);
     Assert.assertNull(plumber2.startJob());

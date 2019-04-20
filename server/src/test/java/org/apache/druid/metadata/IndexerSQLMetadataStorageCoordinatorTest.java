@@ -37,9 +37,12 @@ import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NoneShardSpec;
+import org.apache.druid.timeline.partition.NumberedOverwritingShardSpec;
+import org.apache.druid.timeline.partition.NumberedOverwritingShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.PartitionChunk;
+import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
@@ -959,7 +962,6 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   @Test
   public void testAllocatePendingSegmentsWithOvershadowingSegments() throws IOException
   {
-    final ShardSpecFactory shardSpecFactory = NumberedShardSpecFactory.instance();
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
     String prevSegmentId = null;
@@ -970,12 +972,15 @@ public class IndexerSQLMetadataStorageCoordinatorTest
           "seq",
           prevSegmentId,
           interval,
-          shardSpecFactory,
+          new NumberedOverwritingShardSpecFactory(0, 1, (short) (i + 1)),
           "version",
           false
       );
       Assert.assertEquals(
-          StringUtils.format("ds_2017-01-01T00:00:00.000Z_2017-02-01T00:00:00.000Z_version%s", i == 0 ? "" : "_" + i),
+          StringUtils.format(
+              "ds_2017-01-01T00:00:00.000Z_2017-02-01T00:00:00.000Z_version%s",
+              "_" + (i + ShardSpec.NON_ROOT_GEN_START_PARTITION_ID)
+          ),
           identifier.toString()
       );
       prevSegmentId = identifier.toString();
@@ -987,10 +992,9 @@ public class IndexerSQLMetadataStorageCoordinatorTest
               null,
               Collections.emptyList(),
               Collections.emptyList(),
-              identifier.getShardSpec(),
+              ((NumberedOverwritingShardSpec) identifier.getShardSpec()).withAtomicUpdateGroupSize(1),
               0,
-              10L,
-              null
+              10L
           )
       );
       final Set<DataSegment> announced = coordinator.announceHistoricalSegments(toBeAnnounced);
@@ -1017,7 +1021,13 @@ public class IndexerSQLMetadataStorageCoordinatorTest
             null,
             Collections.emptyList(),
             Collections.emptyList(),
-            new NumberedShardSpec(9, 0),
+            new NumberedOverwritingShardSpec(
+                9 + ShardSpec.NON_ROOT_GEN_START_PARTITION_ID,
+                0,
+                1,
+                (short) 9,
+                (short) 1
+            ),
             0,
             10L
         ),

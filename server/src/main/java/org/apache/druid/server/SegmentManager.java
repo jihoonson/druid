@@ -32,6 +32,7 @@ import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
+import org.apache.druid.timeline.partition.ShardSpec;
 
 import javax.annotation.Nullable;
 import java.util.Map;
@@ -221,12 +222,21 @@ public class SegmentManager
             final VersionedIntervalTimeline<String, ReferenceCountingSegment> loadedIntervals =
                 dataSourceState.getTimeline();
 
+            final ShardSpec shardSpec = segment.getShardSpec();
             final PartitionChunk<ReferenceCountingSegment> removed = loadedIntervals.remove(
                 segment.getInterval(),
                 segment.getVersion(),
                 // remove() internally searches for a partitionChunk to remove which is *equal* to the given
                 // partitionChunk. Note that partitionChunk.equals() checks only the partitionNum, but not the object.
-                segment.getShardSpec().createChunk(new ReferenceCountingSegment(null))
+                segment.getShardSpec().createChunk(
+                    new ReferenceCountingSegment(
+                        null,
+                        shardSpec.getStartRootPartitionId(),
+                        shardSpec.getEndRootPartitionId(),
+                        shardSpec.getMinorVersion(),
+                        shardSpec.getAtomicUpdateGroupSize()
+                    )
+                )
             );
             final ReferenceCountingSegment oldQueryable = (removed == null) ? null : removed.getObject();
 
