@@ -89,4 +89,6 @@ public interface ShardSpec
    * @return possibility of in domain
    */
   boolean possibleInDomain(Map<String, RangeSet<String>> domain);
+
+  boolean isCompatible(Class<? extends ShardSpec> other);
 }

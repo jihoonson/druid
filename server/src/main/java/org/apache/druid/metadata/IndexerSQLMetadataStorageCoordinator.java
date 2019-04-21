@@ -659,6 +659,14 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       return null;
 
     } else {
+      if (existingChunks
+          .stream()
+          .flatMap(holder -> StreamSupport.stream(holder.getObject().spliterator(), false))
+          .anyMatch(chunk -> !chunk.getObject().getShardSpec().isCompatible(shardSpecFactory.getShardSpecClass()))) {
+        // All existing segments should have a compatible shardSpec with shardSpecFactory.
+        return null;
+      }
+
       SegmentIdWithShardSpec maxId = null;
 
       if (!existingChunks.isEmpty()) {

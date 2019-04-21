@@ -50,6 +50,7 @@ import org.joda.time.Interval;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -78,11 +79,11 @@ public abstract class AbstractTask implements Task
   private final Map<String, Object> context;
 
 //  private final Map<Interval, Set<Integer>> inputSegmentPartitionIds = new HashMap<>(); // TODO: Intset
-  private final Map<Interval, OverwritingSegmentMeta> overwritingSegmentMetas = new HashMap<>();
+  @Nullable
+  private Map<Interval, OverwritingSegmentMeta> overwritingSegmentMetas;
 
-  private boolean initializedLock;
-
-  private boolean changeSegmentGranularity;
+  @Nullable
+  private Boolean changeSegmentGranularity;
 
   public static class OverwritingSegmentMeta
   {
@@ -323,31 +324,33 @@ public abstract class AbstractTask implements Task
   protected boolean tryLockWithIntervals(TaskActionClient client, List<Interval> intervals)
       throws IOException
   {
-    if (initializedLock) {
-      return true;
-    }
-
     if (requireLockInputSegments()) {
+      final List<Interval> intervalsToFindInput = new ArrayList<>(intervals);
+      if (overwritingSegmentMetas != null) {
+        intervalsToFindInput.removeAll(overwritingSegmentMetas.keySet());
+      }
 
       // TODO: check changeSegmentGranularity and get timeChunkLock here
 
       // TODO: race - a new segment can be added after findInputSegments. change to lockAllSegmentsInIntervals
-      return tryLockWithSegments(client, findInputSegments(client, intervals));
+      if (!intervalsToFindInput.isEmpty()) {
+        return tryLockWithSegments(client, findInputSegments(client, intervalsToFindInput));
+      } else {
+        return true;
+      }
     } else {
-      initializedLock = true;
+      changeSegmentGranularity = false;
+      overwritingSegmentMetas = Collections.emptyMap();
       return true;
     }
   }
 
   protected boolean tryLockWithSegments(TaskActionClient client, List<DataSegment> segments) throws IOException
   {
-    if (initializedLock) {
-      return true;
-    }
-
     if (requireLockInputSegments()) {
       if (segments.isEmpty()) {
-        initializedLock = true;
+        changeSegmentGranularity = false;
+        overwritingSegmentMetas = Collections.emptyMap();
         return true;
       }
 
@@ -366,6 +369,7 @@ public abstract class AbstractTask implements Task
 
       changeSegmentGranularity = changeSegmentGranularity(intervals);
       if (changeSegmentGranularity) {
+        overwritingSegmentMetas = Collections.emptyMap();
         // In this case, the intervals to lock must be alighed with segmentGranularity if it's defined
         final Set<Interval> uniqueIntervals = new HashSet<>();
         for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
@@ -383,7 +387,6 @@ public abstract class AbstractTask implements Task
             return false;
           }
         }
-        initializedLock = true;
         return true;
       } else {
         final Map<Interval, List<DataSegment>> intervalToSegments = new HashMap<>();
@@ -403,11 +406,11 @@ public abstract class AbstractTask implements Task
             return false;
           }
         }
-        initializedLock = true;
         return true;
       }
     } else {
-      initializedLock = true;
+      changeSegmentGranularity = false;
+      overwritingSegmentMetas = Collections.emptyMap();
       return true;
     }
   }
@@ -421,10 +424,6 @@ public abstract class AbstractTask implements Task
   protected void lockWithIntervals(TaskActionClient client, List<Interval> intervals, long timeoutMs)
       throws IOException
   {
-    if (initializedLock) {
-      return;
-    }
-
     if (requireLockInputSegments()) {
       final List<DataSegment> usedSegments = client.submit(new SegmentListUsedAction(getDataSource(), null, intervals));
 
@@ -438,24 +437,25 @@ public abstract class AbstractTask implements Task
                                                  .collect(Collectors.toList());
 
       lockWithSegments(client, segments, timeoutMs);
+    } else {
+      changeSegmentGranularity = false;
+      overwritingSegmentMetas = Collections.emptyMap();
     }
   }
 
   protected void lockWithSegments(TaskActionClient client, List<DataSegment> segments, long timeoutMs) throws IOException
   {
-    if (initializedLock) {
-      return;
-    }
-
     if (requireLockInputSegments()) {
       if (segments.isEmpty()) {
-        initializedLock = true;
+        changeSegmentGranularity = false;
+        overwritingSegmentMetas = Collections.emptyMap();
         return;
       }
 
       final List<Interval> intervals = segments.stream().map(DataSegment::getInterval).collect(Collectors.toList());
       changeSegmentGranularity = changeSegmentGranularity(intervals);
       if (changeSegmentGranularity) {
+        overwritingSegmentMetas = Collections.emptyMap();
         for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
           final TaskLock lock = client.submit(LockAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval, timeoutMs));
           if (lock == null) {
@@ -481,9 +481,10 @@ public abstract class AbstractTask implements Task
           }
         }
       }
+    } else {
+      changeSegmentGranularity = false;
+      overwritingSegmentMetas = Collections.emptyMap();
     }
-
-    initializedLock = true;
   }
 
   private void verifyAndFindRootPartitionRangeAndMinorVersion(List<DataSegment> inputSegments)
@@ -541,6 +542,9 @@ public abstract class AbstractTask implements Task
         .max()
         .orElseThrow(() -> new ISE("Empty inputSegments"));
 
+    if (overwritingSegmentMetas == null) {
+      overwritingSegmentMetas = new HashMap<>();
+    }
     overwritingSegmentMetas.put(
         interval,
         new OverwritingSegmentMeta(
@@ -553,26 +557,25 @@ public abstract class AbstractTask implements Task
 
   protected boolean isChangeSegmentGranularity()
   {
-    Preconditions.checkState(initializedLock, "Lock must be initialized before calling this method");
-    return changeSegmentGranularity;
+    return Preconditions.checkNotNull(changeSegmentGranularity, "changeSegmentGranularity is not initialized");
   }
 
   public Map<Interval, OverwritingSegmentMeta> getAllOverwritingSegmentMeta()
   {
-    Preconditions.checkState(initializedLock, "Lock must be initialized before calling this method");
+    Preconditions.checkNotNull(overwritingSegmentMetas, "overwritingSegmentMetas is not initialized");
     return overwritingSegmentMetas;
   }
 
   @Nullable
   public OverwritingSegmentMeta getOverwritingSegmentMeta(Interval interval)
   {
-    Preconditions.checkState(initializedLock, "Lock must be initialized before calling this method");
+    Preconditions.checkNotNull(overwritingSegmentMetas, "overwritingSegmentMetas is not initialized");
     return overwritingSegmentMetas.get(interval);
   }
 
   public boolean isOverwriteMode()
   {
-    Preconditions.checkState(initializedLock, "Lock must be initialized before calling this method");
+    Preconditions.checkNotNull(overwritingSegmentMetas, "overwritingSegmentMetas is not initialized");
     return !overwritingSegmentMetas.isEmpty();
   }
 }

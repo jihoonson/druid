@@ -81,21 +81,21 @@ public class LockAcquireAction implements TaskAction<TaskLock>
       @JsonProperty("timeoutMs") long timeoutMs
   )
   {
-    Preconditions.checkArgument(
-        granularity == LockGranularity.TIME_CHUNK || version != null,
-        "version shouldn't be null for segment lock"
-    );
-    Preconditions.checkArgument(
-        granularity == LockGranularity.TIME_CHUNK || (partitionIds != null && !partitionIds.isEmpty()),
-        "partitionIds shouldn't be null or empty for segment lock"
-    );
-
     this.granularity = granularity == null ? LockGranularity.TIME_CHUNK : granularity;
     this.type = type == null ? TaskLockType.EXCLUSIVE : type;
     this.interval = Preconditions.checkNotNull(interval, "interval");
     this.version = version;
     this.partitionIds = partitionIds;
     this.timeoutMs = timeoutMs;
+
+    Preconditions.checkArgument(
+        this.granularity == LockGranularity.TIME_CHUNK || this.version != null,
+        "version shouldn't be null for segment lock"
+    );
+    Preconditions.checkArgument(
+        this.granularity == LockGranularity.TIME_CHUNK || (this.partitionIds != null && !this.partitionIds.isEmpty()),
+        "partitionIds shouldn't be null or empty for segment lock"
+    );
   }
 
   @JsonProperty("lockGranularity")

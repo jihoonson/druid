@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+// TODO: abstract numbered??
 public class NumberedOverwritingShardSpec implements OverwritingShardSpec
 {
   private final int partitionId;
@@ -177,6 +178,12 @@ public class NumberedOverwritingShardSpec implements OverwritingShardSpec
   public boolean possibleInDomain(Map<String, RangeSet<String>> domain)
   {
     return true;
+  }
+
+  @Override
+  public boolean isCompatible(Class<? extends ShardSpec> other)
+  {
+    return other == NumberedOverwritingShardSpec.class || other == NumberedShardSpec.class;
   }
 
   @Override

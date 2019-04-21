@@ -1763,11 +1763,15 @@ public class CachingClusteredClientTest
       int partitionNum
   )
   {
-    DataSegment segment = EasyMock.createNiceMock(DataSegment.class);
-    EasyMock.expect(segment.getId()).andReturn(SegmentId.dummy(DATA_SOURCE)).anyTimes();
-    EasyMock.expect(segment.getShardSpec()).andReturn(new SingleDimensionShardSpec(dimension, start, end, partitionNum))
-            .anyTimes();
-    EasyMock.replay(segment);
+    final DataSegment segment = new DataSegment(
+        SegmentId.dummy(DATA_SOURCE),
+        null,
+        null,
+        null,
+        new SingleDimensionShardSpec(dimension, start, end, partitionNum),
+        9,
+        0L
+    );
 
     ServerSelector selector = new ServerSelector(
         segment,

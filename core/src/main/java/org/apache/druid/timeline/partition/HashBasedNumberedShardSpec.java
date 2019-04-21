@@ -69,6 +69,12 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   }
 
   @Override
+  public boolean isCompatible(Class<? extends ShardSpec> other)
+  {
+    return other == HashBasedNumberedShardSpec.class;
+  }
+
+  @Override
   public boolean isInChunk(long timestamp, InputRow inputRow)
   {
     return (((long) hash(timestamp, inputRow)) - getPartitionNum()) % getPartitions() == 0;

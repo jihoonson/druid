@@ -42,8 +42,6 @@ import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.loading.DataSegmentKiller;
 import org.apache.druid.segment.realtime.appenderator.SegmentWithState.SegmentState;
-import org.apache.druid.timeline.DataSegment;
-import org.apache.druid.timeline.partition.OverwritingShardSpec;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
@@ -52,7 +50,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -550,17 +547,16 @@ public abstract class BaseAppenderatorDriver implements Closeable
           if (segmentsAndMetadata.getSegments().isEmpty()) {
             log.info("Nothing to publish, skipping publish step.");
           } else {
-            final SegmentsAndMetadata annotatedSegmentsAndMetadata = annotateAtomicUpdateGroupSize(segmentsAndMetadata);
             log.info(
                 "Publishing segments with commitMetadata[%s]: [%s]",
-                annotatedSegmentsAndMetadata.getCommitMetadata(),
-                Joiner.on(", ").join(annotatedSegmentsAndMetadata.getSegments())
+                segmentsAndMetadata.getCommitMetadata(),
+                Joiner.on(", ").join(segmentsAndMetadata.getSegments())
             );
 
             try {
-              final Object metadata = annotatedSegmentsAndMetadata.getCommitMetadata();
+              final Object metadata = segmentsAndMetadata.getCommitMetadata();
               final SegmentPublishResult publishResult = publisher.publishSegments(
-                  ImmutableSet.copyOf(annotatedSegmentsAndMetadata.getSegments()),
+                  ImmutableSet.copyOf(segmentsAndMetadata.getSegments()),
                   metadata == null ? null : ((AppenderatorDriverMetadata) metadata).getCallerMetadata()
               );
 
@@ -610,58 +606,6 @@ public abstract class BaseAppenderatorDriver implements Closeable
 
           return segmentsAndMetadata;
         }
-    );
-  }
-
-  // TODO: move to batch
-  private SegmentsAndMetadata annotateAtomicUpdateGroupSize(SegmentsAndMetadata segmentsAndMetadata)
-  {
-    final Map<Interval, List<DataSegment>> intervalToSegments = new HashMap<>();
-    segmentsAndMetadata
-        .getSegments()
-        .forEach(segment -> intervalToSegments.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>()).add(segment));
-
-    for (Entry<Interval, List<DataSegment>> entry : intervalToSegments.entrySet()) {
-      final Interval interval = entry.getKey();
-      final List<DataSegment> segments = entry.getValue();
-      final boolean isNonFirstGeneration = segments.get(0).getShardSpec() instanceof OverwritingShardSpec;
-
-      final boolean anyMismatch = segments.stream().anyMatch(
-          segment -> (segment.getShardSpec() instanceof OverwritingShardSpec) != isNonFirstGeneration
-      );
-      if (anyMismatch) {
-        throw new ISE(
-            "WTH? some segments have empty overshadwedSegments but others are not? "
-            + "segments with non-overwritingShardSpec: [%s],"
-            + "segments with overwritingShardSpec: [%s]",
-            segments.stream()
-                    .filter(segment -> !(segment.getShardSpec() instanceof OverwritingShardSpec))
-                    .collect(Collectors.toList()),
-            segments.stream()
-                    .filter(segment -> segment.getShardSpec() instanceof OverwritingShardSpec)
-                    .collect(Collectors.toList())
-        );
-      }
-
-      if (isNonFirstGeneration) {
-        // The segments which are published together consist an atomicUpdateGroup.
-
-        intervalToSegments.put(
-            interval,
-            segments
-                .stream()
-                .map(segment -> {
-                  final OverwritingShardSpec shardSpec = (OverwritingShardSpec) segment.getShardSpec();
-                  return segment.withShardSpec(shardSpec.withAtomicUpdateGroupSize((short) segments.size()));
-                })
-                .collect(Collectors.toList())
-        );
-      }
-    }
-
-    return new SegmentsAndMetadata(
-        intervalToSegments.values().stream().flatMap(Collection::stream).collect(Collectors.toList()),
-        segmentsAndMetadata.getCommitMetadata()
     );
   }
 

@@ -29,6 +29,7 @@ import org.apache.druid.server.ServerTestHelper;
 import org.apache.druid.timeline.Overshadowable;
 import org.apache.druid.timeline.TimelineObjectHolder;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
+import org.apache.druid.timeline.partition.NumberedOverwritingShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.ShardSpec;
@@ -155,7 +156,7 @@ public class NumberedShardSpecTest
     //complete partition sets
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
         ImmutableList.of(chunk1, chunk0),
-        ImmutableSet.of(new OvershadowableString("0", 0), new OvershadowableString("1", 0))
+        ImmutableSet.of(new OvershadowableString("0", 0), new OvershadowableString("1", 1))
     );
 
     testVersionedIntervalTimelineBehaviorForNumberedShardSpec(
@@ -209,6 +210,14 @@ public class NumberedShardSpecTest
     Assert.assertEquals(expectedObjects, actualObjects);
   }
 
+  @Test
+  public void testCompatible()
+  {
+    final NumberedShardSpec spec = new NumberedShardSpec(0, 0);
+    Assert.assertTrue(spec.isCompatible(NumberedShardSpec.class));
+    Assert.assertTrue(spec.isCompatible(NumberedOverwritingShardSpec.class));
+  }
+
   private static final class OvershadowableString implements Overshadowable<OvershadowableString>
   {
     private final int partitionId;
@@ -238,6 +247,15 @@ public class NumberedShardSpecTest
     public int hashCode()
     {
       return Objects.hash(partitionId, val);
+    }
+
+    @Override
+    public String toString()
+    {
+      return "OvershadowableString{" +
+             "partitionId=" + partitionId +
+             ", val='" + val + '\'' +
+             '}';
     }
 
     @Override
