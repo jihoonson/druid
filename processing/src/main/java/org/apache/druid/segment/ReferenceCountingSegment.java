@@ -26,8 +26,6 @@ import org.apache.druid.timeline.SegmentId;
 import org.joda.time.Interval;
 
 import java.io.Closeable;
-import java.util.Collections;
-import java.util.Set;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -183,7 +181,23 @@ public class ReferenceCountingSegment extends AbstractSegment implements Oversha
   @Override
   public boolean isOvershadow(ReferenceCountingSegment other)
   {
-    throw new UnsupportedOperationException();
+    if (baseSegment.getId().getDataSource().equals(other.baseSegment.getId().getDataSource())
+        && baseSegment.getId().getInterval().overlaps(other.baseSegment.getId().getInterval())) {
+      final int majorVersionCompare = baseSegment.getId().getVersion()
+                                                 .compareTo(other.baseSegment.getId().getVersion());
+      if (majorVersionCompare > 0) {
+        return true;
+      } else if (majorVersionCompare == 0) {
+        return includeRootPartitions(other) && getMinorVersion() > other.getMinorVersion();
+      }
+    }
+    return false;
+  }
+
+  private boolean includeRootPartitions(ReferenceCountingSegment other)
+  {
+    return startRootPartitionId <= other.startRootPartitionId
+           && endRootPartitionId >= other.endRootPartitionId;
   }
 
   @Override

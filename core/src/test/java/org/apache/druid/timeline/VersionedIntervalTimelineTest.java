@@ -1916,6 +1916,8 @@ public class VersionedIntervalTimelineTest
 
   // TODO: test fall back when the middle segment is missing
 
+  // TODO: test isOvershadowed()
+
   private TimelineObjectHolder<String, OvershadowableInteger> makeTimelineObjectHolder(
       String interval,
       String version,

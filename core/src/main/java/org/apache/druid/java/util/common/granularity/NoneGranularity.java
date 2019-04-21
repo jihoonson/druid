@@ -58,6 +58,9 @@ public class NoneGranularity extends Granularity
     throw new UnsupportedOperationException("This method should not be invoked for this granularity type");
   }
 
+  /**
+   * None granularity matches to any interval.
+   */
   @Override
   public boolean match(Interval interval)
   {

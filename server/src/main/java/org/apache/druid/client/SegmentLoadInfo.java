@@ -99,7 +99,7 @@ public class SegmentLoadInfo implements Overshadowable<SegmentLoadInfo>
   @Override
   public boolean isOvershadow(SegmentLoadInfo other)
   {
-    throw new UnsupportedOperationException();
+    return segment.isOvershadow(other.segment);
   }
 
   @Override

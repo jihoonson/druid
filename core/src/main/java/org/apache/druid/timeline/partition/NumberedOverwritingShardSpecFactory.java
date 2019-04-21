@@ -64,7 +64,9 @@ public class NumberedOverwritingShardSpecFactory implements ShardSpecFactory
   public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
   {
     return new NumberedOverwritingShardSpec(
-        specOfPreviousMaxPartitionId == null ? ShardSpec.NON_ROOT_GEN_START_PARTITION_ID : specOfPreviousMaxPartitionId.getPartitionNum() + 1,
+        specOfPreviousMaxPartitionId == null
+        ? ShardSpec.NON_ROOT_GEN_START_PARTITION_ID
+        : specOfPreviousMaxPartitionId.getPartitionNum() + 1,
         startRootPartitionId,
         endRootPartitionId,
         minorVersion

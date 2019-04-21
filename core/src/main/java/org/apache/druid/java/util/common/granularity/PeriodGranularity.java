@@ -140,7 +140,6 @@ public class PeriodGranularity extends Granularity implements JsonSerializable
   @Override
   public boolean match(Interval interval)
   {
-    // TODO: probably this is not enough.. it should check that this interval is matched with an interval popularted by this granularity
     return bucket(interval.getStart()).equals(interval);
   }
 

@@ -19,6 +19,14 @@
 
 package org.apache.druid.timeline;
 
+/**
+ * Interface to check the overshadowing relation between objeccts.
+ * In {@link VersionedIntervalTimeline}, Overshadowable is used to represent each {@link DataSegment}
+ * which has the same major version in the same time chunk.
+ *
+ * An Overshadowable overshadows another if its root partition range contains that of another
+ * and has a higher minorVersion. For more details, check https://github.com/apache/incubator-druid/issues/7491.
+ */
 public interface Overshadowable<T extends Overshadowable>
 {
   default boolean isOvershadow(T other)
@@ -32,8 +40,21 @@ public interface Overshadowable<T extends Overshadowable>
         && getEndRootPartitionId() >= other.getEndRootPartitionId();
   }
 
+  /**
+   * All overshadowables have root partition range.
+   * First-generation overshadowables have (partitionId, partitionId + 1) as their root partition range.
+   * Non-first-generation overshadowables are the overshadowables that overwrite first or non-first generation
+   * overshadowables, and they have the merged root partition range of all overwritten first-generation overshadowables.
+   *
+   * Note that first-generation overshadowables can be overwritten by a single non-first-generation overshadowable
+   * if they have consecutive partitionId. Non-first-generation overshadowables can be overwritten by another
+   * if their root partition ranges are consecutive.
+   */
   int getStartRootPartitionId();
 
+  /**
+   * See doc of {@link #getStartRootPartitionId()}.
+   */
   int getEndRootPartitionId();
 
   default short getStartRootPartitionIdAsShort()
@@ -48,5 +69,10 @@ public interface Overshadowable<T extends Overshadowable>
 
   short getMinorVersion();
 
+  /**
+   * Return the size of atomicUpdateGroup.
+   * An atomicUpdateGroup is a set of segments which should be updated all together atomically in
+   * {@link VersionedIntervalTimeline}.
+   */
   short getAtomicUpdateGroupSize();
 }

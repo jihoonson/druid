@@ -63,47 +63,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
    * metadata only, while org.apache.druid.segment.Segment represents the actual body of segment data, queryable.
    */
 
-  @Override
-  public boolean isOvershadow(DataSegment other)
-  {
-    if (id.getDataSource().equals(other.id.getDataSource())
-        && id.getInterval().overlaps(other.id.getInterval())
-        && id.getVersion().equals(other.id.getVersion())) {
-      return includeRootPartitions(other) && shardSpec.getMinorVersion() > other.getMinorVersion();
-    }
-    return false;
-  }
-
-  @Override
-  public int getStartRootPartitionId()
-  {
-    return shardSpec.getStartRootPartitionId();
-  }
-
-  @Override
-  public int getEndRootPartitionId()
-  {
-    return shardSpec.getEndRootPartitionId();
-  }
-
-  @Override
-  public short getMinorVersion()
-  {
-    return shardSpec.getMinorVersion();
-  }
-
-  @Override
-  public short getAtomicUpdateGroupSize()
-  {
-    return shardSpec.getAtomicUpdateGroupSize();
-  }
-
-  private boolean includeRootPartitions(DataSegment other)
-  {
-    return shardSpec.getStartRootPartitionId() <= other.shardSpec.getStartRootPartitionId()
-           && shardSpec.getEndRootPartitionId() >= other.shardSpec.getEndRootPartitionId();
-  }
-
   /**
    * This class is needed for optional injection of pruneLoadSpec, see
    * github.com/google/guice/wiki/FrequentlyAskedQuestions#how-can-i-inject-optional-parameters-into-a-constructor
@@ -313,6 +272,51 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   public SegmentId getId()
   {
     return id;
+  }
+
+  @Override
+  public boolean isOvershadow(DataSegment other)
+  {
+    if (id.getDataSource().equals(other.id.getDataSource())
+    && id.getInterval().overlaps(other.id.getInterval())) {
+      final int majorVersionCompare = id.getVersion().compareTo(other.id.getVersion());
+      if (majorVersionCompare > 0) {
+        return true;
+      } else if (majorVersionCompare == 0) {
+        return includeRootPartitions(other) && getMinorVersion() > other.getMinorVersion();
+      }
+    }
+    return false;
+  }
+
+  @Override
+  public int getStartRootPartitionId()
+  {
+    return shardSpec.getStartRootPartitionId();
+  }
+
+  @Override
+  public int getEndRootPartitionId()
+  {
+    return shardSpec.getEndRootPartitionId();
+  }
+
+  @Override
+  public short getMinorVersion()
+  {
+    return shardSpec.getMinorVersion();
+  }
+
+  @Override
+  public short getAtomicUpdateGroupSize()
+  {
+    return shardSpec.getAtomicUpdateGroupSize();
+  }
+
+  private boolean includeRootPartitions(DataSegment other)
+  {
+    return shardSpec.getStartRootPartitionId() <= other.shardSpec.getStartRootPartitionId()
+           && shardSpec.getEndRootPartitionId() >= other.shardSpec.getEndRootPartitionId();
   }
 
   public SegmentDescriptor toDescriptor()

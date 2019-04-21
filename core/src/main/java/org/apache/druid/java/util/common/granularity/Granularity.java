@@ -114,9 +114,7 @@ public abstract class Granularity implements Cacheable
   public abstract DateTime toDate(String filePath, Formatter formatter);
 
   /**
-   * TODO: doc, rename
-   * @param interval
-   * @return
+   * Return true if time chunks populated by this granularity includes the given interval time chunk.
    */
   public abstract boolean match(Interval interval);
 

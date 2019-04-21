@@ -70,12 +70,12 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
 {
   private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
 
-  // below timelines stores only visible *timelineEntries*
+  // Below timelines stores only *visible* timelineEntries
   // adjusted interval -> timelineEntry
   private final NavigableMap<Interval, TimelineEntry> completePartitionsTimeline = new TreeMap<>(
       Comparators.intervalsByStartThenEnd()
   );
-  // incompletePartitionsTimeline also includes completePartitionsTimeline
+  // IncompletePartitionsTimeline also includes completePartitionsTimeline
   // adjusted interval -> timelineEntry
   @VisibleForTesting
   final NavigableMap<Interval, TimelineEntry> incompletePartitionsTimeline = new TreeMap<>(

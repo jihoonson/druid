@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
  * Not thread-safe
  * @param <T>
  */
-public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
+public class OvershadowableManager<T extends Overshadowable<T>>
 {
   private enum State
   {
@@ -61,7 +61,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
   private final TreeMap<RootPartitionRange, Short2ObjectSortedMap<AtomicUpdateGroup<T>>> visibleGroup; // TODO: singleton navigable map
   private final TreeMap<RootPartitionRange, Short2ObjectSortedMap<AtomicUpdateGroup<T>>> overshadowedGroups;
 
-  public SameVersionPartitionChunkManager()
+  public OvershadowableManager()
   {
     this.knownPartitionChunks = new HashMap<>();
     this.standbyGroups = new TreeMap<>();
@@ -69,7 +69,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
     this.overshadowedGroups = new TreeMap<>();
   }
 
-  public SameVersionPartitionChunkManager(SameVersionPartitionChunkManager<T> other)
+  public OvershadowableManager(OvershadowableManager<T> other)
   {
     this.knownPartitionChunks = new HashMap<>(other.knownPartitionChunks);
     this.standbyGroups = new TreeMap<>(other.standbyGroups);
@@ -341,7 +341,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
       return Collections.emptyList();
     }
 
-    final SameVersionPartitionChunkManager<T> manager = new SameVersionPartitionChunkManager<>();
+    final OvershadowableManager<T> manager = new OvershadowableManager<>();
     overshadowedGroups.stream()
                       .flatMap(entry -> entry.getValue().getChunks().stream())
                       .forEach(manager::add);
@@ -470,7 +470,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    SameVersionPartitionChunkManager<?> that = (SameVersionPartitionChunkManager<?>) o;
+    OvershadowableManager<?> that = (OvershadowableManager<?>) o;
     return Objects.equals(knownPartitionChunks, that.knownPartitionChunks) &&
            Objects.equals(standbyGroups, that.standbyGroups) &&
            Objects.equals(visibleGroup, that.visibleGroup) &&
@@ -486,7 +486,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
   @Override
   public String toString()
   {
-    return "SameVersionPartitionChunkManager{" +
+    return "OvershadowableManager{" +
            "knownPartitionChunks=" + knownPartitionChunks +
            ", standbyGroups=" + standbyGroups +
            ", visibleGroup=" + visibleGroup +

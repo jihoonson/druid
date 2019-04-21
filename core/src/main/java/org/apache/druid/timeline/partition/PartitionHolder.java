@@ -35,17 +35,17 @@ import java.util.stream.StreamSupport;
  */
 public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<PartitionChunk<T>>
 {
-  private final SameVersionPartitionChunkManager<T> overshadowableManager;
+  private final OvershadowableManager<T> overshadowableManager;
 
   public PartitionHolder(PartitionChunk<T> initialChunk)
   {
-    this.overshadowableManager = new SameVersionPartitionChunkManager<>();
+    this.overshadowableManager = new OvershadowableManager<>();
     add(initialChunk);
   }
 
   public PartitionHolder(List<PartitionChunk<T>> initialChunks)
   {
-    this.overshadowableManager = new SameVersionPartitionChunkManager<>();
+    this.overshadowableManager = new OvershadowableManager<>();
     for (PartitionChunk<T> chunk : initialChunks) {
       add(chunk);
     }
@@ -53,7 +53,7 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
 
   public PartitionHolder(PartitionHolder<T> partitionHolder)
   {
-    this.overshadowableManager = new SameVersionPartitionChunkManager<>(partitionHolder.overshadowableManager);
+    this.overshadowableManager = new OvershadowableManager<>(partitionHolder.overshadowableManager);
   }
 
   public void add(PartitionChunk<T> chunk)

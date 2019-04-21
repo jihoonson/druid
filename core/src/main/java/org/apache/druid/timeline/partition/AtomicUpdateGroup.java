@@ -18,6 +18,7 @@
  */
 package org.apache.druid.timeline.partition;
 
+import com.google.common.base.Preconditions;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.timeline.Overshadowable;
@@ -100,36 +101,42 @@ class AtomicUpdateGroup<T extends Overshadowable<T>> implements Overshadowable<A
   @Override
   public int getStartRootPartitionId()
   {
+    Preconditions.checkState(!isEmpty(), "Empty atomicUpdateGroup");
     return chunks.get(0).getObject().getStartRootPartitionId();
   }
 
   @Override
   public short getStartRootPartitionIdAsShort()
   {
+    Preconditions.checkState(!isEmpty(), "Empty atomicUpdateGroup");
     return chunks.get(0).getObject().getStartRootPartitionIdAsShort();
   }
 
   @Override
   public int getEndRootPartitionId()
   {
+    Preconditions.checkState(!isEmpty(), "Empty atomicUpdateGroup");
     return chunks.get(0).getObject().getEndRootPartitionId();
   }
 
   @Override
   public short getEndRootPartitionIdAsShort()
   {
+    Preconditions.checkState(!isEmpty(), "Empty atomicUpdateGroup");
     return chunks.get(0).getObject().getEndRootPartitionIdAsShort();
   }
 
   @Override
   public short getMinorVersion()
   {
+    Preconditions.checkState(!isEmpty(), "Empty atomicUpdateGroup");
     return chunks.get(0).getObject().getMinorVersion();
   }
 
   @Override
   public short getAtomicUpdateGroupSize()
   {
+    Preconditions.checkState(!isEmpty(), "Empty atomicUpdateGroup");
     return chunks.get(0).getObject().getAtomicUpdateGroupSize();
   }
 
