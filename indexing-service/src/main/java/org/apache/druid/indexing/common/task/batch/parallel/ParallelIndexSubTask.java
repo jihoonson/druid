@@ -309,7 +309,6 @@ public class ParallelIndexSubTask extends AbstractTask
                 shardSpecFactory = NumberedShardSpecFactory.instance();
               }
 
-              // TODO: overwriting shardSpecFactory
               return new SurrogateAction<>(
                   supervisorTaskId,
                   new SegmentAllocateAction(

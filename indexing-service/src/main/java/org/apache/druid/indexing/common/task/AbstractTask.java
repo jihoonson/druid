@@ -78,7 +78,6 @@ public abstract class AbstractTask implements Task
 
   private final Map<String, Object> context;
 
-//  private final Map<Interval, Set<Integer>> inputSegmentPartitionIds = new HashMap<>(); // TODO: Intset
   @Nullable
   private Map<Interval, OverwritingSegmentMeta> overwritingSegmentMetas;
 

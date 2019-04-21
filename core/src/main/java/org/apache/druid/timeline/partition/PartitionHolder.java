@@ -27,6 +27,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Spliterator;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * An object that clumps together multiple other objects which each represent a shard of some space.
@@ -37,14 +39,12 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
 
   public PartitionHolder(PartitionChunk<T> initialChunk)
   {
-    // TODO: proper provider
     this.overshadowableManager = new SameVersionPartitionChunkManager<>();
     add(initialChunk);
   }
 
   public PartitionHolder(List<PartitionChunk<T>> initialChunks)
   {
-    // TODO: proper provider
     this.overshadowableManager = new SameVersionPartitionChunkManager<>();
     for (PartitionChunk<T> chunk : initialChunks) {
       add(chunk);
@@ -119,6 +119,11 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
   public Spliterator<PartitionChunk<T>> spliterator()
   {
     return overshadowableManager.getVisibles().spliterator();
+  }
+
+  public Stream<PartitionChunk<T>> stream()
+  {
+    return StreamSupport.stream(spliterator(), false);
   }
 
   public Collection<PartitionChunk<T>> getOvershadowed()

@@ -20,8 +20,10 @@
 package org.apache.druid.timeline.partition;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectMap;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectRBTreeMap;
+import it.unimi.dsi.fastutil.shorts.Short2ObjectSortedMap;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.timeline.Overshadowable;
 
@@ -37,7 +39,7 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-// TODO: bulk build
+// TODO: rename
 
 /**
  * Not thread-safe
@@ -55,9 +57,9 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
   private final Map<Integer, PartitionChunk<T>> knownPartitionChunks; // served segments
 
   // start partitionId -> end partitionId -> minorVersion -> atomicUpdateGroup
-  private final TreeMap<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> standbyGroups;
-  private final TreeMap<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> visibleGroup; // TODO: singleton navigable map
-  private final TreeMap<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> overshadowedGroups;
+  private final TreeMap<RootPartitionRange, Short2ObjectSortedMap<AtomicUpdateGroup<T>>> standbyGroups;
+  private final TreeMap<RootPartitionRange, Short2ObjectSortedMap<AtomicUpdateGroup<T>>> visibleGroup; // TODO: singleton navigable map
+  private final TreeMap<RootPartitionRange, Short2ObjectSortedMap<AtomicUpdateGroup<T>>> overshadowedGroups;
 
   public SameVersionPartitionChunkManager()
   {
@@ -75,7 +77,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
     this.overshadowedGroups = new TreeMap<>(other.overshadowedGroups);
   }
 
-  private TreeMap<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> getStateMap(State state)
+  private TreeMap<RootPartitionRange, Short2ObjectSortedMap<AtomicUpdateGroup<T>>> getStateMap(State state)
   {
     switch (state) {
       case STANDBY:
@@ -101,7 +103,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
   @Nullable
   private AtomicUpdateGroup<T> searchForStateOf(PartitionChunk<T> chunk, State state)
   {
-    final Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> versionToGroup = getStateMap(state).get(
+    final Short2ObjectSortedMap<AtomicUpdateGroup<T>> versionToGroup = getStateMap(state).get(
         RootPartitionRange.of(chunk)
     );
     if (versionToGroup != null) {
@@ -121,7 +123,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
   private AtomicUpdateGroup<T> tryRemoveFromState(PartitionChunk<T> chunk, State state)
   {
     final RootPartitionRange rangeKey = RootPartitionRange.of(chunk);
-    final Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> versionToGroup = getStateMap(state).get(rangeKey);
+    final Short2ObjectSortedMap<AtomicUpdateGroup<T>> versionToGroup = getStateMap(state).get(rangeKey);
     if (versionToGroup != null) {
       final AtomicUpdateGroup<T> atomicUpdateGroup = versionToGroup.get(chunk.getObject().getMinorVersion());
       if (atomicUpdateGroup != null) {
@@ -155,7 +157,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
       State fromState
   )
   {
-    Entry<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> current = getStateMap(fromState)
+    Entry<RootPartitionRange, Short2ObjectSortedMap<AtomicUpdateGroup<T>>> current = getStateMap(fromState)
         .floorEntry(rangeOfAug);
 
     if (current == null) {
@@ -164,7 +166,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
 
     // Find the first key for searching for overshadowed atomicUpdateGroup
     while (true) {
-      final Entry<RootPartitionRange, Short2ObjectRBTreeMap<AtomicUpdateGroup<T>>> lowerEntry = getStateMap(fromState)
+      final Entry<RootPartitionRange, Short2ObjectSortedMap<AtomicUpdateGroup<T>>> lowerEntry = getStateMap(fromState)
           .lowerEntry(current.getKey());
       if (lowerEntry != null && lowerEntry.getKey().startPartitionId == rangeOfAug.startPartitionId) {
         current = lowerEntry;
@@ -175,7 +177,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
 
     final List<Short2ObjectMap.Entry<AtomicUpdateGroup<T>>> found = new ArrayList<>();
     while (current != null && rangeOfAug.contains(current.getKey())) {
-      final Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> versionToGroup = current.getValue();
+      final Short2ObjectSortedMap<AtomicUpdateGroup<T>> versionToGroup = current.getValue();
       found.addAll(versionToGroup.subMap(versionToGroup.firstShortKey(), minorVersion).short2ObjectEntrySet());
       current = getStateMap(fromState).higherEntry(current.getKey());
     }
@@ -354,7 +356,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
   private void removeFrom(AtomicUpdateGroup<T> aug, State state)
   {
     final RootPartitionRange rangeKey = RootPartitionRange.of(aug);
-    final Short2ObjectRBTreeMap<AtomicUpdateGroup<T>> versionToGroup = getStateMap(state).get(rangeKey);
+    final Short2ObjectSortedMap<AtomicUpdateGroup<T>> versionToGroup = getStateMap(state).get(rangeKey);
     if (versionToGroup == null) {
       throw new ISE("Unknown atomicUpdateGroup[%s] in state[%s]", aug, state);
     }
@@ -418,14 +420,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
 
   public boolean isComplete()
   {
-    // TODO
-    return true;
-  }
-
-  public boolean isVisible(PartitionChunk<T> partitionChunk)
-  {
-    // TODO
-    return false;
+    return visibleGroup.values().stream().allMatch(map -> Iterables.getOnlyElement(map.values()).isFull());
   }
 
   @Nullable

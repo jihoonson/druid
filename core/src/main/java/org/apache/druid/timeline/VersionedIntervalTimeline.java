@@ -316,7 +316,6 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
     );
   }
 
-  // TODO: fix this
   public Set<TimelineObjectHolder<VersionType, ObjectType>> findFullyOvershadowed()
   {
     lock.readLock().lock();
@@ -377,6 +376,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
   }
 
   // TODO: check this is correct
+  // TODO: add test
   public boolean isOvershadowed(Interval interval, VersionType version, ObjectType object)
   {
     try {
@@ -384,7 +384,9 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
 
       TimelineEntry entry = completePartitionsTimeline.get(interval);
       if (entry != null) {
-        return versionComparator.compare(version, entry.getVersion()) < 0;
+        final int majorVersionCompare = versionComparator.compare(version, entry.getVersion());
+        return majorVersionCompare < 0
+            || (majorVersionCompare == 0 && entry.partitionHolder.stream().anyMatch(chunk -> chunk.getObject().isOvershadow(object)));
       }
 
       Interval lower = completePartitionsTimeline.floorKey(
@@ -412,7 +414,7 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
         if (versionCompare > 0) {
           return false;
         } else if (versionCompare == 0) {
-          if (StreamSupport.stream(timelineEntry.partitionHolder.spliterator(), false).noneMatch(chunk -> chunk.getObject().isOvershadow(object))) {
+          if (timelineEntry.partitionHolder.stream().noneMatch(chunk -> chunk.getObject().isOvershadow(object))) {
             return false;
           }
         }

@@ -34,12 +34,9 @@ import javax.annotation.Nullable;
 })
 public interface ShardSpecFactory
 {
-  // TODO: move numPartitions to context??
   ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId);
 
   ShardSpec create(ObjectMapper objectMapper, int partitionId);
 
   Class<? extends ShardSpec> getShardSpecClass();
-
-  // TODO: isExtendable() ??
 }

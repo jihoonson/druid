@@ -34,8 +34,8 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Lock for a single segment. Should be unique for (dataSource, interval, partitionId).
- * TODO: rename to PartitionLock?
+ * Lock for set of segments. Should be unique for (dataSource, interval, partitionId)??
+ * TODO: is the above sentence true??
  */
 public class SegmentLock implements TaskLock
 {

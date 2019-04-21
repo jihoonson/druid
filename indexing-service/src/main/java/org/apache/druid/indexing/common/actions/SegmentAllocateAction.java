@@ -275,6 +275,7 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
   {
     // This action is always used by appending tasks, which cannot change the segment granularity of existing
     // dataSources. So, all lock requests should be segmentLock.
+    // TODO: don't use taskLockbox
     final LockResult lockResult = toolbox.getTaskLockbox().tryLock(
         task,
         new LockRequestForNewSegment(

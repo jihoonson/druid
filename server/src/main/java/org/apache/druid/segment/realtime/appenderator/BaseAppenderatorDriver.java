@@ -530,7 +530,6 @@ public abstract class BaseAppenderatorDriver implements Closeable
   /**
    * Publish segments in background. The segments should be dropped (in batch ingestion) or pushed (in streaming
    * ingestion) before being published.
-   * // TODO: atomic update group
    *
    * @param segmentsAndMetadata result of dropping or pushing
    * @param publisher           transactional segment publisher
