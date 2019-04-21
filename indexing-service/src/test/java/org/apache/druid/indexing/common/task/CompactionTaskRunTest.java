@@ -73,7 +73,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -419,6 +421,45 @@ public class CompactionTaskRunTest extends IngestionTestBase
   }
 
   @Test
+  public void testCompactThenAppend() throws Exception
+  {
+    runIndexTask();
+
+    final Builder builder = new Builder(
+        DATA_SOURCE,
+        getObjectMapper(),
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory,
+        coordinatorClient,
+        segmentLoaderFactory,
+        retryPolicyFactory
+    );
+
+    final CompactionTask compactionTask = builder
+        .interval(Intervals.of("2014-01-01/2014-01-02"))
+        .build();
+
+    final Set<DataSegment> expectedSegments = new HashSet<>();
+    final Pair<TaskStatus, List<DataSegment>> compactionResult = runTask(compactionTask);
+    Assert.assertTrue(compactionResult.lhs.isSuccess());
+    expectedSegments.addAll(compactionResult.rhs);
+
+    final Pair<TaskStatus, List<DataSegment>> appendResult = runAppendTask();
+    Assert.assertTrue(appendResult.lhs.isSuccess());
+    expectedSegments.addAll(appendResult.rhs);
+
+    final Set<DataSegment> usedSegments = new HashSet<>(
+        getStorageCoordinator().getUsedSegmentsForIntervals(
+            DATA_SOURCE,
+            Collections.singletonList(Intervals.of("2014-01-01/2014-01-02"))
+        )
+    );
+
+    Assert.assertEquals(expectedSegments, usedSegments);
+  }
+
+  @Test
   public void testRunIndexAndCompactForSameSegmentAtTheSameTime() throws Exception
   {
     runIndexTask();
@@ -427,7 +468,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
     final CountDownLatch compactionTaskReadyLatch = new CountDownLatch(1);
     final CountDownLatch indexTaskStartLatch = new CountDownLatch(1);
     final Future<Pair<TaskStatus, List<DataSegment>>> indexFuture = exec.submit(
-        () -> runIndexTask(compactionTaskReadyLatch, indexTaskStartLatch)
+        () -> runIndexTask(compactionTaskReadyLatch, indexTaskStartLatch, false)
     );
 
     final Builder builder = new Builder(
@@ -506,7 +547,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
     final Future<Pair<TaskStatus, List<DataSegment>>> indexFuture = exec.submit(
         () -> {
           indexTaskReadyLatch.await();
-          return runIndexTask(compactionTaskStartLatch, null);
+          return runIndexTask(compactionTaskStartLatch, null, false);
         }
     );
 
@@ -529,12 +570,18 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
   private Pair<TaskStatus, List<DataSegment>> runIndexTask() throws Exception
   {
-    return runIndexTask(null, null);
+    return runIndexTask(null, null, false);
+  }
+
+  private Pair<TaskStatus, List<DataSegment>> runAppendTask() throws Exception
+  {
+    return runIndexTask(null, null, true);
   }
 
   private Pair<TaskStatus, List<DataSegment>> runIndexTask(
       @Nullable CountDownLatch readyLatchToCountDown,
-      @Nullable CountDownLatch latchToAwaitBeforeRun
+      @Nullable CountDownLatch latchToAwaitBeforeRun,
+      boolean appendToExisting
   ) throws Exception
   {
     File tmpDir = temporaryFolder.newFolder();
@@ -565,7 +612,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
                 null
             ),
             IndexTaskTest.createTuningConfig(2, 2, null, 2L, null, null, false, true),
-            false
+            appendToExisting
         ),
         null,
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,

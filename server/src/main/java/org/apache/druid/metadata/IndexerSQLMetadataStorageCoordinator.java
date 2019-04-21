@@ -701,9 +701,19 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
                       })
                       .orElse(null);
 
+      // Find the major version of existing segments
+      @Nullable final String versionOfExistingChunks;
+      if (!existingChunks.isEmpty()) {
+        versionOfExistingChunks = existingChunks.get(0).getVersion();
+      } else if (!pendings.isEmpty()) {
+        versionOfExistingChunks = pendings.get(0).getVersion();
+      } else {
+        versionOfExistingChunks = null;
+      }
+
       if (maxId == null) {
         final ShardSpec shardSpec = shardSpecFactory.create(jsonMapper, null);
-        return new SegmentIdWithShardSpec(dataSource, interval, maxVersion, shardSpec);
+        return new SegmentIdWithShardSpec(dataSource, interval, versionOfExistingChunks == null ? maxVersion : versionOfExistingChunks, shardSpec);
       } else if (!maxId.getInterval().equals(interval) || maxId.getVersion().compareTo(maxVersion) > 0) {
         log.warn(
             "Cannot allocate new segment for dataSource[%s], interval[%s], maxVersion[%s]: conflicting segment[%s].",
@@ -727,7 +737,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         return new SegmentIdWithShardSpec(
             dataSource,
             maxId.getInterval(),
-            maxId.getVersion(),
+            Preconditions.checkNotNull(versionOfExistingChunks, "versionOfExistingChunks"),
             newShardSpec
         );
       }
@@ -773,7 +783,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       // SELECT -> INSERT can fail due to races; callers must be prepared to retry.
       // Avoiding ON DUPLICATE KEY since it's not portable.
       // Avoiding try/catch since it may cause inadvertent transaction-splitting.
-      handle.createStatement(
+      final int numRowsInserted = handle.createStatement(
           StringUtils.format(
               "INSERT INTO %1$s (id, dataSource, created_date, start, %2$send%2$s, partitioned, version, used, payload) "
               + "VALUES (:id, :dataSource, :created_date, :start, :end, :partitioned, :version, :used, :payload)",
@@ -792,7 +802,13 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
             .bind("payload", jsonMapper.writeValueAsBytes(segment))
             .execute();
 
-      log.info("Published segment [%s] to DB with used flag [%s], json[%s]", segment.getId(), used, jsonMapper.writeValueAsString(segment));
+      if (numRowsInserted == 1) {
+        log.info("Published segment [%s] to DB with used flag [%s], json[%s]", segment.getId(), used, jsonMapper.writeValueAsString(segment));
+      } else if (numRowsInserted == 0) {
+        throw new ISE("Failed to publish segment[%s] to DB with used flag[%s], json[%s]", segment.getId(), used, jsonMapper.writeValueAsString(segment));
+      } else {
+        throw new ISE("WTH? numRowsInserted[%s] is larger than 1 after inserting segment[%s] with used flag[%s], json[%s]", numRowsInserted, segment.getId(), used, jsonMapper.writeValueAsString(segment));
+      }
     }
     catch (Exception e) {
       log.error(e, "Exception inserting segment [%s] with used flag [%s] into DB", segment.getId(), used);

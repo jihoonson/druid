@@ -522,7 +522,7 @@ public class SameVersionPartitionChunkManager<T extends Overshadowable<T>>
 
     public boolean contains(RootPartitionRange that)
     {
-      return this.startPartitionId <= that.endPartitionId && this.endPartitionId >= that.endPartitionId;
+      return this.startPartitionId <= that.startPartitionId && this.endPartitionId >= that.endPartitionId;
     }
 
     @Override
