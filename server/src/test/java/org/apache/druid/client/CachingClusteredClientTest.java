@@ -2223,24 +2223,21 @@ public class CachingClusteredClientTest
             SegmentId.dummy(StringUtils.format("%s_%s", k, j)), // interval/chunk
             queryIntervals.get(k),
             mockSegment,
+            shardSpec,
             expectedResults.get(k).get(j)
         );
         serverExpectations.get(lastServer).addExpectation(expectation);
         EasyMock.expect(mockSegment.getSize()).andReturn(0L).anyTimes();
-        EasyMock.expect(mockSegment.getShardSpec())
-                .andReturn(shardSpec)
-                .anyTimes();
-//        EasyMock.replay(mockSegment);
+        EasyMock.replay(mockSegment);
         ServerSelector selector = new ServerSelector(
             expectation.getSegment(),
             new HighestPriorityTierSelectorStrategy(new RandomServerSelectorStrategy())
         );
         selector.addServerAndUpdateSegment(new QueryableDruidServer(lastServer, null), selector.getSegment());
-
-//        EasyMock.reset(mockSegment);
-//        EasyMock.expect(mockSegment.getShardSpec())
-//                .andReturn(shardSpec)
-//                .anyTimes();
+        EasyMock.reset(mockSegment);
+        EasyMock.expect(mockSegment.getShardSpec())
+                .andReturn(shardSpec)
+                .anyTimes();
         timeline.add(queryIntervals.get(k), String.valueOf(k), shardSpec.createChunk(selector));
       }
     }
@@ -2750,18 +2747,21 @@ public class CachingClusteredClientTest
     private final SegmentId segmentId;
     private final Interval interval;
     private final DataSegment segment;
+    private final ShardSpec shardSpec;
     private final Iterable<Result<T>> results;
 
     public ServerExpectation(
         SegmentId segmentId,
         Interval interval,
         DataSegment segment,
+        ShardSpec shardSpec,
         Iterable<Result<T>> results
     )
     {
       this.segmentId = segmentId;
       this.interval = interval;
       this.segment = segment;
+      this.shardSpec = shardSpec;
       this.results = results;
     }
 
@@ -2909,25 +2909,25 @@ public class CachingClusteredClientTest
       @Override
       public int getStartRootPartitionId()
       {
-        return getShardSpec().getStartRootPartitionId();
+        return shardSpec.getStartRootPartitionId();
       }
 
       @Override
       public int getEndRootPartitionId()
       {
-        return getShardSpec().getEndRootPartitionId();
+        return shardSpec.getEndRootPartitionId();
       }
 
       @Override
       public short getMinorVersion()
       {
-        return getShardSpec().getMinorVersion();
+        return shardSpec.getMinorVersion();
       }
 
       @Override
       public short getAtomicUpdateGroupSize()
       {
-        return getShardSpec().getAtomicUpdateGroupSize();
+        return shardSpec.getAtomicUpdateGroupSize();
       }
 
       @Override

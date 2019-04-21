@@ -135,6 +135,29 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   private final long size;
 
   public DataSegment(
+      SegmentId segmentId,
+      Map<String, Object> loadSpec,
+      List<String> dimensions,
+      List<String> metrics,
+      ShardSpec shardSpec,
+      Integer binaryVersion,
+      long size
+  )
+  {
+    this(
+        segmentId.getDataSource(),
+        segmentId.getInterval(),
+        segmentId.getVersion(),
+        loadSpec,
+        dimensions,
+        metrics,
+        shardSpec,
+        binaryVersion,
+        size
+    );
+  }
+
+  public DataSegment(
       String dataSource,
       Interval interval,
       String version,
