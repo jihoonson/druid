@@ -17,28 +17,25 @@
  * under the License.
  */
 
-package org.apache.druid.query.aggregation.bloom;
+package org.apache.druid.server.initialization.jetty;
 
-import org.apache.druid.common.config.NullHandling;
-import org.apache.druid.query.filter.BloomKFilter;
-import org.apache.druid.segment.BaseLongColumnValueSelector;
+import com.google.common.collect.ImmutableMap;
 
-import java.nio.ByteBuffer;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.ext.ExceptionMapper;
+import javax.ws.rs.ext.Provider;
 
-public final class LongBloomFilterBufferAggregator extends BaseBloomFilterBufferAggregator<BaseLongColumnValueSelector>
+@Provider
+public class BadRequestExceptionMapper implements ExceptionMapper<BadRequestException>
 {
-  LongBloomFilterBufferAggregator(BaseLongColumnValueSelector selector, int maxNumEntries)
-  {
-    super(selector, maxNumEntries);
-  }
-
   @Override
-  public void bufferAdd(ByteBuffer buf)
+  public Response toResponse(BadRequestException exception)
   {
-    if (NullHandling.replaceWithDefault() || !selector.isNull()) {
-      BloomKFilter.addLong(buf, selector.getLong());
-    } else {
-      BloomKFilter.addBytes(buf, null, 0, 0);
-    }
+    return Response.status(Status.BAD_REQUEST)
+                   .type(MediaType.APPLICATION_JSON)
+                   .entity(ImmutableMap.of("error", exception.getMessage()))
+                   .build();
   }
 }

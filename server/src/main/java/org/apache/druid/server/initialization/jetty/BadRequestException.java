@@ -17,28 +17,12 @@
  * under the License.
  */
 
-package org.apache.druid.query.aggregation.bloom;
+package org.apache.druid.server.initialization.jetty;
 
-import org.apache.druid.common.config.NullHandling;
-import org.apache.druid.query.filter.BloomKFilter;
-import org.apache.druid.segment.BaseFloatColumnValueSelector;
-
-import java.nio.ByteBuffer;
-
-public final class FloatBloomFilterBufferAggregator extends BaseBloomFilterBufferAggregator<BaseFloatColumnValueSelector>
+public class BadRequestException extends RuntimeException
 {
-  FloatBloomFilterBufferAggregator(BaseFloatColumnValueSelector selector, int maxNumEntries)
+  public BadRequestException(String msg)
   {
-    super(selector, maxNumEntries);
-  }
-
-  @Override
-  public void bufferAdd(ByteBuffer buf)
-  {
-    if (NullHandling.replaceWithDefault() || !selector.isNull()) {
-      BloomKFilter.addFloat(buf, selector.getFloat());
-    } else {
-      BloomKFilter.addBytes(buf, null, 0, 0);
-    }
+    super(msg);
   }
 }

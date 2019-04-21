@@ -39,6 +39,8 @@ import './console-application.scss';
 export interface ConsoleApplicationProps extends React.Props<any> {
   hideLegacy: boolean;
   baseURL?: string;
+  customHeaderName?: string;
+  customHeaderValue?: string;
 }
 
 export interface ConsoleApplicationState {
@@ -99,6 +101,9 @@ export class ConsoleApplication extends React.Component<ConsoleApplicationProps,
     if (props.baseURL) {
       axios.defaults.baseURL = props.baseURL;
     }
+    if (props.customHeaderName && props.customHeaderValue) {
+      axios.defaults.headers.common[props.customHeaderName] = props.customHeaderValue;
+    }
   }
 
   componentDidMount(): void {
@@ -122,7 +127,7 @@ export class ConsoleApplication extends React.Component<ConsoleApplicationProps,
   }
 
   private goToSegments = (datasource: string, onlyUnavailable = false) => {
-    this.datasource = datasource;
+    this.datasource = `"${datasource}"`;
     this.onlyUnavailable = onlyUnavailable;
     window.location.hash = 'segments';
     this.resetInitialsDelay();

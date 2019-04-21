@@ -26,15 +26,18 @@ import ReactTable from 'react-table';
 import { Filter } from 'react-table';
 
 import { TableColumnSelection } from '../components/table-column-selection';
+import { ViewControlBar } from '../components/view-control-bar';
 import { AppToaster } from '../singletons/toaster';
 import {
   addFilter,
   formatBytes,
-  formatNumber, LocalStorageKeys,
-  makeBooleanFilter,
+  formatNumber,
+  LocalStorageKeys, makeBooleanFilter,
   parseList,
   queryDruidSql,
-  QueryManager, TableColumnSelectionHandler
+  QueryManager,
+  sqlQueryCustomTableFilter,
+  TableColumnSelectionHandler
 } from '../utils';
 
 import './segments-view.scss';
@@ -122,7 +125,7 @@ export class SegmentsView extends React.Component<SegmentsViewProps, SegmentsVie
         if (f.value === 'all') return null;
         return `${JSON.stringify(f.id)} = ${f.value === 'true' ? 1 : 0}`;
       } else {
-        return `${JSON.stringify(f.id)} LIKE '%${f.value}%'`;
+        return sqlQueryCustomTableFilter(f);
       }
     }).filter(Boolean);
 
@@ -175,7 +178,7 @@ export class SegmentsView extends React.Component<SegmentsViewProps, SegmentsVie
           accessor: 'datasource',
           Cell: row => {
             const value = row.value;
-            return <a onClick={() => { this.setState({ segmentFilter: addFilter(segmentFilter, 'datasource', value) }); }}>{value}</a>;
+            return <a onClick={() => { this.setState({ segmentFilter: addFilter(segmentFilter, 'datasource', value)}); }}>{value}</a>;
           },
           show: tableColumnSelectionHandler.showColumn('Datasource')
         },
@@ -285,8 +288,7 @@ export class SegmentsView extends React.Component<SegmentsViewProps, SegmentsVie
     const { tableColumnSelectionHandler } = this;
 
     return <div className="segments-view app-view">
-      <div className="control-bar">
-        <div className="control-label">Segments</div>
+      <ViewControlBar label="Segments">
         <Button
           icon={IconNames.REFRESH}
           text="Refresh"
@@ -302,7 +304,7 @@ export class SegmentsView extends React.Component<SegmentsViewProps, SegmentsVie
           onChange={(column) => tableColumnSelectionHandler.changeTableColumnSelection(column)}
           tableColumnsHidden={tableColumnSelectionHandler.hiddenColumns}
         />
-      </div>
+      </ViewControlBar>
       {this.renderSegmentsTable()}
     </div>;
   }

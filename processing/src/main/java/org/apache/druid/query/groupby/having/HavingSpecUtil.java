@@ -17,28 +17,19 @@
  * under the License.
  */
 
-package org.apache.druid.query.aggregation.bloom;
+package org.apache.druid.query.groupby.having;
 
-import org.apache.druid.segment.NilColumnValueSelector;
-
-import java.nio.ByteBuffer;
-
-public final class NoopBloomFilterBufferAggregator extends BaseBloomFilterBufferAggregator<NilColumnValueSelector>
+public class HavingSpecUtil
 {
-  NoopBloomFilterBufferAggregator(int maxNumEntries)
-  {
-    super(NilColumnValueSelector.instance(), maxNumEntries);
-  }
-
-  @Override
-  public void bufferAdd(ByteBuffer buf)
-  {
-    // nothing to do
-  }
-
-  @Override
-  public void aggregate(ByteBuffer buf, int position)
-  {
-    // nothing to do
-  }
+  static final byte CACHE_TYPE_ID_ALWAYS = 0x0;
+  static final byte CACHE_TYPE_ID_AND = 0x1;
+  static final byte CACHE_TYPE_ID_DIM_SELECTOR = 0x2;
+  static final byte CACHE_TYPE_ID_DIM_FILTER = 0x3;
+  static final byte CACHE_TYPE_ID_EQUAL = 0x4;
+  static final byte CACHE_TYPE_ID_GREATER_THAN = 0x5;
+  static final byte CACHE_TYPE_ID_LESS_THAN = 0x6;
+  static final byte CACHE_TYPE_ID_NEVER = 0x7;
+  static final byte CACHE_TYPE_ID_NOT = 0x8;
+  static final byte CACHE_TYPE_ID_OR = 0x9;
+  static final byte CACHE_TYPE_ID_COUNTING = 0xA;
 }
