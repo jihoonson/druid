@@ -2777,12 +2777,12 @@ public class KafkaIndexTaskTest
   }
 
   private List<SegmentDescriptor> publishedDescriptors()
-{
-  return metadataStorageCoordinator.getUsedSegmentsForInterval(
-      DATA_SCHEMA.getDataSource(),
-      Intervals.of("0000/3000")
-  ).stream().map(DataSegment::toDescriptor).collect(Collectors.toList());
-}
+  {
+    return metadataStorageCoordinator.getUsedSegmentsForInterval(
+        DATA_SCHEMA.getDataSource(),
+        Intervals.of("0000/3000")
+    ).stream().map(DataSegment::toDescriptor).collect(Collectors.toList());
+  }
 
   private void unlockAppenderatorBasePersistDirForTask(KafkaIndexTask task)
       throws NoSuchMethodException, InvocationTargetException, IllegalAccessException
@@ -2890,7 +2890,7 @@ public class KafkaIndexTaskTest
   private void assertEqualsExceptVersion(List<SegmentDescriptor> descriptors1, List<SegmentDescriptor> descriptors2)
   {
     Assert.assertEquals(descriptors1.size(), descriptors2.size());
-    final Comparator<SegmentDescriptor> comparator = (s1 ,s2) -> {
+    final Comparator<SegmentDescriptor> comparator = (s1, s2) -> {
       final int intervalCompare = Comparators.intervalsByStartThenEnd().compare(s1.getInterval(), s2.getInterval());
       if (intervalCompare == 0) {
         return Integer.compare(s1.getPartitionNumber(), s2.getPartitionNumber());

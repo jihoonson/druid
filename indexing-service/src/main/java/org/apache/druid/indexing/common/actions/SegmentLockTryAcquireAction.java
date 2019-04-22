@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.druid.indexing.common.actions;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -24,15 +25,15 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.base.Preconditions;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
-import org.apache.druid.indexing.overlord.SpecificSegmentLockRequest;
 import org.apache.druid.indexing.overlord.LockResult;
+import org.apache.druid.indexing.overlord.SpecificSegmentLockRequest;
 import org.joda.time.Interval;
 
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class TryLockExistingSegmentsAction implements TaskAction<List<LockResult>>
+public class SegmentLockTryAcquireAction implements TaskAction<List<LockResult>>
 {
   private final TaskLockType type;
   private final Interval interval;
@@ -40,7 +41,7 @@ public class TryLockExistingSegmentsAction implements TaskAction<List<LockResult
   private final Set<Integer> partitionIds;
 
   @JsonCreator
-  public TryLockExistingSegmentsAction(
+  public SegmentLockTryAcquireAction(
       @JsonProperty("lockType") TaskLockType type,
       @JsonProperty("interval") Interval interval,
       @JsonProperty("version") String version,
@@ -106,7 +107,7 @@ public class TryLockExistingSegmentsAction implements TaskAction<List<LockResult
   @Override
   public String toString()
   {
-    return "TryLockExistingSegmentsAction{" +
+    return "SegmentLockTryAcquireAction{" +
            "type=" + type +
            ", interval=" + interval +
            ", version='" + version + '\'' +

@@ -46,7 +46,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.StreamSupport;
 
 /**
  * VersionedIntervalTimeline is a data structure that manages objects on a specific timeline.

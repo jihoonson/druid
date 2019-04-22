@@ -581,9 +581,10 @@ public class TaskLockbox
                 entry.getValue()
             );
             // Tasks cannot enter the critical section with a shared lock
-            return lockPosses.stream().allMatch(
+            final boolean allLocksAreValid = lockPosses.stream().allMatch(
                 posse -> !posse.getTaskLock().isRevoked() && posse.getTaskLock().getLockType() != TaskLockType.SHARED
             );
+            return allLocksAreValid && lockPosses.size() == entry.getValue().size();
           });
     }
     finally {
@@ -816,7 +817,6 @@ public class TaskLockbox
       try {
         log.info("Removing task[%s] from activeTasks", task.getId());
         for (final TaskLockPosse taskLockPosse : findLockPossesForTask(task)) {
-//          unlock(task, taskLockPosse.getTaskLock().getInterval());
           unlock(
               task,
               taskLockPosse.getTaskLock().getInterval(),

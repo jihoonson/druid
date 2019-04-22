@@ -773,9 +773,6 @@ public class SegmentAllocateActionTest
     final HashBasedNumberedShardSpec hashBasedNumberedShardSpec = (HashBasedNumberedShardSpec) shardSpec;
     Assert.assertEquals(2, hashBasedNumberedShardSpec.getPartitions());
     Assert.assertEquals(ImmutableList.of("dim1"), hashBasedNumberedShardSpec.getPartitionDimensions());
-
-//    Assert.assertEquals(ImmutableSet.of(0, 1), segmentIdentifier.getDirectOvershadowedSegments());
-    // TODO: check shardSpec
   }
 
   private SegmentIdWithShardSpec allocate(
@@ -806,7 +803,7 @@ public class SegmentAllocateActionTest
       final String sequenceName,
       final String sequencePreviousId,
       final ShardSpecFactory shardSpecFactory
-      )
+  )
   {
     final SegmentAllocateAction action = new SegmentAllocateAction(
         DATA_SOURCE,

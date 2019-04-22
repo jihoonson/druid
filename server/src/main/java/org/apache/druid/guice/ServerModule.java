@@ -47,24 +47,4 @@ public class ServerModule implements Module
   {
     return ScheduledExecutors.createFactory(lifecycle);
   }
-
-//  @Override
-//  public List<? extends Module> getJacksonModules()
-//  {
-//    return Collections.singletonList(
-//        new SimpleModule()
-//            .registerSubtypes(
-//                new NamedType(SingleDimensionShardSpecFactory.class, "single"),
-//                new NamedType(SingleDimensionShardSpec.class, "single"),
-//                new NamedType(SingleDimensionShardSpecFactoryArgs.class, "single"),
-//                new NamedType(LinearShardSpecFactory.class, "linear"),
-//                new NamedType(LinearShardSpec.class, "linear"),
-//                new NamedType(NumberedShardSpecFactory.class, "numbered"),
-//                new NamedType(NumberedShardSpec.class, "numbered"),
-//                new NamedType(HashBasedNumberedShardSpecFactory.class, "hashed"),
-//                new NamedType(HashBasedNumberedShardSpec.class, "hashed"),
-//                new NamedType(HashBasedNumberedShardSpecFactoryArgs.class, "hashed")
-//            )
-//    );
-//  }
 }

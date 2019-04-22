@@ -29,9 +29,9 @@ import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.actions.LockListAction;
-import org.apache.druid.indexing.common.actions.TimeChunkLockTryAcquireAction;
+import org.apache.druid.indexing.common.actions.SegmentLockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
-import org.apache.druid.indexing.common.actions.TryLockExistingSegmentsAction;
+import org.apache.druid.indexing.common.actions.TimeChunkLockTryAcquireAction;
 import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.overlord.LockResult;
 import org.apache.druid.java.util.common.DateTimes;
@@ -399,7 +399,7 @@ public abstract class AbstractTask implements Task
                                                  .map(s -> s.getShardSpec().getPartitionNum())
                                                  .collect(Collectors.toSet());
           final List<LockResult> lockResults = client.submit(
-              new TryLockExistingSegmentsAction(TaskLockType.EXCLUSIVE, interval, visibleSegments.get(0).getVersion(), partitionIds)
+              new SegmentLockTryAcquireAction(TaskLockType.EXCLUSIVE, interval, visibleSegments.get(0).getVersion(), partitionIds)
           );
           if (lockResults.isEmpty() || lockResults.stream().anyMatch(result -> !result.isOk())) {
             return false;
@@ -439,12 +439,10 @@ public abstract class AbstractTask implements Task
       final DataSegment curSegment = inputSegments.get(i);
       final DataSegment nextSegment = inputSegments.get(i + 1);
       if (curSegment.getStartRootPartitionId() == nextSegment.getStartRootPartitionId()
-          && curSegment.getEndRootPartitionId() == nextSegment.getEndRootPartitionId())
-      {
+          && curSegment.getEndRootPartitionId() == nextSegment.getEndRootPartitionId()) {
         // Input segments should have the same or consecutive rootPartition range
         if (curSegment.getMinorVersion() != nextSegment.getMinorVersion()
-            || curSegment.getAtomicUpdateGroupSize() != nextSegment.getAtomicUpdateGroupSize())
-        {
+            || curSegment.getAtomicUpdateGroupSize() != nextSegment.getAtomicUpdateGroupSize()) {
           throw new ISE(
               "segment[%s] and segment[%s] have the same rootPartitionRange, but different minorVersion or atomicUpdateGroupSize",
               curSegment,

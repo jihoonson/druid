@@ -675,8 +675,6 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
           segmentIdentifier.getShardSpec(),
           0,
           1L
-//          getInputPartitionIdsFor(segmentIdentifier.getInterval()),
-//          IntStream.range(0, NUM_SUB_TASKS).boxed().collect(Collectors.toSet())
       );
       // TODO: maybe check shardSpec??
 

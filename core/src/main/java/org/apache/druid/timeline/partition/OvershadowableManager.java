@@ -198,19 +198,6 @@ public class OvershadowableManager<T extends Overshadowable<T>>
             .forEach(entry -> transitPartitionChunkState(entry.getValue(), State.VISIBLE, State.OVERSHADOWED));
         transitPartitionChunkState(aug, State.STANDBY, State.VISIBLE);
       }
-
-//      // A standby atomicUpdateGroup becomes overshadowed when a new atomicUpdateGroup is added
-//      // which overshadows the standby one.
-//      findOvershadowedBy(aug, State.STANDBY).forEach(
-//          group -> transitPartitionChunkState(group, State.STANDBY, State.OVERSHADOWED)
-//      );
-
-    } else if (newStateOfAug == State.VISIBLE) {
-//      // A visible atomicUpdateGroup becomes overshadowed when a fully available standby atomicUpdateGroup becomes
-//      // visible which overshadows the current visible one.
-//      findOvershadowedBy(aug, State.VISIBLE).forEach(
-//          entry -> transitPartitionChunkState(entry.getValue(), State.VISIBLE, State.OVERSHADOWED)
-//      );
     }
   }
 
@@ -322,7 +309,7 @@ public class OvershadowableManager<T extends Overshadowable<T>>
         }
         latestFullAugs.forEach(group -> transitPartitionChunkState(group, State.OVERSHADOWED, State.VISIBLE));
       }
-    } else  {
+    } else {
       // do nothing
     }
   }
@@ -377,8 +364,6 @@ public class OvershadowableManager<T extends Overshadowable<T>>
     if (versionToGroup.isEmpty()) {
       getStateMap(state).remove(rangeKey);
     }
-
-//    handleRemove(aug, aug.getStartRootPartitionId(), aug.getEndRootPartitionId(), aug.getMinorVersion(), state);
   }
 
   @Nullable

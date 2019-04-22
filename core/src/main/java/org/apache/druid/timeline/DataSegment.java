@@ -277,8 +277,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   @Override
   public boolean isOvershadow(DataSegment other)
   {
-    if (id.getDataSource().equals(other.id.getDataSource())
-    && id.getInterval().overlaps(other.id.getInterval())) {
+    if (id.getDataSource().equals(other.id.getDataSource()) && id.getInterval().overlaps(other.id.getInterval())) {
       final int majorVersionCompare = id.getVersion().compareTo(other.id.getVersion());
       if (majorVersionCompare > 0) {
         return true;

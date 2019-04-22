@@ -55,8 +55,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 // TODO: change segmentGranularity
 public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSupervisorTaskTest
@@ -173,7 +171,6 @@ public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSuperv
     allNewSegments.forEach(
         segment -> newIntervalToSegments.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>()).add(segment)
     );
-//    Assert.assertTrue(oldSegments.get(0).getVersion().compareTo(newSegments.get(0).getVersion()) < 0);
     Assert.assertEquals(allOldSegments.size(), allNewSegments.size());
     for (Entry<Interval, List<DataSegment>> entry : oldIntervalToSegments.entrySet()) {
       final List<DataSegment> oldSegments = entry.getValue();

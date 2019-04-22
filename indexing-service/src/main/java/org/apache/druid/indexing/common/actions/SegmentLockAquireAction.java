@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.druid.indexing.common.actions;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -91,9 +92,7 @@ public class SegmentLockAquireAction implements TaskAction<LockResult>
   }
 
   @Override
-  public LockResult perform(
-      Task task, TaskActionToolbox toolbox
-  )
+  public LockResult perform(Task task, TaskActionToolbox toolbox)
   {
     try {
       if (timeoutMs == 0) {

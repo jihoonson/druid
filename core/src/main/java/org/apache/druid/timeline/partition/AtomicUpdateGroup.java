@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.druid.timeline.partition;
 
 import com.google.common.base.Preconditions;
@@ -170,7 +171,8 @@ class AtomicUpdateGroup<T extends Overshadowable<T>> implements Overshadowable<A
   private static <T extends Overshadowable<T>> boolean isSameAtomicUpdateGroup(
       PartitionChunk<T> c1,
       PartitionChunk<T> c2
-  ) {
+  )
+  {
     return c1.getObject().getStartRootPartitionId() == c2.getObject().getStartRootPartitionId()
         && c1.getObject().getEndRootPartitionId() == c2.getObject().getEndRootPartitionId()
         && c1.getObject().getMinorVersion() == c2.getObject().getMinorVersion()

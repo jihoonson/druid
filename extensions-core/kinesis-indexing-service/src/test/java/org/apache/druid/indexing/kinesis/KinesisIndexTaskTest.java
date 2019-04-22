@@ -3013,7 +3013,7 @@ public class KinesisIndexTaskTest extends EasyMockSupport
   private void assertEqualsExceptVersion(List<SegmentDescriptor> descriptors1, List<SegmentDescriptor> descriptors2)
   {
     Assert.assertEquals(descriptors1.size(), descriptors2.size());
-    final Comparator<SegmentDescriptor> comparator = (s1 , s2) -> {
+    final Comparator<SegmentDescriptor> comparator = (s1, s2) -> {
       final int intervalCompare = Comparators.intervalsByStartThenEnd().compare(s1.getInterval(), s2.getInterval());
       if (intervalCompare == 0) {
         return Integer.compare(s1.getPartitionNumber(), s2.getPartitionNumber());

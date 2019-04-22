@@ -675,7 +675,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         maxId = StreamSupport.stream(existingHolder.getObject().spliterator(), false)
                              .filter(chunk -> chunk.getObject().getShardSpec().getClass() == shardSpecFactory.getShardSpecClass())
                              .max(Comparator.comparing(chunk -> chunk.getObject().getShardSpec().getPartitionNum()))
-                             .map(chunk ->  SegmentIdWithShardSpec.fromDataSegment(chunk.getObject()))
+                             .map(chunk -> SegmentIdWithShardSpec.fromDataSegment(chunk.getObject()))
                              .orElse(null);
       }
 
@@ -724,15 +724,6 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         );
         return null;
       } else {
-//        if (maxId.getShardSpec().getClass() != shardSpecFactory.getShardSpecClass()) {
-//          log.warn(
-//              "Cannot allocate new segment because of shardSpec mismatch. existing shardSpec[%s], new shardSpec[%s]",
-//              maxId.getShardSpec().getClass().getCanonicalName(),
-//              shardSpecFactory.getShardSpecClass().getCanonicalName()
-//          );
-//          return null;
-//        } else {
-//        }
         final ShardSpec newShardSpec = shardSpecFactory.create(jsonMapper, maxId.getShardSpec());
         return new SegmentIdWithShardSpec(
             dataSource,
