@@ -43,6 +43,7 @@ import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -388,7 +389,13 @@ public class TaskLockbox
                .addData("interval", posseToUse.getTaskLock().getInterval())
                .addData("version", posseToUse.getTaskLock().getVersion())
                .emit();
-            unlock(task, convertedRequest.getInterval());
+            unlock(
+                task,
+                convertedRequest.getInterval(),
+                posseToUse.getTaskLock().getGranularity() == LockGranularity.SEGMENT
+                ? ((SegmentLock) posseToUse.taskLock).getPartitionId()
+                : null
+            );
             return LockResult.fail(false);
           }
         } else {
@@ -671,6 +678,11 @@ public class TaskLockbox
     }
   }
 
+  public void unlock(final Task task, final Interval interval)
+  {
+    unlock(task, interval, null);
+  }
+
   /**
    * Release lock held for a task on a particular interval. Does nothing if the task does not currently
    * hold the mentioned lock.
@@ -678,8 +690,7 @@ public class TaskLockbox
    * @param task task to unlock
    * @param interval interval to unlock
    */
-//  public void unlock(final Task task, final Interval interval, @Nullable IntSet partitionIds)
-  public void unlock(final Task task, final Interval interval)
+  public void unlock(final Task task, final Interval interval, @Nullable Integer partitionId)
   {
     giant.lock();
 
@@ -705,33 +716,34 @@ public class TaskLockbox
       final List<TaskLockPosse> posses = possesHolder.stream()
                                                      .filter(posse -> posse.containsTask(task))
                                                      .collect(Collectors.toList());
-//      final IntSet remainingPartitionIds = partitionIds == null ? null : new IntArraySet(partitionIds);
       for (TaskLockPosse taskLockPosse : posses) {
         final TaskLock taskLock = taskLockPosse.getTaskLock();
 
-//        if (taskLock instanceof TimeChunkLock) {
-//          if (partitionIds != null) {
-//            throw new ISE(
-//                "PartitoinIds[%s] are set, but lock granularity is timeChunk for task[%s] and interval[%s]",
-//                partitionIds,
-//                task,
-//                interval
-//            );
-//          }
-//        } else if (taskLock instanceof SegmentLock) {
-//          if (partitionIds == null) {
-//            throw new ISE(
-//                "PartitoinIds are missing, but lock granularity is segmentLock for task[%s] and interval[%s]",
-//                task,
-//                interval
-//            );
-//          }
-//
-//          ((SegmentLock) taskLock).getPartitionIds()
-//        }
+        if (taskLock instanceof TimeChunkLock) {
+          if (partitionId != null) {
+            throw new ISE(
+                "PartitoinId[%s] are set, but lock granularity is timeChunk for task[%s] and interval[%s]",
+                partitionId,
+                task,
+                interval
+            );
+          }
+        } else if (taskLock instanceof SegmentLock) {
+          if (partitionId == null) {
+            throw new ISE(
+                "PartitoinId are missing, but lock granularity is segmentLock for task[%s] and interval[%s]",
+                task,
+                interval
+            );
+          }
+
+          if (((SegmentLock) taskLock).getPartitionId() != partitionId) {
+            continue;
+          }
+        }
 
         // Remove task from live list
-        log.info("Removing task[%s] from TaskLock[%s]", task.getId(), taskLock.getGroupId());
+        log.info("Removing task[%s] from TaskLock[%s]", task.getId(), taskLock);
         final boolean removed = taskLockPosse.removeTask(task);
 
         if (taskLockPosse.isTasksEmpty()) {
@@ -804,7 +816,14 @@ public class TaskLockbox
       try {
         log.info("Removing task[%s] from activeTasks", task.getId());
         for (final TaskLockPosse taskLockPosse : findLockPossesForTask(task)) {
-          unlock(task, taskLockPosse.getTaskLock().getInterval());
+//          unlock(task, taskLockPosse.getTaskLock().getInterval());
+          unlock(
+              task,
+              taskLockPosse.getTaskLock().getInterval(),
+              taskLockPosse.getTaskLock().getGranularity() == LockGranularity.SEGMENT
+              ? ((SegmentLock) taskLockPosse.taskLock).getPartitionId()
+              : null
+          );
         }
       }
       finally {

@@ -25,7 +25,7 @@ import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
-import org.apache.druid.indexing.common.actions.LockAcquireAction;
+import org.apache.druid.indexing.common.actions.TimeChunkLockAcquireAction;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.LockReleaseAction;
 import org.apache.druid.indexing.common.actions.SegmentInsertAction;
@@ -98,7 +98,7 @@ public class RealtimeishTask extends AbstractTask
 
     // Acquire lock for first interval
     final TaskLock lock1 = toolbox.getTaskActionClient().submit(
-        new LockAcquireAction(TaskLockType.EXCLUSIVE, interval1, 5000)
+        new TimeChunkLockAcquireAction(TaskLockType.EXCLUSIVE, interval1, 5000)
     );
     Assert.assertNotNull(lock1);
     final List<TaskLock> locks1 = toolbox.getTaskActionClient().submit(new LockListAction());
@@ -109,7 +109,7 @@ public class RealtimeishTask extends AbstractTask
 
     // Acquire lock for second interval
     final TaskLock lock2 = toolbox.getTaskActionClient().submit(
-        new LockAcquireAction(TaskLockType.EXCLUSIVE, interval2, 5000)
+        new TimeChunkLockAcquireAction(TaskLockType.EXCLUSIVE, interval2, 5000)
     );
     Assert.assertNotNull(lock2);
     final List<TaskLock> locks2 = toolbox.getTaskActionClient().submit(new LockListAction());

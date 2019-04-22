@@ -80,7 +80,7 @@ public class BatchAppenderatorDriver extends BaseAppenderatorDriver
    */
   @Override
   @Nullable
-  public Object startJob()
+  public Object startJob(SegmentLocker segmentLocker)
   {
     final Object metadata = appenderator.startJob();
     if (metadata != null) {

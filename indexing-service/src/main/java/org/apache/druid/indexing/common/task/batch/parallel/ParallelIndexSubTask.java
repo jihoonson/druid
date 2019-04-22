@@ -386,7 +386,7 @@ public class ParallelIndexSubTask extends AbstractTask
         final BatchAppenderatorDriver driver = newDriver(appenderator, toolbox, segmentAllocator);
         final Firehose firehose = firehoseFactory.connect(dataSchema.getParser(), firehoseTempDir)
     ) {
-      driver.startJob();
+      driver.startJob(null);
 
       final List<DataSegment> pushedSegments = new ArrayList<>();
 

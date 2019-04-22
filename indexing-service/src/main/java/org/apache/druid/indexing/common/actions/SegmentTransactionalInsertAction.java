@@ -23,6 +23,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.ImmutableSet;
+import org.apache.druid.indexing.common.LockGranularity;
+import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.task.IndexTaskUtils;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.indexing.overlord.CriticalAction;
@@ -37,6 +39,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 /**
@@ -103,6 +106,7 @@ public class SegmentTransactionalInsertAction implements TaskAction<SegmentPubli
   @Override
   public SegmentPublishResult perform(Task task, TaskActionToolbox toolbox)
   {
+    // TODO: move this to lock checking in critical section
     TaskActionPreconditions.checkLockCoversSegments(task, toolbox.getTaskLockbox(), segments);
 
     final Map<Interval, List<Integer>> intervalToPartitionIds = new HashMap<>();
@@ -137,9 +141,14 @@ public class SegmentTransactionalInsertAction implements TaskAction<SegmentPubli
       throw new RuntimeException(e);
     }
 
-//    if (releaseTaskLock) {
-//      toolbox.getTaskLockbox().unlock(task);
-//    }
+    final List<TaskLock> locks = toolbox.getTaskLockbox().findLocksForTask(task);
+    if (locks.get(0).getGranularity() == LockGranularity.SEGMENT) {
+      for (Entry<Interval, List<Integer>> entry : intervalToPartitionIds.entrySet()) {
+        final Interval interval = entry.getKey();
+        final List<Integer> partitionIds = entry.getValue();
+        partitionIds.forEach(partitionId -> toolbox.getTaskLockbox().unlock(task, interval, partitionId));
+      }
+    }
 
     // Emit metrics
     final ServiceMetricEvent.Builder metricBuilder = new ServiceMetricEvent.Builder();

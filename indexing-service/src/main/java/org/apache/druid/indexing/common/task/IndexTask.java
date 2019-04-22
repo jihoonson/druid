@@ -993,7 +993,7 @@ public class IndexTask extends AbstractTask implements ChatHandler
         final BatchAppenderatorDriver driver = newDriver(appenderator, toolbox, segmentAllocator);
         final Firehose firehose = firehoseFactory.connect(dataSchema.getParser(), firehoseTempDir)
     ) {
-      driver.startJob();
+      driver.startJob(null);
 
       while (firehose.hasMore()) {
         try {

@@ -44,10 +44,12 @@ import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReport;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReportData;
+import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskRealtimeMetricsMonitorBuilder;
 import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
+import org.apache.druid.indexing.common.actions.SegmentLockAquireAction;
 import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.config.TaskConfig;
@@ -99,6 +101,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.io.File;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -279,7 +282,24 @@ public class AppenderatorDriverRealtimeIndexTask extends AbstractTask implements
       toolbox.getDataSegmentServerAnnouncer().announce();
       toolbox.getDruidNodeAnnouncer().announce(discoveryDruidNode);
 
-      driver.startJob();
+      driver.startJob(
+          segmentId -> {
+            try {
+              return toolbox.getTaskActionClient().submit(
+                  new SegmentLockAquireAction(
+                      TaskLockType.EXCLUSIVE,
+                      segmentId.getInterval(),
+                      segmentId.getVersion(),
+                      segmentId.getShardSpec().getPartitionNum(),
+                      1000L
+                  )
+              ).isOk();
+            }
+            catch (IOException e) {
+              throw new RuntimeException(e);
+            }
+          }
+      );
 
       // Set up metrics emission
       toolbox.getMonitorScheduler().addMonitor(metricsMonitor);

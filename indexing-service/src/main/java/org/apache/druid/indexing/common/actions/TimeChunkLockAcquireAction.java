@@ -33,7 +33,7 @@ import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 
-public class LockAcquireAction implements TaskAction<TaskLock>
+public class TimeChunkLockAcquireAction implements TaskAction<TaskLock>
 {
   private final TaskLockType type;
 
@@ -44,7 +44,7 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   private final long timeoutMs;
 
   @JsonCreator
-  public LockAcquireAction(
+  public TimeChunkLockAcquireAction(
       @JsonProperty("lockType") @Nullable TaskLockType type, // nullable for backward compatibility
       @JsonProperty("interval") Interval interval,
       @JsonProperty("timeoutMs") long timeoutMs
@@ -106,7 +106,7 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   @Override
   public String toString()
   {
-    return "LockAcquireAction{" +
+    return "TimeChunkLockAcquireAction{" +
            "lockType=" + type +
            ", interval=" + interval +
            ", timeoutMs=" + timeoutMs +
