@@ -20,7 +20,6 @@
 package org.apache.druid.indexing.common;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.ImmutableSet;
 import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.Intervals;
 import org.junit.Assert;
@@ -83,8 +82,8 @@ public class TaskLockTest
         "groupId",
         "dataSource",
         Intervals.of("2019/2020"),
-        ImmutableSet.of(0, 1),
         "version",
+        0,
         100
     );
     final String json = objectMapper.writeValueAsString(lock);

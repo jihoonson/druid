@@ -46,8 +46,8 @@ import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockAcquireAction;
-import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
+import org.apache.druid.indexing.common.actions.TimeChunkLockTryAcquireAction;
 import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.hadoop.OverlordActionBasedUsedSegmentLister;
@@ -200,7 +200,7 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
               intervals.get()
           )
       );
-      return taskActionClient.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval)) != null;
+      return taskActionClient.submit(new TimeChunkLockTryAcquireAction(TaskLockType.EXCLUSIVE, interval)) != null;
     } else {
       return true;
     }
@@ -373,7 +373,7 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
       // Note: if lockTimeoutMs is larger than ServerConfig.maxIdleTime, the below line can incur http timeout error.
       final TaskLock lock = Preconditions.checkNotNull(
           toolbox.getTaskActionClient().submit(
-              LockAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval, lockTimeoutMs)
+              new LockAcquireAction(TaskLockType.EXCLUSIVE, interval, lockTimeoutMs)
           ),
           "Cannot acquire a lock for interval[%s]", interval
       );

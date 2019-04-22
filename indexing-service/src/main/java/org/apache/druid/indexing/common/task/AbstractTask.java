@@ -28,12 +28,12 @@ import com.google.common.collect.Iterables;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
-import org.apache.druid.indexing.common.actions.LockAcquireAction;
 import org.apache.druid.indexing.common.actions.LockListAction;
-import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
-import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
+import org.apache.druid.indexing.common.actions.TimeChunkLockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
+import org.apache.druid.indexing.common.actions.TryLockExistingSegmentsAction;
 import org.apache.druid.indexing.common.config.TaskConfig;
+import org.apache.druid.indexing.overlord.LockResult;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.JodaUtils;
@@ -381,7 +381,7 @@ public abstract class AbstractTask implements Task
         }
 
         for (Interval interval : uniqueIntervals) {
-          final TaskLock lock = client.submit(LockTryAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval));
+          final TaskLock lock = client.submit(new TimeChunkLockTryAcquireAction(TaskLockType.EXCLUSIVE, interval));
           if (lock == null) {
             return false;
           }
@@ -398,10 +398,10 @@ public abstract class AbstractTask implements Task
           final Set<Integer> partitionIds = entry.getValue().stream()
                                                  .map(s -> s.getShardSpec().getPartitionNum())
                                                  .collect(Collectors.toSet());
-          final TaskLock lock = client.submit(
-              LockTryAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, interval, visibleSegments.get(0).getVersion(), partitionIds)
+          final List<LockResult> lockResults = client.submit(
+              new TryLockExistingSegmentsAction(TaskLockType.EXCLUSIVE, interval, visibleSegments.get(0).getVersion(), partitionIds)
           );
-          if (lock == null) {
+          if (lockResults.isEmpty() || lockResults.stream().anyMatch(result -> !result.isOk())) {
             return false;
           }
         }
@@ -411,78 +411,6 @@ public abstract class AbstractTask implements Task
       changeSegmentGranularity = false;
       overwritingSegmentMetas = Collections.emptyMap();
       return true;
-    }
-  }
-
-  protected void lockWithIntervals(TaskActionClient client, Set<Interval> intervals, long timeoutMs)
-      throws IOException
-  {
-    lockWithIntervals(client, new ArrayList<>(intervals), timeoutMs);
-  }
-
-  protected void lockWithIntervals(TaskActionClient client, List<Interval> intervals, long timeoutMs)
-      throws IOException
-  {
-    if (requireLockInputSegments()) {
-      final List<DataSegment> usedSegments = client.submit(new SegmentListUsedAction(getDataSource(), null, intervals));
-
-      // Create a timeline to find latest segments only
-      final TimelineLookup<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(usedSegments);
-      final List<DataSegment> segments = timeline.lookup(JodaUtils.umbrellaInterval(intervals))
-                                                 .stream()
-                                                 .map(TimelineObjectHolder::getObject)
-                                                 .flatMap(partitionHolder -> StreamSupport.stream(partitionHolder.spliterator(), false))
-                                                 .map(PartitionChunk::getObject)
-                                                 .collect(Collectors.toList());
-
-      lockWithSegments(client, segments, timeoutMs);
-    } else {
-      changeSegmentGranularity = false;
-      overwritingSegmentMetas = Collections.emptyMap();
-    }
-  }
-
-  protected void lockWithSegments(TaskActionClient client, List<DataSegment> segments, long timeoutMs) throws IOException
-  {
-    if (requireLockInputSegments()) {
-      if (segments.isEmpty()) {
-        changeSegmentGranularity = false;
-        overwritingSegmentMetas = Collections.emptyMap();
-        return;
-      }
-
-      final List<Interval> intervals = segments.stream().map(DataSegment::getInterval).collect(Collectors.toList());
-      changeSegmentGranularity = changeSegmentGranularity(intervals);
-      if (changeSegmentGranularity) {
-        overwritingSegmentMetas = Collections.emptyMap();
-        for (Interval interval : JodaUtils.condenseIntervals(intervals)) {
-          final TaskLock lock = client.submit(LockAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval, timeoutMs));
-          if (lock == null) {
-            throw new ISE("Failed to get a lock for interval[%s]", interval);
-          }
-        }
-      } else {
-        final Map<Interval, List<DataSegment>> intervalToSegments = new HashMap<>();
-        for (DataSegment segment : segments) {
-          intervalToSegments.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>()).add(segment);
-        }
-        intervalToSegments.values().forEach(this::verifyAndFindRootPartitionRangeAndMinorVersion);
-        for (Entry<Interval, List<DataSegment>> entry : intervalToSegments.entrySet()) {
-          final Interval interval = entry.getKey();
-          final Set<Integer> partitionIds = entry.getValue().stream()
-                                                 .map(s -> s.getShardSpec().getPartitionNum())
-                                                 .collect(Collectors.toSet());
-          final TaskLock lock = client.submit(
-              LockAcquireAction.createSegmentRequest(TaskLockType.EXCLUSIVE, interval, segments.get(0).getVersion(), partitionIds, timeoutMs)
-          );
-          if (lock == null) {
-            throw new ISE("Failed to get a lock for interval[%s] and partitionIds[%s] with version[%s]", interval, partitionIds, segments.get(0).getVersion());
-          }
-        }
-      }
-    } else {
-      changeSegmentGranularity = false;
-      overwritingSegmentMetas = Collections.emptyMap();
     }
   }
 

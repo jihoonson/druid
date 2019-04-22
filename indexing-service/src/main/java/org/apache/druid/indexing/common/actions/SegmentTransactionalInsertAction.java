@@ -49,14 +49,11 @@ import java.util.Set;
  */
 public class SegmentTransactionalInsertAction implements TaskAction<SegmentPublishResult>
 {
-
   private final Set<DataSegment> segments;
   private final DataSourceMetadata startMetadata;
   private final DataSourceMetadata endMetadata;
 
-  public SegmentTransactionalInsertAction(
-      Set<DataSegment> segments
-  )
+  public SegmentTransactionalInsertAction(Set<DataSegment> segments)
   {
     this(segments, null, null);
   }
@@ -139,6 +136,10 @@ public class SegmentTransactionalInsertAction implements TaskAction<SegmentPubli
     catch (Exception e) {
       throw new RuntimeException(e);
     }
+
+//    if (releaseTaskLock) {
+//      toolbox.getTaskLockbox().unlock(task);
+//    }
 
     // Emit metrics
     final ServiceMetricEvent.Builder metricBuilder = new ServiceMetricEvent.Builder();

@@ -22,8 +22,7 @@ package org.apache.druid.indexing.common;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
-import org.apache.druid.indexing.overlord.ExistingSegmentLockRequest;
+import org.apache.druid.indexing.overlord.SpecificSegmentLockRequest;
 import org.apache.druid.indexing.overlord.LockRequest;
 import org.apache.druid.indexing.overlord.LockRequestForNewSegment;
 import org.apache.druid.indexing.overlord.TimeChunkLockRequest;
@@ -31,7 +30,6 @@ import org.apache.druid.java.util.common.ISE;
 import org.joda.time.Interval;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Lock for set of segments. Should be unique for (dataSource, interval, partitionId)??
@@ -45,8 +43,8 @@ public class SegmentLock implements TaskLock
   private final String groupId;
   private final String dataSource;
   private final Interval interval;
-  private final Set<Integer> partitionIds; // TODO: mutable???
   private final String version;
+  private final int partitionId;
   private final int priority;
   private final boolean revoked;
 
@@ -56,19 +54,18 @@ public class SegmentLock implements TaskLock
       @JsonProperty("groupId") String groupId,
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("interval") Interval interval,
-      @JsonProperty("partitionIds") Set<Integer> partitionIds,
       @JsonProperty("version") String version,
+      @JsonProperty("partitionId") int partitionId,
       @JsonProperty("priority") int priority,
       @JsonProperty("revoked") boolean revoked
   )
   {
-    Preconditions.checkArgument(!partitionIds.isEmpty(), "Empty partitionIds");
     this.lockType = Preconditions.checkNotNull(lockType, "lockType");
     this.groupId = Preconditions.checkNotNull(groupId, "groupId");
     this.dataSource = Preconditions.checkNotNull(dataSource, "dataSource");
     this.interval = Preconditions.checkNotNull(interval, "interval");
-    this.partitionIds = partitionIds;
     this.version = Preconditions.checkNotNull(version, "version");
+    this.partitionId = partitionId;
     this.priority = priority;
     this.revoked = revoked;
   }
@@ -78,12 +75,12 @@ public class SegmentLock implements TaskLock
       String groupId,
       String dataSource,
       Interval interval,
-      Set<Integer> partitionIds,
       String version,
+      int partitionId,
       int priority
   )
   {
-    this(lockType, groupId, dataSource, interval, partitionIds, version, priority, false);
+    this(lockType, groupId, dataSource, interval, version, partitionId, priority, false);
   }
 
   @JsonProperty
@@ -96,13 +93,13 @@ public class SegmentLock implements TaskLock
   @Override
   public TaskLock revokedCopy()
   {
-    return new SegmentLock(lockType, groupId, dataSource, interval, partitionIds, version, priority, true);
+    return new SegmentLock(lockType, groupId, dataSource, interval, version, partitionId, priority, true);
   }
 
   @Override
   public TaskLock withPriority(int newPriority)
   {
-    return new SegmentLock(lockType, groupId, dataSource, interval, partitionIds, version, newPriority, revoked);
+    return new SegmentLock(lockType, groupId, dataSource, interval, version, partitionId, newPriority, revoked);
   }
 
   @Override
@@ -140,9 +137,9 @@ public class SegmentLock implements TaskLock
   }
 
   @JsonProperty
-  public Set<Integer> getPartitionIds()
+  public int getPartitionId()
   {
-    return partitionIds;
+    return partitionId;
   }
 
   @JsonProperty
@@ -179,12 +176,12 @@ public class SegmentLock implements TaskLock
       // For different interval, all overlapping intervals cause conflict.
       return dataSource.equals(request.getDataSource())
              && interval.overlaps(request.getInterval());
-    } else if (request instanceof ExistingSegmentLockRequest) {
+    } else if (request instanceof SpecificSegmentLockRequest) {
       if (dataSource.equals(request.getDataSource())
           && interval.equals(request.getInterval())) {
-        final ExistingSegmentLockRequest existingSegmentLockRequest = (ExistingSegmentLockRequest) request;
+        final SpecificSegmentLockRequest specificSegmentLockRequest = (SpecificSegmentLockRequest) request;
         // Lock conflicts only if the interval is same and the partitionIds intersect.
-        return !Sets.intersection(partitionIds, existingSegmentLockRequest.getPartitionIds()).isEmpty();
+        return specificSegmentLockRequest.getPartitionId() == partitionId;
       } else {
         // For different interval, all overlapping intervals cause conflict.
         return dataSource.equals(request.getDataSource())
@@ -208,32 +205,32 @@ public class SegmentLock implements TaskLock
       return false;
     }
     SegmentLock that = (SegmentLock) o;
-    return priority == that.priority &&
+    return partitionId == that.partitionId &&
+           priority == that.priority &&
            revoked == that.revoked &&
            lockType == that.lockType &&
            Objects.equals(groupId, that.groupId) &&
            Objects.equals(dataSource, that.dataSource) &&
            Objects.equals(interval, that.interval) &&
-           Objects.equals(partitionIds, that.partitionIds) &&
            Objects.equals(version, that.version);
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(lockType, groupId, dataSource, interval, partitionIds, version, priority, revoked);
+    return Objects.hash(lockType, groupId, dataSource, interval, partitionId, version, priority, revoked);
   }
 
   @Override
   public String toString()
   {
     return "SegmentLock{" +
-           "type=" + lockType +
+           "lockType=" + lockType +
            ", groupId='" + groupId + '\'' +
            ", dataSource='" + dataSource + '\'' +
            ", interval=" + interval +
-           ", partitionIds=" + partitionIds +
            ", version='" + version + '\'' +
+           ", partitionId=" + partitionId +
            ", priority=" + priority +
            ", revoked=" + revoked +
            '}';

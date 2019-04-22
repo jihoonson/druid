@@ -20,6 +20,7 @@
 package org.apache.druid.indexing.overlord;
 
 import org.apache.druid.indexing.common.LockGranularity;
+import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TimeChunkLock;
 import org.apache.druid.indexing.common.task.Task;
@@ -116,7 +117,8 @@ public class TimeChunkLockRequest implements LockRequest
     return revoked;
   }
 
-  public TimeChunkLock toLock()
+  @Override
+  public TaskLock toLock()
   {
     return new TimeChunkLock(
         lockType,

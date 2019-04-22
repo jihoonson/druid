@@ -284,7 +284,6 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
             dataSource,
             tryInterval,
             shardSpecFactory,
-            1,
             task.getPriority(),
             sequenceName,
             previousSegmentId,
@@ -298,13 +297,9 @@ public class SegmentAllocateAction implements TaskAction<SegmentIdWithShardSpec>
     }
 
     if (lockResult.isOk()) {
-      final List<SegmentIdWithShardSpec> identifiers = lockResult.getNewSegmentIds();
-      if (!identifiers.isEmpty()) {
-        if (identifiers.size() == 1) {
-          return identifiers.get(0);
-        } else {
-          throw new ISE("WTH? multiple segmentIds[%s] were created?", identifiers);
-        }
+      final SegmentIdWithShardSpec identifier = lockResult.getNewSegmentId();
+      if (identifier != null) {
+        return identifier;
       } else {
         final String msg = StringUtils.format(
             "Could not allocate pending segment for rowInterval[%s], segmentInterval[%s].",

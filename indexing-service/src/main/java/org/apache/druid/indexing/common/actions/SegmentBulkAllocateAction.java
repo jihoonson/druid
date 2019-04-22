@@ -30,10 +30,12 @@ import org.apache.druid.indexing.overlord.LockRequestForNewSegment;
 import org.apache.druid.indexing.overlord.LockResult;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,44 +90,38 @@ public class SegmentBulkAllocateAction implements TaskAction<Map<Interval, List<
           "numSegmentsToAllocate for interval[%s]",
           interval
       );
-      final LockRequest lockRequest = new LockRequestForNewSegment(
-          TaskLockType.EXCLUSIVE,
-          task.getGroupId(),
-          task.getDataSource(),
-          interval,
-          shardSpecFactory,
-          numSegmentsToAllocate,
-          task.getPriority(),
-          baseSequenceName,
-          null,
-          true
-      );
 
-      final LockResult lockResult = toolbox.getTaskLockbox().tryLock(task, lockRequest);
+      for (int i = 0; i < numSegmentsToAllocate; i++) {
+        final String sequenceName = StringUtils.format("%s_%d", baseSequenceName, i);
+        final LockRequest lockRequest = new LockRequestForNewSegment(
+            TaskLockType.EXCLUSIVE,
+            task.getGroupId(),
+            task.getDataSource(),
+            interval,
+            shardSpecFactory,
+            task.getPriority(),
+            sequenceName,
+            null,
+            true
+        );
 
-      if (lockResult.isRevoked()) {
-        // The lock was preempted by other tasks
-        throw new ISE("The lock for interval[%s] is preempted and no longer valid", interval);
-      }
+        final LockResult lockResult = toolbox.getTaskLockbox().tryLock(task, lockRequest);
 
-      if (lockResult.isOk()) {
-        final List<SegmentIdWithShardSpec> identifiers = lockResult.getNewSegmentIds();
-        if (!identifiers.isEmpty()) {
-          if (identifiers.size() == numSegmentsToAllocate) {
-            segmentIds.put(interval, identifiers);
+        if (lockResult.isRevoked()) {
+          // The lock was preempted by other tasks
+          throw new ISE("WTH? lock[%s] for new segment request is revoked?", lockResult.getTaskLock());
+        }
+
+        if (lockResult.isOk()) {
+          final SegmentIdWithShardSpec identifier = lockResult.getNewSegmentId();
+          if (identifier != null) {
+            segmentIds.computeIfAbsent(interval, k -> new ArrayList<>()).add(identifier);
           } else {
-            throw new ISE(
-                "WTH? we requested [%s] segmentIds, but got [%s] with request[%s]",
-                numSegmentsToAllocate,
-                identifiers.size(),
-                lockRequest
-            );
+            throw new ISE("Cannot allocate new pending segmentIds with request[%s]", lockRequest);
           }
         } else {
-          throw new ISE("Cannot allocate new pending segmentIds with request[%s]", lockRequest);
+          throw new ISE("Could not acquire lock with request[%s]", lockRequest);
         }
-      } else {
-        throw new ISE("Could not acquire lock with request[%s]", lockRequest);
       }
     }
 

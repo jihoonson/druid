@@ -245,7 +245,7 @@ public class RealtimeIndexTask extends AbstractTask
         // TODO: get lock before allocating segment
         Preconditions.checkNotNull(
             toolbox.getTaskActionClient().submit(
-                LockAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, segment.getInterval(), lockTimeoutMs)
+                new LockAcquireAction(TaskLockType.EXCLUSIVE, segment.getInterval(), lockTimeoutMs)
             ),
             "Cannot acquire a lock for interval[%s]",
             segment.getInterval()
@@ -272,7 +272,7 @@ public class RealtimeIndexTask extends AbstractTask
         for (DataSegment segment : segments) {
           Preconditions.checkNotNull(
               toolbox.getTaskActionClient().submit(
-                  LockAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, segment.getInterval(), lockTimeoutMs)
+                  new LockAcquireAction(TaskLockType.EXCLUSIVE, segment.getInterval(), lockTimeoutMs)
               ),
               "Cannot acquire a lock for interval[%s]",
               segment.getInterval()
@@ -309,7 +309,7 @@ public class RealtimeIndexTask extends AbstractTask
         try {
           // Side effect: Calling getVersion causes a lock to be acquired
           // TODO: get lock to get the version?
-          final LockAcquireAction action = LockAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval, lockTimeoutMs);
+          final LockAcquireAction action = new LockAcquireAction(TaskLockType.EXCLUSIVE, interval, lockTimeoutMs);
           final TaskLock lock = Preconditions.checkNotNull(
               toolbox.getTaskActionClient().submit(action),
               "Cannot acquire a lock for interval[%s]",

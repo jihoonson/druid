@@ -102,7 +102,7 @@ public class TaskActionPreconditions
                   return segmentLock.getInterval().contains(segment.getInterval())
                          && segmentLock.getDataSource().equals(segment.getDataSource())
                          && segmentLock.getVersion().compareTo(segment.getVersion()) >= 0
-                         && segmentLock.getPartitionIds().contains(segment.getShardSpec().getPartitionNum());
+                         && segmentLock.getPartitionId() == segment.getShardSpec().getPartitionNum();
                 }
               }
           );

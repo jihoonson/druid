@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.google.common.base.Preconditions;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
@@ -33,26 +32,22 @@ import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 
-public class LockAcquireAction implements TaskAction<TaskLock>
+public class TimeChunkLockTryAcquireAction implements TaskAction<TaskLock>
 {
+  @JsonIgnore
   private final TaskLockType type;
 
   @JsonIgnore
   private final Interval interval;
 
-  @JsonIgnore
-  private final long timeoutMs;
-
   @JsonCreator
-  public LockAcquireAction(
+  public TimeChunkLockTryAcquireAction(
       @JsonProperty("lockType") @Nullable TaskLockType type, // nullable for backward compatibility
-      @JsonProperty("interval") Interval interval,
-      @JsonProperty("timeoutMs") long timeoutMs
+      @JsonProperty("interval") Interval interval
   )
   {
     this.type = type == null ? TaskLockType.EXCLUSIVE : type;
-    this.interval = Preconditions.checkNotNull(interval, "interval");
-    this.timeoutMs = timeoutMs;
+    this.interval = interval;
   }
 
   @JsonProperty("lockType")
@@ -67,12 +62,6 @@ public class LockAcquireAction implements TaskAction<TaskLock>
     return interval;
   }
 
-  @JsonProperty
-  public long getTimeoutMs()
-  {
-    return timeoutMs;
-  }
-
   @Override
   public TypeReference<TaskLock> getReturnTypeReference()
   {
@@ -84,17 +73,11 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   @Override
   public TaskLock perform(Task task, TaskActionToolbox toolbox)
   {
-    try {
-      final LockResult result = timeoutMs == 0
-                                ? toolbox.getTaskLockbox()
-                                         .lock(task, new TimeChunkLockRequest(type, task, interval, null))
-                                : toolbox.getTaskLockbox()
-                                         .lock(task, new TimeChunkLockRequest(type, task, interval, null), timeoutMs);
-      return result.isOk() ? result.getTaskLock() : null;
-    }
-    catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
+    final LockResult result = toolbox.getTaskLockbox().tryLock(
+        task,
+        new TimeChunkLockRequest(type, task, interval, null)
+    );
+    return result.isOk() ? result.getTaskLock() : null;
   }
 
   @Override
@@ -106,10 +89,9 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   @Override
   public String toString()
   {
-    return "LockAcquireAction{" +
-           "lockType=" + type +
+    return "TimeChunkLockTryAcquireAction{" +
+           ", type=" + type +
            ", interval=" + interval +
-           ", timeoutMs=" + timeoutMs +
            '}';
   }
 }

@@ -16,43 +16,42 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.druid.indexing.common.actions;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.base.Preconditions;
-import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
+import org.apache.druid.indexing.overlord.SpecificSegmentLockRequest;
 import org.apache.druid.indexing.overlord.LockResult;
-import org.apache.druid.indexing.overlord.TimeChunkLockRequest;
 import org.joda.time.Interval;
 
-import javax.annotation.Nullable;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-public class LockAcquireAction implements TaskAction<TaskLock>
+public class TryLockExistingSegmentsAction implements TaskAction<List<LockResult>>
 {
   private final TaskLockType type;
-
-  @JsonIgnore
   private final Interval interval;
-
-  @JsonIgnore
-  private final long timeoutMs;
+  private final String version;
+  private final Set<Integer> partitionIds;
 
   @JsonCreator
-  public LockAcquireAction(
-      @JsonProperty("lockType") @Nullable TaskLockType type, // nullable for backward compatibility
+  public TryLockExistingSegmentsAction(
+      @JsonProperty("lockType") TaskLockType type,
       @JsonProperty("interval") Interval interval,
-      @JsonProperty("timeoutMs") long timeoutMs
+      @JsonProperty("version") String version,
+      @JsonProperty("partitionIds") Set<Integer> partitionIds // TODO: IntSet
   )
   {
-    this.type = type == null ? TaskLockType.EXCLUSIVE : type;
+    Preconditions.checkState(partitionIds != null && !partitionIds.isEmpty(), "partitionIds is empty");
+    this.type = Preconditions.checkNotNull(type, "type");
     this.interval = Preconditions.checkNotNull(interval, "interval");
-    this.timeoutMs = timeoutMs;
+    this.version = Preconditions.checkNotNull(version, "version");
+    this.partitionIds = partitionIds;
   }
 
   @JsonProperty("lockType")
@@ -68,33 +67,34 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   }
 
   @JsonProperty
-  public long getTimeoutMs()
+  public String getVersion()
   {
-    return timeoutMs;
+    return version;
+  }
+
+  @JsonProperty
+  public Set<Integer> getPartitionIds()
+  {
+    return partitionIds;
   }
 
   @Override
-  public TypeReference<TaskLock> getReturnTypeReference()
+  public TypeReference<List<LockResult>> getReturnTypeReference()
   {
-    return new TypeReference<TaskLock>()
+    return new TypeReference<List<LockResult>>()
     {
     };
   }
 
   @Override
-  public TaskLock perform(Task task, TaskActionToolbox toolbox)
+  public List<LockResult> perform(Task task, TaskActionToolbox toolbox)
   {
-    try {
-      final LockResult result = timeoutMs == 0
-                                ? toolbox.getTaskLockbox()
-                                         .lock(task, new TimeChunkLockRequest(type, task, interval, null))
-                                : toolbox.getTaskLockbox()
-                                         .lock(task, new TimeChunkLockRequest(type, task, interval, null), timeoutMs);
-      return result.isOk() ? result.getTaskLock() : null;
-    }
-    catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
+    return partitionIds.stream()
+                       .map(partitionId -> toolbox.getTaskLockbox().tryLock(
+                           task,
+                           new SpecificSegmentLockRequest(type, task, interval, version, partitionId)
+                       ))
+                       .collect(Collectors.toList());
   }
 
   @Override
@@ -106,10 +106,11 @@ public class LockAcquireAction implements TaskAction<TaskLock>
   @Override
   public String toString()
   {
-    return "LockAcquireAction{" +
-           "lockType=" + type +
+    return "TryLockExistingSegmentsAction{" +
+           "type=" + type +
            ", interval=" + interval +
-           ", timeoutMs=" + timeoutMs +
+           ", version='" + version + '\'' +
+           ", partitionIds=" + partitionIds +
            '}';
   }
 }

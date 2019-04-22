@@ -20,22 +20,16 @@
 package org.apache.druid.indexing.overlord;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import org.apache.druid.indexing.common.LockGranularity;
-import org.apache.druid.indexing.common.SegmentLock;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.java.util.common.DateTimes;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import java.util.List;
-import java.util.stream.Collectors;
 
-// TODO: remove this
 public class LockRequestForNewSegment implements LockRequest
 {
   private final TaskLockType lockType;
@@ -43,9 +37,8 @@ public class LockRequestForNewSegment implements LockRequest
   private final String dataSource;
   private final Interval interval;
   private final ShardSpecFactory shardSpecFactory;
-  private final int numSegmentsToAllocate;
   private final int priority;
-  private final String baseSequenceName;
+  private final String sequenceName;
   @Nullable
   private final String previsousSegmentId;
   private final boolean skipSegmentLineageCheck;
@@ -56,9 +49,8 @@ public class LockRequestForNewSegment implements LockRequest
       String dataSource,
       Interval interval,
       ShardSpecFactory shardSpecFactory,
-      int numSegmentsToAllocate,
       int priority,
-      String baseSequenceName,
+      String sequenceName,
       @Nullable String previsousSegmentId,
       boolean skipSegmentLineageCheck
   )
@@ -69,10 +61,9 @@ public class LockRequestForNewSegment implements LockRequest
     this.interval = interval;
     this.shardSpecFactory = shardSpecFactory;
     this.priority = priority;
-    this.baseSequenceName = baseSequenceName;
+    this.sequenceName = sequenceName;
     this.previsousSegmentId = previsousSegmentId;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
-    this.numSegmentsToAllocate = numSegmentsToAllocate;
   }
 
   @VisibleForTesting
@@ -81,8 +72,7 @@ public class LockRequestForNewSegment implements LockRequest
       Task task,
       Interval interval,
       ShardSpecFactory shardSpecFactory,
-      int numSegmentsToAllocate,
-      String baseSequenceName,
+      String sequenceName,
       @Nullable String previsousSegmentId,
       boolean skipSegmentLineageCheck
   )
@@ -93,9 +83,8 @@ public class LockRequestForNewSegment implements LockRequest
         task.getDataSource(),
         interval,
         shardSpecFactory,
-        numSegmentsToAllocate,
         task.getPriority(),
-        baseSequenceName,
+        sequenceName,
         previsousSegmentId,
         skipSegmentLineageCheck
     );
@@ -154,9 +143,15 @@ public class LockRequestForNewSegment implements LockRequest
     return false;
   }
 
-  public String getBaseSequenceName()
+  @Override
+  public TaskLock toLock()
   {
-    return baseSequenceName;
+    throw new UnsupportedOperationException();
+  }
+
+  public String getSequenceName()
+  {
+    return sequenceName;
   }
 
   @Nullable
@@ -170,31 +165,6 @@ public class LockRequestForNewSegment implements LockRequest
     return skipSegmentLineageCheck;
   }
 
-  public int getNumSegmentsToAllocate()
-  {
-    return numSegmentsToAllocate;
-  }
-
-  public TaskLock toLock(List<SegmentIdWithShardSpec> newSegmentIds)
-  {
-    final String version = newSegmentIds.get(0).getVersion();
-    Preconditions.checkState(
-        newSegmentIds.stream().allMatch(id -> id.getVersion().equals(version)),
-        "WTH? new segmentIds have different version? [%s]",
-        newSegmentIds
-    );
-
-    return new SegmentLock(
-        lockType,
-        groupId,
-        dataSource,
-        interval,
-        newSegmentIds.stream().map(id -> id.getShardSpec().getPartitionNum()).collect(Collectors.toSet()),
-        version,
-        priority
-    );
-  }
-
   @Override
   public String toString()
   {
@@ -204,9 +174,8 @@ public class LockRequestForNewSegment implements LockRequest
            ", dataSource='" + dataSource + '\'' +
            ", interval=" + interval +
            ", shardSpecFactory=" + shardSpecFactory +
-           ", numSegmentsToAllocate=" + numSegmentsToAllocate +
            ", priority=" + priority +
-           ", baseSequenceName='" + baseSequenceName + '\'' +
+           ", sequenceName='" + sequenceName + '\'' +
            ", previsousSegmentId='" + previsousSegmentId + '\'' +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
            '}';

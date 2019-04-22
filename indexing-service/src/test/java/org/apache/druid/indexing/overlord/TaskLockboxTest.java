@@ -25,10 +25,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.apache.druid.indexer.TaskStatus;
-import org.apache.druid.indexing.common.LockGranularity;
+import org.apache.druid.indexing.common.SegmentLock;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
@@ -58,7 +57,7 @@ import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
-import org.apache.druid.timeline.partition.ShardSpec;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.easymock.EasyMock;
 import org.joda.time.Interval;
 import org.junit.Assert;
@@ -726,18 +725,28 @@ public class TaskLockboxTest
   {
     final Task task = NoopTask.create();
     lockbox.add(task);
-    Assert.assertNotNull(
-        lockbox.lock(
+    final LockResult lockResult = lockbox.lock(
+        task,
+        new SpecificSegmentLockRequest(
+            TaskLockType.EXCLUSIVE,
             task,
-            new ExistingSegmentLockRequest(
-                TaskLockType.EXCLUSIVE,
-                task,
-                Intervals.of("2015-01-01/2015-01-02"),
-                ImmutableSet.of(0, 3, 6, 9),
-                "v1"
-            )
+            Intervals.of("2015-01-01/2015-01-02"),
+            "v1",
+            3
         )
     );
+    Assert.assertTrue(lockResult.isOk());
+    Assert.assertNull(lockResult.getNewSegmentId());
+    Assert.assertTrue(lockResult.getTaskLock() instanceof SegmentLock);
+    final SegmentLock segmentLock = (SegmentLock) lockResult.getTaskLock();
+    Assert.assertEquals(TaskLockType.EXCLUSIVE, segmentLock.getLockType());
+    Assert.assertEquals(task.getGroupId(), segmentLock.getGroupId());
+    Assert.assertEquals(task.getDataSource(), segmentLock.getDataSource());
+    Assert.assertEquals(Intervals.of("2015-01-01/2015-01-02"), segmentLock.getInterval());
+    Assert.assertEquals("v1", segmentLock.getVersion());
+    Assert.assertEquals(3, segmentLock.getPartitionId());
+    Assert.assertEquals(task.getPriority(), segmentLock.getPriority().intValue());
+    Assert.assertFalse(segmentLock.isRevoked());
   }
 
   @Test
@@ -752,12 +761,12 @@ public class TaskLockboxTest
     Assert.assertTrue(
         lockbox.tryLock(
             task1,
-            new ExistingSegmentLockRequest(
+            new SpecificSegmentLockRequest(
                 TaskLockType.EXCLUSIVE,
                 task1,
                 Intervals.of("2015-01-01/2015-01-02"),
-                ImmutableSet.of(0, 3, 6, 9),
-                "v1"
+                "v1",
+                3
             )
         ).isOk()
     );
@@ -789,12 +798,12 @@ public class TaskLockboxTest
     Assert.assertTrue(
         lockbox.tryLock(
             task1,
-            new ExistingSegmentLockRequest(
+            new SpecificSegmentLockRequest(
                 TaskLockType.EXCLUSIVE,
                 task1,
                 Intervals.of("2015-01-01/2015-01-02"),
-                ImmutableSet.of(0, 3, 6, 9),
-                "v1"
+                "v1",
+                3
             )
         ).isOk()
     );
@@ -813,12 +822,12 @@ public class TaskLockboxTest
 
     final LockResult resultOfTask1 = lockbox.tryLock(
         task1,
-        new ExistingSegmentLockRequest(
+        new SpecificSegmentLockRequest(
             TaskLockType.EXCLUSIVE,
             task1,
             Intervals.of("2015-01-01/2015-01-02"),
-            ImmutableSet.of(0, 3, 6, 9),
-            "v1"
+            "v1",
+            3
         )
     );
     Assert.assertFalse(resultOfTask1.isOk());
@@ -843,18 +852,17 @@ public class TaskLockboxTest
         ).isOk()
     );
 
-    expectedException.expect(ISE.class);
-    expectedException.expectMessage("Task[test] already acquired a lock for interval[2015-01-01T00:00:00.000Z/2015-01-02T00:00:00.000Z] but different granularity[TIME_CHUNK]");
-
-    lockbox.tryLock(
-        task,
-        new ExistingSegmentLockRequest(
-            TaskLockType.EXCLUSIVE,
+    Assert.assertFalse(
+        lockbox.tryLock(
             task,
-            Intervals.of("2015-01-01/2015-01-02"),
-            ImmutableSet.of(0, 3, 6, 9),
-            "v1"
-        )
+            new SpecificSegmentLockRequest(
+                TaskLockType.EXCLUSIVE,
+                task,
+                Intervals.of("2015-01-01/2015-01-02"),
+                "v1",
+                3
+            )
+        ).isOk()
     );
   }
 
@@ -870,12 +878,12 @@ public class TaskLockboxTest
     Assert.assertTrue(
         lockbox.tryLock(
             task1,
-            new ExistingSegmentLockRequest(
+            new SpecificSegmentLockRequest(
                 TaskLockType.EXCLUSIVE,
                 task1,
                 Intervals.of("2015-01-01/2015-01-02"),
-                ImmutableSet.of(0, 3, 6, 9),
-                "v1"
+                "v1",
+                3
             )
         ).isOk()
     );
@@ -883,12 +891,12 @@ public class TaskLockboxTest
     Assert.assertFalse(
         lockbox.tryLock(
             task2,
-            new ExistingSegmentLockRequest(
+            new SpecificSegmentLockRequest(
                 TaskLockType.EXCLUSIVE,
                 task2,
                 Intervals.of("2015-01-01/2015-01-02"),
-                ImmutableSet.of(0, 3, 6, 9),
-                "v1"
+                "v1",
+                3
             )
         ).isOk()
     );
@@ -906,12 +914,12 @@ public class TaskLockboxTest
     Assert.assertTrue(
         lockbox.tryLock(
             task1,
-            new ExistingSegmentLockRequest(
+            new SpecificSegmentLockRequest(
                 TaskLockType.EXCLUSIVE,
                 task1,
                 Intervals.of("2015-01-01/2015-01-02"),
-                ImmutableSet.of(0, 3, 6, 9),
-                "v1"
+                "v1",
+                3
             )
         ).isOk()
     );
@@ -919,12 +927,12 @@ public class TaskLockboxTest
     Assert.assertTrue(
         lockbox.tryLock(
             task2,
-            new ExistingSegmentLockRequest(
+            new SpecificSegmentLockRequest(
                 TaskLockType.EXCLUSIVE,
                 task2,
                 Intervals.of("2015-01-01/2015-01-02"),
-                ImmutableSet.of(1, 2, 4),
-                "v1"
+                "v1",
+                2
             )
         ).isOk()
     );
@@ -942,12 +950,12 @@ public class TaskLockboxTest
     Assert.assertTrue(
         lockbox.tryLock(
             task1,
-            new ExistingSegmentLockRequest(
+            new SpecificSegmentLockRequest(
                 TaskLockType.EXCLUSIVE,
                 task1,
                 Intervals.of("2015-01-01/2015-01-05"),
-                ImmutableSet.of(0, 3, 6, 9),
-                "v1"
+                "v1",
+                3
             )
         ).isOk()
     );
@@ -955,12 +963,12 @@ public class TaskLockboxTest
     Assert.assertFalse(
         lockbox.tryLock(
             task2,
-            new ExistingSegmentLockRequest(
+            new SpecificSegmentLockRequest(
                 TaskLockType.EXCLUSIVE,
                 task2,
                 Intervals.of("2015-01-03/2015-01-08"),
-                ImmutableSet.of(1, 2, 4),
-                "v1"
+                "v1",
+                2
             )
         ).isOk()
     );
@@ -971,8 +979,17 @@ public class TaskLockboxTest
   {
     final Task task = NoopTask.create();
     lockbox.add(task);
-    allocateSegmentsAndAssert(task, "seq", 3, Collections.emptySet());
-    allocateSegmentsAndAssert(task, "seq2", 2, ImmutableSet.of(0, 1, 2));
+    allocateSegmentsAndAssert(task, "seq", 3, NumberedShardSpecFactory.instance());
+    allocateSegmentsAndAssert(task, "seq2", 2, NumberedShardSpecFactory.instance()); //TODO ImmutableSet.of(0, 1, 2) for overwriting
+
+    final List<TaskLock> locks = lockbox.findLocksForTask(task);
+    Assert.assertEquals(5, locks.size());
+    int expectedPartitionId = 0;
+    for (TaskLock lock : locks) {
+      Assert.assertTrue(lock instanceof SegmentLock);
+      final SegmentLock segmentLock = (SegmentLock) lock;
+      Assert.assertEquals(expectedPartitionId++, segmentLock.getPartitionId());
+    }
   }
 
   @Test
@@ -981,115 +998,51 @@ public class TaskLockboxTest
     final Task task = NoopTask.create();
     lockbox.add(task);
 
-    final LockResult result = lockbox.tryLock(
-        task,
-        new LockRequestForNewSegment(
-            TaskLockType.EXCLUSIVE,
-            task,
-            Intervals.of("2015-01-01/2015-01-05"),
-            new HashBasedNumberedShardSpecFactory(null, 3),
-            3,
-            "seq",
-            null,
-            true
-        )
-    );
-
-    assertAllocatedSegments(result, 3, Collections.emptySet());
-
-    for (int i = 0; i < 3; i++) {
-      final ShardSpec shardSpec = result.getNewSegmentIds().get(i).getShardSpec();
-      Assert.assertTrue(shardSpec instanceof HashBasedNumberedShardSpec);
-      Assert.assertEquals(i, shardSpec.getPartitionNum());
-    }
-
-    final LockResult result2 = lockbox.tryLock(
-        task,
-        new LockRequestForNewSegment(
-            TaskLockType.EXCLUSIVE,
-            task,
-            Intervals.of("2015-01-01/2015-01-05"),
-            new HashBasedNumberedShardSpecFactory(null, 5),
-            5,
-            "seq2",
-            null,
-            true
-        )
-    );
-
-    assertAllocatedSegments(result2, 5, ImmutableSet.of(0, 1, 2));
-
-    for (int i = 0; i < 5; i++) {
-      final ShardSpec shardSpec = result2.getNewSegmentIds().get(i).getShardSpec();
-      Assert.assertTrue(shardSpec instanceof HashBasedNumberedShardSpec);
-      Assert.assertEquals(i + 3, shardSpec.getPartitionNum());
-    }
+    allocateSegmentsAndAssert(task, "seq", 3, new HashBasedNumberedShardSpecFactory(null, 3));
+    allocateSegmentsAndAssert(task, "seq2", 5, new HashBasedNumberedShardSpecFactory(null, 5));
   }
 
   private void allocateSegmentsAndAssert(
       Task task,
       String baseSequenceName,
       int numSegmentsToAllocate,
-      Set<Integer> overshadowingSegments
+      ShardSpecFactory shardSpecFactory
   )
   {
     // TODO: test overshadowingSegments
-    final LockResult result = lockbox.tryLock(
-        task,
-        new LockRequestForNewSegment(
-            TaskLockType.EXCLUSIVE,
-            task,
-            Intervals.of("2015-01-01/2015-01-05"),
-            NumberedShardSpecFactory.instance(),
-            numSegmentsToAllocate,
-            baseSequenceName,
-            null,
-            true
-        )
-    );
-
-    assertAllocatedSegments(result, numSegmentsToAllocate, overshadowingSegments);
+    for (int i = 0; i < numSegmentsToAllocate; i++) {
+      final LockRequestForNewSegment request = new LockRequestForNewSegment(
+          TaskLockType.EXCLUSIVE,
+          task,
+          Intervals.of("2015-01-01/2015-01-05"),
+          shardSpecFactory,
+          StringUtils.format("%s_%d", baseSequenceName, i),
+          null,
+          true
+      );
+      assertAllocatedSegments(request, lockbox.tryLock(task, request));
+    }
   }
 
   private void assertAllocatedSegments(
-      LockResult result,
-      int numSegmentsToAllocate,
-      Set<Integer> expectedOvershadowingSegments
+      LockRequestForNewSegment lockRequest,
+      LockResult result
   )
   {
-    final LockGranularity lockGranularity = result.getTaskLock().getGranularity();
     Assert.assertTrue(result.isOk());
     Assert.assertNotNull(result.getTaskLock());
-    Assert.assertEquals(lockGranularity, result.getTaskLock().getGranularity());
-    final List<SegmentIdWithShardSpec> segmentIdentifiers = result.getNewSegmentIds();
-    Assert.assertEquals(numSegmentsToAllocate, segmentIdentifiers.size());
+    Assert.assertTrue(result.getTaskLock() instanceof SegmentLock);
+    Assert.assertNotNull(result.getNewSegmentId());
+    final SegmentLock segmentLock = (SegmentLock) result.getTaskLock();
+    final SegmentIdWithShardSpec segmentId = result.getNewSegmentId();
 
-    final int lastSegmentIndex = numSegmentsToAllocate - 1;
-    for (int i = 0; i < lastSegmentIndex; i++) {
-      Assert.assertEquals(
-          segmentIdentifiers.get(lastSegmentIndex).getDataSource(),
-          segmentIdentifiers.get(i).getDataSource()
-      );
-      Assert.assertEquals(
-          segmentIdentifiers.get(lastSegmentIndex).getInterval(),
-          segmentIdentifiers.get(i).getInterval()
-      );
-      Assert.assertEquals(
-          segmentIdentifiers.get(lastSegmentIndex).getVersion(),
-          segmentIdentifiers.get(i).getVersion()
-      );
-    }
-
-    for (int i = 0; i < numSegmentsToAllocate; i++) {
-      final ShardSpec shardSpec = segmentIdentifiers.get(i).getShardSpec();
-      Assert.assertTrue(shardSpec instanceof NumberedShardSpec);
-      Assert.assertEquals(i + expectedOvershadowingSegments.size(), shardSpec.getPartitionNum());
-      // TODO: fix this to check overwriting shardSpec
-//      Assert.assertEquals(
-//          expectedOvershadowingSegments,
-//          segmentIdentifiers.get(i).getDirectOvershadowedSegments()
-//      );
-    }
+    Assert.assertEquals(lockRequest.getType(), segmentLock.getLockType());
+    Assert.assertEquals(lockRequest.getGroupId(), segmentLock.getGroupId());
+    Assert.assertEquals(lockRequest.getDataSource(), segmentLock.getDataSource());
+    Assert.assertEquals(lockRequest.getInterval(), segmentLock.getInterval());
+    Assert.assertEquals(lockRequest.getShardSpecFactory().getShardSpecClass(), segmentId.getShardSpec().getClass());
+    Assert.assertEquals(lockRequest.getPriority(), lockRequest.getPriority());
+    // TODO: fix this to check overwriting shardSpec
   }
 
   @Test

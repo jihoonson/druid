@@ -20,6 +20,7 @@
 package org.apache.druid.indexing.overlord;
 
 import org.apache.druid.indexing.common.LockGranularity;
+import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.joda.time.Interval;
 
@@ -40,4 +41,6 @@ public interface LockRequest
   int getPriority();
 
   boolean isRevoked();
+
+  TaskLock toLock();
 }

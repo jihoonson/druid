@@ -20,7 +20,6 @@
 package org.apache.druid.indexing.common.actions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.ImmutableSet;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.NoopTask;
@@ -33,7 +32,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-public class LockTryAcquireActionTest
+public class TimeChunkLockTryAcquireActionTest
 {
   @Rule
   public TaskActionTestKit actionTestKit = new TaskActionTestKit();
@@ -43,13 +42,13 @@ public class LockTryAcquireActionTest
   @Test
   public void testSerdeWithAllFields() throws IOException
   {
-    final LockTryAcquireAction expected = LockTryAcquireAction.createTimeChunkRequest(
+    final TimeChunkLockTryAcquireAction expected = new TimeChunkLockTryAcquireAction(
         TaskLockType.SHARED,
         Intervals.of("2017-01-01/2017-01-02")
     );
 
     final byte[] bytes = mapper.writeValueAsBytes(expected);
-    final LockTryAcquireAction actual = mapper.readValue(bytes, LockTryAcquireAction.class);
+    final TimeChunkLockTryAcquireAction actual = mapper.readValue(bytes, TimeChunkLockTryAcquireAction.class);
     Assert.assertEquals(expected.getType(), actual.getType());
     Assert.assertEquals(expected.getInterval(), actual.getInterval());
   }
@@ -59,27 +58,11 @@ public class LockTryAcquireActionTest
   {
     final String json = "{ \"type\": \"lockTryAcquire\", \"interval\" : \"2017-01-01/2017-01-02\" }";
 
-    final LockTryAcquireAction actual = mapper.readValue(json, LockTryAcquireAction.class);
-    final LockTryAcquireAction expected = LockTryAcquireAction.createTimeChunkRequest(
+    final TimeChunkLockTryAcquireAction actual = mapper.readValue(json, TimeChunkLockTryAcquireAction.class);
+    final TimeChunkLockTryAcquireAction expected = new TimeChunkLockTryAcquireAction(
         TaskLockType.EXCLUSIVE,
         Intervals.of("2017-01-01/2017-01-02")
     );
-    Assert.assertEquals(expected.getType(), actual.getType());
-    Assert.assertEquals(expected.getInterval(), actual.getInterval());
-  }
-
-  @Test
-  public void testSerdeSegmentLock() throws IOException
-  {
-    final LockTryAcquireAction expected = LockTryAcquireAction.createSegmentRequest(
-        TaskLockType.SHARED,
-        Intervals.of("2017-01-01/2017-01-02"),
-        "version",
-        ImmutableSet.of(0, 1)
-    );
-
-    final byte[] bytes = mapper.writeValueAsBytes(expected);
-    final LockTryAcquireAction actual = mapper.readValue(bytes, LockTryAcquireAction.class);
     Assert.assertEquals(expected.getType(), actual.getType());
     Assert.assertEquals(expected.getInterval(), actual.getInterval());
   }
@@ -88,7 +71,7 @@ public class LockTryAcquireActionTest
   public void testWithLockType()
   {
     final Task task = NoopTask.create();
-    final LockTryAcquireAction action = LockTryAcquireAction.createTimeChunkRequest(
+    final TimeChunkLockTryAcquireAction action = new TimeChunkLockTryAcquireAction(
         TaskLockType.EXCLUSIVE,
         Intervals.of("2017-01-01/2017-01-02")
     );
@@ -102,7 +85,7 @@ public class LockTryAcquireActionTest
   public void testWithoutLockType()
   {
     final Task task = NoopTask.create();
-    final LockTryAcquireAction action = LockTryAcquireAction.createTimeChunkRequest(
+    final TimeChunkLockTryAcquireAction action = new TimeChunkLockTryAcquireAction(
         null,
         Intervals.of("2017-01-01/2017-01-02")
     );

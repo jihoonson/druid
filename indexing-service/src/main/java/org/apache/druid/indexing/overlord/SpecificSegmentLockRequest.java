@@ -21,41 +21,30 @@ package org.apache.druid.indexing.overlord;
 
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.SegmentLock;
+import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.joda.time.Interval;
 
-import java.util.Set;
-
-public class ExistingSegmentLockRequest implements LockRequest
+public class SpecificSegmentLockRequest implements LockRequest
 {
   private final TaskLockType lockType;
   private final String groupId;
   private final String dataSource;
   private final Interval interval;
-  private final Set<Integer> partitionIds;
+  private final int partitionId;
   private final String version;
   private final int priority;
   private final boolean revoked;
 
-  public ExistingSegmentLockRequest(
-      TaskLockType lockType,
-      Task task,
-      Interval interval,
-      Set<Integer> partitionIds,
-      String version
-  )
-  {
-    this(lockType, task.getGroupId(), task.getDataSource(), interval, partitionIds, version, task.getPriority(), false);
-  }
-
-  public ExistingSegmentLockRequest(
+  public SpecificSegmentLockRequest(
       TaskLockType lockType,
       String groupId,
       String dataSource,
       Interval interval,
-      Set<Integer> partitionIds,
       String version,
+      int partitionId,
       int priority,
       boolean revoked
   )
@@ -64,10 +53,38 @@ public class ExistingSegmentLockRequest implements LockRequest
     this.groupId = groupId;
     this.dataSource = dataSource;
     this.interval = interval;
-    this.partitionIds = partitionIds;
     this.version = version;
+    this.partitionId = partitionId;
     this.priority = priority;
     this.revoked = revoked;
+  }
+
+  public SpecificSegmentLockRequest(
+      TaskLockType lockType,
+      Task task,
+      Interval interval,
+      String version,
+      int partitionId
+  )
+  {
+    this(lockType, task.getGroupId(), task.getDataSource(), interval, version, partitionId, task.getPriority(), false);
+  }
+
+  public SpecificSegmentLockRequest(
+      LockRequestForNewSegment request,
+      SegmentIdWithShardSpec newId
+  )
+  {
+    this(
+        request.getType(),
+        request.getGroupId(),
+        newId.getDataSource(),
+        newId.getInterval(),
+        newId.getVersion(),
+        newId.getShardSpec().getPartitionNum(),
+        request.getPriority(),
+        request.isRevoked()
+    );
   }
 
   @Override
@@ -118,20 +135,21 @@ public class ExistingSegmentLockRequest implements LockRequest
     return revoked;
   }
 
-  public Set<Integer> getPartitionIds()
+  public int getPartitionId()
   {
-    return partitionIds;
+    return partitionId;
   }
 
-  public SegmentLock toLock()
+  @Override
+  public TaskLock toLock()
   {
     return new SegmentLock(
         lockType,
         groupId,
         dataSource,
         interval,
-        partitionIds,
         version,
+        partitionId,
         priority,
         revoked
     );
@@ -140,12 +158,12 @@ public class ExistingSegmentLockRequest implements LockRequest
   @Override
   public String toString()
   {
-    return "ExistingSegmentLockRequest{" +
+    return "SpecificSegmentLockRequest{" +
            "lockType=" + lockType +
            ", groupId='" + groupId + '\'' +
            ", dataSource='" + dataSource + '\'' +
            ", interval=" + interval +
-           ", partitionIds=" + partitionIds +
+           ", partitionId=" + partitionId +
            ", version='" + version + '\'' +
            ", priority=" + priority +
            ", revoked=" + revoked +

@@ -22,64 +22,61 @@ package org.apache.druid.indexing.overlord;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.druid.indexing.common.TaskLock;
-import org.apache.druid.indexing.common.TaskLockType;
-import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
-import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import java.util.Collections;
-import java.util.List;
 
 /**
- * This class represents the result of {@link TaskLockbox#tryTimeChunkLock(TaskLockType, Task, Interval)}. If the lock
+ * This class represents the result of {@link TaskLockbox#tryLock}. If the lock
  * acquisition fails, the callers can tell that it was failed because it was preempted by other locks of higher
  * priorities or not by checking the {@link #revoked} flag.
  *
  * The {@link #revoked} flag means that consecutive lock acquisitions for the same dataSource and interval are
  * returning different locks because another lock of a higher priority preempted your lock at some point. In this case,
  * the lock acquisition must fail.
- *
- * @see TaskLockbox#tryTimeChunkLock(TaskLockType, Task, Interval)
  */
 public class LockResult
 {
+  @Nullable
   private final TaskLock taskLock;
   private final boolean revoked;
-  private final List<SegmentIdWithShardSpec> newSegmentIds;
+  @Nullable
+  private final SegmentIdWithShardSpec newSegmentId;
 
-  public static LockResult ok(TaskLock taskLock, List<SegmentIdWithShardSpec> newSegmentId)
+  public static LockResult ok(TaskLock taskLock, SegmentIdWithShardSpec newSegmentId)
   {
     return new LockResult(taskLock, newSegmentId, false);
   }
 
   public static LockResult fail(boolean revoked)
   {
-    return new LockResult(null, Collections.emptyList(), revoked);
+    return new LockResult(null, null, revoked);
   }
 
   @JsonCreator
   public LockResult(
       @JsonProperty("taskLock") @Nullable TaskLock taskLock,
-      @JsonProperty("newSegmentIds") @Nullable List<SegmentIdWithShardSpec> newSegmentIds,
+      @JsonProperty("newSegmentId") @Nullable SegmentIdWithShardSpec newSegmentId,
       @JsonProperty("revoked") boolean revoked
   )
   {
     this.taskLock = taskLock;
-    this.newSegmentIds = newSegmentIds == null ? Collections.emptyList() : newSegmentIds;
+    this.newSegmentId = newSegmentId;
     this.revoked = revoked;
   }
 
   @JsonProperty("taskLock")
+  @Nullable
   public TaskLock getTaskLock()
   {
     return taskLock;
   }
 
-  @JsonProperty("newSegmentIds")
-  public List<SegmentIdWithShardSpec> getNewSegmentIds()
+  @JsonProperty("newSegmentId")
+  @Nullable
+  public SegmentIdWithShardSpec getNewSegmentId()
   {
-    return newSegmentIds;
+    return newSegmentId;
   }
 
   @JsonProperty("revoked")

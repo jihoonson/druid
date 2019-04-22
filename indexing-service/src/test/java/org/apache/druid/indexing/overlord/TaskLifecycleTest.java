@@ -52,7 +52,7 @@ import org.apache.druid.indexing.common.TaskToolboxFactory;
 import org.apache.druid.indexing.common.TestUtils;
 import org.apache.druid.indexing.common.actions.LocalTaskActionClientFactory;
 import org.apache.druid.indexing.common.actions.LockListAction;
-import org.apache.druid.indexing.common.actions.LockTryAcquireAction;
+import org.apache.druid.indexing.common.actions.TimeChunkLockTryAcquireAction;
 import org.apache.druid.indexing.common.actions.SegmentInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.actions.TaskActionClientFactory;
@@ -965,7 +965,7 @@ public class TaskLifecycleTest
       public TaskStatus run(TaskToolbox toolbox) throws Exception
       {
         final Interval interval = Intervals.of("2012-01-01/P1D");
-        final LockTryAcquireAction action = LockTryAcquireAction.createTimeChunkRequest(
+        final TimeChunkLockTryAcquireAction action = new TimeChunkLockTryAcquireAction(
             TaskLockType.EXCLUSIVE,
             interval
         );

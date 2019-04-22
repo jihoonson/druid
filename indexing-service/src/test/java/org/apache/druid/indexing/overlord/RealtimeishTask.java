@@ -98,7 +98,7 @@ public class RealtimeishTask extends AbstractTask
 
     // Acquire lock for first interval
     final TaskLock lock1 = toolbox.getTaskActionClient().submit(
-        LockAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval1, 5000)
+        new LockAcquireAction(TaskLockType.EXCLUSIVE, interval1, 5000)
     );
     Assert.assertNotNull(lock1);
     final List<TaskLock> locks1 = toolbox.getTaskActionClient().submit(new LockListAction());
@@ -109,7 +109,7 @@ public class RealtimeishTask extends AbstractTask
 
     // Acquire lock for second interval
     final TaskLock lock2 = toolbox.getTaskActionClient().submit(
-        LockAcquireAction.createTimeChunkRequest(TaskLockType.EXCLUSIVE, interval2, 5000)
+        new LockAcquireAction(TaskLockType.EXCLUSIVE, interval2, 5000)
     );
     Assert.assertNotNull(lock2);
     final List<TaskLock> locks2 = toolbox.getTaskActionClient().submit(new LockListAction());
