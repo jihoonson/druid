@@ -130,21 +130,21 @@
                                     </arguments>
                                 </configuration>
                             </execution>
-                            <execution>
-                                <id>generate-dependency-reports</id>
-                                <phase>initialize</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>${project.parent.basedir}/docs/_bin/generate-license-dependency-reports.py</executable>
-                                    <arguments>
-                                        <argument>${project.basedir}/../</argument>
-                                        <argument>${project.basedir}/target</argument>
-                                        <argument>--clean-maven-artifact-transfer</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
+                            <!--<execution>-->
+                                <!--<id>generate-dependency-reports</id>-->
+                                <!--<phase>initialize</phase>-->
+                                <!--<goals>-->
+                                    <!--<goal>exec</goal>-->
+                                <!--</goals>-->
+                                <!--<configuration>-->
+                                    <!--<executable>${project.parent.basedir}/docs/_bin/generate-license-dependency-reports.py</executable>-->
+                                    <!--<arguments>-->
+                                        <!--<argument>${project.basedir}/../</argument>-->
+                                        <!--<argument>${project.basedir}/target</argument>-->
+                                        <!--<argument>&#45;&#45;clean-maven-artifact-transfer</argument>-->
+                                    <!--</arguments>-->
+                                <!--</configuration>-->
+                            <!--</execution>-->
                             <execution>
                                 <id>verify-and-generate-license</id>
                                 <phase>initialize</phase>
