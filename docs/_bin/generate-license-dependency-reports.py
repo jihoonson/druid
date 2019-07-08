@@ -96,6 +96,7 @@ if __name__ == "__main__":
 
         # The default maven-artifact-transfer in Travis is currently corrupted. Set the below argument properly to remove the corrupted one.
         if args.clean_mvn_artifact_transfer:
+            print("removing existing maven-artifact-trasfer")
             command = "rm -rf ~/.m2/repository/org/apache/maven/shared/maven-artifact-transfer"
             subprocess.check_call(command, shell=True)
         
