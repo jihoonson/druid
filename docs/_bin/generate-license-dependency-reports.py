@@ -50,7 +50,9 @@ def generate_reports(druid_path, tmp_path, exclude_ext, num_threads):
     license_report_root = os.path.join(tmp_path, "license-reports")
     license_core_path =  os.path.join(license_report_root, "core")
     license_ext_path = os.path.join(license_report_root, "ext")
+    print("cleaning up out dir: {}".format(license_report_root))
     shutil.rmtree(license_report_root, ignore_errors=True)
+    print("making out dir: {}, {}".format(license_core_path, license_ext_path))
     os.makedirs(license_core_path)
     os.makedirs(license_ext_path)
     druid_path = os.path.abspath(druid_path)
@@ -97,6 +99,7 @@ if __name__ == "__main__":
             command = "rm -rf ~/.m2/repository/org/apache/maven/shared/maven-artifact-transfer"
             subprocess.check_call(command, shell=True)
         
+        print("calling generate_reports()")
         generate_reports(args.druid_path, args.tmp_path, args.exclude_ext, args.num_threads)
     except KeyboardInterrupt:
         print('Interrupted, closing.')
