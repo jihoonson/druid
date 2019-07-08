@@ -35,6 +35,7 @@ import it.unimi.dsi.fastutil.shorts.ShortComparator;
 import it.unimi.dsi.fastutil.shorts.ShortComparators;
 import it.unimi.dsi.fastutil.shorts.ShortSortedSet;
 import it.unimi.dsi.fastutil.shorts.ShortSortedSets;
+import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.timeline.Overshadowable;
 
@@ -608,7 +609,7 @@ class OvershadowableManager<T extends Overshadowable<T>>
       if (fromKey <= key && toKey > key) {
         return this;
       } else {
-        throw new IllegalArgumentException();
+        throw new IAE("fromKey: %s, toKey: %s, key: %s", fromKey, toKey, key);
       }
     }
 
