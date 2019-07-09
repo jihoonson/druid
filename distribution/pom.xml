@@ -131,7 +131,7 @@
                                 </configuration>
                             </execution>
                             <execution>
-                                <id>verify-and-generate-license</id>
+                                <id>generate-license</id>
                                 <phase>initialize</phase>
                                 <goals>
                                     <goal>exec</goal>
