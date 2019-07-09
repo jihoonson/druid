@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/druid-io/druid.svg?branch=master)](https://travis-ci.org/druid-io/druid) [![Coverage Status](https://coveralls.io/repos/druid-io/druid/badge.svg?branch=master)](https://coveralls.io/r/druid-io/druid?branch=master)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjihoonson%2Fdruid.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjihoonson%2Fdruid?ref=badge_shield)
 
 ## Druid
 
@@ -16,6 +17,9 @@ Samza, Kafka, Storm, Spark, and Hadoop.
 ### License
 
 [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
+
+
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjihoonson%2Fdruid.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjihoonson%2Fdruid?ref=badge_large)
 
 ### More Information
 
