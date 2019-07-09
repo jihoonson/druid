@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mvn clean install -DskipTests
+mvn clean install -q -ff -DskipTests
 
 docs/_bin/generate-license-dependency-reports.py . distribution/target --clean-maven-artifact-transfer
 
