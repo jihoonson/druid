@@ -1634,5 +1634,54 @@
                 </plugins>
             </build>
         </profile>
+
+        <profile>
+            <id>license-check</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>generate-dependency-reports</id>
+                                <phase>initialize</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${project.basedir}/docs/_bin/generate-license-dependency-reports.py</executable>
+                                    <arguments>
+                                        <argument>${project.basedir}/</argument>
+                                        <argument>${project.basedir}/target</argument>
+                                        <argument>--clean-maven-artifact-transfer</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>verify-and-generate-license</id>
+                                <phase>initialize</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${project.basedir}/docs/_bin/generate-license.py</executable>
+                                    <arguments>
+                                        <argument>${project.basedir}/licenses/APACHE2</argument>
+                                        <argument>${project.basedir}/licenses.yaml</argument>
+                                        <argument>${project.basedir}/LICENSE.BINARY</argument>
+                                        <argument>--dependency-reports</argument>
+                                        <argument>${project.basedir}/target/license-reports</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 </project>
