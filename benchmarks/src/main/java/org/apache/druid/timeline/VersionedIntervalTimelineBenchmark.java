@@ -140,22 +140,36 @@ public class VersionedIntervalTimelineBenchmark
               new NumberedShardSpec(rootPartitionId, 0)
           )
       );
-      newSegments.add(
-          newSegment(
-              interval,
-              majorVersion,
-              new NumberedOverwriteShardSpec(
-                  nonRootPartitionId,
-                  0,
-                  rootPartitionId,
-                  minorVersion,
-                  (short) 1
-              )
-          )
-      );
-      nextRootGenPartitionIds.put(interval, rootPartitionId + 1);
-      nextNonRootGenPartitionIds.put(interval, nonRootPartitionId + 1);
-      nextMinorVersions.put(interval, (short) (minorVersion + 1));
+
+      if (numCompactedSegmentsRatioToNumInitialSegments > 0.0) {
+        newSegments.add(
+            newSegment(
+                interval,
+                majorVersion,
+                new NumberedOverwriteShardSpec(
+                    nonRootPartitionId,
+                    0,
+                    rootPartitionId,
+                    minorVersion,
+                    (short) 1
+                )
+            )
+        );
+
+        nextRootGenPartitionIds.put(interval, rootPartitionId + 1);
+        nextNonRootGenPartitionIds.put(interval, nonRootPartitionId + 1);
+        nextMinorVersions.put(interval, (short) (minorVersion + 1));
+      } else {
+        newSegments.add(
+            newSegment(
+                interval,
+                majorVersion,
+                new NumberedShardSpec(rootPartitionId + 1, 0)
+            )
+        );
+
+        nextRootGenPartitionIds.put(interval, rootPartitionId + 2);
+      }
     }
   }
 
