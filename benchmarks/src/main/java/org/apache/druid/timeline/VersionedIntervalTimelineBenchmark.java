@@ -207,10 +207,12 @@ public class VersionedIntervalTimelineBenchmark
       );
     }
     for (DataSegment newSegment : newSegments) {
-      timeline.remove(
-          newSegment.getInterval(),
-          newSegment.getVersion(),
-          newSegment.getShardSpec().createChunk(newSegment)
+      blackhole.consume(
+          timeline.remove(
+              newSegment.getInterval(),
+              newSegment.getVersion(),
+              newSegment.getShardSpec().createChunk(newSegment)
+          )
       );
     }
   }
