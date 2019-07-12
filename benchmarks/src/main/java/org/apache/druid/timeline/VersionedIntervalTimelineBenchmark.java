@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 @State(Scope.Benchmark)
-@Fork(value = 1, jvmArgsAppend = {"-XX:+UseG1GC", "-agentpath:/Applications/YourKit-Java-Profiler-2019.1.app/Contents/Resources/bin/mac/libyjpagent.jnilib=sampling,onexit=memory"})
+@Fork(value = 1, jvmArgsAppend = {"-XX:+UseG1GC", "-agentpath:/Applications/YourKit-Java-Profiler-2019.1.app/Contents/Resources/bin/mac/libyjpagent.jnilib=sampling,onexit=memory,onexit=snapshot"})
 @Warmup(iterations = 10)
 @Measurement(iterations = 10)
 @BenchmarkMode({Mode.Throughput})
