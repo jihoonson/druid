@@ -119,7 +119,7 @@ class OvershadowableManager<T extends Overshadowable<T>>
     }
   }
 
-  private void transitPartitionChunkState(AtomicUpdateGroup<T> atomicUpdateGroup, State from, State to)
+  private void transitAtomicUpdateGroupState(AtomicUpdateGroup<T> atomicUpdateGroup, State from, State to)
   {
     Preconditions.checkNotNull(atomicUpdateGroup, "atomicUpdateGroup");
     Preconditions.checkArgument(!atomicUpdateGroup.isEmpty(), "empty atomicUpdateGroup");
@@ -232,10 +232,10 @@ class OvershadowableManager<T extends Overshadowable<T>>
         // A visible atomicUpdateGroup becomes overshadowed when a fully available standby atomicUpdateGroup becomes
         // visible which overshadows the current visible one.
         findOvershadowedBy(aug, State.VISIBLE)
-            .forEach(entry -> transitPartitionChunkState(entry.getValue(), State.VISIBLE, State.OVERSHADOWED));
+            .forEach(entry -> transitAtomicUpdateGroupState(entry.getValue(), State.VISIBLE, State.OVERSHADOWED));
         findOvershadowedBy(aug, State.STANDBY)
-            .forEach(entry -> transitPartitionChunkState(entry.getValue(), State.STANDBY, State.OVERSHADOWED));
-        transitPartitionChunkState(aug, State.STANDBY, State.VISIBLE);
+            .forEach(entry -> transitAtomicUpdateGroupState(entry.getValue(), State.STANDBY, State.OVERSHADOWED));
+        transitAtomicUpdateGroupState(aug, State.STANDBY, State.VISIBLE);
       }
     }
   }
@@ -347,9 +347,9 @@ class OvershadowableManager<T extends Overshadowable<T>>
         // Move the atomicUpdateGroup to standby
         // and move the fully available overshadowed atomicUpdateGroup to visible
         if (!augOfRemovedChunk.isEmpty()) {
-          transitPartitionChunkState(augOfRemovedChunk, State.VISIBLE, State.STANDBY);
+          transitAtomicUpdateGroupState(augOfRemovedChunk, State.VISIBLE, State.STANDBY);
         }
-        latestFullAugs.forEach(group -> transitPartitionChunkState(group, State.OVERSHADOWED, State.VISIBLE));
+        latestFullAugs.forEach(group -> transitAtomicUpdateGroupState(group, State.OVERSHADOWED, State.VISIBLE));
       }
     }
   }

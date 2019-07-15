@@ -27,6 +27,7 @@ import org.apache.druid.timeline.partition.NumberedOverwriteShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.PartitionIds;
 import org.apache.druid.timeline.partition.ShardSpec;
+import org.joda.time.DateTime;
 import org.joda.time.Interval;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -89,20 +90,21 @@ public class VersionedIntervalTimelineBenchmark
     Map<Interval, Integer> nextNonRootGenPartitionIds = new HashMap<>(intervals.size());
     Map<Interval, Short> nextMinorVersions = new HashMap<>(intervals.size());
 
-    String majorVersion = DateTimes.nowUtc().toString();
+    DateTime majorVersion = DateTimes.nowUtc();
 
     for (Interval interval : intervals) {
+      majorVersion = majorVersion.plus(1);
       int nextRootGenPartitionId = 0;
       int nextNonRootGenPartitionId = PartitionIds.NON_ROOT_GEN_START_PARTITION_ID;
 
       // Generate root generation segments
       for (int i = 0; i < numInitialRootGenSegmentsPerInterval; i++) {
-        segments.add(newSegment(interval, majorVersion, new NumberedShardSpec(nextRootGenPartitionId++, 0)));
+        segments.add(newSegment(interval, majorVersion.toString(), new NumberedShardSpec(nextRootGenPartitionId++, 0)));
       }
 
       for (int i = 0; i < numNonRootGenerations; i++) {
         if (!useSegmentLock) {
-          majorVersion = DateTimes.nowUtc().toString();
+          majorVersion = majorVersion.plus(1);
           nextRootGenPartitionId = 0;
         }
         // Compacted segments
@@ -111,7 +113,7 @@ public class VersionedIntervalTimelineBenchmark
             segments.add(
                 newSegment(
                     interval,
-                    majorVersion,
+                    majorVersion.toString(),
                     new NumberedOverwriteShardSpec(
                         nextNonRootGenPartitionId++,
                         0,
@@ -122,13 +124,13 @@ public class VersionedIntervalTimelineBenchmark
                 )
             );
           } else {
-            segments.add(newSegment(interval, majorVersion, new NumberedShardSpec(nextRootGenPartitionId++, 0)));
+            segments.add(newSegment(interval, majorVersion.toString(), new NumberedShardSpec(nextRootGenPartitionId++, 0)));
           }
         }
 
         // New segments
         for (int j = 0; j < numNewRootGenSegmentsAfterCompaction; j++) {
-          segments.add(newSegment(interval, majorVersion, new NumberedShardSpec(nextRootGenPartitionId++, 0)));
+          segments.add(newSegment(interval, majorVersion.toString(), new NumberedShardSpec(nextRootGenPartitionId++, 0)));
         }
       }
       nextRootGenPartitionIds.put(interval, nextRootGenPartitionId);
@@ -148,7 +150,7 @@ public class VersionedIntervalTimelineBenchmark
       newSegments.add(
           newSegment(
               interval,
-              majorVersion,
+              majorVersion.toString(),
               new NumberedShardSpec(rootPartitionId, 0)
           )
       );
@@ -157,7 +159,7 @@ public class VersionedIntervalTimelineBenchmark
 
     // Generate overwriting segments
     if (!useSegmentLock) {
-      majorVersion = DateTimes.nowUtc().toString();
+      majorVersion = majorVersion.plus(1);
       nextRootGenPartitionIds.keySet().forEach(interval -> nextRootGenPartitionIds.put(interval, 0));
     }
 
@@ -173,7 +175,7 @@ public class VersionedIntervalTimelineBenchmark
           newSegments.add(
               newSegment(
                   interval,
-                  majorVersion,
+                  majorVersion.toString(),
                   new NumberedOverwriteShardSpec(
                       nonRootPartitionId++,
                       0,
@@ -187,7 +189,7 @@ public class VersionedIntervalTimelineBenchmark
           newSegments.add(
               newSegment(
                   interval,
-                  majorVersion,
+                  majorVersion.toString(),
                   new NumberedShardSpec(rootPartitionId++, 0)
               )
           );
@@ -197,8 +199,9 @@ public class VersionedIntervalTimelineBenchmark
   }
 
   @Benchmark
-  public void testAddAndRemove(Blackhole blackhole)
+  public void testAdd(Blackhole blackhole)
   {
+    final VersionedIntervalTimeline<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(segments);
     for (DataSegment newSegment : newSegments) {
       timeline.add(
           newSegment.getInterval(),
@@ -206,12 +209,21 @@ public class VersionedIntervalTimelineBenchmark
           newSegment.getShardSpec().createChunk(newSegment)
       );
     }
-    for (DataSegment newSegment : newSegments) {
+  }
+
+  @Benchmark
+  public void testRemove(Blackhole blackhole)
+  {
+    final List<DataSegment> segmentsCopy = new ArrayList<>(segments);
+    final VersionedIntervalTimeline<String, DataSegment> timeline = VersionedIntervalTimeline.forSegments(segmentsCopy);
+    final int numTests = (int) (segmentsCopy.size() * 0.1);
+    for (int i = 0; i < numTests; i++) {
+      final DataSegment segment = segmentsCopy.remove(ThreadLocalRandom.current().nextInt(segmentsCopy.size()));
       blackhole.consume(
           timeline.remove(
-              newSegment.getInterval(),
-              newSegment.getVersion(),
-              newSegment.getShardSpec().createChunk(newSegment)
+              segment.getInterval(),
+              segment.getVersion(),
+              segment.getShardSpec().createChunk(segment)
           )
       );
     }
