@@ -232,23 +232,19 @@ public class VersionedIntervalTimelineBenchmark
   @Benchmark
   public void testLookup(Blackhole blackhole)
   {
-    for (int i = 0; i < 100; i++) {
-      final int intervalIndex = ThreadLocalRandom.current().nextInt(intervals.size() - 2);
-      final Interval queryInterval = new Interval(
-          intervals.get(intervalIndex).getStart(),
-          intervals.get(intervalIndex + 2).getEnd()
-      );
-      blackhole.consume(timeline.lookup(queryInterval));
-    }
+    final int intervalIndex = ThreadLocalRandom.current().nextInt(intervals.size() - 2);
+    final Interval queryInterval = new Interval(
+        intervals.get(intervalIndex).getStart(),
+        intervals.get(intervalIndex + 2).getEnd()
+    );
+    blackhole.consume(timeline.lookup(queryInterval));
   }
 
   @Benchmark
   public void testIsOvershadowed(Blackhole blackhole)
   {
-    for (int i = 0; i < 100; i++) {
-      final DataSegment segment = segments.get(ThreadLocalRandom.current().nextInt(segments.size()));
-      blackhole.consume(timeline.isOvershadowed(segment.getInterval(), segment.getVersion(), segment));
-    }
+    final DataSegment segment = segments.get(ThreadLocalRandom.current().nextInt(segments.size()));
+    blackhole.consume(timeline.isOvershadowed(segment.getInterval(), segment.getVersion(), segment));
   }
 
   @Benchmark
