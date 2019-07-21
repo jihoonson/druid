@@ -141,6 +141,12 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
       throw new IAE("[%s] should implement FiniteFirehoseFactory", firehoseFactory.getClass().getSimpleName());
     }
 
+    if (ingestionSchema.getTuningConfig().isForceGuaranteedRollup()
+        && (ingestionSchema.getTuningConfig().getNumShards() == null
+            || !ingestionSchema.getDataSchema().getGranularitySpec().inputIntervals().isEmpty())) {
+      throw new ISE("Missing numShards in tuningConfig or missing intervals in granularitySpec");
+    }
+
     this.baseFirehoseFactory = (FiniteFirehoseFactory) firehoseFactory;
     this.indexingServiceClient = indexingServiceClient;
     this.chatHandlerProvider = chatHandlerProvider;
@@ -489,13 +495,13 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   }
 
   /**
-   * {@link ParallelIndexSubTask}s call this API to report the segments they've generated and pushed.
+   * {@link ParallelIndexSubTask}s call this API to report the segments they generated and pushed.
    */
   @POST
   @Path("/report")
   @Consumes(SmileMediaTypes.APPLICATION_JACKSON_SMILE)
   public Response report(
-      PushedSegmentsReport report,
+      SubTaskReport report,
       @Context final HttpServletRequest req
   )
   {

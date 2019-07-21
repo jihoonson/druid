@@ -31,8 +31,10 @@ import java.util.Set;
  * In native parallel batch indexing, each subTask generates and pushes segments and sends a report to the
  * supervisorTask. Once the supervisorTask collects all reports, it publishes all the pushed segments at once.
  */
-public class PushedSegmentsReport
+public class PushedSegmentsReport implements SubTaskReport
 {
+  public static final String TYPE = "pushed_segments";
+
   private final String taskId;
   private final Set<DataSegment> oldSegments;
   private final Set<DataSegment> newSegments;
@@ -49,6 +51,7 @@ public class PushedSegmentsReport
     this.newSegments = Preconditions.checkNotNull(newSegments, "newSegments");
   }
 
+  @Override
   @JsonProperty
   public String getTaskId()
   {

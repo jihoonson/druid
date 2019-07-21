@@ -34,7 +34,7 @@ import java.util.Set;
  * implementation, i.e. {@link SinglePhaseParallelIndexTaskRunner} which supports only best-effort roll-up. We can add
  * more implementations for different distributed indexing algorithms in the future.
  */
-public interface ParallelIndexTaskRunner<T extends Task>
+public interface ParallelIndexTaskRunner<SubTaskType extends Task, SubTaskReportType extends SubTaskReport>
 {
   /**
    * Runs the task.
@@ -48,10 +48,10 @@ public interface ParallelIndexTaskRunner<T extends Task>
   void stopGracefully();
 
   /**
-   * {@link PushedSegmentsReport} is the report sent by {@link ParallelIndexSubTask}s. The subTasks call this method to
+   * {@link SubTaskReport} is the report sent by {@link SubTaskType}s. The subTasks call this method to
    * send their reports after pushing generated segments to deep storage.
    */
-  void collectReport(PushedSegmentsReport report);
+  void collectReport(SubTaskReportType report);
 
   /**
    * Returns the current {@link ParallelIndexingProgress}.
@@ -66,7 +66,7 @@ public interface ParallelIndexTaskRunner<T extends Task>
   /**
    * Returns all {@link SubTaskSpec}s.
    */
-  List<SubTaskSpec<T>> getSubTaskSpecs();
+  List<SubTaskSpec<SubTaskType>> getSubTaskSpecs();
 
   /**
    * Returns running {@link SubTaskSpec}s. A {@link SubTaskSpec} is running if there is a running {@link Task} created
@@ -74,7 +74,7 @@ public interface ParallelIndexTaskRunner<T extends Task>
    *
    * @see SubTaskSpec#newSubTask
    */
-  List<SubTaskSpec<T>> getRunningSubTaskSpecs();
+  List<SubTaskSpec<SubTaskType>> getRunningSubTaskSpecs();
 
   /**
    * Returns complete {@link SubTaskSpec}s. A {@link SubTaskSpec} is complete if there is a succeeded or failed
@@ -82,13 +82,13 @@ public interface ParallelIndexTaskRunner<T extends Task>
    *
    * @see SubTaskSpec#newSubTask
    */
-  List<SubTaskSpec<T>> getCompleteSubTaskSpecs();
+  List<SubTaskSpec<SubTaskType>> getCompleteSubTaskSpecs();
 
   /**
    * Returns the {@link SubTaskSpec} of the given ID or null if it's not found.
    */
   @Nullable
-  SubTaskSpec<T> getSubTaskSpec(String subTaskSpecId);
+  SubTaskSpec<SubTaskType> getSubTaskSpec(String subTaskSpecId);
 
   /**
    * Returns {@link SubTaskSpecStatus} of the given ID or null if it's not found.
@@ -100,7 +100,7 @@ public interface ParallelIndexTaskRunner<T extends Task>
    * Returns {@link TaskHistory} of the given ID or null if it's not found.
    */
   @Nullable
-  TaskHistory<T> getCompleteSubTaskSpecAttemptHistory(String subTaskSpecId);
+  TaskHistory<SubTaskType> getCompleteSubTaskSpecAttemptHistory(String subTaskSpecId);
 
   class SubTaskSpecStatus
   {

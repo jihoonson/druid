@@ -96,7 +96,7 @@ import java.util.stream.Collectors;
  */
 public class ParallelIndexSubTask extends AbstractBatchIndexTask
 {
-  public static final String TYPE = "index_sub";
+  public static final String TYPE = "best_effort_rollup";
 
   private static final Logger log = new Logger(ParallelIndexSubTask.class);
 

@@ -53,6 +53,7 @@ import java.util.Map;
     @JsonSubTypes.Type(name = "index", value = IndexTask.class),
     @JsonSubTypes.Type(name = ParallelIndexSupervisorTask.TYPE, value = ParallelIndexSupervisorTask.class),
     @JsonSubTypes.Type(name = ParallelIndexSubTask.TYPE, value = ParallelIndexSubTask.class),
+    @JsonSubTypes.Type(name = "index_sub", value = ParallelIndexSubTask.class), // for backward compatibility
     @JsonSubTypes.Type(name = "index_hadoop", value = HadoopIndexTask.class),
     @JsonSubTypes.Type(name = "index_realtime", value = RealtimeIndexTask.class),
     @JsonSubTypes.Type(name = "index_realtime_appenderator", value = AppenderatorDriverRealtimeIndexTask.class),

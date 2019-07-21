@@ -66,7 +66,8 @@ import java.util.stream.Stream;
  * As its name indicates, distributed indexing is done in a single phase, i.e., without shuffling intermediate data. As
  * a result, this task can't be used for perfect rollup.
  */
-public class SinglePhaseParallelIndexTaskRunner implements ParallelIndexTaskRunner<ParallelIndexSubTask>
+public class SinglePhaseParallelIndexTaskRunner
+    implements ParallelIndexTaskRunner<ParallelIndexSubTask, PushedSegmentsReport>
 {
   private static final Logger log = new Logger(SinglePhaseParallelIndexTaskRunner.class);
 
