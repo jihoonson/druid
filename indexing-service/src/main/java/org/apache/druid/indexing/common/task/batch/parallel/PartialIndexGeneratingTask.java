@@ -222,6 +222,6 @@ public class PartialIndexGeneratingTask extends AbstractBatchIndexTask
       );
     }
 
-
+    return null;
   }
 }
