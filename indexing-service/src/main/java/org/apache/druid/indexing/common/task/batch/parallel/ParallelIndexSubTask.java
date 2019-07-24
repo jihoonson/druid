@@ -49,7 +49,6 @@ import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
-import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.common.parsers.ParseException;
@@ -58,7 +57,6 @@ import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
-import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.realtime.FireDepartment;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
 import org.apache.druid.segment.realtime.RealtimeMetricsMonitor;
@@ -387,7 +385,6 @@ public class ParallelIndexSubTask extends AbstractBatchIndexTask
       );
     }
 
-    // Initialize maxRowsPerSegment and maxTotalRows lazily
     final ParallelIndexTuningConfig tuningConfig = ingestionSchema.getTuningConfig();
     final DynamicPartitionsSpec partitionsSpec = (DynamicPartitionsSpec) tuningConfig.getGivenOrDefaultPartitionsSpec();
     final long pushTimeout = tuningConfig.getPushTimeout();
@@ -466,15 +463,6 @@ public class ParallelIndexSubTask extends AbstractBatchIndexTask
     }
     catch (TimeoutException | ExecutionException e) {
       throw new RuntimeException(e);
-    }
-  }
-
-  private static Granularity findSegmentGranularity(GranularitySpec granularitySpec)
-  {
-    if (granularitySpec instanceof UniformGranularitySpec) {
-      return granularitySpec.getSegmentGranularity();
-    } else {
-      return Granularities.ALL;
     }
   }
 

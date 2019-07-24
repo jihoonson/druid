@@ -27,6 +27,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.indexer.TaskStatus;
+import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.task.AbstractBatchIndexTask;
@@ -221,6 +222,12 @@ public class PartialIndexGeneratingTask extends AbstractBatchIndexTask
           )
       );
     }
+
+    final ParallelIndexTuningConfig tuningConfig = ingestionSchema.getTuningConfig();
+    final HashedPartitionsSpec partitionsSpec = (HashedPartitionsSpec) tuningConfig.getGivenOrDefaultPartitionsSpec();
+    final long pushTimeout = tuningConfig.getPushTimeout();
+    final boolean explicitIntervals = granularitySpec.bucketIntervals().isPresent();
+
 
     return null;
   }
