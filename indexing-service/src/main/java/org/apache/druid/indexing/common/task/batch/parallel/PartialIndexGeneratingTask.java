@@ -22,20 +22,21 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import org.apache.commons.io.FileUtils;
 import org.apache.druid.client.indexing.IndexingServiceClient;
-import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.FirehoseFactory;
-import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
+import org.apache.druid.indexing.common.stats.DropwizardRowIngestionMeters;
+import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.task.AbstractBatchIndexTask;
+import org.apache.druid.indexing.common.task.BatchAppenderators;
 import org.apache.druid.indexing.common.task.CachingLocalSegmentAllocator;
 import org.apache.druid.indexing.common.task.ClientBasedTaskInfoProvider;
+import org.apache.druid.indexing.common.task.FiniteFirehoseProcessor;
 import org.apache.druid.indexing.common.task.IndexTask;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
 import org.apache.druid.indexing.common.task.IndexTaskSegmentAllocator;
@@ -43,13 +44,8 @@ import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.common.task.batch.parallel.GeneratedPartitionsReport.PartitionStat;
 import org.apache.druid.indexing.worker.ShuffleDataSegmentPusher;
-import org.apache.druid.java.util.common.ISE;
-import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
-import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.granularity.Granularity;
-import org.apache.druid.java.util.common.logger.Logger;
-import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.query.DruidMetrics;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
@@ -59,7 +55,6 @@ import org.apache.druid.segment.realtime.FireDepartment;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
 import org.apache.druid.segment.realtime.RealtimeMetricsMonitor;
 import org.apache.druid.segment.realtime.appenderator.Appenderator;
-import org.apache.druid.segment.realtime.appenderator.AppenderatorDriverAddResult;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.SegmentsAndMetadata;
 import org.apache.druid.timeline.DataSegment;
@@ -80,15 +75,11 @@ public class PartialIndexGeneratingTask extends AbstractBatchIndexTask
 {
   public static final String TYPE = "partial_index_generator";
 
-  private static final Logger log = new Logger(PartialIndexGeneratingTask.class);
-
   private final int numAttempts;
   private final ParallelIndexIngestionSpec ingestionSchema;
   private final String supervisorTaskId;
   private final IndexingServiceClient indexingServiceClient;
   private final IndexTaskClientFactory<ParallelIndexTaskClient> taskClientFactory;
-
-  private FireDepartmentMetrics buildSegmentsFireDepartmentMetrics;
 
   @JsonCreator
   public PartialIndexGeneratingTask(
@@ -243,7 +234,8 @@ public class PartialIndexGeneratingTask extends AbstractBatchIndexTask
         new RealtimeIOConfig(null, null),
         null
     );
-    buildSegmentsFireDepartmentMetrics = fireDepartmentForMetrics.getMetrics();
+    final FireDepartmentMetrics fireDepartmentMetrics = fireDepartmentForMetrics.getMetrics();
+    final RowIngestionMeters buildSegmentsMeters = new DropwizardRowIngestionMeters();
 
     if (toolbox.getMonitorScheduler() != null) {
       toolbox.getMonitorScheduler().addMonitor(
@@ -273,78 +265,32 @@ public class PartialIndexGeneratingTask extends AbstractBatchIndexTask
     );
 
     try (
-        final Appenderator appenderator = IndexTask.newAppenderator(
-            buildSegmentsFireDepartmentMetrics,
+        final Appenderator appenderator = BatchAppenderators.newAppenderator(
+            fireDepartmentMetrics,
             toolbox,
             dataSchema,
             tuningConfig,
             new ShuffleDataSegmentPusher(supervisorTaskId, getId(), toolbox.getIntermediaryDataManager())
         );
-        final BatchAppenderatorDriver driver = IndexTask.newDriver(appenderator, toolbox, segmentAllocator);
-        final Firehose firehose = firehoseFactory.connect(dataSchema.getParser(), firehoseTempDir)
+        final BatchAppenderatorDriver driver = BatchAppenderators.newDriver(appenderator, toolbox, segmentAllocator)
     ) {
       driver.startJob();
 
-      while (firehose.hasMore()) {
-        try {
-          final InputRow inputRow = firehose.nextRow();
-
-          if (inputRow == null) {
-            buildSegmentsMeters.incrementThrownAway();
-            continue;
-          }
-
-          if (!Intervals.ETERNITY.contains(inputRow.getTimestamp())) {
-            final String errorMsg = StringUtils.format(
-                "Encountered row with timestamp that cannot be represented as a long: [%s]",
-                inputRow
-            );
-            throw new ParseException(errorMsg);
-          }
-
-          final Optional<Interval> optInterval = granularitySpec.bucketInterval(inputRow.getTimestamp());
-          if (!optInterval.isPresent()) {
-            buildSegmentsMeters.incrementThrownAway();
-            continue;
-          }
-
-          final Interval interval = optInterval.get();
-          final String sequenceName = segmentAllocator.getSequenceName(interval, inputRow);
-          final AppenderatorDriverAddResult addResult = driver.add(inputRow, sequenceName);
-
-          if (addResult.isOk()) {
-
-            // incremental segment publishment is allowed only when rollup don't have to be perfect.
-            if (dynamicPartitionsSpec != null) {
-              final boolean isPushRequired = addResult.isPushRequired(
-                  dynamicPartitionsSpec.getMaxRowsPerSegment(),
-                  dynamicPartitionsSpec.getMaxTotalRows()
-              );
-              if (isPushRequired) {
-                // There can be some segments waiting for being published even though any rows won't be added to them.
-                // If those segments are not published here, the available space in appenderator will be kept to be
-                // small which makes the size of segments smaller.
-                final SegmentsAndMetadata pushed = driver.pushAllAndClear(pushTimeout);
-                log.info("Pushed segments[%s]", pushed.getSegments());
-              }
-            }
-          } else {
-            throw new ISE("Failed to add a row with timestamp[%s]", inputRow.getTimestamp());
-          }
-
-          if (addResult.getParseException() != null) {
-            handleParseException(addResult.getParseException());
-          } else {
-            buildSegmentsMeters.incrementProcessed();
-          }
-        }
-        catch (ParseException e) {
-          handleParseException(e);
-        }
-      }
-
-      final SegmentsAndMetadata pushed = driver.pushAllAndClear(pushTimeout);
-      log.info("Pushed segments[%s]", pushed.getSegments());
+      final FiniteFirehoseProcessor firehoseProcessor = new FiniteFirehoseProcessor(
+          buildSegmentsMeters,
+          null,
+          tuningConfig.isLogParseExceptions(),
+          tuningConfig.getMaxParseExceptions(),
+          pushTimeout
+      );
+      final SegmentsAndMetadata pushed = firehoseProcessor.process(
+          dataSchema,
+          driver,
+          partitionsSpec,
+          firehoseFactory,
+          firehoseTempDir,
+          segmentAllocator
+      );
 
       return pushed.getSegments();
     }

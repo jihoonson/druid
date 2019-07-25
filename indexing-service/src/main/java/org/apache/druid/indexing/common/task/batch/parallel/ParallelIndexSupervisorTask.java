@@ -152,17 +152,6 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     this.chatHandlerProvider = chatHandlerProvider;
     this.authorizerMapper = authorizerMapper;
     this.rowIngestionMetersFactory = rowIngestionMetersFactory;
-
-    if (ingestionSchema.getTuningConfig().getMaxSavedParseExceptions()
-        != TuningConfig.DEFAULT_MAX_SAVED_PARSE_EXCEPTIONS) {
-      log.warn("maxSavedParseExceptions is not supported yet");
-    }
-    if (ingestionSchema.getTuningConfig().getMaxParseExceptions() != TuningConfig.DEFAULT_MAX_PARSE_EXCEPTIONS) {
-      log.warn("maxParseExceptions is not supported yet");
-    }
-    if (ingestionSchema.getTuningConfig().isLogParseExceptions() != TuningConfig.DEFAULT_LOG_PARSE_EXCEPTIONS) {
-      log.warn("logParseExceptions is not supported yet");
-    }
   }
 
   @Override
@@ -285,6 +274,16 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   @Override
   public TaskStatus run(TaskToolbox toolbox) throws Exception
   {
+    if (ingestionSchema.getTuningConfig().getMaxSavedParseExceptions()
+        != TuningConfig.DEFAULT_MAX_SAVED_PARSE_EXCEPTIONS) {
+      log.warn("maxSavedParseExceptions is not supported yet");
+    }
+    if (ingestionSchema.getTuningConfig().getMaxParseExceptions() != TuningConfig.DEFAULT_MAX_PARSE_EXCEPTIONS) {
+      log.warn("maxParseExceptions is not supported yet");
+    }
+    if (ingestionSchema.getTuningConfig().isLogParseExceptions() != TuningConfig.DEFAULT_LOG_PARSE_EXCEPTIONS) {
+      log.warn("logParseExceptions is not supported yet");
+    }
     log.info(
         "Found chat handler of class[%s]",
         Preconditions.checkNotNull(chatHandlerProvider, "chatHandlerProvider").getClass().getName()
@@ -319,11 +318,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   private boolean isParallelMode()
   {
-    if (baseFirehoseFactory.isSplittable() && ingestionSchema.getTuningConfig().getMaxNumSubTasks() > 1) {
-      return true;
-    } else {
-      return false;
-    }
+    return baseFirehoseFactory.isSplittable() && ingestionSchema.getTuningConfig().getMaxNumSubTasks() > 1;
   }
 
   @VisibleForTesting
@@ -519,6 +514,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     if (runner == null) {
       return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
     } else {
+      //noinspection unchecked
       runner.collectReport(report);
       return Response.ok().build();
     }

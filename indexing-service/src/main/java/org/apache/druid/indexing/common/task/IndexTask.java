@@ -42,7 +42,6 @@ import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
-import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReport;
 import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReportData;
 import org.apache.druid.indexing.common.LockGranularity;
@@ -71,16 +70,12 @@ import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.indexing.TuningConfig;
 import org.apache.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
-import org.apache.druid.segment.loading.DataSegmentPusher;
 import org.apache.druid.segment.realtime.FireDepartment;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
 import org.apache.druid.segment.realtime.appenderator.Appenderator;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorConfig;
-import org.apache.druid.segment.realtime.appenderator.AppenderatorDriverAddResult;
-import org.apache.druid.segment.realtime.appenderator.Appenderators;
 import org.apache.druid.segment.realtime.appenderator.BaseAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
-import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentsAndMetadata;
 import org.apache.druid.segment.realtime.appenderator.TransactionalSegmentPublisher;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
@@ -164,13 +159,10 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
   private final RowIngestionMeters buildSegmentsMeters;
 
   @JsonIgnore
-  private FireDepartmentMetrics buildSegmentsFireDepartmentMetrics;
+  private final CircularBuffer<Throwable> buildSegmentsSavedParseExceptions;
 
   @JsonIgnore
-  private CircularBuffer<Throwable> buildSegmentsSavedParseExceptions;
-
-  @JsonIgnore
-  private CircularBuffer<Throwable> determinePartitionsSavedParseExceptions;
+  private final CircularBuffer<Throwable> determinePartitionsSavedParseExceptions;
 
   @JsonIgnore
   private String errorMsg;
@@ -229,6 +221,9 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       buildSegmentsSavedParseExceptions = new CircularBuffer<>(
           ingestionSchema.getTuningConfig().getMaxSavedParseExceptions()
       );
+    } else {
+      determinePartitionsSavedParseExceptions = null;
+      buildSegmentsSavedParseExceptions = null;
     }
     this.ingestionState = IngestionState.NOT_STARTED;
     this.determinePartitionsMeters = rowIngestionMetersFactory.createRowIngestionMeters();
@@ -857,14 +852,9 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       final PartitionsSpec partitionsSpec
   ) throws IOException, InterruptedException
   {
-    @Nullable
-    final DynamicPartitionsSpec dynamicPartitionsSpec = partitionsSpec instanceof DynamicPartitionsSpec
-                                                        ? (DynamicPartitionsSpec) partitionsSpec
-                                                        : null;
-    final GranularitySpec granularitySpec = dataSchema.getGranularitySpec();
     final FireDepartment fireDepartmentForMetrics =
         new FireDepartment(dataSchema, new RealtimeIOConfig(null, null), null);
-    buildSegmentsFireDepartmentMetrics = fireDepartmentForMetrics.getMetrics();
+    FireDepartmentMetrics buildSegmentsFireDepartmentMetrics = fireDepartmentForMetrics.getMetrics();
 
     if (toolbox.getMonitorScheduler() != null) {
       final TaskRealtimeMetricsMonitor metricsMonitor = TaskRealtimeMetricsMonitorBuilder.build(
@@ -889,77 +879,31 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
                .submit(SegmentTransactionalInsertAction.overwriteAction(segmentsToBeOverwritten, segmentsToPublish));
 
     try (
-        final Appenderator appenderator = newAppenderator(
+        final Appenderator appenderator = BatchAppenderators.newAppenderator(
             buildSegmentsFireDepartmentMetrics,
             toolbox,
             dataSchema,
             tuningConfig
         );
-        final BatchAppenderatorDriver driver = newDriver(appenderator, toolbox, segmentAllocator);
-        final Firehose firehose = firehoseFactory.connect(dataSchema.getParser(), firehoseTempDir)
+        final BatchAppenderatorDriver driver = BatchAppenderators.newDriver(appenderator, toolbox, segmentAllocator)
     ) {
       driver.startJob();
 
-      while (firehose.hasMore()) {
-        try {
-          final InputRow inputRow = firehose.nextRow();
-
-          if (inputRow == null) {
-            buildSegmentsMeters.incrementThrownAway();
-            continue;
-          }
-
-          if (!Intervals.ETERNITY.contains(inputRow.getTimestamp())) {
-            final String errorMsg = StringUtils.format(
-                "Encountered row with timestamp that cannot be represented as a long: [%s]",
-                inputRow
-            );
-            throw new ParseException(errorMsg);
-          }
-
-          final Optional<Interval> optInterval = granularitySpec.bucketInterval(inputRow.getTimestamp());
-          if (!optInterval.isPresent()) {
-            buildSegmentsMeters.incrementThrownAway();
-            continue;
-          }
-
-          final Interval interval = optInterval.get();
-          final String sequenceName = segmentAllocator.getSequenceName(interval, inputRow);
-          final AppenderatorDriverAddResult addResult = driver.add(inputRow, sequenceName);
-
-          if (addResult.isOk()) {
-
-            // incremental segment publishment is allowed only when rollup don't have to be perfect.
-            if (dynamicPartitionsSpec != null) {
-              final boolean isPushRequired = addResult.isPushRequired(
-                  dynamicPartitionsSpec.getMaxRowsPerSegment(),
-                  dynamicPartitionsSpec.getMaxTotalRows()
-              );
-              if (isPushRequired) {
-                // There can be some segments waiting for being published even though any rows won't be added to them.
-                // If those segments are not published here, the available space in appenderator will be kept to be
-                // small which makes the size of segments smaller.
-                final SegmentsAndMetadata pushed = driver.pushAllAndClear(pushTimeout);
-                log.info("Pushed segments[%s]", pushed.getSegments());
-              }
-            }
-          } else {
-            throw new ISE("Failed to add a row with timestamp[%s]", inputRow.getTimestamp());
-          }
-
-          if (addResult.getParseException() != null) {
-            handleParseException(addResult.getParseException());
-          } else {
-            buildSegmentsMeters.incrementProcessed();
-          }
-        }
-        catch (ParseException e) {
-          handleParseException(e);
-        }
-      }
-
-      final SegmentsAndMetadata pushed = driver.pushAllAndClear(pushTimeout);
-      log.info("Pushed segments[%s]", pushed.getSegments());
+      final FiniteFirehoseProcessor firehoseProcessor = new FiniteFirehoseProcessor(
+          buildSegmentsMeters,
+          buildSegmentsSavedParseExceptions,
+          tuningConfig.isLogParseExceptions(),
+          tuningConfig.getMaxParseExceptions(),
+          pushTimeout
+      );
+      firehoseProcessor.process(
+          dataSchema,
+          driver,
+          partitionsSpec,
+          firehoseFactory,
+          firehoseTempDir,
+          segmentAllocator
+      );
 
       // If we use timeChunk lock, then we don't have to specify what segments will be overwritten because
       // it will just overwrite all segments overlapped with the new segments.
@@ -996,29 +940,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     }
   }
 
-  private void handleParseException(ParseException e)
-  {
-    if (e.isFromPartiallyValidRow()) {
-      buildSegmentsMeters.incrementProcessedWithError();
-    } else {
-      buildSegmentsMeters.incrementUnparseable();
-    }
-
-    if (ingestionSchema.tuningConfig.isLogParseExceptions()) {
-      log.error(e, "Encountered parse exception:");
-    }
-
-    if (buildSegmentsSavedParseExceptions != null) {
-      buildSegmentsSavedParseExceptions.add(e);
-    }
-
-    if (buildSegmentsMeters.getUnparseable()
-        + buildSegmentsMeters.getProcessedWithError() > ingestionSchema.tuningConfig.getMaxParseExceptions()) {
-      log.error("Max parse exceptions exceeded, terminating task...");
-      throw new RuntimeException("Max parse exceptions exceeded, terminating task...", e);
-    }
-  }
-
   private static SegmentsAndMetadata awaitPublish(
       ListenableFuture<SegmentsAndMetadata> publishFuture,
       long publishTimeout
@@ -1029,51 +950,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     } else {
       return publishFuture.get(publishTimeout, TimeUnit.MILLISECONDS);
     }
-  }
-
-  // TODO: move to util
-  public static Appenderator newAppenderator(
-      FireDepartmentMetrics metrics,
-      TaskToolbox toolbox,
-      DataSchema dataSchema,
-      IndexTuningConfig tuningConfig
-  )
-  {
-    return newAppenderator(metrics, toolbox, dataSchema, tuningConfig, toolbox.getSegmentPusher());
-  }
-
-  public static Appenderator newAppenderator(
-      FireDepartmentMetrics metrics,
-      TaskToolbox toolbox,
-      DataSchema dataSchema,
-      IndexTuningConfig tuningConfig,
-      DataSegmentPusher segmentPusher
-  )
-  {
-    return Appenderators.createOffline(
-        dataSchema,
-        tuningConfig.withBasePersistDirectory(toolbox.getPersistDir()),
-        metrics,
-        segmentPusher,
-        toolbox.getObjectMapper(),
-        toolbox.getIndexIO(),
-        toolbox.getIndexMergerV9()
-    );
-  }
-
-  // TODO: move to util
-  public static BatchAppenderatorDriver newDriver(
-      final Appenderator appenderator,
-      final TaskToolbox toolbox,
-      final SegmentAllocator segmentAllocator
-  )
-  {
-    return new BatchAppenderatorDriver(
-        appenderator,
-        segmentAllocator,
-        new ActionBasedUsedSegmentChecker(toolbox.getTaskActionClient()),
-        toolbox.getDataSegmentKiller()
-    );
   }
 
   /**
@@ -1386,6 +1262,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
                                 : logParseExceptions;
     }
 
+    @Override
     public IndexTuningConfig withBasePersistDirectory(File dir)
     {
       return new IndexTuningConfig(
