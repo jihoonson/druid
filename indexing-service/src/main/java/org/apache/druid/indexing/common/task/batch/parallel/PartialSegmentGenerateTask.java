@@ -71,9 +71,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
-public class PartialIndexGeneratingTask extends AbstractBatchIndexTask
+public class PartialSegmentGenerateTask extends AbstractBatchIndexTask
 {
-  public static final String TYPE = "partial_index_generator";
+  public static final String TYPE = "partial_index_generate";
 
   private final int numAttempts;
   private final ParallelIndexIngestionSpec ingestionSchema;
@@ -82,7 +82,7 @@ public class PartialIndexGeneratingTask extends AbstractBatchIndexTask
   private final IndexTaskClientFactory<ParallelIndexTaskClient> taskClientFactory;
 
   @JsonCreator
-  public PartialIndexGeneratingTask(
+  public PartialSegmentGenerateTask(
       @JsonProperty("id") @Nullable String id,
       @JsonProperty("groupId") final String groupId,
       @JsonProperty("resource") final TaskResource taskResource,
@@ -162,8 +162,8 @@ public class PartialIndexGeneratingTask extends AbstractBatchIndexTask
   public List<DataSegment> findSegmentsToLock(TaskActionClient taskActionClient, List<Interval> intervals)
   {
     throw new UnsupportedOperationException(
-        "This method should be never called because it's supposed to be called only with segment locking"
-        + " but ParallelIndexGeneratingTask always uses timeChunk locking."
+        "This method should be never called because ParallelIndexGeneratingTask always uses timeChunk locking"
+        + " but this method is supposed to be called only with segment locking."
     );
   }
 
@@ -214,7 +214,7 @@ public class PartialIndexGeneratingTask extends AbstractBatchIndexTask
     final List<DataSegment> segments = generateSegments(toolbox, firehoseFactory, firehoseTempDir);
     final List<PartitionStat> partitionStats = segments
         .stream()
-        .map(segment -> new PartitionStat(segment.getShardSpec().getPartitionNum(), null, null))
+        .map(segment -> new PartitionStat(segment.getInterval(), segment.getShardSpec().getPartitionNum(), null, null))
         .collect(Collectors.toList());
     taskClient.report(supervisorTaskId, new GeneratedPartitionsReport(getId(), partitionStats));
 

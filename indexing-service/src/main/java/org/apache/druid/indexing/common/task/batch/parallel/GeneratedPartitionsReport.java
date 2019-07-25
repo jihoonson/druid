@@ -21,6 +21,7 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -57,6 +58,7 @@ public class GeneratedPartitionsReport implements SubTaskReport
 
   public static class PartitionStat
   {
+    private final Interval interval;
     private final int partitionId;
     @Nullable
     private final Integer numRows;
@@ -65,13 +67,21 @@ public class GeneratedPartitionsReport implements SubTaskReport
 
     @JsonCreator
     public PartitionStat(
+        @JsonProperty("interval") Interval interval,
         @JsonProperty("partitionId") int partitionId,
         @JsonProperty("numRows") @Nullable Integer numRows,
         @JsonProperty("sizeBytes") @Nullable Long sizeBytes)
     {
+      this.interval = interval;
       this.partitionId = partitionId;
       this.numRows = numRows == null ? 0 : numRows;
       this.sizeBytes = sizeBytes == null ? 0 : sizeBytes;
+    }
+
+    @JsonProperty
+    public Interval getInterval()
+    {
+      return interval;
     }
 
     @JsonProperty
@@ -82,14 +92,14 @@ public class GeneratedPartitionsReport implements SubTaskReport
 
     @Nullable
     @JsonProperty
-    public int getNumRows()
+    public Integer getNumRows()
     {
       return numRows;
     }
 
     @Nullable
     @JsonProperty
-    public long getSizeBytes()
+    public Long getSizeBytes()
     {
       return sizeBytes;
     }
