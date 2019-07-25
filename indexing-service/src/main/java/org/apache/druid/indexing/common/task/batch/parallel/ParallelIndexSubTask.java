@@ -217,7 +217,7 @@ public class ParallelIndexSubTask extends AbstractBatchIndexTask
                                                  .flatMap(holder -> holder.getObject().stream())
                                                  .map(PartitionChunk::getObject)
                                                  .collect(Collectors.toSet());
-    taskClient.report(supervisorTaskId, oldSegments, pushedSegments);
+    taskClient.report(supervisorTaskId, new PushedSegmentsReport(getId(), oldSegments, pushedSegments));
 
     return TaskStatus.success(getId());
   }

@@ -36,6 +36,7 @@ import org.apache.druid.discovery.LookupNodeService;
 import org.apache.druid.indexing.common.actions.SegmentInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.config.TaskConfig;
+import org.apache.druid.indexing.worker.IntermediaryDataManager;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 import org.apache.druid.java.util.metrics.MonitorScheduler;
 import org.apache.druid.query.QueryRunnerFactoryConglomerate;
@@ -98,6 +99,7 @@ public class TaskToolbox
   private final DruidNode druidNode;
   private final LookupNodeService lookupNodeService;
   private final DataNodeService dataNodeService;
+  private final IntermediaryDataManager intermediaryDataManager;
 
   public TaskToolbox(
       TaskConfig config,
@@ -125,7 +127,8 @@ public class TaskToolbox
       DruidNode druidNode,
       LookupNodeService lookupNodeService,
       DataNodeService dataNodeService,
-      TaskReportFileWriter taskReportFileWriter
+      TaskReportFileWriter taskReportFileWriter,
+      IntermediaryDataManager intermediaryDataManager
   )
   {
     this.config = config;
@@ -155,6 +158,7 @@ public class TaskToolbox
     this.dataNodeService = dataNodeService;
     this.taskReportFileWriter = taskReportFileWriter;
     this.taskReportFileWriter.setObjectMapper(this.objectMapper);
+    this.intermediaryDataManager = intermediaryDataManager;
   }
 
   public TaskConfig getConfig()
@@ -320,5 +324,10 @@ public class TaskToolbox
   public TaskReportFileWriter getTaskReportFileWriter()
   {
     return taskReportFileWriter;
+  }
+
+  public IntermediaryDataManager getIntermediaryDataManager()
+  {
+    return intermediaryDataManager;
   }
 }

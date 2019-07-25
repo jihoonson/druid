@@ -34,6 +34,7 @@ import org.apache.druid.guice.annotations.RemoteChatHandler;
 import org.apache.druid.indexing.common.actions.TaskActionClientFactory;
 import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.common.task.Task;
+import org.apache.druid.indexing.worker.IntermediaryDataManager;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 import org.apache.druid.java.util.metrics.MonitorScheduler;
 import org.apache.druid.query.QueryRunnerFactoryConglomerate;
@@ -81,6 +82,7 @@ public class TaskToolboxFactory
   private final LookupNodeService lookupNodeService;
   private final DataNodeService dataNodeService;
   private final TaskReportFileWriter taskReportFileWriter;
+  private final IntermediaryDataManager intermediaryDataManager;
 
   @Inject
   public TaskToolboxFactory(
@@ -108,7 +110,8 @@ public class TaskToolboxFactory
       @RemoteChatHandler DruidNode druidNode,
       LookupNodeService lookupNodeService,
       DataNodeService dataNodeService,
-      TaskReportFileWriter taskReportFileWriter
+      TaskReportFileWriter taskReportFileWriter,
+      IntermediaryDataManager intermediaryDataManager
   )
   {
     this.config = config;
@@ -136,6 +139,7 @@ public class TaskToolboxFactory
     this.lookupNodeService = lookupNodeService;
     this.dataNodeService = dataNodeService;
     this.taskReportFileWriter = taskReportFileWriter;
+    this.intermediaryDataManager = intermediaryDataManager;
   }
 
   public TaskToolbox build(Task task)
@@ -167,7 +171,8 @@ public class TaskToolboxFactory
         druidNode,
         lookupNodeService,
         dataNodeService,
-        taskReportFileWriter
+        taskReportFileWriter,
+        intermediaryDataManager
     );
   }
 }

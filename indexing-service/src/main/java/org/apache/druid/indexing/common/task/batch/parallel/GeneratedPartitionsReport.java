@@ -58,14 +58,16 @@ public class GeneratedPartitionsReport implements SubTaskReport
   public static class PartitionStat
   {
     private final int partitionId;
-    private final int numRows;
-    private final long sizeBytes;
+    @Nullable
+    private final Integer numRows;
+    @Nullable
+    private final Long sizeBytes;
 
     @JsonCreator
     public PartitionStat(
         @JsonProperty("partitionId") int partitionId,
         @JsonProperty("numRows") @Nullable Integer numRows,
-        @JsonProperty("sizeBytes") @Nullable Integer sizeBytes)
+        @JsonProperty("sizeBytes") @Nullable Long sizeBytes)
     {
       this.partitionId = partitionId;
       this.numRows = numRows == null ? 0 : numRows;
@@ -78,12 +80,14 @@ public class GeneratedPartitionsReport implements SubTaskReport
       return partitionId;
     }
 
+    @Nullable
     @JsonProperty
     public int getNumRows()
     {
       return numRows;
     }
 
+    @Nullable
     @JsonProperty
     public long getSizeBytes()
     {

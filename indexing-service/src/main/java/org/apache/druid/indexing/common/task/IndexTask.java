@@ -71,6 +71,7 @@ import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.indexing.TuningConfig;
 import org.apache.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
+import org.apache.druid.segment.loading.DataSegmentPusher;
 import org.apache.druid.segment.realtime.FireDepartment;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
 import org.apache.druid.segment.realtime.appenderator.Appenderator;
@@ -605,7 +606,8 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     }
   }
 
-  private Map<Interval, Pair<ShardSpecFactory, Integer>> createShardSpecWithoutInputScan(
+  // TODO: Move to some util class
+  public static Map<Interval, Pair<ShardSpecFactory, Integer>> createShardSpecWithoutInputScan(
       GranularitySpec granularitySpec,
       IndexIOConfig ioConfig,
       IndexTuningConfig tuningConfig,
@@ -701,7 +703,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     return allocateSpecs;
   }
 
-  private Pair<ShardSpecFactory, Integer> createShardSpecFactoryForGuaranteedRollup(
+  private static Pair<ShardSpecFactory, Integer> createShardSpecFactoryForGuaranteedRollup(
       int numShards,
       @Nullable List<String> partitionDimensions
   )
@@ -873,10 +875,8 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       toolbox.getMonitorScheduler().addMonitor(metricsMonitor);
     }
 
-    final IndexIOConfig ioConfig = ingestionSchema.getIOConfig();
     final IndexTuningConfig tuningConfig = ingestionSchema.getTuningConfig();
     final long pushTimeout = tuningConfig.getPushTimeout();
-    final boolean isGuaranteedRollup = isGuaranteedRollup(ioConfig, tuningConfig);
 
     final IndexTaskSegmentAllocator segmentAllocator = createSegmentAllocator(
         toolbox,
@@ -1031,25 +1031,38 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     }
   }
 
-  private static Appenderator newAppenderator(
+  // TODO: move to util
+  public static Appenderator newAppenderator(
       FireDepartmentMetrics metrics,
       TaskToolbox toolbox,
       DataSchema dataSchema,
       IndexTuningConfig tuningConfig
   )
   {
+    return newAppenderator(metrics, toolbox, dataSchema, tuningConfig, toolbox.getSegmentPusher());
+  }
+
+  public static Appenderator newAppenderator(
+      FireDepartmentMetrics metrics,
+      TaskToolbox toolbox,
+      DataSchema dataSchema,
+      IndexTuningConfig tuningConfig,
+      DataSegmentPusher segmentPusher
+  )
+  {
     return Appenderators.createOffline(
         dataSchema,
         tuningConfig.withBasePersistDirectory(toolbox.getPersistDir()),
         metrics,
-        toolbox.getSegmentPusher(),
+        segmentPusher,
         toolbox.getObjectMapper(),
         toolbox.getIndexIO(),
         toolbox.getIndexMergerV9()
     );
   }
 
-  private static BatchAppenderatorDriver newDriver(
+  // TODO: move to util
+  public static BatchAppenderatorDriver newDriver(
       final Appenderator appenderator,
       final TaskToolbox toolbox,
       final SegmentAllocator segmentAllocator
