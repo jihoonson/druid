@@ -31,6 +31,7 @@ public class PartitionLocation
   private final String host;
   private final int port;
   private final Interval interval;
+  private final String subTaskId;
   private final int partitionId;
 
   @JsonCreator
@@ -38,12 +39,14 @@ public class PartitionLocation
       @JsonProperty("host") String host,
       @JsonProperty("port") int port,
       @JsonProperty("interval") Interval interval,
+      @JsonProperty("subTaskId") String subTaskId,
       @JsonProperty("partitionId") int partitionId
   )
   {
     this.host = host;
     this.port = port;
     this.interval = interval;
+    this.subTaskId = subTaskId;
     this.partitionId = partitionId;
   }
 
@@ -66,6 +69,12 @@ public class PartitionLocation
   }
 
   @JsonProperty
+  public String getSubTaskId()
+  {
+    return subTaskId;
+  }
+
+  @JsonProperty
   public int getPartitionId()
   {
     return partitionId;
@@ -77,10 +86,11 @@ public class PartitionLocation
     return URI.create(
         StringUtils.urlEncode(
             StringUtils.format(
-                "http://%s:%d/druid/worker/v1/shuffle/task/%s/partition?%s&%s&%d",
+                "http://%s:%d/druid/worker/v1/shuffle/task/%s/%s/partition?%s&%s&%d",
                 host,
                 port,
                 supervisorTaskId,
+                subTaskId,
                 interval.getStart(),
                 interval.getEnd(),
                 partitionId
@@ -96,6 +106,7 @@ public class PartitionLocation
            "host='" + host + '\'' +
            ", port=" + port +
            ", interval=" + interval +
+           ", subTaskId='" + subTaskId + '\'' +
            ", partitionId=" + partitionId +
            '}';
   }

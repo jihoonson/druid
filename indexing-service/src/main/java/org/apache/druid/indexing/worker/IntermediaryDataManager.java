@@ -49,8 +49,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -82,7 +80,7 @@ import java.util.stream.IntStream;
 public class IntermediaryDataManager
 {
   private static final Logger log = new Logger(IntermediaryDataManager.class);
-  private static final int DEFAULT_FILE_COPY_RETRY_COUNT = 3;
+  private static final int FILE_COPY_RETRY_COUNT = 3;
 
   private final long intermediaryPartitionDiscoveryPeriodSec;
   private final long intermediaryPartitionCleanupPeriodSec;
@@ -296,8 +294,10 @@ public class IntermediaryDataManager
           StreamUtils.retryCopy(
               Files.asByteSource(tempZippedFile),
               Files.asByteSink(destFile),
-              t -> !(t instanceof InterruptedException) && !(t instanceof CancellationException) && (t instanceof Exception),
-              DEFAULT_FILE_COPY_RETRY_COUNT
+              t -> !(t instanceof InterruptedException)
+                   && !(t instanceof CancellationException)
+                   && (t instanceof Exception),
+              FILE_COPY_RETRY_COUNT
           );
           if (!tempZippedFile.delete()) {
             log.warn("Couldn't delete file[%s]", tempZippedFile.getAbsolutePath());
@@ -314,18 +314,28 @@ public class IntermediaryDataManager
     throw new ISE("Can't find location to handle segment[%s]", segment);
   }
 
-  public List<File> findPartitionFiles(String supervisorTaskId, Interval interval, int partitionId)
+  @Nullable
+  public File findPartitionFile(String supervisorTaskId, String subTaskId, Interval interval, int partitionId)
   {
     for (StorageLocation location : shuffleDataLocations) {
       final File partitionDir = new File(location.getPath(), getPartitionDir(supervisorTaskId, interval, partitionId));
       if (partitionDir.exists()) {
         supervisorTaskCheckTimes.put(supervisorTaskId, DateTimes.nowUtc());
         final File[] segmentFiles = partitionDir.listFiles();
-        return segmentFiles == null ? Collections.emptyList() : Arrays.asList(segmentFiles);
+        if (segmentFiles == null) {
+          return null;
+        } else {
+          for (File segmentFile : segmentFiles) {
+            if (segmentFile.getName().equals(subTaskId)) {
+              return segmentFile;
+            }
+          }
+          return null;
+        }
       }
     }
 
-    return Collections.emptyList();
+    return null;
   }
 
   public void deletePartitions(String supervisorTaskId) throws IOException

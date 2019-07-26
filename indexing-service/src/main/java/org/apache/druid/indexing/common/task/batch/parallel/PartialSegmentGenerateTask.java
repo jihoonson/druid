@@ -107,7 +107,8 @@ public class PartialSegmentGenerateTask extends AbstractBatchIndexTask
         "forceGuaranteedRollup must be set"
     );
     Preconditions.checkArgument(
-        ingestionSchema.getTuningConfig().getPartitionsSpec() instanceof HashedPartitionsSpec,
+        ingestionSchema.getTuningConfig().getPartitionsSpec() == null
+        || ingestionSchema.getTuningConfig().getPartitionsSpec() instanceof HashedPartitionsSpec,
         "Please use hashed_partitions for perfect rollup"
     );
     Preconditions.checkArgument(
