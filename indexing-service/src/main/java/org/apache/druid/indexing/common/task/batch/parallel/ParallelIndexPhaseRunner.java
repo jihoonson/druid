@@ -19,6 +19,314 @@
 
 package org.apache.druid.indexing.common.task.batch.parallel;
 
-public class ParallelIndexPhaseRunner
+import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import org.apache.druid.client.indexing.IndexingServiceClient;
+import org.apache.druid.data.input.FiniteFirehoseFactory;
+import org.apache.druid.data.input.FirehoseFactory;
+import org.apache.druid.data.input.InputSplit;
+import org.apache.druid.indexer.TaskState;
+import org.apache.druid.indexer.TaskStatusPlus;
+import org.apache.druid.indexing.common.TaskToolbox;
+import org.apache.druid.indexing.common.task.Task;
+import org.apache.druid.indexing.common.task.batch.parallel.TaskMonitor.SubTaskCompleteEvent;
+import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.logger.Logger;
+import org.apache.druid.segment.indexing.DataSchema;
+
+import javax.annotation.Nullable;
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTaskReportType extends SubTaskReport>
+    implements ParallelIndexTaskRunner<SubTaskType, SubTaskReportType>
 {
+  private static final Logger LOG = new Logger(ParallelIndexPhaseRunner.class);
+
+  private final TaskToolbox toolbox;
+  private final String taskId;
+  private final String groupId;
+  private final DataSchema dataSchema;
+  private final ParallelIndexTuningConfig tuningConfig;
+  private final Map<String, Object> context;
+  private final int maxNumTasks;
+  private final IndexingServiceClient indexingServiceClient;
+
+  private final BlockingQueue<SubTaskCompleteEvent<SubTaskType>> taskCompleteEvents =
+      new LinkedBlockingDeque<>();
+
+  /**
+   * subTaskId -> report
+   */
+  private final ConcurrentHashMap<String, SubTaskReportType> segmentsMap = new ConcurrentHashMap<>();
+
+  private volatile boolean subTaskScheduleAndMonitorStopped;
+  private volatile TaskMonitor<SubTaskType> taskMonitor;
+
+  private int nextSpecId = 0;
+
+  public ParallelIndexPhaseRunner(
+      TaskToolbox toolbox,
+      String taskId,
+      String groupId,
+      DataSchema dataSchema,
+      ParallelIndexTuningConfig tuningConfig,
+      Map<String, Object> context,
+      IndexingServiceClient indexingServiceClient
+  )
+  {
+    this.toolbox = toolbox;
+    this.taskId = taskId;
+    this.groupId = groupId;
+    this.dataSchema = dataSchema;
+    this.tuningConfig = tuningConfig;
+    this.context = context;
+    this.maxNumTasks = tuningConfig.getMaxNumSubTasks();
+    this.indexingServiceClient = Preconditions.checkNotNull(indexingServiceClient, "indexingServiceClient");
+
+  }
+
+  @Override
+  public TaskState run() throws Exception
+  {
+    if (getTotalNumSubTasks() == 0) {
+      LOG.warn("There's no input split to process");
+      return TaskState.SUCCESS;
+    }
+
+    final Iterator<SubTaskSpec<SubTaskType>> subTaskSpecIterator = subTaskSpecIterator();
+    final long taskStatusCheckingPeriod = tuningConfig.getTaskStatusCheckPeriodMs();
+
+    taskMonitor = new TaskMonitor<>(
+        Preconditions.checkNotNull(indexingServiceClient, "indexingServiceClient"),
+        tuningConfig.getMaxRetry(),
+        getTotalNumSubTasks()
+    );
+    TaskState state = TaskState.RUNNING;
+
+    taskMonitor.start(taskStatusCheckingPeriod);
+
+    try {
+      LOG.info("Submitting initial tasks");
+      // Submit initial tasks
+      while (isRunning() && subTaskSpecIterator.hasNext() && taskMonitor.getNumRunningTasks() < maxNumTasks) {
+        submitNewTask(taskMonitor, subTaskSpecIterator.next());
+      }
+
+      LOG.info("Waiting for subTasks to be completed");
+      while (isRunning()) {
+        final SubTaskCompleteEvent<SubTaskType> taskCompleteEvent = taskCompleteEvents.poll(
+            taskStatusCheckingPeriod,
+            TimeUnit.MILLISECONDS
+        );
+
+        if (taskCompleteEvent != null) {
+          final TaskState completeState = taskCompleteEvent.getLastState();
+          switch (completeState) {
+            case SUCCESS:
+              final TaskStatusPlus completeStatus = taskCompleteEvent.getLastStatus();
+              if (completeStatus == null) {
+                throw new ISE("Last status of complete task is missing!");
+              }
+              // Pushed segments of complete tasks are supposed to be already reported.
+              if (!segmentsMap.containsKey(completeStatus.getId())) {
+                throw new ISE("Missing reports from task[%s]!", completeStatus.getId());
+              }
+
+              if (!subTaskSpecIterator.hasNext()) {
+                // We have no more subTasks to run
+                if (taskMonitor.getNumRunningTasks() == 0 && taskCompleteEvents.size() == 0) {
+                  subTaskScheduleAndMonitorStopped = true;
+                  if (taskMonitor.isSucceeded()) {
+                    // Publishing all segments reported so far
+                    doOnSuccess(toolbox);
+
+                    // Succeeded
+                    state = TaskState.SUCCESS;
+                  } else {
+                    // Failed
+                    final SinglePhaseParallelIndexingProgress monitorStatus = taskMonitor.getProgress();
+                    throw new ISE(
+                        "Expected for [%d] tasks to succeed, but we got [%d] succeeded tasks and [%d] failed tasks",
+                        monitorStatus.getExpectedSucceeded(),
+                        monitorStatus.getSucceeded(),
+                        monitorStatus.getFailed()
+                    );
+                  }
+                }
+              } else if (taskMonitor.getNumRunningTasks() < maxNumTasks) {
+                // We have more subTasks to run
+                submitNewTask(taskMonitor, subTaskSpecIterator.next());
+              } else {
+                // We have more subTasks to run, but don't have enough available task slots
+                // do nothing
+              }
+              break;
+            case FAILED:
+              // TaskMonitor already tried everything it can do for failed tasks. We failed.
+              state = TaskState.FAILED;
+              subTaskScheduleAndMonitorStopped = true;
+              final TaskStatusPlus lastStatus = taskCompleteEvent.getLastStatus();
+              if (lastStatus != null) {
+                LOG.error("Failed because of the failed sub task[%s]", lastStatus.getId());
+              } else {
+                final ParallelIndexSubTaskSpec spec =
+                    (ParallelIndexSubTaskSpec) taskCompleteEvent.getSpec();
+                LOG.error(
+                    "Failed to run sub tasks for inputSplits[%s]",
+                    getSplitsIfSplittable(spec.getIngestionSpec().getIOConfig().getFirehoseFactory())
+                );
+              }
+              break;
+            default:
+              throw new ISE("spec[%s] is in an invalid state[%s]", taskCompleteEvent.getSpec().getId(), completeState);
+          }
+        }
+      }
+    }
+    finally {
+      stopInternal();
+      if (!state.isComplete()) {
+        state = TaskState.FAILED;
+      }
+    }
+
+    return state;
+  }
+
+  private boolean isRunning()
+  {
+    return !subTaskScheduleAndMonitorStopped && !Thread.currentThread().isInterrupted();
+  }
+
+  private void submitNewTask(
+      TaskMonitor<SubTaskType> taskMonitor,
+      SubTaskSpec<SubTaskType> spec
+  )
+  {
+    LOG.info("Submit a new task for spec[%s] and inputSplit[%s]", spec.getId(), spec.getInputSplit());
+    final ListenableFuture<SubTaskCompleteEvent<SubTaskType>> future = taskMonitor.submit(spec);
+    Futures.addCallback(
+        future,
+        new FutureCallback<SubTaskCompleteEvent<SubTaskType>>()
+        {
+          @Override
+          public void onSuccess(SubTaskCompleteEvent<SubTaskType> completeEvent)
+          {
+            // this callback is called if a task completed wheter it succeeded or not.
+            taskCompleteEvents.offer(completeEvent);
+          }
+
+          @Override
+          public void onFailure(Throwable t)
+          {
+            // this callback is called only when there were some problems in TaskMonitor.
+            LOG.error(t, "Error while running a task for subTaskSpec[%s]", spec);
+            taskCompleteEvents.offer(SubTaskCompleteEvent.fail(spec, t));
+          }
+        }
+    );
+  }
+
+  private static List<InputSplit> getSplitsIfSplittable(FirehoseFactory firehoseFactory) throws IOException
+  {
+    if (firehoseFactory instanceof FiniteFirehoseFactory) {
+      final FiniteFirehoseFactory<?, ?> finiteFirehoseFactory = (FiniteFirehoseFactory) firehoseFactory;
+      return finiteFirehoseFactory.getSplits().collect(Collectors.toList());
+    } else {
+      throw new ISE("firehoseFactory[%s] is not splittable", firehoseFactory.getClass().getSimpleName());
+    }
+  }
+
+  @Override
+  public void stopGracefully()
+  {
+    subTaskScheduleAndMonitorStopped = true;
+    stopInternal();
+  }
+
+  /**
+   * Stop task scheduling and monitoring, and kill all running tasks.
+   * This method is thread-safe.
+   */
+  private void stopInternal()
+  {
+    LOG.info("Cleaning up resources");
+
+    taskCompleteEvents.clear();
+    if (taskMonitor != null) {
+      taskMonitor.stop();
+    }
+  }
+
+  @Override
+  public void collectReport(SubTaskReportType report)
+  {
+
+  }
+
+  @Override
+  public ParallelIndexingProgress getProgress()
+  {
+    return null;
+  }
+
+  @Override
+  public Set<String> getRunningTaskIds()
+  {
+    return null;
+  }
+
+  @Override
+  public List<SubTaskSpec<SubTaskType>> getSubTaskSpecs()
+  {
+    return null;
+  }
+
+  @Override
+  public List<SubTaskSpec<SubTaskType>> getRunningSubTaskSpecs()
+  {
+    return null;
+  }
+
+  @Override
+  public List<SubTaskSpec<SubTaskType>> getCompleteSubTaskSpecs()
+  {
+    return null;
+  }
+
+  @Nullable
+  @Override
+  public SubTaskSpec<SubTaskType> getSubTaskSpec(String subTaskSpecId)
+  {
+    return null;
+  }
+
+  @Nullable
+  @Override
+  public SubTaskSpecStatus getSubTaskState(String subTaskSpecId)
+  {
+    return null;
+  }
+
+  @Nullable
+  @Override
+  public TaskHistory<SubTaskType> getCompleteSubTaskSpecAttemptHistory(String subTaskSpecId)
+  {
+    return null;
+  }
+
+  public abstract Iterator<SubTaskSpec<SubTaskType>> subTaskSpecIterator();
+  public abstract int getTotalNumSubTasks();
+  public abstract void doOnSuccess(TaskToolbox toolbox);
 }

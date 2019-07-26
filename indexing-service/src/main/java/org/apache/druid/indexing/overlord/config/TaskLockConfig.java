@@ -17,22 +17,20 @@
  * under the License.
  */
 
-package org.apache.druid.server.log;
+package org.apache.druid.indexing.overlord.config;
 
-import com.fasterxml.jackson.annotation.JsonTypeName;
-import org.apache.druid.java.util.common.logger.Logger;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
+ * Global configurations for task lock. Used by the overlord.
  */
-@JsonTypeName("noop")
-public class NoopRequestLoggerProvider implements RequestLoggerProvider
+public class TaskLockConfig
 {
-  private static final Logger log = new Logger(NoopRequestLoggerProvider.class);
+  @JsonProperty
+  private final boolean forceTimeChunkLock = true;
 
-  @Override
-  public RequestLogger get()
+  public boolean isForceTimeChunkLock()
   {
-    log.debug(new Exception("Stack trace"), "Creating NoopRequestLogger at");
-    return new NoopRequestLogger();
+    return forceTimeChunkLock;
   }
 }
