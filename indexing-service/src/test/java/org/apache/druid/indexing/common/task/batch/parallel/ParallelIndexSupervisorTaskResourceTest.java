@@ -430,6 +430,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
             null,
             null,
             null,
+            null,
             NUM_SUB_TASKS,
             null,
             null,
@@ -680,7 +681,10 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
           1L
       );
 
-      taskClient.report(getId(), Collections.emptySet(), Collections.singleton(segment));
+      taskClient.report(
+          getSupervisorTaskId(),
+          new PushedSegmentsReport(getId(), Collections.emptySet(), Collections.singleton(segment))
+      );
       return TaskStatus.fromCode(getId(), state);
     }
 

@@ -19,6 +19,7 @@
 
 package org.apache.druid.indexing.common.task.batch.parallel;
 
+import com.google.common.base.Preconditions;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.indexer.TaskState;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 
 /**
@@ -40,7 +42,9 @@ public class PartialSegmentGenerateParallelIndexTaskRunner
     implements ParallelIndexTaskRunner<PartialSegmentGenerateTask, GeneratedPartitionsReport>
 {
   private static final Logger LOG = new Logger(PartialSegmentGenerateParallelIndexTaskRunner.class);
+
   private final TaskToolbox toolbox;
+  private final String taskId;
   private final String groupId;
   private final ParallelIndexIngestionSpec ingestionSpec;
   private final Map<String, Object> context;
@@ -51,9 +55,41 @@ public class PartialSegmentGenerateParallelIndexTaskRunner
   private final BlockingQueue<SubTaskCompleteEvent<ParallelIndexSubTask>> taskCompleteEvents =
       new LinkedBlockingDeque<>();
 
+  private final ConcurrentHashMap<String, GeneratedPartitionsReport> reportsMap = new ConcurrentHashMap<>();
+
+  private volatile boolean subTaskScheduleAndMonitorStopped;
+  private volatile TaskMonitor<ParallelIndexSubTask> taskMonitor;
+
+  private int nextSpecId = 0;
+
+  PartialSegmentGenerateParallelIndexTaskRunner(
+      TaskToolbox toolbox,
+      String taskId,
+      String groupId,
+      ParallelIndexIngestionSpec ingestionSpec,
+      Map<String, Object> context,
+      IndexingServiceClient indexingServiceClient
+  )
+  {
+    this.toolbox = toolbox;
+    this.taskId = taskId;
+    this.groupId = groupId;
+    this.ingestionSpec = ingestionSpec;
+    this.context = context;
+    this.baseFirehoseFactory = (FiniteFirehoseFactory) ingestionSpec.getIOConfig().getFirehoseFactory();
+    this.maxNumTasks = ingestionSpec.getTuningConfig().getMaxNumSubTasks();
+    this.indexingServiceClient = Preconditions.checkNotNull(indexingServiceClient, "indexingServiceClient");
+  }
+
   @Override
   public TaskState run() throws Exception
   {
+    if (baseFirehoseFactory.getNumSplits() == 0) {
+      LOG.warn("There's no input split to process");
+      return TaskState.SUCCESS;
+    }
+
+
     return null;
   }
 

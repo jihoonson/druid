@@ -120,7 +120,7 @@ public class SinglePhaseParallelIndexTaskRunner
       return TaskState.SUCCESS;
     }
 
-    final Iterator<ParallelIndexSubTaskSpec> subTaskSpecIterator = subTaskSpecIterator().iterator();
+    final Iterator<ParallelIndexSubTaskSpec> subTaskSpecIterator = subTaskSpecIterator();
     final long taskStatusCheckingPeriod = ingestionSchema.getTuningConfig().getTaskStatusCheckPeriodMs();
 
     taskMonitor = new TaskMonitor<>(
@@ -475,9 +475,9 @@ public class SinglePhaseParallelIndexTaskRunner
   }
 
   @VisibleForTesting
-  Stream<ParallelIndexSubTaskSpec> subTaskSpecIterator() throws IOException
+  Iterator<ParallelIndexSubTaskSpec> subTaskSpecIterator() throws IOException
   {
-    return baseFirehoseFactory.getSplits().map(this::newTaskSpec);
+    return baseFirehoseFactory.getSplits().map(this::newTaskSpec).iterator();
   }
 
   @VisibleForTesting

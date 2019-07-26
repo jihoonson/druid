@@ -46,6 +46,7 @@ import org.apache.druid.indexing.common.task.IngestionTestBase;
 import org.apache.druid.indexing.common.task.NoopTestTaskFileWriter;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.indexing.common.task.TaskResource;
+import org.apache.druid.indexing.worker.IntermediaryDataManager;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.concurrent.Execs;
@@ -57,7 +58,6 @@ import org.apache.druid.segment.realtime.firehose.NoopChatHandlerProvider;
 import org.apache.druid.server.security.AllowAllAuthorizer;
 import org.apache.druid.server.security.Authorizer;
 import org.apache.druid.server.security.AuthorizerMapper;
-import org.apache.druid.timeline.DataSegment;
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
 import org.junit.Rule;
@@ -68,13 +68,12 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.stream.Stream;
 
 public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
 {
@@ -251,7 +250,8 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
         null,
         null,
         null,
-        new NoopTestTaskFileWriter()
+        new NoopTestTaskFileWriter(),
+        new IntermediaryDataManager()
     );
   }
 
@@ -307,7 +307,7 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
     }
 
     @Override
-    Stream<ParallelIndexSubTaskSpec> subTaskSpecIterator() throws IOException
+    Iterator<ParallelIndexSubTaskSpec> subTaskSpecIterator() throws IOException
     {
       final FiniteFirehoseFactory baseFirehoseFactory = (FiniteFirehoseFactory) getIngestionSchema()
           .getIOConfig()
@@ -321,7 +321,7 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
           throw new RuntimeException(e);
         }
         return newTaskSpec((InputSplit<?>) split);
-      });
+      }).iterator();
     }
   }
 
@@ -364,9 +364,9 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
     }
 
     @Override
-    public void report(String supervisorTaskId, Set<DataSegment> oldSegments, Set<DataSegment> pushedSegments)
+    public void report(String supervisorTaskId, SubTaskReport report)
     {
-      supervisorTask.getRunner().collectReport(new PushedSegmentsReport(getSubtaskId(), oldSegments, pushedSegments));
+      supervisorTask.getRunner().collectReport(report);
     }
   }
 }

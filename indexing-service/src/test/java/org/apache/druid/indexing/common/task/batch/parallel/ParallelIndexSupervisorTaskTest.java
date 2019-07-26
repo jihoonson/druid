@@ -131,7 +131,7 @@ public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSuperv
     Assert.assertTrue(task.isReady(actionClient));
 
     final SinglePhaseParallelIndexTaskRunner runner = (SinglePhaseParallelIndexTaskRunner) task.createRunner(toolbox);
-    final Iterator<ParallelIndexSubTaskSpec> subTaskSpecIterator = runner.subTaskSpecIterator().iterator();
+    final Iterator<ParallelIndexSubTaskSpec> subTaskSpecIterator = runner.subTaskSpecIterator();
 
     while (subTaskSpecIterator.hasNext()) {
       final ParallelIndexSubTaskSpec spec = subTaskSpecIterator.next();
@@ -298,6 +298,7 @@ public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSuperv
             null,
             null,
             null,
+            null,
             1,
             null,
             null,
@@ -353,6 +354,7 @@ public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSuperv
         segmentGranularity,
         ioConfig,
         new ParallelIndexTuningConfig(
+            null,
             null,
             null,
             null,
