@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.timeline.DataSegment;
 
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -68,5 +69,26 @@ public class PushedSegmentsReport implements SubTaskReport
   public Set<DataSegment> getNewSegments()
   {
     return newSegments;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    PushedSegmentsReport that = (PushedSegmentsReport) o;
+    return Objects.equals(taskId, that.taskId) &&
+           Objects.equals(oldSegments, that.oldSegments) &&
+           Objects.equals(newSegments, that.newSegments);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(taskId, oldSegments, newSegments);
   }
 }

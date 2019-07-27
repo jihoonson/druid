@@ -251,7 +251,7 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
         null,
         null,
         new NoopTestTaskFileWriter(),
-        new IntermediaryDataManager()
+        new IntermediaryDataManager(null, null, null) // TODO: fill properly
     );
   }
 
@@ -307,7 +307,7 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
     }
 
     @Override
-    Iterator<ParallelIndexSubTaskSpec> subTaskSpecIterator() throws IOException
+    Iterator<SubTaskSpec<ParallelIndexSubTask>> subTaskSpecIterator() throws IOException
     {
       final FiniteFirehoseFactory baseFirehoseFactory = (FiniteFirehoseFactory) getIngestionSchema()
           .getIOConfig()

@@ -58,5 +58,7 @@ public final class Fetchers
     }
   }
 
-  private Fetchers() {}
+  private Fetchers()
+  {
+  }
 }

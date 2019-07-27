@@ -105,7 +105,8 @@ public class SingleTaskBackgroundRunnerTest
         node,
         null,
         null,
-        new TaskReportFileWriter(new File("fake"))
+        new TaskReportFileWriter(new File("fake")),
+        null
     );
     runner = new SingleTaskBackgroundRunner(
         toolboxFactory,

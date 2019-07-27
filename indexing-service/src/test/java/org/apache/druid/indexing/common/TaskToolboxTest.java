@@ -119,7 +119,8 @@ public class TaskToolboxTest
         null,
         null,
         null,
-        new NoopTestTaskFileWriter()
+        new NoopTestTaskFileWriter(),
+        null
     );
   }
 

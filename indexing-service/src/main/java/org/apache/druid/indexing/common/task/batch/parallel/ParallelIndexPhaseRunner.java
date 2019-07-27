@@ -19,6 +19,7 @@
 
 package org.apache.druid.indexing.common.task.batch.parallel;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -31,6 +32,7 @@ import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatusPlus;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.task.Task;
+import org.apache.druid.indexing.common.task.batch.parallel.TaskMonitor.MonitorEntry;
 import org.apache.druid.indexing.common.task.batch.parallel.TaskMonitor.SubTaskCompleteEvent;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -38,6 +40,9 @@ import org.apache.druid.segment.indexing.DataSchema;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +73,7 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
   /**
    * subTaskId -> report
    */
-  private final ConcurrentHashMap<String, SubTaskReportType> segmentsMap = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, AddressWithReport<SubTaskReportType>> reportsMap = new ConcurrentHashMap<>();
 
   private volatile boolean subTaskScheduleAndMonitorStopped;
   private volatile TaskMonitor<SubTaskType> taskMonitor;
@@ -139,7 +144,7 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
                 throw new ISE("Last status of complete task is missing!");
               }
               // Pushed segments of complete tasks are supposed to be already reported.
-              if (!segmentsMap.containsKey(completeStatus.getId())) {
+              if (!reportsMap.containsKey(completeStatus.getId())) {
                 throw new ISE("Missing reports from task[%s]!", completeStatus.getId());
               }
 
@@ -148,9 +153,6 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
                 if (taskMonitor.getNumRunningTasks() == 0 && taskCompleteEvents.size() == 0) {
                   subTaskScheduleAndMonitorStopped = true;
                   if (taskMonitor.isSucceeded()) {
-                    // Publishing all segments reported so far
-                    doOnSuccess(toolbox);
-
                     // Succeeded
                     state = TaskState.SUCCESS;
                   } else {
@@ -270,63 +272,182 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
   }
 
   @Override
-  public void collectReport(SubTaskReportType report)
+  public void collectReport(AddressWithReport<SubTaskReportType> report)
   {
+    // subTasks might send their reports multiple times because of the HTTP retry.
+    // Here, we simply make sure the current report is exactly same with the previous one.
+    reportsMap.compute(report.getReport().getTaskId(), (taskId, prevReport) -> {
+      if (prevReport != null) {
+        Preconditions.checkState(
+            prevReport.equals(report),
+            "task[%s] sent two or more reports and previous report[%s] is different from the current one[%s]",
+            taskId,
+            prevReport,
+            report
+        );
+      }
+      return report;
+    });
+  }
 
+  @Override
+  public Map<String, AddressWithReport<SubTaskReportType>> getReports()
+  {
+    return reportsMap;
   }
 
   @Override
   public ParallelIndexingProgress getProgress()
   {
-    return null;
+    return taskMonitor == null ? SinglePhaseParallelIndexingProgress.notRunning() : taskMonitor.getProgress();
   }
 
   @Override
   public Set<String> getRunningTaskIds()
   {
-    return null;
+    return taskMonitor == null ? Collections.emptySet() : taskMonitor.getRunningTaskIds();
   }
 
   @Override
   public List<SubTaskSpec<SubTaskType>> getSubTaskSpecs()
   {
-    return null;
+    if (taskMonitor != null) {
+      final List<SubTaskSpec<SubTaskType>> runningSubTaskSpecs = taskMonitor.getRunningSubTaskSpecs();
+      final List<SubTaskSpec<SubTaskType>> completeSubTaskSpecs = taskMonitor
+          .getCompleteSubTaskSpecs();
+      // Deduplicate subTaskSpecs because some subTaskSpec might exist both in runningSubTaskSpecs and
+      // completeSubTaskSpecs.
+      final Map<String, SubTaskSpec<SubTaskType>> subTaskSpecMap = new HashMap<>(
+          runningSubTaskSpecs.size() + completeSubTaskSpecs.size()
+      );
+      runningSubTaskSpecs.forEach(spec -> subTaskSpecMap.put(spec.getId(), spec));
+      completeSubTaskSpecs.forEach(spec -> subTaskSpecMap.put(spec.getId(), spec));
+      return new ArrayList<>(subTaskSpecMap.values());
+    } else {
+      return Collections.emptyList();
+    }
   }
 
   @Override
   public List<SubTaskSpec<SubTaskType>> getRunningSubTaskSpecs()
   {
-    return null;
+    return taskMonitor == null ? Collections.emptyList() : taskMonitor.getRunningSubTaskSpecs();
   }
 
   @Override
   public List<SubTaskSpec<SubTaskType>> getCompleteSubTaskSpecs()
   {
-    return null;
+    return taskMonitor == null ? Collections.emptyList() : taskMonitor.getCompleteSubTaskSpecs();
   }
 
   @Nullable
   @Override
   public SubTaskSpec<SubTaskType> getSubTaskSpec(String subTaskSpecId)
   {
-    return null;
+    if (taskMonitor != null) {
+      // Running tasks should be checked first because, in taskMonitor, subTaskSpecs are removed from runningTasks after
+      // adding them to taskHistory.
+      final MonitorEntry monitorEntry = taskMonitor.getRunningTaskMonitorEntry(subTaskSpecId);
+      final TaskHistory<SubTaskType> taskHistory = taskMonitor.getCompleteSubTaskSpecHistory(subTaskSpecId);
+      final SubTaskSpec<SubTaskType> subTaskSpec;
+
+      if (monitorEntry != null) {
+        subTaskSpec = monitorEntry.getSpec();
+      } else {
+        if (taskHistory != null) {
+          subTaskSpec = taskHistory.getSpec();
+        } else {
+          subTaskSpec = null;
+        }
+      }
+
+      return subTaskSpec;
+    } else {
+      return null;
+    }
   }
 
   @Nullable
   @Override
   public SubTaskSpecStatus getSubTaskState(String subTaskSpecId)
   {
-    return null;
+    if (taskMonitor == null) {
+      return null;
+    } else {
+      // Running tasks should be checked first because, in taskMonitor, subTaskSpecs are removed from runningTasks after
+      // adding them to taskHistory.
+      final MonitorEntry monitorEntry = taskMonitor.getRunningTaskMonitorEntry(subTaskSpecId);
+      final TaskHistory<SubTaskType> taskHistory = taskMonitor.getCompleteSubTaskSpecHistory(subTaskSpecId);
+
+      final SubTaskSpecStatus subTaskSpecStatus;
+
+      if (monitorEntry != null) {
+        subTaskSpecStatus = new SubTaskSpecStatus(
+            (ParallelIndexSubTaskSpec) monitorEntry.getSpec(),
+            monitorEntry.getRunningStatus(),
+            monitorEntry.getTaskHistory()
+        );
+      } else {
+        if (taskHistory != null && !taskHistory.isEmpty()) {
+          subTaskSpecStatus = new SubTaskSpecStatus(
+              (ParallelIndexSubTaskSpec) taskHistory.getSpec(),
+              null,
+              taskHistory.getAttemptHistory()
+          );
+        } else {
+          subTaskSpecStatus = null;
+        }
+      }
+
+      return subTaskSpecStatus;
+    }
   }
 
   @Nullable
   @Override
   public TaskHistory<SubTaskType> getCompleteSubTaskSpecAttemptHistory(String subTaskSpecId)
   {
-    return null;
+    if (taskMonitor == null) {
+      return null;
+    } else {
+      return taskMonitor.getCompleteSubTaskSpecHistory(subTaskSpecId);
+    }
   }
 
-  public abstract Iterator<SubTaskSpec<SubTaskType>> subTaskSpecIterator();
-  public abstract int getTotalNumSubTasks();
-  public abstract void doOnSuccess(TaskToolbox toolbox);
+  String getTaskId()
+  {
+    return taskId;
+  }
+
+  String getGroupId()
+  {
+    return groupId;
+  }
+
+  Map<String, Object> getContext()
+  {
+    return context;
+  }
+
+  @VisibleForTesting
+  TaskToolbox getToolbox()
+  {
+    return toolbox;
+  }
+
+  @VisibleForTesting
+  @Nullable
+  TaskMonitor<SubTaskType> getTaskMonitor()
+  {
+    return taskMonitor;
+  }
+
+  @VisibleForTesting
+  int getAndIncrementNextSpecId()
+  {
+    return nextSpecId++;
+  }
+
+  abstract Iterator<SubTaskSpec<SubTaskType>> subTaskSpecIterator() throws IOException;
+  abstract int getTotalNumSubTasks() throws IOException;
 }

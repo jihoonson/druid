@@ -27,6 +27,7 @@ import org.apache.druid.indexing.common.task.Task;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -51,7 +52,9 @@ public interface ParallelIndexTaskRunner<SubTaskType extends Task, SubTaskReport
    * {@link SubTaskReport} is the report sent by {@link SubTaskType}s. The subTasks call this method to
    * send their reports after pushing generated segments to deep storage.
    */
-  void collectReport(SubTaskReportType report);
+  void collectReport(AddressWithReport<SubTaskReportType> report);
+
+  Map<String, AddressWithReport<SubTaskReportType>> getReports();
 
   /**
    * Returns the current {@link ParallelIndexingProgress}.

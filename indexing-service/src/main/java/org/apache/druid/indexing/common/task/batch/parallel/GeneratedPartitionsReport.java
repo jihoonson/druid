@@ -25,6 +25,7 @@ import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Objects;
 
 public class GeneratedPartitionsReport implements SubTaskReport
 {
@@ -54,6 +55,26 @@ public class GeneratedPartitionsReport implements SubTaskReport
   public List<PartitionStat> getPartitionStats()
   {
     return partitionStats;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    GeneratedPartitionsReport that = (GeneratedPartitionsReport) o;
+    return Objects.equals(taskId, that.taskId) &&
+           Objects.equals(partitionStats, that.partitionStats);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(taskId, partitionStats);
   }
 
   public static class PartitionStat
@@ -102,6 +123,28 @@ public class GeneratedPartitionsReport implements SubTaskReport
     public Long getSizeBytes()
     {
       return sizeBytes;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      PartitionStat that = (PartitionStat) o;
+      return partitionId == that.partitionId &&
+             Objects.equals(interval, that.interval) &&
+             Objects.equals(numRows, that.numRows) &&
+             Objects.equals(sizeBytes, that.sizeBytes);
+    }
+
+    @Override
+    public int hashCode()
+    {
+      return Objects.hash(interval, partitionId, numRows, sizeBytes);
     }
   }
 }

@@ -27,15 +27,20 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.FirehoseFactory;
+import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
+import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
 import org.apache.druid.indexing.common.Counters;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
+import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.actions.TimeChunkLockTryAcquireAction;
 import org.apache.druid.indexing.common.config.TaskConfig;
@@ -56,6 +61,8 @@ import org.apache.druid.segment.indexing.TuningConfig;
 import org.apache.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
+import org.apache.druid.segment.realtime.appenderator.TransactionalSegmentPublisher;
+import org.apache.druid.segment.realtime.appenderator.UsedSegmentChecker;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
 import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
 import org.apache.druid.segment.realtime.firehose.ChatHandlers;
@@ -79,9 +86,11 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -310,7 +319,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
     try {
       if (isParallelMode()) {
-        return runParallel(toolbox);
+        return runSinglePhaseParallel(toolbox);
       } else {
         if (!baseFirehoseFactory.isSplittable()) {
           LOG.warn(
@@ -345,10 +354,77 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     this.toolbox = toolbox;
   }
 
-  private TaskStatus runParallel(TaskToolbox toolbox) throws Exception
+  private TaskStatus runSinglePhaseParallel(TaskToolbox toolbox) throws Exception
   {
     createRunner(toolbox);
-    return TaskStatus.fromCode(getId(), Preconditions.checkNotNull(runner, "runner").run());
+    final TaskState state = Preconditions.checkNotNull(runner, "runner").run();
+    if (state.isSuccess()) {
+      publishSegments(toolbox, runner.getReports());
+    }
+    return TaskStatus.fromCode(getId(), state);
+  }
+
+  private TaskStatus runMultiPhaseParallel(TaskToolbox toolbox) throws Exception
+  {
+    runner = new PartialSegmentGenerateParallelIndexTaskRunner(
+        toolbox,
+        getId(),
+        getGroupId(),
+        ingestionSchema,
+        getContext(),
+        indexingServiceClient
+    );
+    TaskState state = runner.run();
+    if (state.isSuccess()) {
+      // report -> partition location
+      final Int2ObjectMap<List<PartitionLocation>> partitionIdToLocations = new Int2ObjectOpenHashMap<>();
+
+      final int maxNumMergeTasks = 10; // TODO
+      for (Int2ObjectMap.Entry<List<PartitionLocation>> entry : partitionIdToLocations.int2ObjectEntrySet()) {
+
+      }
+    }
+
+    return TaskStatus.fromCode(getId(), state);
+  }
+
+  private void publishSegments(TaskToolbox toolbox, Map<String, AddressWithReport<PushedSegmentsReport>> reportsMap)
+      throws IOException
+  {
+    final UsedSegmentChecker usedSegmentChecker = new ActionBasedUsedSegmentChecker(toolbox.getTaskActionClient());
+    final Set<DataSegment> oldSegments = new HashSet<>();
+    final Set<DataSegment> newSegments = new HashSet<>();
+    reportsMap
+        .values()
+        .forEach(report -> {
+          oldSegments.addAll(report.getReport().getOldSegments());
+          newSegments.addAll(report.getReport().getNewSegments());
+        });
+    final TransactionalSegmentPublisher publisher = (segmentsToBeOverwritten, segmentsToPublish, commitMetadata) ->
+        toolbox.getTaskActionClient().submit(
+            SegmentTransactionalInsertAction.overwriteAction(segmentsToBeOverwritten, segmentsToPublish)
+        );
+    final boolean published = newSegments.isEmpty()
+                              || publisher.publishSegments(oldSegments, newSegments, null).isSuccess();
+
+    if (published) {
+      LOG.info("Published [%d] segments", newSegments.size());
+    } else {
+      LOG.info("Transaction failure while publishing segments, checking if someone else beat us to it.");
+      final Set<SegmentIdWithShardSpec> segmentsIdentifiers = reportsMap
+          .values()
+          .stream()
+          .flatMap(report -> report.getReport().getNewSegments().stream())
+          .map(SegmentIdWithShardSpec::fromDataSegment)
+          .collect(Collectors.toSet());
+      if (usedSegmentChecker.findUsedSegments(segmentsIdentifiers)
+                            .equals(newSegments)) {
+        LOG.info("Our segments really do exist, awaiting handoff.");
+      } else {
+        throw new ISE("Failed to publish segments[%s]", newSegments);
+      }
+    }
+
   }
 
   private TaskStatus runSequential(TaskToolbox toolbox) throws Exception
@@ -533,7 +609,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
       return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
     } else {
       //noinspection unchecked
-      runner.collectReport(report);
+      runner.collectReport(new AddressWithReport(req.getRemoteHost(), req.getRemotePort(), report));
       return Response.ok().build();
     }
   }

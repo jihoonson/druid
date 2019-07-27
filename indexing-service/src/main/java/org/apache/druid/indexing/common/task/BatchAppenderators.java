@@ -75,5 +75,7 @@ public final class BatchAppenderators
     );
   }
 
-  private BatchAppenderators() {}
+  private BatchAppenderators()
+  {
+  }
 }
