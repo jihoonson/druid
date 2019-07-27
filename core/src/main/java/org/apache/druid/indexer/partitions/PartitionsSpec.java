@@ -27,15 +27,12 @@ import javax.annotation.Nullable;
 /**
  * PartitionsSpec describes the secondary partitioning method for data ingestion.
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type", defaultImpl = HadoopHashedPartitionsSpec.class)
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type", defaultImpl = HashedPartitionsSpec.class)
 @JsonSubTypes(value = {
-    @JsonSubTypes.Type(name = "dimension", value = HadoopSingleDimensionPartitionsSpec.class), // backward compatibility
-    @JsonSubTypes.Type(name = "hashed", value = HadoopHashedPartitionsSpec.class), // backward compatibility
-    @JsonSubTypes.Type(name = "hadoop_single_dim_partitions", value = HadoopSingleDimensionPartitionsSpec.class),
-    @JsonSubTypes.Type(name = "hadoop_hashed_partitions", value = HadoopHashedPartitionsSpec.class),
-    @JsonSubTypes.Type(name = "single_dim_partitions", value = SingleDimensionPartitionsSpec.class),
-    @JsonSubTypes.Type(name = "hashed_partitions", value = HashedPartitionsSpec.class),
-    @JsonSubTypes.Type(name = "dynamic_partitions", value = DynamicPartitionsSpec.class)
+    @JsonSubTypes.Type(name = "single_dim", value = SingleDimensionPartitionsSpec.class),
+    @JsonSubTypes.Type(name = "dimension", value = SingleDimensionPartitionsSpec.class), // for backward compatibility
+    @JsonSubTypes.Type(name = "hashed", value = HashedPartitionsSpec.class),
+    @JsonSubTypes.Type(name = "dynamic", value = DynamicPartitionsSpec.class)
 })
 public interface PartitionsSpec
 {
@@ -53,7 +50,7 @@ public interface PartitionsSpec
    * Returns true if this partitionsSpec needs to determine the number of partitions to start data ingestion.
    * It should usually return true if perfect rollup is enforced but number of partitions is not specified.
    */
-  boolean needsDeterminePartitions();
+  boolean needsDeterminePartitions(boolean useForHadoopTask);
 
   /**
    * '-1' regarded as null for some historical reason.
