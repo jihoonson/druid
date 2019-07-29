@@ -215,7 +215,14 @@ public class PartialSegmentGenerateTask extends AbstractBatchIndexTask
     final List<DataSegment> segments = generateSegments(toolbox, firehoseFactory, firehoseTempDir);
     final List<PartitionStat> partitionStats = segments
         .stream()
-        .map(segment -> new PartitionStat(segment.getInterval(), segment.getShardSpec().getPartitionNum(), null, null))
+        .map(segment -> new PartitionStat(
+            toolbox.getTaskExecutorNode().getHost(),
+            toolbox.getTaskExecutorNode().getPortToUse(),
+            segment.getInterval(),
+            segment.getShardSpec().getPartitionNum(),
+            null, // numRows is not supported yet
+            null  // sizeBytes is not supported yet
+        ))
         .collect(Collectors.toList());
     taskClient.report(supervisorTaskId, new GeneratedPartitionsReport(getId(), partitionStats));
 

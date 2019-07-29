@@ -20,84 +20,77 @@
 package org.apache.druid.indexing.common.task.batch.parallel;
 
 import org.apache.druid.client.indexing.IndexingServiceClient;
-import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.indexing.common.TaskToolbox;
+import org.apache.druid.segment.indexing.DataSchema;
 
-import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
  * TODO
  */
-public class PartialSegmentGenerateParallelIndexTaskRunner
-    extends ParallelIndexPhaseRunner<PartialSegmentGenerateTask, GeneratedPartitionsReport>
+public class PartialSegmentMergeParallelIndexTaskRunner
+    extends ParallelIndexPhaseRunner<PartialSegmentMergeTask, PushedSegmentsReport>
 {
-  private final ParallelIndexIngestionSpec ingestionSchema;
-  private final FiniteFirehoseFactory<?, ?> baseFirehoseFactory;
+  private final DataSchema dataSchema;
+  private final List<PartialSegmentMergeIOConfig> mergeIOConfigs;
 
-  public PartialSegmentGenerateParallelIndexTaskRunner(
+  public PartialSegmentMergeParallelIndexTaskRunner(
       TaskToolbox toolbox,
       String taskId,
       String groupId,
-      ParallelIndexIngestionSpec ingestionSchema,
+      DataSchema dataSchema,
+      List<PartialSegmentMergeIOConfig> mergeIOConfigs,
+      ParallelIndexTuningConfig tuningConfig,
       Map<String, Object> context,
       IndexingServiceClient indexingServiceClient
   )
   {
-    super(
-        toolbox,
-        taskId,
-        groupId,
-        ingestionSchema.getTuningConfig(),
-        context,
-        indexingServiceClient
-    );
-    this.ingestionSchema = ingestionSchema;
-    this.baseFirehoseFactory = (FiniteFirehoseFactory) ingestionSchema.getIOConfig().getFirehoseFactory();
+    super(toolbox, taskId, groupId, tuningConfig, context, indexingServiceClient);
+
+    this.dataSchema = dataSchema;
+    this.mergeIOConfigs = mergeIOConfigs;
   }
 
   @Override
-  Iterator<SubTaskSpec<PartialSegmentGenerateTask>> subTaskSpecIterator() throws IOException
+  Iterator<SubTaskSpec<PartialSegmentMergeTask>> subTaskSpecIterator()
   {
-    return baseFirehoseFactory.getSplits().map(this::newTaskSpec).iterator();
+    return mergeIOConfigs.stream().map(this::newTaskSpec).iterator();
   }
 
   @Override
-  int getTotalNumSubTasks() throws IOException
+  int getTotalNumSubTasks()
   {
-    return baseFirehoseFactory.getNumSplits();
+    return mergeIOConfigs.size();
   }
 
-  private SubTaskSpec<PartialSegmentGenerateTask> newTaskSpec(InputSplit split)
+  private SubTaskSpec<PartialSegmentMergeTask> newTaskSpec(PartialSegmentMergeIOConfig ioConfig)
   {
-    final ParallelIndexIngestionSpec subTaskIngestionSpec = new ParallelIndexIngestionSpec(
-        ingestionSchema.getDataSchema(),
-        new ParallelIndexIOConfig(
-            baseFirehoseFactory.withSplit(split),
-            ingestionSchema.getIOConfig().isAppendToExisting()
-        ),
-        ingestionSchema.getTuningConfig()
+    final PartialSegmentMergeIngestionSpec ingestionSpec = new PartialSegmentMergeIngestionSpec(
+        dataSchema,
+        ioConfig,
+        getTuningConfig()
     );
-    return new SubTaskSpec<PartialSegmentGenerateTask>(
+    return new SubTaskSpec<PartialSegmentMergeTask>(
         getTaskId() + "_" + getAndIncrementNextSpecId(),
         getGroupId(),
         getTaskId(),
         getContext(),
-        split
+        new InputSplit<>(ioConfig.getPartitionLocations())
     )
     {
       @Override
-      public PartialSegmentGenerateTask newSubTask(int numAttempts)
+      public PartialSegmentMergeTask newSubTask(int numAttempts)
       {
-        return new PartialSegmentGenerateTask(
+        return new PartialSegmentMergeTask(
             null,
             getGroupId(),
             null,
             getSupervisorTaskId(),
             numAttempts,
-            subTaskIngestionSpec,
+            ingestionSpec,
             getContext(),
             null,
             null

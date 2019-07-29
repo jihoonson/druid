@@ -36,7 +36,6 @@ import org.apache.druid.indexing.common.task.batch.parallel.TaskMonitor.MonitorE
 import org.apache.druid.indexing.common.task.batch.parallel.TaskMonitor.SubTaskCompleteEvent;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.logger.Logger;
-import org.apache.druid.segment.indexing.DataSchema;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -61,7 +60,6 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
   private final TaskToolbox toolbox;
   private final String taskId;
   private final String groupId;
-  private final DataSchema dataSchema;
   private final ParallelIndexTuningConfig tuningConfig;
   private final Map<String, Object> context;
   private final int maxNumTasks;
@@ -73,18 +71,17 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
   /**
    * subTaskId -> report
    */
-  private final ConcurrentHashMap<String, AddressWithReport<SubTaskReportType>> reportsMap = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, SubTaskReportType> reportsMap = new ConcurrentHashMap<>();
 
   private volatile boolean subTaskScheduleAndMonitorStopped;
   private volatile TaskMonitor<SubTaskType> taskMonitor;
 
   private int nextSpecId = 0;
 
-  public ParallelIndexPhaseRunner(
+  ParallelIndexPhaseRunner(
       TaskToolbox toolbox,
       String taskId,
       String groupId,
-      DataSchema dataSchema,
       ParallelIndexTuningConfig tuningConfig,
       Map<String, Object> context,
       IndexingServiceClient indexingServiceClient
@@ -93,7 +90,6 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
     this.toolbox = toolbox;
     this.taskId = taskId;
     this.groupId = groupId;
-    this.dataSchema = dataSchema;
     this.tuningConfig = tuningConfig;
     this.context = context;
     this.maxNumTasks = tuningConfig.getMaxNumSubTasks();
@@ -272,11 +268,11 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
   }
 
   @Override
-  public void collectReport(AddressWithReport<SubTaskReportType> report)
+  public void collectReport(SubTaskReportType report)
   {
     // subTasks might send their reports multiple times because of the HTTP retry.
     // Here, we simply make sure the current report is exactly same with the previous one.
-    reportsMap.compute(report.getReport().getTaskId(), (taskId, prevReport) -> {
+    reportsMap.compute(report.getTaskId(), (taskId, prevReport) -> {
       if (prevReport != null) {
         Preconditions.checkState(
             prevReport.equals(report),
@@ -291,7 +287,7 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
   }
 
   @Override
-  public Map<String, AddressWithReport<SubTaskReportType>> getReports()
+  public Map<String, SubTaskReportType> getReports()
   {
     return reportsMap;
   }
@@ -427,6 +423,11 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
   Map<String, Object> getContext()
   {
     return context;
+  }
+
+  ParallelIndexTuningConfig getTuningConfig()
+  {
+    return tuningConfig;
   }
 
   @VisibleForTesting

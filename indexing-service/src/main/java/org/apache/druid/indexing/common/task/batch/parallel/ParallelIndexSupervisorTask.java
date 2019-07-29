@@ -29,6 +29,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.FirehoseFactory;
@@ -52,6 +54,7 @@ import org.apache.druid.indexing.common.task.IndexTask.IndexTuningConfig;
 import org.apache.druid.indexing.common.task.IndexTaskUtils;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
+import org.apache.druid.indexing.common.task.batch.parallel.GeneratedPartitionsReport.PartitionStat;
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexTaskRunner.SubTaskSpecStatus;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
@@ -86,6 +89,8 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +98,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -319,7 +325,11 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
     try {
       if (isParallelMode()) {
-        return runSinglePhaseParallel(toolbox);
+        if (getIngestionSchema().getTuningConfig().isForceGuaranteedRollup()) {
+          return runMultiPhaseParallel(toolbox);
+        } else {
+          return runSinglePhaseParallel(toolbox);
+        }
       } else {
         if (!baseFirehoseFactory.isSplittable()) {
           LOG.warn(
@@ -377,18 +387,77 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     TaskState state = runner.run();
     if (state.isSuccess()) {
       // report -> partition location
+      final Map<String, GeneratedPartitionsReport> reports = runner.getReports();
       final Int2ObjectMap<List<PartitionLocation>> partitionIdToLocations = new Int2ObjectOpenHashMap<>();
+      for (Entry<String, GeneratedPartitionsReport> entry : reports.entrySet()) {
+        final String subTaskId = entry.getKey();
+        final GeneratedPartitionsReport report = entry.getValue();
+        for (PartitionStat partitionStat : report.getPartitionStats()) {
+          final List<PartitionLocation> locationsOfSamePartition = partitionIdToLocations.computeIfAbsent(
+              partitionStat.getPartitionId(),
+              k -> new ArrayList<>()
+          );
+          locationsOfSamePartition.add(
+              new PartitionLocation(
+                  partitionStat.getTaskExecutorHost(),
+                  partitionStat.getTaskExecutorPort(),
+                  partitionStat.getInterval(),
+                  subTaskId,
+                  partitionStat.getPartitionId()
+              )
+          );
+        }
+      }
 
-      final int maxNumMergeTasks = 10; // TODO
-      for (Int2ObjectMap.Entry<List<PartitionLocation>> entry : partitionIdToLocations.int2ObjectEntrySet()) {
+      final List<PartialSegmentMergeIOConfig> ioConfigs = createMergeIOConfigs(
+          ingestionSchema.getTuningConfig().getMaxNumMergeTasks(),
+          partitionIdToLocations
+      );
 
+      runner = new PartialSegmentMergeParallelIndexTaskRunner(
+          toolbox,
+          getId(),
+          getGroupId(),
+          getIngestionSchema().getDataSchema(),
+          ioConfigs,
+          getIngestionSchema().getTuningConfig(),
+          getContext(),
+          indexingServiceClient
+      );
+      state = runner.run();
+      if (state.isSuccess()) {
+        publishSegments(toolbox, runner.getReports());
       }
     }
 
     return TaskStatus.fromCode(getId(), state);
   }
 
-  private void publishSegments(TaskToolbox toolbox, Map<String, AddressWithReport<PushedSegmentsReport>> reportsMap)
+  private List<PartialSegmentMergeIOConfig> createMergeIOConfigs(
+      int maxNumMergeTasks,
+      Int2ObjectMap<List<PartitionLocation>> partitionIdToLocations
+  )
+  {
+    final int numMergeTasks = Math.min(maxNumMergeTasks, partitionIdToLocations.size());
+    final List<PartialSegmentMergeIOConfig> assignedPartitionLocations = new ArrayList<>(numMergeTasks);
+    // Randomly shuffle partitionIds to evenly distribute partitions of potentially different sizes
+    // This will be improved once we collect partition stats properly.
+    // See PartitionStat in GeneratedPartitionsReport.
+    final IntList partitionIds = new IntArrayList(partitionIdToLocations.keySet());
+    Collections.shuffle(partitionIds, ThreadLocalRandom.current());
+    final int numPartitionsPerTask = (int) Math.ceil(partitionIds.size() / (double) numMergeTasks);
+    for (int i = 0; i < partitionIds.size(); i += numPartitionsPerTask) {
+      final List<PartitionLocation> assingedToSameTask = new ArrayList<>(numPartitionsPerTask);
+      for (int j = i; j < i + numPartitionsPerTask; j++) {
+        // Assign all partitionLocations of the same partitionId to the same task.
+        assingedToSameTask.addAll(partitionIdToLocations.get(j));
+      }
+      assignedPartitionLocations.add(new PartialSegmentMergeIOConfig(assingedToSameTask));
+    }
+    return assignedPartitionLocations;
+  }
+
+  private void publishSegments(TaskToolbox toolbox, Map<String, PushedSegmentsReport> reportsMap)
       throws IOException
   {
     final UsedSegmentChecker usedSegmentChecker = new ActionBasedUsedSegmentChecker(toolbox.getTaskActionClient());
@@ -397,8 +466,8 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     reportsMap
         .values()
         .forEach(report -> {
-          oldSegments.addAll(report.getReport().getOldSegments());
-          newSegments.addAll(report.getReport().getNewSegments());
+          oldSegments.addAll(report.getOldSegments());
+          newSegments.addAll(report.getNewSegments());
         });
     final TransactionalSegmentPublisher publisher = (segmentsToBeOverwritten, segmentsToPublish, commitMetadata) ->
         toolbox.getTaskActionClient().submit(
@@ -414,7 +483,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
       final Set<SegmentIdWithShardSpec> segmentsIdentifiers = reportsMap
           .values()
           .stream()
-          .flatMap(report -> report.getReport().getNewSegments().stream())
+          .flatMap(report -> report.getNewSegments().stream())
           .map(SegmentIdWithShardSpec::fromDataSegment)
           .collect(Collectors.toSet());
       if (usedSegmentChecker.findUsedSegments(segmentsIdentifiers)
@@ -609,7 +678,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
       return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
     } else {
       //noinspection unchecked
-      runner.collectReport(new AddressWithReport(req.getRemoteHost(), req.getRemotePort(), report));
+      runner.collectReport(report);
       return Response.ok().build();
     }
   }

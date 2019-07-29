@@ -23,22 +23,12 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.InputSplit;
-import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
 import org.apache.druid.indexing.common.TaskToolbox;
-import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
-import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.logger.Logger;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
-import org.apache.druid.segment.realtime.appenderator.TransactionalSegmentPublisher;
-import org.apache.druid.segment.realtime.appenderator.UsedSegmentChecker;
-import org.apache.druid.timeline.DataSegment;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * An implementation of {@link ParallelIndexTaskRunner} to support best-effort roll-up. This runner can submit and
@@ -68,7 +58,6 @@ class SinglePhaseParallelIndexTaskRunner
         toolbox,
         taskId,
         groupId,
-        ingestionSchema.getDataSchema(),
         ingestionSchema.getTuningConfig(),
         context,
         indexingServiceClient

@@ -2882,6 +2882,7 @@ public class KinesisIndexTaskTest extends EasyMockSupport
     final DataSegmentPusher dataSegmentPusher = new LocalDataSegmentPusher(dataSegmentPusherConfig);
     toolboxFactory = new TaskToolboxFactory(
         taskConfig,
+        null, // taskExecutorNode
         taskActionClientFactory,
         emitter,
         dataSegmentPusher,
@@ -2905,7 +2906,8 @@ public class KinesisIndexTaskTest extends EasyMockSupport
         EasyMock.createNiceMock(DruidNode.class),
         new LookupNodeService("tier"),
         new DataNodeService("tier", 1, ServerType.INDEXER_EXECUTOR, 0),
-        new TaskReportFileWriter(reportsFile)
+        new TaskReportFileWriter(reportsFile),
+        null
     );
   }
 

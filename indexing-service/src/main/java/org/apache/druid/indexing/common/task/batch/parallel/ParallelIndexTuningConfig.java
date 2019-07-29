@@ -44,6 +44,7 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
   private static final Duration DEFAULT_CHAT_HANDLER_TIMEOUT = new Period("PT10S").toStandardDuration();
   private static final int DEFAULT_CHAT_HANDLER_NUM_RETRIES = 5;
   private static final int DEFAULT_MAX_NUM_SEGMENTS_TO_MERGE = 100;
+  private static final int DEFAULT_MAX_NUM_MERGE_TASKS = 10;
 
   private final int maxNumSubTasks;
   private final int maxRetry;
@@ -53,16 +54,23 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
   private final int chatHandlerNumRetries;
 
   /**
-   * The max number of segments to merge at the same time.
+   * Max number of segments to merge at the same time.
    * Used only by {@link PartialSegmentMergeTask}.
    * This configuration was temporally added to avoid using too much memory while merging segments,
    * and will be removed once {@link org.apache.druid.segment.IndexMerger} is improved to not use much memory.
    */
   private final int maxNumSegmentsToMerge;
 
-  public static ParallelIndexTuningConfig defaultConfig()
+  /**
+   * Max number of tasks for partial segment merge (that is, number of {@link PartialSegmentMergeTask}s).
+   * Used only when this task runs with shuffle.
+   */
+  private final int maxNumMergeTasks;
+
+  static ParallelIndexTuningConfig defaultConfig()
   {
     return new ParallelIndexTuningConfig(
+        null,
         null,
         null,
         null,
@@ -111,6 +119,7 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
       @JsonProperty("chatHandlerTimeout") @Nullable Duration chatHandlerTimeout,
       @JsonProperty("chatHandlerNumRetries") @Nullable Integer chatHandlerNumRetries,
       @JsonProperty("maxNumSegmentsToMerge") @Nullable Integer maxNumSegmentsToMerge,
+      @JsonProperty("maxNumMergeTasks") @Nullable Integer maxNumMergeTasks,
       @JsonProperty("logParseExceptions") @Nullable Boolean logParseExceptions,
       @JsonProperty("maxParseExceptions") @Nullable Integer maxParseExceptions,
       @JsonProperty("maxSavedParseExceptions") @Nullable Integer maxSavedParseExceptions
@@ -154,7 +163,13 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
                                  ? DEFAULT_MAX_NUM_SEGMENTS_TO_MERGE
                                  : maxNumSegmentsToMerge;
 
+    this.maxNumMergeTasks = maxNumMergeTasks == null
+                            ? DEFAULT_MAX_NUM_MERGE_TASKS
+                            : maxNumMergeTasks;
+
     Preconditions.checkArgument(this.maxNumSubTasks > 0, "maxNumSubTasks must be positive");
+    Preconditions.checkArgument(this.maxNumSegmentsToMerge > 0, "maxNumSegmentsToMerge must be positive");
+    Preconditions.checkArgument(this.maxNumMergeTasks > 0, "maxNumMergeTasks must be positive");
   }
 
   private static PartitionsSpec getValidPartitionsSpec(
@@ -209,6 +224,12 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
     return maxNumSegmentsToMerge;
   }
 
+  @JsonProperty
+  public int getMaxNumMergeTasks()
+  {
+    return maxNumMergeTasks;
+  }
+
   @Override
   public boolean equals(Object o)
   {
@@ -227,6 +248,7 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
            taskStatusCheckPeriodMs == that.taskStatusCheckPeriodMs &&
            chatHandlerNumRetries == that.chatHandlerNumRetries &&
            maxNumSegmentsToMerge == that.maxNumSegmentsToMerge &&
+           maxNumMergeTasks == that.maxNumMergeTasks &&
            Objects.equals(chatHandlerTimeout, that.chatHandlerTimeout);
   }
 
@@ -240,7 +262,8 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
         taskStatusCheckPeriodMs,
         chatHandlerTimeout,
         chatHandlerNumRetries,
-        maxNumSegmentsToMerge
+        maxNumSegmentsToMerge,
+        maxNumMergeTasks
     );
   }
 }

@@ -29,6 +29,7 @@ import org.apache.druid.client.cache.CachePopulatorStats;
 import org.apache.druid.discovery.DataNodeService;
 import org.apache.druid.discovery.DruidNodeAnnouncer;
 import org.apache.druid.discovery.LookupNodeService;
+import org.apache.druid.guice.annotations.Parent;
 import org.apache.druid.guice.annotations.Processing;
 import org.apache.druid.guice.annotations.RemoteChatHandler;
 import org.apache.druid.indexing.common.actions.TaskActionClientFactory;
@@ -58,6 +59,7 @@ import java.util.concurrent.ExecutorService;
 public class TaskToolboxFactory
 {
   private final TaskConfig config;
+  private final DruidNode taskExecutorNode;
   private final TaskActionClientFactory taskActionClientFactory;
   private final ServiceEmitter emitter;
   private final DataSegmentPusher segmentPusher;
@@ -87,6 +89,7 @@ public class TaskToolboxFactory
   @Inject
   public TaskToolboxFactory(
       TaskConfig config,
+      @Parent DruidNode taskExecutorNode,
       TaskActionClientFactory taskActionClientFactory,
       ServiceEmitter emitter,
       DataSegmentPusher segmentPusher,
@@ -115,6 +118,7 @@ public class TaskToolboxFactory
   )
   {
     this.config = config;
+    this.taskExecutorNode = taskExecutorNode;
     this.taskActionClientFactory = taskActionClientFactory;
     this.emitter = emitter;
     this.segmentPusher = segmentPusher;
@@ -147,6 +151,7 @@ public class TaskToolboxFactory
     final File taskWorkDir = config.getTaskWorkDir(task.getId());
     return new TaskToolbox(
         config,
+        taskExecutorNode,
         taskActionClientFactory.create(task),
         emitter,
         segmentPusher,

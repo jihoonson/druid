@@ -79,6 +79,8 @@ public class GeneratedPartitionsReport implements SubTaskReport
 
   public static class PartitionStat
   {
+    private final String taskExecutorHost;
+    private final int taskExecutorPort;
     private final Interval interval;
     private final int partitionId;
     @Nullable
@@ -88,15 +90,32 @@ public class GeneratedPartitionsReport implements SubTaskReport
 
     @JsonCreator
     public PartitionStat(
+        @JsonProperty("taskExecutorHost") String taskExecutorHost,
+        @JsonProperty("taskExecutorPort") int taskExecutorPort,
         @JsonProperty("interval") Interval interval,
         @JsonProperty("partitionId") int partitionId,
         @JsonProperty("numRows") @Nullable Integer numRows,
-        @JsonProperty("sizeBytes") @Nullable Long sizeBytes)
+        @JsonProperty("sizeBytes") @Nullable Long sizeBytes
+    )
     {
+      this.taskExecutorHost = taskExecutorHost;
+      this.taskExecutorPort = taskExecutorPort;
       this.interval = interval;
       this.partitionId = partitionId;
       this.numRows = numRows == null ? 0 : numRows;
       this.sizeBytes = sizeBytes == null ? 0 : sizeBytes;
+    }
+
+    @JsonProperty
+    public String getTaskExecutorHost()
+    {
+      return taskExecutorHost;
+    }
+
+    @JsonProperty
+    public int getTaskExecutorPort()
+    {
+      return taskExecutorPort;
     }
 
     @JsonProperty
@@ -135,7 +154,9 @@ public class GeneratedPartitionsReport implements SubTaskReport
         return false;
       }
       PartitionStat that = (PartitionStat) o;
-      return partitionId == that.partitionId &&
+      return taskExecutorPort == that.taskExecutorPort &&
+             partitionId == that.partitionId &&
+             Objects.equals(taskExecutorHost, that.taskExecutorHost) &&
              Objects.equals(interval, that.interval) &&
              Objects.equals(numRows, that.numRows) &&
              Objects.equals(sizeBytes, that.sizeBytes);
@@ -144,7 +165,7 @@ public class GeneratedPartitionsReport implements SubTaskReport
     @Override
     public int hashCode()
     {
-      return Objects.hash(interval, partitionId, numRows, sizeBytes);
+      return Objects.hash(taskExecutorHost, taskExecutorPort, interval, partitionId, numRows, sizeBytes);
     }
   }
 }

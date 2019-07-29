@@ -19,7 +19,6 @@
 
 package org.apache.druid.indexing.worker;
 
-import com.amazonaws.util.StringUtils;
 import com.google.common.collect.ImmutableList;
 import org.apache.commons.io.FileUtils;
 import org.apache.druid.client.indexing.IndexingServiceClient;
@@ -43,6 +42,7 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -129,7 +129,7 @@ public class IntermediaryDataManagerAutoCleanupTest
   {
     // Each file size is 138 bytes after compression
     final File segmentDir = tempDir.newFolder();
-    FileUtils.write(new File(segmentDir, fileName), "test data.", StringUtils.UTF8);
+    FileUtils.write(new File(segmentDir, fileName), "test data.", StandardCharsets.UTF_8);
     return segmentDir;
   }
 

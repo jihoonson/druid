@@ -52,9 +52,12 @@ public interface ParallelIndexTaskRunner<SubTaskType extends Task, SubTaskReport
    * {@link SubTaskReport} is the report sent by {@link SubTaskType}s. The subTasks call this method to
    * send their reports after pushing generated segments to deep storage.
    */
-  void collectReport(AddressWithReport<SubTaskReportType> report);
+  void collectReport(SubTaskReportType report);
 
-  Map<String, AddressWithReport<SubTaskReportType>> getReports();
+  /**
+   * Returns a map between subTaskId and its report.
+   */
+  Map<String, SubTaskReportType> getReports();
 
   /**
    * Returns the current {@link ParallelIndexingProgress}.
