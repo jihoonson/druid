@@ -267,7 +267,7 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
   ) throws IOException
   {
     final File tempDir = toolbox.getFirehoseTemporaryDir();
-    FileUtils.forceDelete(tempDir);
+    FileUtils.deleteQuietly(tempDir);
     FileUtils.forceMkdir(tempDir);
 
     final Map<Interval, Int2ObjectMap<List<File>>> intervalToUnzippedFiles = new HashMap<>();

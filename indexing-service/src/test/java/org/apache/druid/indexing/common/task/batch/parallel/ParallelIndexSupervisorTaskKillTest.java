@@ -99,7 +99,7 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     task.stopGracefully(null);
     Assert.assertEquals(TaskState.FAILED, future.get());
 
-    final TestParallelIndexTaskRunner runner = (TestParallelIndexTaskRunner) task.getRunner();
+    final TestSinglePhaseParallelIndexTaskRunner runner = (TestSinglePhaseParallelIndexTaskRunner) task.getRunner();
     Assert.assertTrue(runner.getRunningTaskIds().isEmpty());
     // completeSubTaskSpecs should be empty because no task has reported its status to TaskMonitor
     Assert.assertTrue(runner.getCompleteSubTaskSpecs().isEmpty());
@@ -129,7 +129,7 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     final TaskState state = task.run(toolbox).getStatusCode();
     Assert.assertEquals(TaskState.FAILED, state);
 
-    final TestParallelIndexTaskRunner runner = (TestParallelIndexTaskRunner) task.getRunner();
+    final TestSinglePhaseParallelIndexTaskRunner runner = (TestSinglePhaseParallelIndexTaskRunner) task.getRunner();
     Assert.assertTrue(runner.getRunningTaskIds().isEmpty());
     final List<SubTaskSpec<ParallelIndexSubTask>> completeSubTaskSpecs = runner.getCompleteSubTaskSpecs();
     Assert.assertEquals(1, completeSubTaskSpecs.size());
@@ -297,7 +297,7 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     }
   }
 
-  private static class TestRunner extends TestParallelIndexTaskRunner
+  private static class TestRunner extends TestSinglePhaseParallelIndexTaskRunner
   {
     private final ParallelIndexSupervisorTask supervisorTask;
 

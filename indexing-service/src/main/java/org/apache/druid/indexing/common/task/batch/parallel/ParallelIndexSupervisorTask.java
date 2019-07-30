@@ -172,9 +172,9 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
     if (ingestionSchema.getTuningConfig().isForceGuaranteedRollup()
         && (ingestionSchema.getTuningConfig().getNumShards() == null
-            || !ingestionSchema.getDataSchema().getGranularitySpec().inputIntervals().isEmpty())) {
+            || ingestionSchema.getDataSchema().getGranularitySpec().inputIntervals().isEmpty())) {
       throw new ISE("forceGuaranteedRollup is set but "
-                    + "numShards is missing in tuningConfig or intervals is missing in granularitySpec");
+                    + "numShards is missing in partitionsSpec or intervals is missing in granularitySpec");
     }
 
     this.baseFirehoseFactory = (FiniteFirehoseFactory) firehoseFactory;

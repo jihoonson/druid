@@ -82,19 +82,16 @@ public class PartitionLocation
 
   public URI toIntermediaryDataServerURI(String supervisorTaskId)
   {
-    //noinspection ConstantConditions
     return URI.create(
-        StringUtils.urlEncode(
-            StringUtils.format(
-                "http://%s:%d/druid/worker/v1/shuffle/task/%s/%s/partition?%s&%s&%d",
-                host,
-                port,
-                supervisorTaskId,
-                subTaskId,
-                interval.getStart(),
-                interval.getEnd(),
-                partitionId
-            )
+        StringUtils.format(
+            "http://%s:%d/druid/worker/v1/shuffle/task/%s/%s/partition?startTime=%s&endTime=%s&partitionId=%d",
+            host,
+            port,
+            StringUtils.urlEncode(supervisorTaskId),
+            StringUtils.urlEncode(subTaskId),
+            interval.getStart(),
+            interval.getEnd(),
+            partitionId
         )
     );
   }

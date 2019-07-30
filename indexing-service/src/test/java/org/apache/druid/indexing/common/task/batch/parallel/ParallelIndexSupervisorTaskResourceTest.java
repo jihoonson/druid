@@ -515,7 +515,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     }
   }
 
-  private class TestRunner extends TestParallelIndexTaskRunner
+  private class TestRunner extends TestSinglePhaseParallelIndexTaskRunner
   {
     private final ParallelIndexSupervisorTask supervisorTask;
 

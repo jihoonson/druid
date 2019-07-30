@@ -454,7 +454,7 @@ public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSuperv
     {
       setToolbox(toolbox);
       setRunner(
-          new TestRunner(
+          new TestSinglePhaseRunner(
               toolbox,
               this,
               indexingServiceClient
@@ -464,11 +464,11 @@ public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSuperv
     }
   }
 
-  private static class TestRunner extends TestParallelIndexTaskRunner
+  private static class TestSinglePhaseRunner extends TestSinglePhaseParallelIndexTaskRunner
   {
     private final ParallelIndexSupervisorTask supervisorTask;
 
-    TestRunner(
+    TestSinglePhaseRunner(
         TaskToolbox toolbox,
         ParallelIndexSupervisorTask supervisorTask,
         @Nullable IndexingServiceClient indexingServiceClient

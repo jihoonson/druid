@@ -287,9 +287,9 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
     }
   }
 
-  static class TestParallelIndexTaskRunner extends SinglePhaseParallelIndexTaskRunner
+  static class TestSinglePhaseParallelIndexTaskRunner extends SinglePhaseParallelIndexTaskRunner
   {
-    TestParallelIndexTaskRunner(
+    TestSinglePhaseParallelIndexTaskRunner(
         TaskToolbox toolbox,
         String taskId,
         String groupId,
