@@ -149,7 +149,7 @@ class OvershadowableManager<T extends Overshadowable<T>>
     Preconditions.checkArgument(!atomicUpdateGroup.isEmpty(), "empty atomicUpdateGroup");
 
     removeFrom(atomicUpdateGroup, from);
-    addAtomicUpdateGroupWithState(atomicUpdateGroup, to);
+    addAtomicUpdateGroupWithState(atomicUpdateGroup, to, false);
   }
 
   /**
@@ -178,7 +178,7 @@ class OvershadowableManager<T extends Overshadowable<T>>
     oldVisibleGroups.forEach(
         group -> {
           if (!group.isEmpty()) {
-            addAtomicUpdateGroupWithState(group, newStateOfOldVisibleGroup);
+            addAtomicUpdateGroupWithState(group, newStateOfOldVisibleGroup, false);
           }
         }
     );
@@ -574,7 +574,7 @@ class OvershadowableManager<T extends Overshadowable<T>>
     return true;
   }
 
-  private void addAtomicUpdateGroupWithState(AtomicUpdateGroup<T> aug, State state)
+  private void addAtomicUpdateGroupWithState(AtomicUpdateGroup<T> aug, State state, boolean determineVisible)
   {
     final AtomicUpdateGroup<T> existing = getStateMap(state)
         .computeIfAbsent(RootPartitionRange.of(aug), k -> createMinorVersionToAugMap(state))
@@ -584,8 +584,9 @@ class OvershadowableManager<T extends Overshadowable<T>>
       throw new ISE("AtomicUpdateGroup[%s] is already in state[%s]", existing, state);
     }
 
-    // TODO: flag to execute this?
-    determineVisibleGroupAfterAdd(aug, state);
+    if (determineVisible) {
+      determineVisibleGroupAfterAdd(aug, state);
+    }
   }
 
   boolean addChunk(PartitionChunk<T> chunk)
@@ -653,9 +654,9 @@ class OvershadowableManager<T extends Overshadowable<T>>
               .anyMatch(group -> group.overshadows(newAtomicUpdateGroup));
 
           if (overshadowed) {
-            addAtomicUpdateGroupWithState(newAtomicUpdateGroup, State.OVERSHADOWED);
+            addAtomicUpdateGroupWithState(newAtomicUpdateGroup, State.OVERSHADOWED, true);
           } else {
-            addAtomicUpdateGroupWithState(newAtomicUpdateGroup, State.STANDBY);
+            addAtomicUpdateGroupWithState(newAtomicUpdateGroup, State.STANDBY, true);
           }
         }
       }
