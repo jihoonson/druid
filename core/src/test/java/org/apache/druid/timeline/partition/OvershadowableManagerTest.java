@@ -491,48 +491,68 @@ public class OvershadowableManagerTest
   @Test
   public void testAddCompleteStandbyToCompletePartition()
   {
-    // Add an overshadowed incomplete group
+    // Add overshadowed groups
     List<PartitionChunk<OvershadowableInteger>> chunks = newNonRootChunks(2, 0, 2, 1, 3);
     expectedOvershadowedChunks.addAll(chunks);
     chunks.forEach(manager::addChunk);
+    chunks = newNonRootChunks(2, 2, 5, 1, 3);
+    expectedOvershadowedChunks.addAll(chunks);
+    chunks.forEach(manager::addChunk);
+    chunks = newNonRootChunks(2, 5, 8, 1, 3);
+    expectedOvershadowedChunks.addAll(chunks);
+    chunks.forEach(manager::addChunk);
+    chunks = newNonRootChunks(2, 8, 10, 1, 2);
+    expectedOvershadowedChunks.addAll(chunks);
+    chunks.forEach(manager::addChunk);
 
-    // Add a visible complete group
-    chunks = newNonRootChunks(2, 0, 2, 2, 2);
+    // Visible group for [0, 5)
+    chunks = newNonRootChunks(2, 0, 5, 2, 2);
+    expectedVisibleChunks.addAll(chunks);
+    chunks.forEach(manager::addChunk);
+    // Visible group for [5, 10)
+    chunks = newNonRootChunks(2, 5, 10, 2, 2);
     expectedVisibleChunks.addAll(chunks);
     chunks.forEach(manager::addChunk);
 
-    // Add three standby incomplete groups
-    chunks = newNonRootChunks(2, 0, 2, 3, 3);
+    // Standby groups
+    chunks = newNonRootChunks(2, 0, 5, 3, 3);
+    expectedStandbyChunks.addAll(chunks);
+    chunks.forEach(manager::addChunk);
+    chunks = newNonRootChunks(2, 5, 10, 3, 3);
     expectedStandbyChunks.addAll(chunks);
     chunks.forEach(manager::addChunk);
 
-    chunks = newNonRootChunks(2, 0, 2, 4, 3);
+    chunks = newNonRootChunks(2, 0, 5, 4, 3);
     expectedStandbyChunks.addAll(chunks);
     chunks.forEach(manager::addChunk);
 
-    chunks = newNonRootChunks(2, 0, 2, 5, 3);
+    chunks = newNonRootChunks(2, 0, 10, 5, 3);
     expectedStandbyChunks.addAll(chunks);
     chunks.forEach(manager::addChunk);
 
     assertManagerState();
 
     // Add a chunk to complete the second standby group
-    chunks = newNonRootChunks(1, 0, 2, 4, 3);
     expectedOvershadowedChunks.addAll(expectedVisibleChunks);
     expectedVisibleChunks.clear();
+    chunks = newNonRootChunks(1, 0, 5, 4, 3);
+    chunks.forEach(this::addVisibleToManager);
+    chunks = newNonRootChunks(1, 5, 10, 3, 3);
+    chunks.forEach(this::addVisibleToManager);
+
     Iterator<PartitionChunk<OvershadowableInteger>> iterator = expectedStandbyChunks.iterator();
     while (iterator.hasNext()) {
       final PartitionChunk<OvershadowableInteger> chunk = iterator.next();
-      if (chunk.getObject().getMinorVersion() == 3) {
-        expectedOvershadowedChunks.add(chunk);
-        iterator.remove();
-      } else if (chunk.getObject().getMinorVersion() == 4) {
+      if (chunk.getObject().getStartRootPartitionId() == 0 && chunk.getObject().getMinorVersion() == 4
+          || chunk.getObject().getStartRootPartitionId() == 5 && chunk.getObject().getMinorVersion() == 3) {
         expectedVisibleChunks.add(chunk);
+        iterator.remove();
+      } else if (chunk.getObject().getStartRootPartitionId() == 0 && chunk.getObject().getMinorVersion() < 4
+                 || chunk.getObject().getStartRootPartitionId() == 5 && chunk.getObject().getMinorVersion() < 3) {
+        expectedOvershadowedChunks.add(chunk);
         iterator.remove();
       }
     }
-
-    chunks.forEach(this::addVisibleToManager);
 
     assertManagerState();
   }
@@ -583,20 +603,6 @@ public class OvershadowableManagerTest
 
     Assert.assertEquals(chunkToRemove, manager.removeChunk(chunkToRemove));
     assertManagerState();
-  }
-
-  private List<PartitionChunk<OvershadowableInteger>> newNonRootChunks(
-      int n,
-      int startPartitionId,
-      int endPartitionId,
-      int minorVersion,
-      int atomicUpdateGroupSize
-  )
-  {
-    return IntStream
-        .range(0, n)
-        .mapToObj(i -> newNonRootChunk(startPartitionId, endPartitionId, minorVersion, atomicUpdateGroupSize))
-        .collect(Collectors.toList());
   }
 
   @Test
@@ -889,6 +895,20 @@ public class OvershadowableManagerTest
         new HashSet<>(expectedStandbyChunks),
         new HashSet<>(manager.getStandbyChunks())
     );
+  }
+
+  private List<PartitionChunk<OvershadowableInteger>> newNonRootChunks(
+      int n,
+      int startPartitionId,
+      int endPartitionId,
+      int minorVersion,
+      int atomicUpdateGroupSize
+  )
+  {
+    return IntStream
+        .range(0, n)
+        .mapToObj(i -> newNonRootChunk(startPartitionId, endPartitionId, minorVersion, atomicUpdateGroupSize))
+        .collect(Collectors.toList());
   }
 
   private NumberedPartitionChunk<OvershadowableInteger> newRootChunk()
