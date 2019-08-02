@@ -63,6 +63,7 @@ import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.indexing.TuningConfig;
 import org.apache.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
+import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.segment.realtime.appenderator.TransactionalSegmentPublisher;
 import org.apache.druid.segment.realtime.appenderator.UsedSegmentChecker;
@@ -121,6 +122,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   private final ChatHandlerProvider chatHandlerProvider;
   private final AuthorizerMapper authorizerMapper;
   private final RowIngestionMetersFactory rowIngestionMetersFactory;
+  private final AppenderatorsManager appenderatorsManager;
 
   /**
    * If intervals are missing in the granularitySpec, parallel index task runs in "dynamic locking mode".
@@ -139,6 +141,9 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   private final ConcurrentHashMap<Interval, AtomicInteger> partitionNumCountersPerInterval = new ConcurrentHashMap<>();
 
   private volatile ParallelIndexTaskRunner runner;
+  private volatile IndexTask sequentialIndexTask;
+
+  private boolean stopped = false;
 
   // toolbox is initlized when run() is called, and can be used for processing HTTP endpoint requests.
   private volatile TaskToolbox toolbox;
@@ -152,7 +157,8 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
       @JacksonInject @Nullable IndexingServiceClient indexingServiceClient, // null in overlords
       @JacksonInject @Nullable ChatHandlerProvider chatHandlerProvider,     // null in overlords
       @JacksonInject AuthorizerMapper authorizerMapper,
-      @JacksonInject RowIngestionMetersFactory rowIngestionMetersFactory
+      @JacksonInject RowIngestionMetersFactory rowIngestionMetersFactory,
+      @JacksonInject AppenderatorsManager appenderatorsManager
   )
   {
     super(
@@ -182,6 +188,8 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     this.chatHandlerProvider = chatHandlerProvider;
     this.authorizerMapper = authorizerMapper;
     this.rowIngestionMetersFactory = rowIngestionMetersFactory;
+    this.appenderatorsManager = appenderatorsManager;
+
     this.missingIntervalsInOverwriteMode = !ingestionSchema.getIOConfig().isAppendToExisting()
                                            && !ingestionSchema.getDataSchema()
                                                               .getGranularitySpec()
@@ -190,6 +198,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     if (missingIntervalsInOverwriteMode) {
       addToContext(Tasks.FORCE_TIME_CHUNK_LOCK_KEY, true);
     }
+
   }
 
   @Override
@@ -293,8 +302,13 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   @Override
   public void stopGracefully(TaskConfig taskConfig)
   {
+    synchronized (this) {
+      stopped = true;
+    }
     if (runner != null) {
       runner.stopGracefully();
+    } else if (sequentialIndexTask != null) {
+      sequentialIndexTask.stopGracefully(taskConfig);
     }
   }
 
@@ -366,7 +380,12 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   private TaskStatus runSinglePhaseParallel(TaskToolbox toolbox) throws Exception
   {
-    createRunner(toolbox);
+    synchronized (this) {
+      if (stopped) {
+        return TaskStatus.failure(getId());
+      }
+      createRunner(toolbox);
+    }
     final TaskState state = Preconditions.checkNotNull(runner, "runner").run();
     if (state.isSuccess()) {
       publishSegments(toolbox, runner.getReports());
@@ -498,23 +517,29 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   private TaskStatus runSequential(TaskToolbox toolbox) throws Exception
   {
-    final IndexTask indexTask = new IndexTask(
-        getId(),
-        getGroupId(),
-        getTaskResource(),
-        getDataSource(),
-        new IndexIngestionSpec(
-            getIngestionSchema().getDataSchema(),
-            getIngestionSchema().getIOConfig(),
-            convertToIndexTuningConfig(getIngestionSchema().getTuningConfig())
-        ),
-        getContext(),
-        authorizerMapper,
-        chatHandlerProvider,
-        rowIngestionMetersFactory
-    );
-    if (indexTask.isReady(toolbox.getTaskActionClient())) {
-      return indexTask.run(toolbox);
+    synchronized (this) {
+      if (stopped) {
+        return TaskStatus.failure(getId());
+      }
+      sequentialIndexTask = new IndexTask(
+          getId(),
+          getGroupId(),
+          getTaskResource(),
+          getDataSource(),
+          new IndexIngestionSpec(
+              getIngestionSchema().getDataSchema(),
+              getIngestionSchema().getIOConfig(),
+              convertToIndexTuningConfig(getIngestionSchema().getTuningConfig())
+          ),
+          getContext(),
+          authorizerMapper,
+          chatHandlerProvider,
+          rowIngestionMetersFactory,
+          appenderatorsManager
+      );
+    }
+    if (sequentialIndexTask.isReady(toolbox.getTaskActionClient())) {
+      return sequentialIndexTask.run(toolbox);
     } else {
       return TaskStatus.failure(getId());
     }
