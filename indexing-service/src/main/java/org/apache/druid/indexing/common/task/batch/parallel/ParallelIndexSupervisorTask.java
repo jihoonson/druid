@@ -189,7 +189,6 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     this.authorizerMapper = authorizerMapper;
     this.rowIngestionMetersFactory = rowIngestionMetersFactory;
     this.appenderatorsManager = appenderatorsManager;
-
     this.missingIntervalsInOverwriteMode = !ingestionSchema.getIOConfig().isAppendToExisting()
                                            && !ingestionSchema.getDataSchema()
                                                               .getGranularitySpec()
