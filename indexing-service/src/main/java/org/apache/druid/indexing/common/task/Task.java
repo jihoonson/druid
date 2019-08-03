@@ -32,6 +32,7 @@ import org.apache.druid.indexing.common.task.batch.parallel.PartialSegmentMergeT
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -166,12 +167,15 @@ public interface Task
   boolean canRestore();
 
   /**
-   * Asks a task to arrange for its "run" method to exit promptly. Tasks that take too long to stop gracefully will be terminated with
-   * extreme prejudice.
+   * Asks a task to arrange for its "run" method to exit promptly. Tasks that take too long to stop gracefully will be
+   * terminated with extreme prejudice.
+   *
+   * If the task has some resources to clean up on exit, e.g., sub tasks of parallel indexing task
+   * or Hadoop job of Hadoop indexing task, those resource cleanup should be done in this method.
    *
    * @param taskConfig TaskConfig for this task
    */
-  void stopGracefully(TaskConfig taskConfig);
+  void stopGracefully(TaskConfig taskConfig) throws IOException;
 
   /**
    * Execute a task. This typically runs on a worker as determined by a TaskRunner, and will be run while

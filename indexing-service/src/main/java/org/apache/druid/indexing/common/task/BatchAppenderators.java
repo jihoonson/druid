@@ -26,23 +26,35 @@ import org.apache.druid.segment.loading.DataSegmentPusher;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
 import org.apache.druid.segment.realtime.appenderator.Appenderator;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorConfig;
-import org.apache.druid.segment.realtime.appenderator.Appenderators;
+import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 
 public final class BatchAppenderators
 {
   public static Appenderator newAppenderator(
+      String taskId,
+      AppenderatorsManager appenderatorsManager,
       FireDepartmentMetrics metrics,
       TaskToolbox toolbox,
       DataSchema dataSchema,
       AppenderatorConfig appenderatorConfig
   )
   {
-    return newAppenderator(metrics, toolbox, dataSchema, appenderatorConfig, toolbox.getSegmentPusher());
+    return newAppenderator(
+        taskId,
+        appenderatorsManager,
+        metrics,
+        toolbox,
+        dataSchema,
+        appenderatorConfig,
+        toolbox.getSegmentPusher()
+    );
   }
 
   public static Appenderator newAppenderator(
+      String taskId,
+      AppenderatorsManager appenderatorsManager,
       FireDepartmentMetrics metrics,
       TaskToolbox toolbox,
       DataSchema dataSchema,
@@ -50,7 +62,8 @@ public final class BatchAppenderators
       DataSegmentPusher segmentPusher
   )
   {
-    return Appenderators.createOffline(
+    return appenderatorsManager.createOfflineAppenderatorForTask(
+        taskId,
         dataSchema,
         appenderatorConfig.withBasePersistDirectory(toolbox.getPersistDir()),
         metrics,

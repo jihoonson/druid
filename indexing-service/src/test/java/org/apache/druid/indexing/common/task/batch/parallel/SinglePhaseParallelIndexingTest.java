@@ -431,8 +431,6 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
 
   private static class TestSupervisorTask extends TestParallelIndexSupervisorTask
   {
-    private final IndexingServiceClient indexingServiceClient;
-
     TestSupervisorTask(
         String id,
         TaskResource taskResource,
@@ -441,24 +439,13 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
         IndexingServiceClient indexingServiceClient
     )
     {
-      super(
-          id,
-          taskResource,
-          ingestionSchema,
-          context,
-          indexingServiceClient
-      );
-      this.indexingServiceClient = indexingServiceClient;
+      super(id, taskResource, ingestionSchema, context, indexingServiceClient);
     }
 
     @Override
     SinglePhaseParallelIndexTaskRunner createSinglePhaseTaskRunner(TaskToolbox toolbox)
     {
-      return new TestSinglePhaseRunner(
-          toolbox,
-          this,
-          indexingServiceClient
-      );
+      return new TestSinglePhaseRunner(toolbox, this, getIndexingServiceClient());
     }
   }
 

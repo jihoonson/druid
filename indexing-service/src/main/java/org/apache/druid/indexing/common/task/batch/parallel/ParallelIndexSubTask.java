@@ -32,7 +32,6 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
 import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
-import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
@@ -40,6 +39,7 @@ import org.apache.druid.indexing.common.actions.SurrogateAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.common.task.AbstractBatchIndexTask;
+import org.apache.druid.indexing.common.task.BatchAppenderators;
 import org.apache.druid.indexing.common.task.ClientBasedTaskInfoProvider;
 import org.apache.druid.indexing.common.task.IndexTask;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
@@ -78,6 +78,7 @@ import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
@@ -107,8 +108,11 @@ public class ParallelIndexSubTask extends AbstractBatchIndexTask
   private final IndexTaskClientFactory<ParallelIndexTaskClient> taskClientFactory;
   private final AppenderatorsManager appenderatorsManager;
 
+  @GuardedBy("this")
   private Appenderator appenderator;
+  @GuardedBy("this")
   private Thread runThread;
+  @GuardedBy("this")
   private boolean stopped = false;
 
   /**
@@ -425,11 +429,20 @@ public class ParallelIndexSubTask extends AbstractBatchIndexTask
     final SegmentAllocator segmentAllocator = createSegmentAllocator(toolbox, taskClient);
 
     try (
-        final Appenderator appenderator = newAppenderator(fireDepartmentMetrics, toolbox, dataSchema, tuningConfig);
-        final BatchAppenderatorDriver driver = newDriver(appenderator, toolbox, segmentAllocator);
+        final Appenderator appenderator = BatchAppenderators.newAppenderator(
+            getId(),
+            appenderatorsManager,
+            fireDepartmentMetrics,
+            toolbox,
+            dataSchema,
+            tuningConfig
+        );
+        final BatchAppenderatorDriver driver = BatchAppenderators.newDriver(appenderator, toolbox, segmentAllocator);
         final Firehose firehose = firehoseFactory.connect(dataSchema.getParser(), firehoseTempDir)
     ) {
-      this.appenderator = appenderator;
+      synchronized (this) {
+        this.appenderator = appenderator;
+      }
       driver.startJob();
 
       final Set<DataSegment> pushedSegments = new HashSet<>();
@@ -501,39 +514,6 @@ public class ParallelIndexSubTask extends AbstractBatchIndexTask
     catch (TimeoutException | ExecutionException e) {
       throw new RuntimeException(e);
     }
-  }
-
-  private Appenderator newAppenderator(
-      FireDepartmentMetrics metrics,
-      TaskToolbox toolbox,
-      DataSchema dataSchema,
-      ParallelIndexTuningConfig tuningConfig
-  )
-  {
-    return appenderatorsManager.createOfflineAppenderatorForTask(
-        getId(),
-        dataSchema,
-        tuningConfig.withBasePersistDirectory(toolbox.getPersistDir()),
-        metrics,
-        toolbox.getSegmentPusher(),
-        toolbox.getObjectMapper(),
-        toolbox.getIndexIO(),
-        toolbox.getIndexMergerV9()
-    );
-  }
-
-  private static BatchAppenderatorDriver newDriver(
-      final Appenderator appenderator,
-      final TaskToolbox toolbox,
-      final SegmentAllocator segmentAllocator
-  )
-  {
-    return new BatchAppenderatorDriver(
-        appenderator,
-        segmentAllocator,
-        new ActionBasedUsedSegmentChecker(toolbox.getTaskActionClient()),
-        toolbox.getDataSegmentKiller()
-    );
   }
 
   @Override

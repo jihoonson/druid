@@ -34,6 +34,7 @@ import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
+import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.common.task.AbstractBatchIndexTask;
 import org.apache.druid.indexing.common.task.ClientBasedTaskInfoProvider;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
@@ -59,6 +60,7 @@ import org.apache.druid.utils.CompressionUtils;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -83,11 +85,18 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
   private static final int NUM_FETCH_RETRIES = 3;
 
   private final byte[] buffer = new byte[BUFFER_SIZE];
+
+  @GuardedBy("this")
+  private final Closer resourceCloserOnAbnormalExit = Closer.create();
+
   private final int numAttempts;
   private final PartialSegmentMergeIngestionSpec ingestionSchema;
   private final String supervisorTaskId;
   private final IndexingServiceClient indexingServiceClient;
   private final IndexTaskClientFactory<ParallelIndexTaskClient> taskClientFactory;
+
+  @GuardedBy("this")
+  private boolean stopped = false;
 
   @JsonCreator
   public PartialSegmentMergeTask(
@@ -201,8 +210,25 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
   }
 
   @Override
+  public void stopGracefully(TaskConfig taskConfig) throws IOException
+  {
+    synchronized (this) {
+      stopped = true;
+      resourceCloserOnAbnormalExit.close();
+    }
+  }
+
+  @Override
   public TaskStatus run(TaskToolbox toolbox) throws Exception
   {
+    synchronized (this) {
+      if (stopped) {
+        return TaskStatus.failure(getId());
+      } else {
+        resourceCloserOnAbnormalExit.register(() -> Thread.currentThread().interrupt());
+      }
+    }
+
     // Group partitionLocations by interval and partitionId
     final Map<Interval, Int2ObjectMap<List<PartitionLocation>>> intervalToPartitions = new HashMap<>();
     for (PartitionLocation location : ingestionSchema.getIOConfig().getPartitionLocations()) {
@@ -344,9 +370,6 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
 
         // Retry pushing segments because uploading to deep storage might fail especially for cloud storage types
         final DataSegment segment = RetryUtils.retry(
-            // The appenderator is currently being used for the local indexing task and the Kafka indexing task. For the
-            // Kafka indexing task, pushers must use unique file paths in deep storage in order to maintain exactly-once
-            // semantics.
             () -> segmentPusher.push(
                 mergedFileAndDimensionNames.lhs,
                 new DataSegment(

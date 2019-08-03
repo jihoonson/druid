@@ -19,6 +19,7 @@
 
 package org.apache.druid.indexing.common.task.batch.parallel;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.InputSplit;
@@ -70,7 +71,19 @@ public class PartialSegmentGenerateParallelIndexTaskRunner
     return baseFirehoseFactory.getNumSplits();
   }
 
-  private SubTaskSpec<PartialSegmentGenerateTask> newTaskSpec(InputSplit split)
+  @VisibleForTesting
+  ParallelIndexIngestionSpec getIngestionSchema()
+  {
+    return ingestionSchema;
+  }
+
+  @VisibleForTesting
+  FiniteFirehoseFactory<?, ?> getBaseFirehoseFactory()
+  {
+    return baseFirehoseFactory;
+  }
+
+  SubTaskSpec<PartialSegmentGenerateTask> newTaskSpec(InputSplit split)
   {
     final ParallelIndexIngestionSpec subTaskIngestionSpec = new ParallelIndexIngestionSpec(
         ingestionSchema.getDataSchema(),
@@ -99,7 +112,7 @@ public class PartialSegmentGenerateParallelIndexTaskRunner
             numAttempts,
             subTaskIngestionSpec,
             getContext(),
-            null,
+            getIndexingServiceClient(),
             null
         );
       }

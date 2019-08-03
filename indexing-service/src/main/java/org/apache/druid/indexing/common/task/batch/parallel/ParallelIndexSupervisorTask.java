@@ -233,6 +233,12 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   }
 
   @VisibleForTesting
+  IndexingServiceClient getIndexingServiceClient()
+  {
+    return indexingServiceClient;
+  }
+
+  @VisibleForTesting
   @Nullable
   ParallelIndexTaskRunner createRunner(TaskToolbox toolbox, Supplier<ParallelIndexTaskRunner> runnerSupplier)
   {
@@ -250,6 +256,19 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   SinglePhaseParallelIndexTaskRunner createSinglePhaseTaskRunner(TaskToolbox toolbox)
   {
     return new SinglePhaseParallelIndexTaskRunner(
+        toolbox,
+        getId(),
+        getGroupId(),
+        ingestionSchema,
+        getContext(),
+        indexingServiceClient
+    );
+  }
+
+  @VisibleForTesting
+  public PartialSegmentGenerateParallelIndexTaskRunner createPartialSegmentGenerateRunner(TaskToolbox toolbox)
+  {
+    return new PartialSegmentGenerateParallelIndexTaskRunner(
         toolbox,
         getId(),
         getGroupId(),

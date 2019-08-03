@@ -94,7 +94,6 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
     this.context = context;
     this.maxNumTasks = tuningConfig.getMaxNumSubTasks();
     this.indexingServiceClient = Preconditions.checkNotNull(indexingServiceClient, "indexingServiceClient");
-
   }
 
   @Override
@@ -430,6 +429,9 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
     return tuningConfig;
   }
 
+  abstract Iterator<SubTaskSpec<SubTaskType>> subTaskSpecIterator() throws IOException;
+  abstract int getTotalNumSubTasks() throws IOException;
+
   @VisibleForTesting
   TaskToolbox getToolbox()
   {
@@ -449,6 +451,9 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
     return nextSpecId++;
   }
 
-  abstract Iterator<SubTaskSpec<SubTaskType>> subTaskSpecIterator() throws IOException;
-  abstract int getTotalNumSubTasks() throws IOException;
+  @VisibleForTesting
+  IndexingServiceClient getIndexingServiceClient()
+  {
+    return indexingServiceClient;
+  }
 }
