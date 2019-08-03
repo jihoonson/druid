@@ -101,6 +101,7 @@ import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -232,22 +233,30 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   }
 
   @VisibleForTesting
-  ParallelIndexTaskRunner createRunner(TaskToolbox toolbox)
+  @Nullable
+  ParallelIndexTaskRunner createRunner(TaskToolbox toolbox, Supplier<ParallelIndexTaskRunner> runnerSupplier)
   {
-    this.toolbox = toolbox;
-    if (ingestionSchema.getTuningConfig().isForceGuaranteedRollup()) {
-      throw new UnsupportedOperationException("Perfect roll-up is not supported yet");
-    } else {
-      runner = new SinglePhaseParallelIndexTaskRunner(
-          toolbox,
-          getId(),
-          getGroupId(),
-          ingestionSchema,
-          getContext(),
-          indexingServiceClient
-      );
+    synchronized (this) {
+      if (stopped) {
+        return null;
+      }
+      this.toolbox = toolbox;
+      this.runner = runnerSupplier.get();
+      return runner;
     }
-    return runner;
+  }
+
+  @VisibleForTesting
+  SinglePhaseParallelIndexTaskRunner createSinglePhaseTaskRunner(TaskToolbox toolbox)
+  {
+    return new SinglePhaseParallelIndexTaskRunner(
+        toolbox,
+        getId(),
+        getGroupId(),
+        ingestionSchema,
+        getContext(),
+        indexingServiceClient
+    );
   }
 
   @VisibleForTesting
@@ -383,7 +392,10 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
       if (stopped) {
         return TaskStatus.failure(getId());
       }
-      createRunner(toolbox);
+      createRunner(
+          toolbox,
+          () -> createSinglePhaseTaskRunner(toolbox)
+      );
     }
     final TaskState state = Preconditions.checkNotNull(runner, "runner").run();
     if (state.isSuccess()) {

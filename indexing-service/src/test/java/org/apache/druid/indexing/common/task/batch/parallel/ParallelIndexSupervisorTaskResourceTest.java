@@ -502,17 +502,13 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     }
 
     @Override
-    ParallelIndexTaskRunner createRunner(TaskToolbox toolbox)
+    SinglePhaseParallelIndexTaskRunner createSinglePhaseTaskRunner(TaskToolbox toolbox)
     {
-      setToolbox(toolbox);
-      setRunner(
-          new TestRunner(
-              toolbox,
-              this,
-              indexingServiceClient
-          )
+      return new TestRunner(
+          toolbox,
+          this,
+          indexingServiceClient
       );
-      return getRunner();
     }
   }
 

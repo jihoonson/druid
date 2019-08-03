@@ -65,7 +65,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RunWith(Parameterized.class)
-public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSupervisorTaskTest
+public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSupervisorTaskTest
 {
   @Parameterized.Parameters(name = "{0}")
   public static Iterable<Object[]> constructorFeeder()
@@ -79,7 +79,7 @@ public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSuperv
   private final LockGranularity lockGranularity;
   private File inputDir;
 
-  public ParallelIndexSupervisorTaskTest(LockGranularity lockGranularity)
+  public SinglePhaseParallelIndexingTest(LockGranularity lockGranularity)
   {
     this.lockGranularity = lockGranularity;
   }
@@ -131,7 +131,7 @@ public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSuperv
     prepareTaskForLocking(task);
     Assert.assertTrue(task.isReady(actionClient));
 
-    final SinglePhaseParallelIndexTaskRunner runner = (SinglePhaseParallelIndexTaskRunner) task.createRunner(toolbox);
+    final SinglePhaseParallelIndexTaskRunner runner = task.createSinglePhaseTaskRunner(toolbox);
     final Iterator<SubTaskSpec<ParallelIndexSubTask>> subTaskSpecIterator = runner.subTaskSpecIterator();
 
     while (subTaskSpecIterator.hasNext()) {
@@ -452,17 +452,13 @@ public class ParallelIndexSupervisorTaskTest extends AbstractParallelIndexSuperv
     }
 
     @Override
-    ParallelIndexTaskRunner createRunner(TaskToolbox toolbox)
+    SinglePhaseParallelIndexTaskRunner createSinglePhaseTaskRunner(TaskToolbox toolbox)
     {
-      setToolbox(toolbox);
-      setRunner(
-          new TestSinglePhaseRunner(
-              toolbox,
-              this,
-              indexingServiceClient
-          )
+      return new TestSinglePhaseRunner(
+          toolbox,
+          this,
+          indexingServiceClient
       );
-      return getRunner();
     }
   }
 
