@@ -45,13 +45,13 @@ import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.actions.TimeChunkLockTryAcquireAction;
-import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.AbstractBatchIndexTask;
 import org.apache.druid.indexing.common.task.IndexTask;
 import org.apache.druid.indexing.common.task.IndexTask.IndexIngestionSpec;
 import org.apache.druid.indexing.common.task.IndexTask.IndexTuningConfig;
 import org.apache.druid.indexing.common.task.IndexTaskUtils;
+import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.common.task.batch.parallel.GeneratedPartitionsReport.PartitionStat;
@@ -101,7 +101,7 @@ import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -143,8 +143,6 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   private volatile ParallelIndexTaskRunner runner;
   private volatile IndexTask sequentialIndexTask;
-
-  private boolean stopped = false;
 
   // toolbox is initlized when run() is called, and can be used for processing HTTP endpoint requests.
   private volatile TaskToolbox toolbox;
@@ -240,15 +238,20 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   @VisibleForTesting
   @Nullable
-  ParallelIndexTaskRunner createRunner(TaskToolbox toolbox, Supplier<ParallelIndexTaskRunner> runnerSupplier)
+  <T extends Task, R extends SubTaskReport> ParallelIndexTaskRunner<T, R> createRunner(
+      TaskToolbox toolbox,
+      Function<TaskToolbox, ParallelIndexTaskRunner<T, R>> runnerCreator
+  )
   {
     synchronized (this) {
-      if (stopped) {
+      if (!isStopped()) {
+        this.toolbox = toolbox;
+        this.runner = runnerCreator.apply(toolbox);
+        registerResourceCloserOnAbnormalExit(config -> runner.stopGracefully());
+        return runner;
+      } else {
         return null;
       }
-      this.toolbox = toolbox;
-      this.runner = runnerSupplier.get();
-      return runner;
     }
   }
 
@@ -273,6 +276,24 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
         getId(),
         getGroupId(),
         ingestionSchema,
+        getContext(),
+        indexingServiceClient
+    );
+  }
+
+  @VisibleForTesting
+  public PartialSegmentMergeParallelIndexTaskRunner createPartialSegmentMergeRunner(
+      TaskToolbox toolbox,
+      List<PartialSegmentMergeIOConfig> ioConfigs
+  )
+  {
+    return new PartialSegmentMergeParallelIndexTaskRunner(
+        toolbox,
+        getId(),
+        getGroupId(),
+        getIngestionSchema().getDataSchema(),
+        ioConfigs,
+        getIngestionSchema().getTuningConfig(),
         getContext(),
         indexingServiceClient
     );
@@ -327,20 +348,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   }
 
   @Override
-  public void stopGracefully(TaskConfig taskConfig)
-  {
-    synchronized (this) {
-      stopped = true;
-    }
-    if (runner != null) {
-      runner.stopGracefully();
-    } else if (sequentialIndexTask != null) {
-      sequentialIndexTask.stopGracefully(taskConfig);
-    }
-  }
-
-  @Override
-  public TaskStatus run(TaskToolbox toolbox) throws Exception
+  public TaskStatus runTask(TaskToolbox toolbox) throws Exception
   {
     if (ingestionSchema.getTuningConfig().getMaxSavedParseExceptions()
         != TuningConfig.DEFAULT_MAX_SAVED_PARSE_EXCEPTIONS) {
@@ -407,36 +415,36 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   private TaskStatus runSinglePhaseParallel(TaskToolbox toolbox) throws Exception
   {
-    synchronized (this) {
-      if (stopped) {
-        return TaskStatus.failure(getId());
+    final ParallelIndexTaskRunner<ParallelIndexSubTask, PushedSegmentsReport> runner = createRunner(
+        toolbox,
+        this::createSinglePhaseTaskRunner
+    );
+
+    if (runner != null) {
+      final TaskState state = Preconditions.checkNotNull(runner, "runner").run();
+      if (state.isSuccess()) {
+        publishSegments(toolbox, runner.getReports());
       }
-      createRunner(
-          toolbox,
-          () -> createSinglePhaseTaskRunner(toolbox)
-      );
+      return TaskStatus.fromCode(getId(), state);
+    } else {
+      return TaskStatus.failure(getId());
     }
-    final TaskState state = Preconditions.checkNotNull(runner, "runner").run();
-    if (state.isSuccess()) {
-      publishSegments(toolbox, runner.getReports());
-    }
-    return TaskStatus.fromCode(getId(), state);
   }
 
   private TaskStatus runMultiPhaseParallel(TaskToolbox toolbox) throws Exception
   {
-    runner = new PartialSegmentGenerateParallelIndexTaskRunner(
+    final ParallelIndexTaskRunner<PartialSegmentGenerateTask, GeneratedPartitionsReport> indexingRunner = createRunner(
         toolbox,
-        getId(),
-        getGroupId(),
-        ingestionSchema,
-        getContext(),
-        indexingServiceClient
+        this::createPartialSegmentGenerateRunner
     );
-    TaskState state = runner.run();
+    if (indexingRunner == null) {
+      return TaskStatus.failure(getId());
+    }
+
+    TaskState state = indexingRunner.run();
     if (state.isSuccess()) {
       // report -> partition location
-      final Map<String, GeneratedPartitionsReport> reports = runner.getReports();
+      final Map<String, GeneratedPartitionsReport> reports = indexingRunner.getReports();
       final Int2ObjectMap<List<PartitionLocation>> partitionIdToLocations = new Int2ObjectOpenHashMap<>();
       for (Entry<String, GeneratedPartitionsReport> entry : reports.entrySet()) {
         final String subTaskId = entry.getKey();
@@ -463,19 +471,17 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
           partitionIdToLocations
       );
 
-      runner = new PartialSegmentMergeParallelIndexTaskRunner(
+      final ParallelIndexTaskRunner<PartialSegmentMergeTask, PushedSegmentsReport> mergeRunner = createRunner(
           toolbox,
-          getId(),
-          getGroupId(),
-          getIngestionSchema().getDataSchema(),
-          ioConfigs,
-          getIngestionSchema().getTuningConfig(),
-          getContext(),
-          indexingServiceClient
+          tb -> createPartialSegmentMergeRunner(tb, ioConfigs)
       );
-      state = runner.run();
+      if (mergeRunner == null) {
+        return TaskStatus.failure(getId());
+      }
+
+      state = mergeRunner.run();
       if (state.isSuccess()) {
-        publishSegments(toolbox, runner.getReports());
+        publishSegments(toolbox, mergeRunner.getReports());
       }
     }
 
@@ -547,28 +553,24 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   private TaskStatus runSequential(TaskToolbox toolbox) throws Exception
   {
-    synchronized (this) {
-      if (stopped) {
-        return TaskStatus.failure(getId());
-      }
-      sequentialIndexTask = new IndexTask(
-          getId(),
-          getGroupId(),
-          getTaskResource(),
-          getDataSource(),
-          new IndexIngestionSpec(
-              getIngestionSchema().getDataSchema(),
-              getIngestionSchema().getIOConfig(),
-              convertToIndexTuningConfig(getIngestionSchema().getTuningConfig())
-          ),
-          getContext(),
-          authorizerMapper,
-          chatHandlerProvider,
-          rowIngestionMetersFactory,
-          appenderatorsManager
-      );
-    }
+    sequentialIndexTask = new IndexTask(
+        getId(),
+        getGroupId(),
+        getTaskResource(),
+        getDataSource(),
+        new IndexIngestionSpec(
+            getIngestionSchema().getDataSchema(),
+            getIngestionSchema().getIOConfig(),
+            convertToIndexTuningConfig(getIngestionSchema().getTuningConfig())
+        ),
+        getContext(),
+        authorizerMapper,
+        chatHandlerProvider,
+        rowIngestionMetersFactory,
+        appenderatorsManager
+    );
     if (sequentialIndexTask.isReady(toolbox.getTaskActionClient())) {
+      registerResourceCloserOnAbnormalExit(config -> sequentialIndexTask.stopGracefully(config));
       return sequentialIndexTask.run(toolbox);
     } else {
       return TaskStatus.failure(getId());

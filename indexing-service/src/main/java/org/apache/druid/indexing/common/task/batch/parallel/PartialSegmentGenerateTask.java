@@ -30,7 +30,6 @@ import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
-import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.common.stats.DropwizardRowIngestionMeters;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.task.AbstractBatchIndexTask;
@@ -47,7 +46,6 @@ import org.apache.druid.indexing.common.task.batch.parallel.GeneratedPartitionsR
 import org.apache.druid.indexing.worker.ShuffleDataSegmentPusher;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.granularity.Granularity;
-import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.query.DruidMetrics;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
@@ -65,7 +63,6 @@ import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
@@ -79,18 +76,12 @@ public class PartialSegmentGenerateTask extends AbstractBatchIndexTask
 {
   public static final String TYPE = "partial_index_generate";
 
-  @GuardedBy("this")
-  private final Closer resourceCloserOnAbnormalExit = Closer.create();
-
   private final int numAttempts;
   private final ParallelIndexIngestionSpec ingestionSchema;
   private final String supervisorTaskId;
   private final IndexingServiceClient indexingServiceClient;
   private final IndexTaskClientFactory<ParallelIndexTaskClient> taskClientFactory;
   private final AppenderatorsManager appenderatorsManager;
-
-  @GuardedBy("this")
-  private boolean stopped = false;
 
   @JsonCreator
   public PartialSegmentGenerateTask(
@@ -209,25 +200,8 @@ public class PartialSegmentGenerateTask extends AbstractBatchIndexTask
   }
 
   @Override
-  public void stopGracefully(TaskConfig taskConfig) throws IOException
+  public TaskStatus runTask(TaskToolbox toolbox) throws Exception
   {
-    synchronized (this) {
-      stopped = true;
-      resourceCloserOnAbnormalExit.close();
-    }
-  }
-
-  @Override
-  public TaskStatus run(TaskToolbox toolbox) throws Exception
-  {
-    synchronized (this) {
-      if (stopped) {
-        return TaskStatus.failure(getId());
-      } else {
-        resourceCloserOnAbnormalExit.register(() -> Thread.currentThread().interrupt());
-      }
-    }
-
     final FirehoseFactory firehoseFactory = ingestionSchema.getIOConfig().getFirehoseFactory();
 
     final File firehoseTempDir = toolbox.getFirehoseTemporaryDir();
@@ -319,9 +293,7 @@ public class PartialSegmentGenerateTask extends AbstractBatchIndexTask
       // try-with-resources block will call close() first, which leads to the laster closeNow() call to be ignored.
       // As a result, closeNow() should be called before the current thread is interrupted.
       // Note that Closer closes registered closeables in LIFO order.
-      synchronized (this) {
-        resourceCloserOnAbnormalExit.register(appenderator::closeNow);
-      }
+      registerResourceCloserOnAbnormalExit(config -> appenderator.closeNow());
 
       driver.startJob();
 

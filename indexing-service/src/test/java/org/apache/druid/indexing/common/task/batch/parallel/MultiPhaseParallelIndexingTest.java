@@ -25,6 +25,7 @@ import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.task.TaskResource;
+import org.apache.druid.indexing.common.task.TestAppenderatorsManager;
 import org.apache.druid.java.util.common.StringUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -188,7 +189,8 @@ public class MultiPhaseParallelIndexingTest extends AbstractParallelIndexSupervi
               subTaskIngestionSpec,
               getContext(),
               null,
-              new LocalParallelIndexTaskClientFactory(supervisorTask)
+              new LocalParallelIndexTaskClientFactory(supervisorTask),
+              new TestAppenderatorsManager()
           );
         }
       };

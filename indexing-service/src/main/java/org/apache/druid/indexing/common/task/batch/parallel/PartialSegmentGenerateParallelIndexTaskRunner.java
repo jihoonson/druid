@@ -113,6 +113,7 @@ public class PartialSegmentGenerateParallelIndexTaskRunner
             subTaskIngestionSpec,
             getContext(),
             getIndexingServiceClient(),
+            null,
             null
         );
       }

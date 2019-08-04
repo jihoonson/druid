@@ -142,7 +142,6 @@ public class NoopTask extends AbstractTask
   @Override
   public void stopGracefully(TaskConfig taskConfig)
   {
-
   }
 
   @Override

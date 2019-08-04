@@ -37,7 +37,6 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
 import org.apache.druid.indexing.common.actions.SurrogateAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
-import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.common.task.AbstractBatchIndexTask;
 import org.apache.druid.indexing.common.task.BatchAppenderators;
 import org.apache.druid.indexing.common.task.ClientBasedTaskInfoProvider;
@@ -78,7 +77,6 @@ import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
@@ -107,13 +105,6 @@ public class ParallelIndexSubTask extends AbstractBatchIndexTask
   private final IndexingServiceClient indexingServiceClient;
   private final IndexTaskClientFactory<ParallelIndexTaskClient> taskClientFactory;
   private final AppenderatorsManager appenderatorsManager;
-
-  @GuardedBy("this")
-  private Appenderator appenderator;
-  @GuardedBy("this")
-  private Thread runThread;
-  @GuardedBy("this")
-  private boolean stopped = false;
 
   /**
    * If intervals are missing in the granularitySpec, parallel index task runs in "dynamic locking mode".
@@ -209,16 +200,8 @@ public class ParallelIndexSubTask extends AbstractBatchIndexTask
   }
 
   @Override
-  public TaskStatus run(final TaskToolbox toolbox) throws Exception
+  public TaskStatus runTask(final TaskToolbox toolbox) throws Exception
   {
-    synchronized (this) {
-      if (stopped) {
-        return TaskStatus.failure(getId());
-      } else {
-        runThread = Thread.currentThread();
-      }
-    }
-
     if (missingIntervalsInOverwriteMode) {
       LOG.warn(
           "Intervals are missing in granularitySpec while this task is potentially overwriting existing segments. "
@@ -440,9 +423,7 @@ public class ParallelIndexSubTask extends AbstractBatchIndexTask
         final BatchAppenderatorDriver driver = BatchAppenderators.newDriver(appenderator, toolbox, segmentAllocator);
         final Firehose firehose = firehoseFactory.connect(dataSchema.getParser(), firehoseTempDir)
     ) {
-      synchronized (this) {
-        this.appenderator = appenderator;
-      }
+      registerResourceCloserOnAbnormalExit(config -> appenderator.closeNow());
       driver.startJob();
 
       final Set<DataSegment> pushedSegments = new HashSet<>();
@@ -513,20 +494,6 @@ public class ParallelIndexSubTask extends AbstractBatchIndexTask
     }
     catch (TimeoutException | ExecutionException e) {
       throw new RuntimeException(e);
-    }
-  }
-
-  @Override
-  public void stopGracefully(TaskConfig taskConfig)
-  {
-    synchronized (this) {
-      stopped = true;
-      if (appenderator != null) {
-        appenderator.closeNow();
-      }
-      if (runThread != null) {
-        runThread.interrupt();
-      }
     }
   }
 }
