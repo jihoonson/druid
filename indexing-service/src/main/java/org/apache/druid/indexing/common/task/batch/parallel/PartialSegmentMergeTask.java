@@ -22,7 +22,9 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Stopwatch;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.apache.commons.io.FileUtils;
@@ -33,6 +35,7 @@ import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
+import org.apache.druid.indexing.common.actions.SurrogateAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.task.AbstractBatchIndexTask;
 import org.apache.druid.indexing.common.task.ClientBasedTaskInfoProvider;
@@ -72,6 +75,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class PartialSegmentMergeTask extends AbstractBatchIndexTask
@@ -190,14 +194,8 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
   }
 
   @Override
-  public boolean isReady(TaskActionClient taskActionClient) throws Exception
+  public boolean isReady(TaskActionClient taskActionClient)
   {
-    final List<TaskLock> locks = taskActionClient.submit(new LockListAction());
-    for (TaskLock lock : locks) {
-      if (lock.isRevoked()) {
-        throw new ISE("Lock[%s] is revoked");
-      }
-    }
     return true;
   }
 
@@ -212,7 +210,9 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
                          .add(location);
     }
 
-    final List<TaskLock> locks = toolbox.getTaskActionClient().submit(new LockListAction());
+    final List<TaskLock> locks = toolbox.getTaskActionClient().submit(
+        new SurrogateAction<>(supervisorTaskId, new LockListAction())
+    );
     final Map<Interval, String> intervalToVersion = new HashMap<>(locks.size());
     locks.forEach(lock -> {
       if (lock.isRevoked()) {
@@ -229,10 +229,16 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
       }
     });
 
+    LOG.info("locks: [%s]", locks);
+
+    final Stopwatch fetchStopwatch = Stopwatch.createStarted();
     final Map<Interval, Int2ObjectMap<List<File>>> intervalToUnzippedFiles = fetchSegmentFiles(
         toolbox,
         intervalToPartitions
     );
+    final long fetchTime = fetchStopwatch.elapsed(TimeUnit.SECONDS);
+    fetchStopwatch.stop();
+    LOG.info("Fetch took [%s] seconds", fetchTime);
 
     final ParallelIndexTaskClient taskClient = taskClientFactory.build(
         new ClientBasedTaskInfoProvider(indexingServiceClient),
@@ -246,7 +252,7 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
         .getTuningConfig().getGivenOrDefaultPartitionsSpec();
 
     final File persistDir = toolbox.getPersistDir();
-    FileUtils.forceDelete(persistDir);
+    FileUtils.deleteQuietly(persistDir);
     FileUtils.forceMkdir(persistDir);
 
     final Set<DataSegment> pushedSegments = mergeAndPushSegments(
@@ -284,21 +290,12 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
             interval.getEnd().toString(),
             Integer.toString(partitionId)
         );
-        int tempFileSuffix = 0;
+        FileUtils.forceMkdir(partitionDir);
         for (PartitionLocation location : entryPerPartitionId.getValue()) {
-          final File zippedFile = new File(partitionDir, StringUtils.format("temp_%d", tempFileSuffix++));
-          final URI uri = location.toIntermediaryDataServerURI(supervisorTaskId);
-          try (InputStream inputStream = uri.toURL().openStream()) {
-            Fetchers.fetch(
-                inputStream,
-                zippedFile,
-                buffer,
-                t -> t instanceof IOException,
-                NUM_FETCH_RETRIES,
-                StringUtils.format("Failed to fetch file[%s]", uri)
-            );
-
-            final File unzippedDir = new File(partitionDir, location.getSubTaskId());
+          final File zippedFile = fetchSegmentFile(partitionDir, location);
+          try {
+            final File unzippedDir = new File(partitionDir, StringUtils.format("unzipped_%s", location.getSubTaskId()));
+            FileUtils.forceMkdir(unzippedDir);
             CompressionUtils.unzip(zippedFile, unzippedDir);
             intervalToUnzippedFiles.computeIfAbsent(interval, k -> new Int2ObjectOpenHashMap<>())
                                    .computeIfAbsent(partitionId, k -> new ArrayList<>())
@@ -313,6 +310,24 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
       }
     }
     return intervalToUnzippedFiles;
+  }
+
+  @VisibleForTesting
+  File fetchSegmentFile(File partitionDir, PartitionLocation location) throws IOException
+  {
+    final File zippedFile = new File(partitionDir, StringUtils.format("temp_%s", location.getSubTaskId()));
+    final URI uri = location.toIntermediaryDataServerURI(supervisorTaskId);
+    try (InputStream inputStream = uri.toURL().openStream()) {
+      Fetchers.fetch(
+          inputStream,
+          zippedFile,
+          buffer,
+          t -> t instanceof IOException,
+          NUM_FETCH_RETRIES,
+          StringUtils.format("Failed to fetch file[%s]", uri)
+      );
+    }
+    return zippedFile;
   }
 
   private Set<DataSegment> mergeAndPushSegments(
@@ -350,7 +365,7 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
                 new DataSegment(
                     getDataSource(),
                     interval,
-                    Preconditions.checkNotNull(intervalToVersion.get(interval), "version"),
+                    Preconditions.checkNotNull(intervalToVersion.get(interval), "version for interval[%s]", interval),
                     null, // will be filled in the segmentPusher
                     mergedFileAndDimensionNames.rhs,
                     metricNames,

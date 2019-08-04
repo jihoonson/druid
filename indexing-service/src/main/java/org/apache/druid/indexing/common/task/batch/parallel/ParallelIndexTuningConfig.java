@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.google.common.base.Preconditions;
-import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexing.common.task.IndexTask.IndexTuningConfig;
 import org.apache.druid.segment.IndexSpec;
@@ -134,7 +133,7 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
         null,
         numShards,
         null,
-        getValidPartitionsSpec(maxRowsPerSegment, maxTotalRows, partitionsSpec),
+        partitionsSpec,
         indexSpec,
         indexSpecForIntermediatePersists,
         maxPendingPersists,
@@ -170,22 +169,6 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
     Preconditions.checkArgument(this.maxNumSubTasks > 0, "maxNumSubTasks must be positive");
     Preconditions.checkArgument(this.maxNumSegmentsToMerge > 0, "maxNumSegmentsToMerge must be positive");
     Preconditions.checkArgument(this.maxNumMergeTasks > 0, "maxNumMergeTasks must be positive");
-  }
-
-  private static PartitionsSpec getValidPartitionsSpec(
-      @Nullable Integer maxRowsPerSegment,
-      @Nullable Long maxTotalRows,
-      @Nullable PartitionsSpec partitionsSpec
-  )
-  {
-    if (partitionsSpec != null) {
-      if (!(partitionsSpec instanceof DynamicPartitionsSpec)) {
-        throw new UnsupportedOperationException("Parallel index task supports only dynamic partitionsSpec yet");
-      }
-      return partitionsSpec;
-    } else {
-      return new DynamicPartitionsSpec(maxRowsPerSegment, maxTotalRows);
-    }
   }
 
   @JsonProperty

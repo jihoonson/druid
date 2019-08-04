@@ -106,6 +106,27 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
   @Rule
   public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
+  private IntermediaryDataManager intermediaryDataManager;
+
+  protected void initializeIntermeidaryDataManager() throws IOException
+  {
+    intermediaryDataManager = new IntermediaryDataManager(
+        new WorkerConfig(),
+        new TaskConfig(
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            null,
+            null,
+            ImmutableList.of(new StorageLocationConfig(temporaryFolder.newFolder(), null, null))
+        ),
+        null
+    );
+  }
+
   class LocalIndexingServiceClient extends NoopIndexingServiceClient
   {
     private final ConcurrentMap<String, Future<TaskStatus>> tasks = new ConcurrentHashMap<>();
@@ -116,7 +137,7 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
     @Override
     public String runTask(Object taskObject)
     {
-      final ParallelIndexSubTask subTask = (ParallelIndexSubTask) taskObject;
+      final Task subTask = (Task) taskObject;
       tasks.put(subTask.getId(), service.submit(() -> {
         try {
           final TaskToolbox toolbox = createTaskToolbox(subTask);
@@ -256,21 +277,7 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
         null,
         null,
         new NoopTestTaskReportFileWriter(),
-        new IntermediaryDataManager(
-            new WorkerConfig(),
-            new TaskConfig(
-                null,
-                null,
-                null,
-                null,
-                null,
-                false,
-                null,
-                null,
-                ImmutableList.of(new StorageLocationConfig(temporaryFolder.newFolder(), null, null))
-            ),
-            null
-        )
+        intermediaryDataManager
     );
   }
 

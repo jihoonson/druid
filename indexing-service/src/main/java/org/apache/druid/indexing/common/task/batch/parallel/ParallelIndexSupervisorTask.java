@@ -27,10 +27,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
-import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.ints.IntList;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.FirehoseFactory;
@@ -58,6 +54,7 @@ import org.apache.druid.indexing.common.task.batch.parallel.GeneratedPartitionsR
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexTaskRunner.SubTaskSpecStatus;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.indexing.TuningConfig;
@@ -92,6 +89,7 @@ import javax.ws.rs.core.Response.Status;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -445,13 +443,13 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     if (state.isSuccess()) {
       // report -> partition location
       final Map<String, GeneratedPartitionsReport> reports = indexingRunner.getReports();
-      final Int2ObjectMap<List<PartitionLocation>> partitionIdToLocations = new Int2ObjectOpenHashMap<>();
+      final Map<Pair<Interval, Integer>, List<PartitionLocation>> partitionToLocations = new HashMap<>();
       for (Entry<String, GeneratedPartitionsReport> entry : reports.entrySet()) {
         final String subTaskId = entry.getKey();
         final GeneratedPartitionsReport report = entry.getValue();
         for (PartitionStat partitionStat : report.getPartitionStats()) {
-          final List<PartitionLocation> locationsOfSamePartition = partitionIdToLocations.computeIfAbsent(
-              partitionStat.getPartitionId(),
+          final List<PartitionLocation> locationsOfSamePartition = partitionToLocations.computeIfAbsent(
+              Pair.of(partitionStat.getInterval(), partitionStat.getPartitionId()),
               k -> new ArrayList<>()
           );
           locationsOfSamePartition.add(
@@ -468,7 +466,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
       final List<PartialSegmentMergeIOConfig> ioConfigs = createMergeIOConfigs(
           ingestionSchema.getTuningConfig().getMaxNumMergeTasks(),
-          partitionIdToLocations
+          partitionToLocations
       );
 
       final ParallelIndexTaskRunner<PartialSegmentMergeTask, PushedSegmentsReport> mergeRunner = createRunner(
@@ -490,22 +488,22 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   private List<PartialSegmentMergeIOConfig> createMergeIOConfigs(
       int maxNumMergeTasks,
-      Int2ObjectMap<List<PartitionLocation>> partitionIdToLocations
+      Map<Pair<Interval, Integer>, List<PartitionLocation>> partitionToLocations
   )
   {
-    final int numMergeTasks = Math.min(maxNumMergeTasks, partitionIdToLocations.size());
+    final int numMergeTasks = Math.min(maxNumMergeTasks, partitionToLocations.size());
     final List<PartialSegmentMergeIOConfig> assignedPartitionLocations = new ArrayList<>(numMergeTasks);
     // Randomly shuffle partitionIds to evenly distribute partitions of potentially different sizes
     // This will be improved once we collect partition stats properly.
     // See PartitionStat in GeneratedPartitionsReport.
-    final IntList partitionIds = new IntArrayList(partitionIdToLocations.keySet());
-    Collections.shuffle(partitionIds, ThreadLocalRandom.current());
-    final int numPartitionsPerTask = (int) Math.ceil(partitionIds.size() / (double) numMergeTasks);
-    for (int i = 0; i < partitionIds.size(); i += numPartitionsPerTask) {
+    final List<Pair<Interval, Integer>> partitions = new ArrayList<>(partitionToLocations.keySet());
+    Collections.shuffle(partitions, ThreadLocalRandom.current());
+    final int numPartitionsPerTask = (int) Math.ceil(partitions.size() / (double) numMergeTasks);
+    for (int i = 0; i < partitions.size(); i += numPartitionsPerTask) {
       final List<PartitionLocation> assingedToSameTask = new ArrayList<>(numPartitionsPerTask);
       for (int j = i; j < i + numPartitionsPerTask; j++) {
         // Assign all partitionLocations of the same partitionId to the same task.
-        assingedToSameTask.addAll(partitionIdToLocations.get(j));
+        assingedToSameTask.addAll(partitionToLocations.get(partitions.get(j)));
       }
       assignedPartitionLocations.add(new PartialSegmentMergeIOConfig(assingedToSameTask));
     }
