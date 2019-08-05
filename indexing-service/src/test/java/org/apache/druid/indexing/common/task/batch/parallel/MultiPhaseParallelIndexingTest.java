@@ -45,7 +45,9 @@ import org.joda.time.Interval;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -72,6 +74,9 @@ public class MultiPhaseParallelIndexingTest extends AbstractParallelIndexSupervi
         new Object[]{LockGranularity.SEGMENT}
     );
   }
+
+  @Rule
+  public ExpectedException expectedException = ExpectedException.none();
 
   private final LockGranularity lockGranularity;
   private File inputDir;
@@ -114,21 +119,61 @@ public class MultiPhaseParallelIndexingTest extends AbstractParallelIndexSupervi
   }
 
   @Test
-  public void test() throws Exception
+  public void testRun() throws Exception
   {
     runTestTask(Intervals.of("2017/2018"), Granularities.DAY);
   }
 
   @Test
-  public void testMissingIntervals()
+  public void testMissingIntervals() throws Exception
   {
-
+    expectedException.expect(IllegalStateException.class);
+    expectedException.expectMessage(
+        "forceGuaranteedRollup is set but numShards is missing in partitionsSpec "
+        + "or intervals is missing in granularitySpec"
+    );
+    runTestTask(null, Granularities.DAY);
   }
 
   @Test
   public void testMissingNumShards()
   {
-
+    expectedException.expect(IllegalStateException.class);
+    expectedException.expectMessage(
+        "forceGuaranteedRollup is set but numShards is missing in partitionsSpec "
+        + "or intervals is missing in granularitySpec"
+    );
+    newTask(
+        Intervals.of("2017/2018"),
+        Granularities.DAY,
+        new ParallelIndexIOConfig(new LocalFirehoseFactory(inputDir, "test_*", null), false),
+        new ParallelIndexTuningConfig(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new HashedPartitionsSpec(null, null, null),
+            null,
+            null,
+            null,
+            true,
+            null,
+            null,
+            null,
+            2,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        )
+    );
   }
 
   private void runTestTask(Interval interval, Granularity segmentGranularity) throws Exception
@@ -149,11 +194,6 @@ public class MultiPhaseParallelIndexingTest extends AbstractParallelIndexSupervi
     Assert.assertTrue(task.isReady(actionClient));
     Assert.assertEquals(TaskState.SUCCESS, task.run(toolbox).getStatusCode());
     shutdownTask(task);
-  }
-
-  private ParallelIndexSupervisorTask newTask(Interval interval, ParallelIndexIOConfig ioConfig)
-  {
-    return newTask(interval, Granularities.DAY, ioConfig);
   }
 
   private ParallelIndexSupervisorTask newTask(
