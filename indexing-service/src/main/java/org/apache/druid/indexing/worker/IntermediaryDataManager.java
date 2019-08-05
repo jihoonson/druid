@@ -234,21 +234,23 @@ public class IntermediaryDataManager
 
     LOG.info("Found [%s] expired supervisor tasks", expiredSupervisorTasks.size());
 
-    final Map<String, TaskStatus> taskStatuses = indexingServiceClient.getTaskStatuses(expiredSupervisorTasks);
-    for (Entry<String, TaskStatus> entry : taskStatuses.entrySet()) {
-      final String supervisorTaskId = entry.getKey();
-      final TaskStatus status = entry.getValue();
-      if (status.getStatusCode().isComplete()) {
-        // If it's finished, clean up all partitions for the supervisor task.
-        try {
-          deletePartitions(supervisorTaskId);
+    if (!expiredSupervisorTasks.isEmpty()) {
+      final Map<String, TaskStatus> taskStatuses = indexingServiceClient.getTaskStatuses(expiredSupervisorTasks);
+      for (Entry<String, TaskStatus> entry : taskStatuses.entrySet()) {
+        final String supervisorTaskId = entry.getKey();
+        final TaskStatus status = entry.getValue();
+        if (status.getStatusCode().isComplete()) {
+          // If it's finished, clean up all partitions for the supervisor task.
+          try {
+            deletePartitions(supervisorTaskId);
+          }
+          catch (IOException e) {
+            LOG.warn(e, "Failed to delete partitions for task[%s]", supervisorTaskId);
+          }
+        } else {
+          // If it's still running, update last access time.
+          supervisorTaskCheckTimes.put(supervisorTaskId, DateTimes.nowUtc());
         }
-        catch (IOException e) {
-          LOG.warn(e, "Failed to delete partitions for task[%s]", supervisorTaskId);
-        }
-      } else {
-        // If it's still running, update last access time.
-        supervisorTaskCheckTimes.put(supervisorTaskId, DateTimes.nowUtc());
       }
     }
   }

@@ -119,6 +119,18 @@ public class MultiPhaseParallelIndexingTest extends AbstractParallelIndexSupervi
     runTestTask(Intervals.of("2017/2018"), Granularities.DAY);
   }
 
+  @Test
+  public void testMissingIntervals()
+  {
+
+  }
+
+  @Test
+  public void testMissingNumShards()
+  {
+
+  }
+
   private void runTestTask(Interval interval, Granularity segmentGranularity) throws Exception
   {
     final ParallelIndexSupervisorTask task = newTask(

@@ -137,7 +137,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     final Future<TaskStatus> supervisorTaskFuture = service.submit(() -> task.run(toolbox));
     Thread.sleep(1000);
 
-    final SinglePhaseParallelIndexTaskRunner runner = (SinglePhaseParallelIndexTaskRunner) task.getRunner();
+    final SinglePhaseParallelIndexTaskRunner runner = (SinglePhaseParallelIndexTaskRunner) task.getCurrentRunner();
     Assert.assertNotNull("runner is null", runner);
 
     // test getMode

@@ -101,7 +101,7 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     Assert.assertTrue(task.isReady(actionClient));
 
     final Future<TaskState> future = service.submit(() -> task.run(toolbox).getStatusCode());
-    while (task.getRunner() == null) {
+    while (task.getCurrentRunner() == null) {
       Thread.sleep(100);
     }
     task.stopGracefully(null);
@@ -109,7 +109,7 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     expectedException.expectCause(CoreMatchers.instanceOf(InterruptedException.class));
     future.get();
 
-    final TestSinglePhaseParallelIndexTaskRunner runner = (TestSinglePhaseParallelIndexTaskRunner) task.getRunner();
+    final TestSinglePhaseParallelIndexTaskRunner runner = (TestSinglePhaseParallelIndexTaskRunner) task.getCurrentRunner();
     Assert.assertTrue(runner.getRunningTaskIds().isEmpty());
     // completeSubTaskSpecs should be empty because no task has reported its status to TaskMonitor
     Assert.assertTrue(runner.getCompleteSubTaskSpecs().isEmpty());
@@ -139,7 +139,7 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     final TaskState state = task.run(toolbox).getStatusCode();
     Assert.assertEquals(TaskState.FAILED, state);
 
-    final TestSinglePhaseParallelIndexTaskRunner runner = (TestSinglePhaseParallelIndexTaskRunner) task.getRunner();
+    final TestSinglePhaseParallelIndexTaskRunner runner = (TestSinglePhaseParallelIndexTaskRunner) task.getCurrentRunner();
     Assert.assertTrue(runner.getRunningTaskIds().isEmpty());
     final List<SubTaskSpec<ParallelIndexSubTask>> completeSubTaskSpecs = runner.getCompleteSubTaskSpecs();
     Assert.assertEquals(1, completeSubTaskSpecs.size());

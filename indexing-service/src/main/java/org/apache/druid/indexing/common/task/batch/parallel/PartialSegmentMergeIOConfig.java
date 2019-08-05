@@ -22,6 +22,7 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.google.common.base.Preconditions;
 import org.apache.druid.segment.indexing.IOConfig;
 
 import java.util.List;
@@ -34,6 +35,10 @@ public class PartialSegmentMergeIOConfig implements IOConfig
   @JsonCreator
   public PartialSegmentMergeIOConfig(@JsonProperty("partitionLocations") List<PartitionLocation> partitionLocations)
   {
+    Preconditions.checkState(
+        partitionLocations != null && !partitionLocations.isEmpty(),
+        "Empty partition locations"
+    );
     this.partitionLocations = partitionLocations;
   }
 

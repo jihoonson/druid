@@ -319,7 +319,7 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
     task.addToContext(Tasks.FORCE_TIME_CHUNK_LOCK_KEY, lockGranularity == LockGranularity.TIME_CHUNK);
     Assert.assertTrue(task.isReady(actionClient));
     Assert.assertEquals(TaskState.SUCCESS, task.run(toolbox).getStatusCode());
-    Assert.assertNull("Runner must be null if the task was in the sequential mode", task.getRunner());
+    Assert.assertNull("Runner must be null if the task was in the sequential mode", task.getCurrentRunner());
   }
 
   @Test

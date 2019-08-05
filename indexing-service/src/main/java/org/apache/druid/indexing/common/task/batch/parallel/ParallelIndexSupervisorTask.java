@@ -139,7 +139,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   private final ConcurrentHashMap<Interval, AtomicInteger> partitionNumCountersPerInterval = new ConcurrentHashMap<>();
 
-  private volatile ParallelIndexTaskRunner runner;
+  private volatile ParallelIndexTaskRunner currentRunner;
   private volatile IndexTask sequentialIndexTask;
 
   // toolbox is initlized when run() is called, and can be used for processing HTTP endpoint requests.
@@ -217,9 +217,9 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   @VisibleForTesting
   @Nullable
-  ParallelIndexTaskRunner getRunner()
+  ParallelIndexTaskRunner getCurrentRunner()
   {
-    return runner;
+    return currentRunner;
   }
 
   @VisibleForTesting
@@ -244,9 +244,9 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     synchronized (this) {
       if (!isStopped()) {
         this.toolbox = toolbox;
-        this.runner = runnerCreator.apply(toolbox);
-        registerResourceCloserOnAbnormalExit(config -> runner.stopGracefully());
-        return runner;
+        this.currentRunner = runnerCreator.apply(toolbox);
+        registerResourceCloserOnAbnormalExit(config -> currentRunner.stopGracefully());
+        return currentRunner;
       } else {
         return null;
       }
@@ -300,7 +300,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   @VisibleForTesting
   void setRunner(ParallelIndexTaskRunner runner)
   {
-    this.runner = runner;
+    this.currentRunner = runner;
   }
 
   @Override
@@ -431,6 +431,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   private TaskStatus runMultiPhaseParallel(TaskToolbox toolbox) throws Exception
   {
+    // 1. Partial segment generation phase
     final ParallelIndexTaskRunner<PartialSegmentGenerateTask, GeneratedPartitionsReport> indexingRunner = createRunner(
         toolbox,
         this::createPartialSegmentGenerateRunner
@@ -440,50 +441,65 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     }
 
     TaskState state = indexingRunner.run();
+    if (state.isFailure()) {
+      return TaskStatus.failure(getId());
+    }
+
+    // 2. Partial segment merge phase
+
+    // partition (interval, partitionId) -> partition locations
+    Map<Pair<Interval, Integer>, List<PartitionLocation>> partitionToLocations = groupPartitionLocationsPerPartition(
+        indexingRunner.getReports()
+    );
+    final List<PartialSegmentMergeIOConfig> ioConfigs = createMergeIOConfigs(
+        ingestionSchema.getTuningConfig().getMaxNumMergeTasks(),
+        partitionToLocations
+    );
+
+    final ParallelIndexTaskRunner<PartialSegmentMergeTask, PushedSegmentsReport> mergeRunner = createRunner(
+        toolbox,
+        tb -> createPartialSegmentMergeRunner(tb, ioConfigs)
+    );
+    if (mergeRunner == null) {
+      return TaskStatus.failure(getId());
+    }
+
+    state = mergeRunner.run();
     if (state.isSuccess()) {
-      // report -> partition location
-      final Map<String, GeneratedPartitionsReport> reports = indexingRunner.getReports();
-      final Map<Pair<Interval, Integer>, List<PartitionLocation>> partitionToLocations = new HashMap<>();
-      for (Entry<String, GeneratedPartitionsReport> entry : reports.entrySet()) {
-        final String subTaskId = entry.getKey();
-        final GeneratedPartitionsReport report = entry.getValue();
-        for (PartitionStat partitionStat : report.getPartitionStats()) {
-          final List<PartitionLocation> locationsOfSamePartition = partitionToLocations.computeIfAbsent(
-              Pair.of(partitionStat.getInterval(), partitionStat.getPartitionId()),
-              k -> new ArrayList<>()
-          );
-          locationsOfSamePartition.add(
-              new PartitionLocation(
-                  partitionStat.getTaskExecutorHost(),
-                  partitionStat.getTaskExecutorPort(),
-                  partitionStat.getInterval(),
-                  subTaskId,
-                  partitionStat.getPartitionId()
-              )
-          );
-        }
-      }
-
-      final List<PartialSegmentMergeIOConfig> ioConfigs = createMergeIOConfigs(
-          ingestionSchema.getTuningConfig().getMaxNumMergeTasks(),
-          partitionToLocations
-      );
-
-      final ParallelIndexTaskRunner<PartialSegmentMergeTask, PushedSegmentsReport> mergeRunner = createRunner(
-          toolbox,
-          tb -> createPartialSegmentMergeRunner(tb, ioConfigs)
-      );
-      if (mergeRunner == null) {
-        return TaskStatus.failure(getId());
-      }
-
-      state = mergeRunner.run();
-      if (state.isSuccess()) {
-        publishSegments(toolbox, mergeRunner.getReports());
-      }
+      publishSegments(toolbox, mergeRunner.getReports());
     }
 
     return TaskStatus.fromCode(getId(), state);
+  }
+
+  private Map<Pair<Interval, Integer>, List<PartitionLocation>> groupPartitionLocationsPerPartition(
+      // subTaskId -> report
+      Map<String, GeneratedPartitionsReport> reports
+  )
+  {
+    // partition (interval, partitionId) -> partition locations
+    final Map<Pair<Interval, Integer>, List<PartitionLocation>> partitionToLocations = new HashMap<>();
+    for (Entry<String, GeneratedPartitionsReport> entry : reports.entrySet()) {
+      final String subTaskId = entry.getKey();
+      final GeneratedPartitionsReport report = entry.getValue();
+      for (PartitionStat partitionStat : report.getPartitionStats()) {
+        final List<PartitionLocation> locationsOfSamePartition = partitionToLocations.computeIfAbsent(
+            Pair.of(partitionStat.getInterval(), partitionStat.getPartitionId()),
+            k -> new ArrayList<>()
+        );
+        locationsOfSamePartition.add(
+            new PartitionLocation(
+                partitionStat.getTaskExecutorHost(),
+                partitionStat.getTaskExecutorPort(),
+                partitionStat.getInterval(),
+                subTaskId,
+                partitionStat.getPartitionId()
+            )
+        );
+      }
+    }
+
+    return partitionToLocations;
   }
 
   private List<PartialSegmentMergeIOConfig> createMergeIOConfigs(
@@ -492,21 +508,37 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   )
   {
     final int numMergeTasks = Math.min(maxNumMergeTasks, partitionToLocations.size());
-    final List<PartialSegmentMergeIOConfig> assignedPartitionLocations = new ArrayList<>(numMergeTasks);
+    LOG.info(
+        "Number of merge tasks is set to [%d] based on maxNumMergeTasks[%d] and number of partitions[%d]",
+        numMergeTasks,
+        maxNumMergeTasks,
+        partitionToLocations.size()
+    );
     // Randomly shuffle partitionIds to evenly distribute partitions of potentially different sizes
     // This will be improved once we collect partition stats properly.
     // See PartitionStat in GeneratedPartitionsReport.
     final List<Pair<Interval, Integer>> partitions = new ArrayList<>(partitionToLocations.keySet());
     Collections.shuffle(partitions, ThreadLocalRandom.current());
-    final int numPartitionsPerTask = (int) Math.ceil(partitions.size() / (double) numMergeTasks);
-    for (int i = 0; i < partitions.size(); i += numPartitionsPerTask) {
-      final List<PartitionLocation> assingedToSameTask = new ArrayList<>(numPartitionsPerTask);
-      for (int j = i; j < i + numPartitionsPerTask; j++) {
-        // Assign all partitionLocations of the same partitionId to the same task.
-        assingedToSameTask.addAll(partitionToLocations.get(partitions.get(j)));
-      }
+    final int numPartitionsPerTask = (int) Math.round(partitions.size() / (double) numMergeTasks);
+
+    final List<PartialSegmentMergeIOConfig> assignedPartitionLocations = new ArrayList<>(numMergeTasks);
+    for (int i = 0; i < numMergeTasks - 1; i++) {
+      final List<PartitionLocation> assingedToSameTask = partitions
+          .subList(i * numPartitionsPerTask, (i + 1) * numPartitionsPerTask)
+          .stream()
+          .flatMap(intervalAndPartitionId -> partitionToLocations.get(intervalAndPartitionId).stream())
+          .collect(Collectors.toList());
       assignedPartitionLocations.add(new PartialSegmentMergeIOConfig(assingedToSameTask));
     }
+
+    // The last task is assigned all remaining partitions.
+    final List<PartitionLocation> assingedToSameTask = partitions
+        .subList((numMergeTasks - 1) * numPartitionsPerTask, partitions.size())
+        .stream()
+        .flatMap(intervalAndPartitionId -> partitionToLocations.get(intervalAndPartitionId).stream())
+        .collect(Collectors.toList());
+    assignedPartitionLocations.add(new PartialSegmentMergeIOConfig(assingedToSameTask));
+
     return assignedPartitionLocations;
   }
 
@@ -729,11 +761,11 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
         getDataSource(),
         authorizerMapper
     );
-    if (runner == null) {
+    if (currentRunner == null) {
       return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
     } else {
       //noinspection unchecked
-      runner.collectReport(report);
+      currentRunner.collectReport(report);
       return Response.ok().build();
     }
   }
@@ -755,10 +787,10 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   public Response getProgress(@Context final HttpServletRequest req)
   {
     IndexTaskUtils.datasourceAuthorizationCheck(req, Action.READ, getDataSource(), authorizerMapper);
-    if (runner == null) {
+    if (currentRunner == null) {
       return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
     } else {
-      return Response.ok(runner.getProgress()).build();
+      return Response.ok(currentRunner.getProgress()).build();
     }
   }
 
@@ -768,10 +800,10 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   public Response getRunningTasks(@Context final HttpServletRequest req)
   {
     IndexTaskUtils.datasourceAuthorizationCheck(req, Action.READ, getDataSource(), authorizerMapper);
-    if (runner == null) {
+    if (currentRunner == null) {
       return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
     } else {
-      return Response.ok(runner.getRunningTaskIds()).build();
+      return Response.ok(currentRunner.getRunningTaskIds()).build();
     }
   }
 
@@ -781,10 +813,10 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   public Response getSubTaskSpecs(@Context final HttpServletRequest req)
   {
     IndexTaskUtils.datasourceAuthorizationCheck(req, Action.READ, getDataSource(), authorizerMapper);
-    if (runner == null) {
+    if (currentRunner == null) {
       return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
     } else {
-      return Response.ok(runner.getSubTaskSpecs()).build();
+      return Response.ok(currentRunner.getSubTaskSpecs()).build();
     }
   }
 
@@ -794,10 +826,10 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   public Response getRunningSubTaskSpecs(@Context final HttpServletRequest req)
   {
     IndexTaskUtils.datasourceAuthorizationCheck(req, Action.READ, getDataSource(), authorizerMapper);
-    if (runner == null) {
+    if (currentRunner == null) {
       return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
     } else {
-      return Response.ok(runner.getRunningSubTaskSpecs()).build();
+      return Response.ok(currentRunner.getRunningSubTaskSpecs()).build();
     }
   }
 
@@ -807,10 +839,10 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   public Response getCompleteSubTaskSpecs(@Context final HttpServletRequest req)
   {
     IndexTaskUtils.datasourceAuthorizationCheck(req, Action.READ, getDataSource(), authorizerMapper);
-    if (runner == null) {
+    if (currentRunner == null) {
       return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
     } else {
-      return Response.ok(runner.getCompleteSubTaskSpecs()).build();
+      return Response.ok(currentRunner.getCompleteSubTaskSpecs()).build();
     }
   }
 
@@ -821,10 +853,10 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   {
     IndexTaskUtils.datasourceAuthorizationCheck(req, Action.READ, getDataSource(), authorizerMapper);
 
-    if (runner == null) {
+    if (currentRunner == null) {
       return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
     } else {
-      final SubTaskSpec subTaskSpec = runner.getSubTaskSpec(id);
+      final SubTaskSpec subTaskSpec = currentRunner.getSubTaskSpec(id);
       if (subTaskSpec == null) {
         return Response.status(Response.Status.NOT_FOUND).build();
       } else {
@@ -839,10 +871,10 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   public Response getSubTaskState(@PathParam("id") String id, @Context final HttpServletRequest req)
   {
     IndexTaskUtils.datasourceAuthorizationCheck(req, Action.READ, getDataSource(), authorizerMapper);
-    if (runner == null) {
+    if (currentRunner == null) {
       return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
     } else {
-      final SubTaskSpecStatus subTaskSpecStatus = runner.getSubTaskState(id);
+      final SubTaskSpecStatus subTaskSpecStatus = currentRunner.getSubTaskState(id);
       if (subTaskSpecStatus == null) {
         return Response.status(Response.Status.NOT_FOUND).build();
       } else {
@@ -860,10 +892,10 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   )
   {
     IndexTaskUtils.datasourceAuthorizationCheck(req, Action.READ, getDataSource(), authorizerMapper);
-    if (runner == null) {
+    if (currentRunner == null) {
       return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running yet").build();
     } else {
-      final TaskHistory taskHistory = runner.getCompleteSubTaskSpecAttemptHistory(id);
+      final TaskHistory taskHistory = currentRunner.getCompleteSubTaskSpecAttemptHistory(id);
       if (taskHistory == null) {
         return Response.status(Status.NOT_FOUND).build();
       } else {

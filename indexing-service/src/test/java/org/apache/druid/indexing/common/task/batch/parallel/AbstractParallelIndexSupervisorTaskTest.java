@@ -401,7 +401,7 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
     @Override
     public void report(String supervisorTaskId, SubTaskReport report)
     {
-      supervisorTask.getRunner().collectReport(report);
+      supervisorTask.getCurrentRunner().collectReport(report);
     }
   }
 }
