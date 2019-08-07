@@ -141,9 +141,9 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
 
     final TestSinglePhaseParallelIndexTaskRunner runner = (TestSinglePhaseParallelIndexTaskRunner) task.getCurrentRunner();
     Assert.assertTrue(runner.getRunningTaskIds().isEmpty());
-    final List<SubTaskSpec<ParallelIndexSubTask>> completeSubTaskSpecs = runner.getCompleteSubTaskSpecs();
+    final List<SubTaskSpec<SinglePhaseSubTask>> completeSubTaskSpecs = runner.getCompleteSubTaskSpecs();
     Assert.assertEquals(1, completeSubTaskSpecs.size());
-    final TaskHistory<ParallelIndexSubTask> history = runner.getCompleteSubTaskSpecAttemptHistory(
+    final TaskHistory<SinglePhaseSubTask> history = runner.getCompleteSubTaskSpecAttemptHistory(
         completeSubTaskSpecs.get(0).getId()
     );
     Assert.assertNotNull(history);
@@ -367,9 +367,9 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     }
 
     @Override
-    public ParallelIndexSubTask newSubTask(int numAttempts)
+    public SinglePhaseSubTask newSubTask(int numAttempts)
     {
-      return new TestParallelIndexSubTask(
+      return new TestSinglePhaseSubTask(
           null,
           getGroupId(),
           null,
@@ -383,9 +383,9 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     }
   }
 
-  private static class TestParallelIndexSubTask extends ParallelIndexSubTask
+  private static class TestSinglePhaseSubTask extends SinglePhaseSubTask
   {
-    private TestParallelIndexSubTask(
+    private TestSinglePhaseSubTask(
         @Nullable String id,
         String groupId,
         TaskResource taskResource,

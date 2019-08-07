@@ -26,7 +26,7 @@ import org.apache.druid.segment.realtime.appenderator.DummyForInjectionAppendera
 
 import java.util.Map;
 
-class ParallelIndexSubTaskSpec extends SubTaskSpec<ParallelIndexSubTask>
+class ParallelIndexSubTaskSpec extends SubTaskSpec<SinglePhaseSubTask>
 {
   private final ParallelIndexIngestionSpec ingestionSpec;
 
@@ -51,9 +51,9 @@ class ParallelIndexSubTaskSpec extends SubTaskSpec<ParallelIndexSubTask>
   }
 
   @Override
-  public ParallelIndexSubTask newSubTask(int numAttempts)
+  public SinglePhaseSubTask newSubTask(int numAttempts)
   {
-    return new ParallelIndexSubTask(
+    return new SinglePhaseSubTask(
         null,
         getGroupId(),
         null,

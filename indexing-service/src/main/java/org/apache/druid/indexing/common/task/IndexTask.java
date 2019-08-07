@@ -86,7 +86,6 @@ import org.apache.druid.server.security.Action;
 import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
-import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
@@ -113,7 +112,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -539,15 +537,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     return metrics;
   }
 
-  private static boolean isGuaranteedRollup(IndexIOConfig ioConfig, IndexTuningConfig tuningConfig)
-  {
-    Preconditions.checkState(
-        !tuningConfig.isForceGuaranteedRollup() || !ioConfig.isAppendToExisting(),
-        "Perfect rollup cannot be guaranteed when appending to existing dataSources"
-    );
-    return tuningConfig.isForceGuaranteedRollup();
-  }
-
   /**
    * Determines intervals and shardSpecs for input data.  This method first checks that it must determine intervals and
    * shardSpecs by itself.  Intervals must be determined if they are not specified in {@link GranularitySpec}.
@@ -604,38 +593,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
           determineIntervals
       );
     }
-  }
-
-  // TODO: Move to some util class
-  public static Map<Interval, Pair<ShardSpecFactory, Integer>> createShardSpecWithoutInputScan(
-      GranularitySpec granularitySpec,
-      IndexIOConfig ioConfig,
-      IndexTuningConfig tuningConfig,
-      PartitionsSpec nonNullPartitionsSpec
-  )
-  {
-    final Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec = new HashMap<>();
-    final SortedSet<Interval> intervals = granularitySpec.bucketIntervals().get();
-
-    if (isGuaranteedRollup(ioConfig, tuningConfig)) {
-      // Overwrite mode, guaranteed rollup: shardSpecs must be known in advance.
-      assert nonNullPartitionsSpec instanceof HashedPartitionsSpec;
-      final HashedPartitionsSpec partitionsSpec = (HashedPartitionsSpec) nonNullPartitionsSpec;
-      final int numShards = partitionsSpec.getNumShards() == null ? 1 : partitionsSpec.getNumShards();
-
-      for (Interval interval : intervals) {
-        allocateSpec.put(
-            interval,
-            createShardSpecFactoryForGuaranteedRollup(numShards, partitionsSpec.getPartitionDimensions())
-        );
-      }
-    } else {
-      for (Interval interval : intervals) {
-        allocateSpec.put(interval, null);
-      }
-    }
-
-    return allocateSpec;
   }
 
   private Map<Interval, Pair<ShardSpecFactory, Integer>> createShardSpecsFromInput(
@@ -701,14 +658,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     log.info("Found intervals and shardSpecs in %,dms", System.currentTimeMillis() - determineShardSpecsStartMillis);
 
     return allocateSpecs;
-  }
-
-  private static Pair<ShardSpecFactory, Integer> createShardSpecFactoryForGuaranteedRollup(
-      int numShards,
-      @Nullable List<String> partitionDimensions
-  )
-  {
-    return Pair.of(new HashBasedNumberedShardSpecFactory(partitionDimensions, numShards), numShards);
   }
 
   private Map<Interval, Optional<HyperLogLogCollector>> collectIntervalsAndShardSpecs(
@@ -857,11 +806,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       final PartitionsSpec partitionsSpec
   ) throws IOException, InterruptedException
   {
-    @Nullable
-    final DynamicPartitionsSpec dynamicPartitionsSpec = partitionsSpec instanceof DynamicPartitionsSpec
-                                                        ? (DynamicPartitionsSpec) partitionsSpec
-                                                        : null;
-    final GranularitySpec granularitySpec = dataSchema.getGranularitySpec();
     final FireDepartment fireDepartmentForMetrics =
         new FireDepartment(dataSchema, new RealtimeIOConfig(null, null), null);
     FireDepartmentMetrics buildSegmentsFireDepartmentMetrics = fireDepartmentForMetrics.getMetrics();

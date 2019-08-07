@@ -65,12 +65,9 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
   private final int maxNumTasks;
   private final IndexingServiceClient indexingServiceClient;
 
-  private final BlockingQueue<SubTaskCompleteEvent<SubTaskType>> taskCompleteEvents =
-      new LinkedBlockingDeque<>();
+  private final BlockingQueue<SubTaskCompleteEvent<SubTaskType>> taskCompleteEvents = new LinkedBlockingDeque<>();
 
-  /**
-   * subTaskId -> report
-   */
+  // subTaskId -> report
   private final ConcurrentHashMap<String, SubTaskReportType> reportsMap = new ConcurrentHashMap<>();
 
   private volatile boolean subTaskScheduleAndMonitorStopped;
@@ -429,9 +426,6 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
     return tuningConfig;
   }
 
-  abstract Iterator<SubTaskSpec<SubTaskType>> subTaskSpecIterator() throws IOException;
-  abstract int getTotalNumSubTasks() throws IOException;
-
   @VisibleForTesting
   TaskToolbox getToolbox()
   {
@@ -456,4 +450,8 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
   {
     return indexingServiceClient;
   }
+
+  abstract Iterator<SubTaskSpec<SubTaskType>> subTaskSpecIterator() throws IOException;
+
+  abstract int getTotalNumSubTasks() throws IOException;
 }

@@ -31,9 +31,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * ParallelIndexTaskRunner is the actual task runner of {@link ParallelIndexSupervisorTask}. There is currently a single
- * implementation, i.e. {@link SinglePhaseParallelIndexTaskRunner} which supports only best-effort roll-up. We can add
- * more implementations for different distributed indexing algorithms in the future.
+ * In parallel batch indexing, data ingestion can be done in a single or multiple phases.
+ * {@link ParallelIndexSupervisorTask} uses different implementations of this class to execute each phase.
+ *
+ * For best-effort rollup, the supervisor task uses {@link SinglePhaseParallelIndexTaskRunner} to
+ *
+ * There are currently three implementations
+ * - {@link SinglePhaseParallelIndexTaskRunner} for best-effort roll-up
+ * - {@link PartialSegmentGenerateParallelIndexTaskRunner} and {@link PartialSegmentMergeParallelIndexTaskRunner}
+ *   for perfect roll-up
  */
 public interface ParallelIndexTaskRunner<SubTaskType extends Task, SubTaskReportType extends SubTaskReport>
 {

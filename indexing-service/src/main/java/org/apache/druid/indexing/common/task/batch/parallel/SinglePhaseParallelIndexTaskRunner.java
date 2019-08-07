@@ -24,7 +24,6 @@ import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.indexing.common.TaskToolbox;
-import org.apache.druid.java.util.common.logger.Logger;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -32,16 +31,14 @@ import java.util.Map;
 
 /**
  * An implementation of {@link ParallelIndexTaskRunner} to support best-effort roll-up. This runner can submit and
- * monitor multiple {@link ParallelIndexSubTask}s.
+ * monitor multiple {@link SinglePhaseSubTask}s.
  * <p>
  * As its name indicates, distributed indexing is done in a single phase, i.e., without shuffling intermediate data. As
  * a result, this task can't be used for perfect rollup.
  */
 class SinglePhaseParallelIndexTaskRunner
-    extends ParallelIndexPhaseRunner<ParallelIndexSubTask, PushedSegmentsReport>
+    extends ParallelIndexPhaseRunner<SinglePhaseSubTask, PushedSegmentsReport>
 {
-  private static final Logger LOG = new Logger(SinglePhaseParallelIndexTaskRunner.class);
-
   private final ParallelIndexIngestionSpec ingestionSchema;
   private final FiniteFirehoseFactory<?, ?> baseFirehoseFactory;
 
@@ -74,7 +71,7 @@ class SinglePhaseParallelIndexTaskRunner
 
   @VisibleForTesting
   @Override
-  Iterator<SubTaskSpec<ParallelIndexSubTask>> subTaskSpecIterator() throws IOException
+  Iterator<SubTaskSpec<SinglePhaseSubTask>> subTaskSpecIterator() throws IOException
   {
     return baseFirehoseFactory.getSplits().map(this::newTaskSpec).iterator();
   }
@@ -86,7 +83,7 @@ class SinglePhaseParallelIndexTaskRunner
   }
 
   @VisibleForTesting
-  SubTaskSpec<ParallelIndexSubTask> newTaskSpec(InputSplit split)
+  SubTaskSpec<SinglePhaseSubTask> newTaskSpec(InputSplit split)
   {
     return new ParallelIndexSubTaskSpec(
         getTaskId() + "_" + getAndIncrementNextSpecId(),

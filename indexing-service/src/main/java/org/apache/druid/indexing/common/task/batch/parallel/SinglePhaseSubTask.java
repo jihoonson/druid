@@ -93,11 +93,11 @@ import java.util.stream.Collectors;
  * generates and pushes segments, and reports them to the {@link ParallelIndexSupervisorTask} instead of
  * publishing on its own.
  */
-public class ParallelIndexSubTask extends AbstractBatchIndexTask
+public class SinglePhaseSubTask extends AbstractBatchIndexTask
 {
-  public static final String TYPE = "best_effort_rollup";
+  public static final String TYPE = "single_phase_sub_task";
 
-  private static final Logger LOG = new Logger(ParallelIndexSubTask.class);
+  private static final Logger LOG = new Logger(SinglePhaseSubTask.class);
 
   private final int numAttempts;
   private final ParallelIndexIngestionSpec ingestionSchema;
@@ -121,7 +121,7 @@ public class ParallelIndexSubTask extends AbstractBatchIndexTask
   private final boolean missingIntervalsInOverwriteMode;
 
   @JsonCreator
-  public ParallelIndexSubTask(
+  public SinglePhaseSubTask(
       // id shouldn't be null except when this task is created by ParallelIndexSupervisorTask
       @JsonProperty("id") @Nullable final String id,
       @JsonProperty("groupId") final String groupId,

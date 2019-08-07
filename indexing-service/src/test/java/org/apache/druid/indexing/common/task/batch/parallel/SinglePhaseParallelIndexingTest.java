@@ -132,11 +132,11 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
     Assert.assertTrue(task.isReady(actionClient));
 
     final SinglePhaseParallelIndexTaskRunner runner = task.createSinglePhaseTaskRunner(toolbox);
-    final Iterator<SubTaskSpec<ParallelIndexSubTask>> subTaskSpecIterator = runner.subTaskSpecIterator();
+    final Iterator<SubTaskSpec<SinglePhaseSubTask>> subTaskSpecIterator = runner.subTaskSpecIterator();
 
     while (subTaskSpecIterator.hasNext()) {
       final ParallelIndexSubTaskSpec spec = (ParallelIndexSubTaskSpec) subTaskSpecIterator.next();
-      final ParallelIndexSubTask subTask = new ParallelIndexSubTask(
+      final SinglePhaseSubTask subTask = new SinglePhaseSubTask(
           null,
           spec.getGroupId(),
           null,
@@ -512,9 +512,9 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
     }
 
     @Override
-    public ParallelIndexSubTask newSubTask(int numAttempts)
+    public SinglePhaseSubTask newSubTask(int numAttempts)
     {
-      return new ParallelIndexSubTask(
+      return new SinglePhaseSubTask(
           null,
           getGroupId(),
           null,

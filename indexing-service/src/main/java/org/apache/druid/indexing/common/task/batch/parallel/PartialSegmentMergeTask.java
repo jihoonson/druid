@@ -96,6 +96,7 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
 
   @JsonCreator
   public PartialSegmentMergeTask(
+      // id shouldn't be null except when this task is created by ParallelIndexSupervisorTask
       @JsonProperty("id") @Nullable String id,
       @JsonProperty("groupId") final String groupId,
       @JsonProperty("resource") final TaskResource taskResource,
@@ -371,7 +372,7 @@ public class PartialSegmentMergeTask extends AbstractBatchIndexTask
                     metricNames,
                     new HashBasedNumberedShardSpec(
                         partitionId,
-                        0, // TODO: 0 is fine?? or should it say something more valid????
+                        Preconditions.checkNotNull(partitionsSpec.getNumShards(), "numShards"),
                         partitionsSpec.getPartitionDimensions(),
                         toolbox.getObjectMapper()
                     ),

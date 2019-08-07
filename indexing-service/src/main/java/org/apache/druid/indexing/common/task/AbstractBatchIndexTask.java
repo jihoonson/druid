@@ -23,6 +23,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.indexer.TaskStatus;
+import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
+import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
@@ -31,9 +33,12 @@ import org.apache.druid.indexing.common.actions.SegmentListUsedAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.actions.TimeChunkLockTryAcquireAction;
 import org.apache.druid.indexing.common.config.TaskConfig;
+import org.apache.druid.indexing.common.task.IndexTask.IndexIOConfig;
+import org.apache.druid.indexing.common.task.IndexTask.IndexTuningConfig;
 import org.apache.druid.indexing.firehose.IngestSegmentFirehoseFactory;
 import org.apache.druid.indexing.firehose.WindowedSegmentId;
 import org.apache.druid.java.util.common.JodaUtils;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.granularity.GranularityType;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -41,7 +46,9 @@ import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.TimelineObjectHolder;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.PartitionChunk;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 import org.joda.time.Period;
 
@@ -50,10 +57,12 @@ import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -133,13 +142,6 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
     synchronized (this) {
       stopped = true;
       resourceCloserOnAbnormalExit.clean(taskConfig);
-    }
-  }
-
-  protected boolean isStopped()
-  {
-    synchronized (this) {
-      return stopped;
     }
   }
 
@@ -367,6 +369,23 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
     }
   }
 
+  static boolean isGuaranteedRollup(IndexIOConfig ioConfig, IndexTuningConfig tuningConfig)
+  {
+    Preconditions.checkState(
+        !tuningConfig.isForceGuaranteedRollup() || !ioConfig.isAppendToExisting(),
+        "Perfect rollup cannot be guaranteed when appending to existing dataSources"
+    );
+    return tuningConfig.isForceGuaranteedRollup();
+  }
+
+  static Pair<ShardSpecFactory, Integer> createShardSpecFactoryForGuaranteedRollup(
+      int numShards,
+      @Nullable List<String> partitionDimensions
+  )
+  {
+    return Pair.of(new HashBasedNumberedShardSpecFactory(partitionDimensions, numShards), numShards);
+  }
+
   @Nullable
   static Granularity findGranularityFromSegments(List<DataSegment> segments)
   {
@@ -382,6 +401,37 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
     } else {
       return null;
     }
+  }
+
+  protected static Map<Interval, Pair<ShardSpecFactory, Integer>> createShardSpecWithoutInputScan(
+      GranularitySpec granularitySpec,
+      IndexIOConfig ioConfig,
+      IndexTuningConfig tuningConfig,
+      PartitionsSpec nonNullPartitionsSpec
+  )
+  {
+    final Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec = new HashMap<>();
+    final SortedSet<Interval> intervals = granularitySpec.bucketIntervals().get();
+
+    if (isGuaranteedRollup(ioConfig, tuningConfig)) {
+      // Overwrite mode, guaranteed rollup: shardSpecs must be known in advance.
+      assert nonNullPartitionsSpec instanceof HashedPartitionsSpec;
+      final HashedPartitionsSpec partitionsSpec = (HashedPartitionsSpec) nonNullPartitionsSpec;
+      final int numShards = partitionsSpec.getNumShards() == null ? 1 : partitionsSpec.getNumShards();
+
+      for (Interval interval : intervals) {
+        allocateSpec.put(
+            interval,
+            createShardSpecFactoryForGuaranteedRollup(numShards, partitionsSpec.getPartitionDimensions())
+        );
+      }
+    } else {
+      for (Interval interval : intervals) {
+        allocateSpec.put(interval, null);
+      }
+    }
+
+    return allocateSpec;
   }
 
   /**

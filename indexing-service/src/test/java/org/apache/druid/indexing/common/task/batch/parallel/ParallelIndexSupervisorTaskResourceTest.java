@@ -306,8 +306,8 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     // subTaskSpecs
     response = task.getSubTaskSpecs(newRequest());
     Assert.assertEquals(200, response.getStatus());
-    List<SubTaskSpec<ParallelIndexSubTask>> actualSubTaskSpecMap =
-        (List<SubTaskSpec<ParallelIndexSubTask>>) response.getEntity();
+    List<SubTaskSpec<SinglePhaseSubTask>> actualSubTaskSpecMap =
+        (List<SubTaskSpec<SinglePhaseSubTask>>) response.getEntity();
     Assert.assertEquals(
         subTaskSpecs.keySet(),
         actualSubTaskSpecMap.stream().map(SubTaskSpec::getId).collect(Collectors.toSet())
@@ -317,14 +317,14 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     response = task.getRunningSubTaskSpecs(newRequest());
     Assert.assertEquals(200, response.getStatus());
     actualSubTaskSpecMap =
-        (List<SubTaskSpec<ParallelIndexSubTask>>) response.getEntity();
+        (List<SubTaskSpec<SinglePhaseSubTask>>) response.getEntity();
     Assert.assertEquals(
         runningSpecs.keySet(),
         actualSubTaskSpecMap.stream().map(SubTaskSpec::getId).collect(Collectors.toSet())
     );
 
     // completeSubTaskSpecs
-    final List<SubTaskSpec<ParallelIndexSubTask>> completeSubTaskSpecs = expectedSubTaskStateResponses
+    final List<SubTaskSpec<SinglePhaseSubTask>> completeSubTaskSpecs = expectedSubTaskStateResponses
         .entrySet()
         .stream()
         .filter(entry -> !runningSpecs.containsKey(entry.getKey()))
@@ -339,8 +339,8 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     final String subTaskId = runningSpecs.keySet().iterator().next();
     response = task.getSubTaskSpec(subTaskId, newRequest());
     Assert.assertEquals(200, response.getStatus());
-    final SubTaskSpec<ParallelIndexSubTask> subTaskSpec =
-        (SubTaskSpec<ParallelIndexSubTask>) response.getEntity();
+    final SubTaskSpec<SinglePhaseSubTask> subTaskSpec =
+        (SubTaskSpec<SinglePhaseSubTask>) response.getEntity();
     Assert.assertEquals(subTaskId, subTaskSpec.getId());
 
     // subTaskState
@@ -577,7 +577,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     }
 
     @Override
-    public ParallelIndexSubTask newSubTask(int numAttempts)
+    public SinglePhaseSubTask newSubTask(int numAttempts)
     {
       try {
         // taskId is suffixed by the current time and this sleep is to make sure that every sub task has different id
@@ -620,7 +620,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     }
   }
 
-  private class TestSubTask extends ParallelIndexSubTask
+  private class TestSubTask extends SinglePhaseSubTask
   {
     private final IndexTaskClientFactory<ParallelIndexTaskClient> taskClientFactory;
     private volatile TaskState state = TaskState.RUNNING;

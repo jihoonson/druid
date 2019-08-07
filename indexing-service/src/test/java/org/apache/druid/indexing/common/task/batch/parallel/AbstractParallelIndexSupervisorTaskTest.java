@@ -334,10 +334,10 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
     }
 
     @Override
-    Iterator<SubTaskSpec<ParallelIndexSubTask>> subTaskSpecIterator() throws IOException
+    Iterator<SubTaskSpec<SinglePhaseSubTask>> subTaskSpecIterator() throws IOException
     {
-      final Iterator<SubTaskSpec<ParallelIndexSubTask>> iterator = super.subTaskSpecIterator();
-      return new Iterator<SubTaskSpec<ParallelIndexSubTask>>()
+      final Iterator<SubTaskSpec<SinglePhaseSubTask>> iterator = super.subTaskSpecIterator();
+      return new Iterator<SubTaskSpec<SinglePhaseSubTask>>()
       {
         @Override
         public boolean hasNext()
@@ -346,7 +346,7 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
         }
 
         @Override
-        public SubTaskSpec<ParallelIndexSubTask> next()
+        public SubTaskSpec<SinglePhaseSubTask> next()
         {
           try {
             Thread.sleep(10);

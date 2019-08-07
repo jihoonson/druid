@@ -37,12 +37,10 @@ import org.apache.druid.indexing.common.task.BatchAppenderators;
 import org.apache.druid.indexing.common.task.CachingLocalSegmentAllocator;
 import org.apache.druid.indexing.common.task.ClientBasedTaskInfoProvider;
 import org.apache.druid.indexing.common.task.FiniteFirehoseProcessor;
-import org.apache.druid.indexing.common.task.IndexTask;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
 import org.apache.druid.indexing.common.task.IndexTaskSegmentAllocator;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
-import org.apache.druid.indexing.common.task.batch.parallel.GeneratedPartitionsReport.PartitionStat;
 import org.apache.druid.indexing.worker.ShuffleDataSegmentPusher;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.granularity.Granularity;
@@ -85,6 +83,7 @@ public class PartialSegmentGenerateTask extends AbstractBatchIndexTask
 
   @JsonCreator
   public PartialSegmentGenerateTask(
+      // id shouldn't be null except when this task is created by ParallelIndexSupervisorTask
       @JsonProperty("id") @Nullable String id,
       @JsonProperty("groupId") final String groupId,
       @JsonProperty("resource") final TaskResource taskResource,
@@ -262,7 +261,7 @@ public class PartialSegmentGenerateTask extends AbstractBatchIndexTask
     final HashedPartitionsSpec partitionsSpec = (HashedPartitionsSpec) tuningConfig.getGivenOrDefaultPartitionsSpec();
     final long pushTimeout = tuningConfig.getPushTimeout();
 
-    final Map<Interval, Pair<ShardSpecFactory, Integer>> shardSpecs = IndexTask.createShardSpecWithoutInputScan(
+    final Map<Interval, Pair<ShardSpecFactory, Integer>> shardSpecs = createShardSpecWithoutInputScan(
         granularitySpec,
         ingestionSchema.getIOConfig(),
         tuningConfig,

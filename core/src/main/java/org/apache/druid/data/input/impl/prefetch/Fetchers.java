@@ -31,13 +31,27 @@ import java.io.OutputStream;
 
 public final class Fetchers
 {
+  /**
+   * Copies data from the given InputStream to the given file.
+   * This method is supposed to be used for copying large files.
+   * The output file is deleted automatically if copy fails.
+   *
+   * @param inputStream    InputStream to read data
+   * @param outFile        file to write data
+   * @param fetchBuffer    a buffer to copy data from the input stream to the file
+   * @param retryCondition condition which should be satisfied for retry
+   * @param numRetries     max number of retries
+   * @param messageOnRetry log message on retry
+   *
+   * @return the number of bytes copied
+   */
   public static long fetch(
       InputStream inputStream,
       File outFile,
       byte[] fetchBuffer,
       Predicate<Throwable> retryCondition,
       int numRetries,
-      String messageOnError
+      String messageOnRetry
   ) throws IOException
   {
     try {
@@ -50,7 +64,7 @@ public final class Fetchers
           retryCondition,
           outFile::delete,
           numRetries,
-          messageOnError
+          messageOnRetry
       );
     }
     catch (Exception e) {

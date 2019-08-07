@@ -71,6 +71,13 @@ public class FiniteFirehoseProcessor
     this.pushTimeout = pushTimeout;
   }
 
+  /**
+   * This method connects the given {@link FirehoseFactory} and processes data from the connected {@link Firehose}.
+   * All read data is consumed by {@link BatchAppenderatorDriver} which creates new segments.
+   * All created segments are pushed when all input data is processed successfully.
+   *
+   * @return {@link SegmentsAndMetadata} for the pushed segments.
+   */
   public SegmentsAndMetadata process(
       DataSchema dataSchema,
       BatchAppenderatorDriver driver,
@@ -117,16 +124,17 @@ public class FiniteFirehoseProcessor
 
           if (addResult.isOk()) {
 
-            // incremental segment publishment is allowed only when rollup don't have to be perfect.
+            // incremental segment publishment is allowed only when rollup doesn't have to be perfect.
             if (dynamicPartitionsSpec != null) {
               final boolean isPushRequired = addResult.isPushRequired(
                   dynamicPartitionsSpec.getMaxRowsPerSegment(),
                   dynamicPartitionsSpec.getMaxTotalRows()
               );
               if (isPushRequired) {
-                // There can be some segments waiting for being published even though any rows won't be added to them.
-                // If those segments are not published here, the available space in appenderator will be kept to be
-                // small which makes the size of segments smaller.
+                // There can be some segments waiting for being pushed even though no more rows will be added to them
+                // in the future.
+                // If those segments are not pushed here, the remaining available space in appenderator will be kept
+                // small which could lead to smaller segments.
                 final SegmentsAndMetadata pushed = driver.pushAllAndClear(pushTimeout);
                 LOG.info("Pushed segments[%s]", pushed.getSegments());
               }
@@ -168,8 +176,7 @@ public class FiniteFirehoseProcessor
       buildSegmentsSavedParseExceptions.add(e);
     }
 
-    if (buildSegmentsMeters.getUnparseable()
-        + buildSegmentsMeters.getProcessedWithError() > maxParseExceptions) {
+    if (buildSegmentsMeters.getUnparseable() + buildSegmentsMeters.getProcessedWithError() > maxParseExceptions) {
       LOG.error("Max parse exceptions exceeded, terminating task...");
       throw new RuntimeException("Max parse exceptions exceeded, terminating task...", e);
     }
