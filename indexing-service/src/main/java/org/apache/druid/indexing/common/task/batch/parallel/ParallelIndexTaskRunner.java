@@ -34,12 +34,12 @@ import java.util.Set;
  * In parallel batch indexing, data ingestion can be done in a single or multiple phases.
  * {@link ParallelIndexSupervisorTask} uses different implementations of this class to execute each phase.
  *
- * For best-effort rollup, the supervisor task uses {@link SinglePhaseParallelIndexTaskRunner} to
+ * For best-effort rollup, parallel indexing is executed in a single phase and the supervisor task
+ * uses {@link SinglePhaseParallelIndexTaskRunner} for it.
  *
- * There are currently three implementations
- * - {@link SinglePhaseParallelIndexTaskRunner} for best-effort roll-up
- * - {@link PartialSegmentGenerateParallelIndexTaskRunner} and {@link PartialSegmentMergeParallelIndexTaskRunner}
- *   for perfect roll-up
+ * For perfect rollup, parallel indexing is executed in multiple phases. The supervisor task currently uses
+ * {@link PartialSegmentGenerateParallelIndexTaskRunner} and {@link PartialSegmentMergeParallelIndexTaskRunner},
+ * and can use more runners in the future.
  */
 public interface ParallelIndexTaskRunner<SubTaskType extends Task, SubTaskReportType extends SubTaskReport>
 {
@@ -116,14 +116,14 @@ public interface ParallelIndexTaskRunner<SubTaskType extends Task, SubTaskReport
 
   class SubTaskSpecStatus
   {
-    private final ParallelIndexSubTaskSpec spec;
+    private final SinglePhaseSubTaskSpec spec;
     @Nullable
     private final TaskStatusPlus currentStatus; // null if there is no running task for the spec
     private final List<TaskStatusPlus> taskHistory; // can be empty if there is no history
 
     @JsonCreator
     public SubTaskSpecStatus(
-        @JsonProperty("spec") ParallelIndexSubTaskSpec spec,
+        @JsonProperty("spec") SinglePhaseSubTaskSpec spec,
         @JsonProperty("currentStatus") @Nullable TaskStatusPlus currentStatus,
         @JsonProperty("taskHistory") List<TaskStatusPlus> taskHistory
     )
@@ -134,7 +134,7 @@ public interface ParallelIndexTaskRunner<SubTaskType extends Task, SubTaskReport
     }
 
     @JsonProperty
-    public ParallelIndexSubTaskSpec getSpec()
+    public SinglePhaseSubTaskSpec getSpec()
     {
       return spec;
     }

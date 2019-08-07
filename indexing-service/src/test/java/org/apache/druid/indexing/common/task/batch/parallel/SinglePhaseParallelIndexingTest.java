@@ -135,7 +135,7 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
     final Iterator<SubTaskSpec<SinglePhaseSubTask>> subTaskSpecIterator = runner.subTaskSpecIterator();
 
     while (subTaskSpecIterator.hasNext()) {
-      final ParallelIndexSubTaskSpec spec = (ParallelIndexSubTaskSpec) subTaskSpecIterator.next();
+      final SinglePhaseSubTaskSpec spec = (SinglePhaseSubTaskSpec) subTaskSpecIterator.next();
       final SinglePhaseSubTask subTask = new SinglePhaseSubTask(
           null,
           spec.getGroupId(),
@@ -471,12 +471,12 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
     }
 
     @Override
-    ParallelIndexSubTaskSpec newTaskSpec(InputSplit split)
+    SinglePhaseSubTaskSpec newTaskSpec(InputSplit split)
     {
       final FiniteFirehoseFactory baseFirehoseFactory = (FiniteFirehoseFactory) getIngestionSchema()
           .getIOConfig()
           .getFirehoseFactory();
-      return new TestParallelIndexSubTaskSpec(
+      return new TestSinglePhaseSubTaskSpec(
           supervisorTask.getId() + "_" + getAndIncrementNextSpecId(),
           supervisorTask.getGroupId(),
           supervisorTask,
@@ -494,11 +494,11 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
     }
   }
 
-  private static class TestParallelIndexSubTaskSpec extends ParallelIndexSubTaskSpec
+  private static class TestSinglePhaseSubTaskSpec extends SinglePhaseSubTaskSpec
   {
     private final ParallelIndexSupervisorTask supervisorTask;
 
-    TestParallelIndexSubTaskSpec(
+    TestSinglePhaseSubTaskSpec(
         String id,
         String groupId,
         ParallelIndexSupervisorTask supervisorTask,

@@ -30,15 +30,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TODO
+ * {@link ParallelIndexTaskRunner} for the phase to merge partitioned segments in multi-phase parallel indexing.
+ *
+ * @see PartialSegmentGenerateParallelIndexTaskRunner
  */
-public class PartialSegmentMergeParallelIndexTaskRunner
+class PartialSegmentMergeParallelIndexTaskRunner
     extends ParallelIndexPhaseRunner<PartialSegmentMergeTask, PushedSegmentsReport>
 {
   private final DataSchema dataSchema;
   private final List<PartialSegmentMergeIOConfig> mergeIOConfigs;
 
-  public PartialSegmentMergeParallelIndexTaskRunner(
+  PartialSegmentMergeParallelIndexTaskRunner(
       TaskToolbox toolbox,
       String taskId,
       String groupId,

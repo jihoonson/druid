@@ -27,6 +27,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+import com.google.errorprone.annotations.concurrent.LazyInit;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.FirehoseFactory;
@@ -71,7 +72,6 @@ import org.apache.druid.server.security.Action;
 import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
-import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
@@ -140,11 +140,13 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   private final ConcurrentHashMap<Interval, AtomicInteger> partitionNumCountersPerInterval = new ConcurrentHashMap<>();
 
-  @MonotonicNonNull
+  // TODO: comment
+  @LazyInit
   private volatile CurrentSubTaskHolder currentSubTaskHolder;
 
+  // TODO: comment
   // toolbox is initlized when run() is called, and can be used for processing HTTP endpoint requests.
-  @MonotonicNonNull
+  @LazyInit
   private volatile TaskToolbox toolbox;
 
   @JsonCreator
@@ -443,6 +445,10 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     this.toolbox = toolbox;
   }
 
+  /**
+   * Run the single phase parallel indexing for best-effort rollup. In this mode, each sub task created by
+   * the supervisor task reads data and generates segments individually.
+   */
   private TaskStatus runSinglePhaseParallel(TaskToolbox toolbox) throws Exception
   {
     final ParallelIndexTaskRunner<SinglePhaseSubTask, PushedSegmentsReport> runner = createRunner(
@@ -458,6 +464,17 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     return TaskStatus.fromCode(getId(), state);
   }
 
+  /**
+   * Run the multi phase parallel indexing for perfect rollup. In this mode, the parallel indexing is currently
+   * executed in two phases.
+   *
+   * - In the first phase, each task partitions input data and stores those partitions in local storage.
+   *   - The partition is created based on the segment granularity (primary partition key) and the partition dimension
+   *     values in {@link org.apache.druid.indexer.partitions.PartitionsSpec} (secondary partition key).
+   *   - Partitioned data is maintained by {@link org.apache.druid.indexing.worker.IntermediaryDataManager}.
+   * - In the second phase, each task reads partitioned data from the intermediary data server (middleManager
+   *   or indexer) and merges them to create the final segments.
+   */
   private TaskStatus runMultiPhaseParallel(TaskToolbox toolbox) throws Exception
   {
     // 1. Partial segment generation phase

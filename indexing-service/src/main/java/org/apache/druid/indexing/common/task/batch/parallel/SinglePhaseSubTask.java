@@ -89,8 +89,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
- * A worker task of {@link ParallelIndexSupervisorTask}. Similar to {@link IndexTask}, but this task
- * generates and pushes segments, and reports them to the {@link ParallelIndexSupervisorTask} instead of
+ * The worker task of {@link SinglePhaseParallelIndexTaskRunner}. Similar to {@link IndexTask}, but this task
+ * generates and pushes segments, and reports them to the {@link SinglePhaseParallelIndexTaskRunner} instead of
  * publishing on its own.
  */
 public class SinglePhaseSubTask extends AbstractBatchIndexTask

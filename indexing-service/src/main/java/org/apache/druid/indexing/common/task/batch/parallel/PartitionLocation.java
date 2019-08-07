@@ -26,27 +26,31 @@ import org.joda.time.Interval;
 
 import java.net.URI;
 
+/**
+ * This class represents the intermediary data server where the partition of {@link #interval} and {@link #partitionId}
+ * is stored.
+ */
 public class PartitionLocation
 {
   private final String host;
   private final int port;
-  private final Interval interval;
   private final String subTaskId;
+  private final Interval interval;
   private final int partitionId;
 
   @JsonCreator
   public PartitionLocation(
       @JsonProperty("host") String host,
       @JsonProperty("port") int port,
-      @JsonProperty("interval") Interval interval,
       @JsonProperty("subTaskId") String subTaskId,
+      @JsonProperty("interval") Interval interval,
       @JsonProperty("partitionId") int partitionId
   )
   {
     this.host = host;
     this.port = port;
-    this.interval = interval;
     this.subTaskId = subTaskId;
+    this.interval = interval;
     this.partitionId = partitionId;
   }
 
@@ -63,15 +67,15 @@ public class PartitionLocation
   }
 
   @JsonProperty
-  public Interval getInterval()
-  {
-    return interval;
-  }
-
-  @JsonProperty
   public String getSubTaskId()
   {
     return subTaskId;
+  }
+
+  @JsonProperty
+  public Interval getInterval()
+  {
+    return interval;
   }
 
   @JsonProperty
@@ -80,7 +84,7 @@ public class PartitionLocation
     return partitionId;
   }
 
-  public URI toIntermediaryDataServerURI(String supervisorTaskId)
+  URI toIntermediaryDataServerURI(String supervisorTaskId)
   {
     return URI.create(
         StringUtils.format(
@@ -102,8 +106,8 @@ public class PartitionLocation
     return "PartitionLocation{" +
            "host='" + host + '\'' +
            ", port=" + port +
-           ", interval=" + interval +
            ", subTaskId='" + subTaskId + '\'' +
+           ", interval=" + interval +
            ", partitionId=" + partitionId +
            '}';
   }

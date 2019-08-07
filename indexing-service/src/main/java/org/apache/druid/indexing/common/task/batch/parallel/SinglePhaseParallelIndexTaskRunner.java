@@ -85,7 +85,7 @@ class SinglePhaseParallelIndexTaskRunner
   @VisibleForTesting
   SubTaskSpec<SinglePhaseSubTask> newTaskSpec(InputSplit split)
   {
-    return new ParallelIndexSubTaskSpec(
+    return new SinglePhaseSubTaskSpec(
         getTaskId() + "_" + getAndIncrementNextSpecId(),
         getGroupId(),
         getTaskId(),

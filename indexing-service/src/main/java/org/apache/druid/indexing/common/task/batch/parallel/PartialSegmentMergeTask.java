@@ -78,6 +78,11 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+/**
+ * The worker task of {@link PartialSegmentMergeParallelIndexTaskRunner}. This task reads partitioned segments created
+ * by {@link PartialSegmentGenerateTask}s, merges them, and pushes to the deep storage. The pushed segments are reported
+ * to {@link PartialSegmentMergeParallelIndexTaskRunner}.
+ */
 public class PartialSegmentMergeTask extends AbstractBatchIndexTask
 {
   public static final String TYPE = "partial_index_merge";

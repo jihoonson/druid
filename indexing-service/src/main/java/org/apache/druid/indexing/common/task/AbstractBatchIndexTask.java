@@ -403,6 +403,13 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
     }
   }
 
+  /**
+   * Creates shard specs based on the given configurations. The return value is a map between intervals created
+   * based on the segment granularity and the shard specs to be created.
+   * Note that the shard specs to be created is a pair of {@link ShardSpecFactory} and number of segments per interval
+   * and filled only when {@link #isGuaranteedRollup} = true. Otherwise, the return value contains only the set of
+   * intervals generated based on the segment granularity.
+   */
   protected static Map<Interval, Pair<ShardSpecFactory, Integer>> createShardSpecWithoutInputScan(
       GranularitySpec granularitySpec,
       IndexIOConfig ioConfig,

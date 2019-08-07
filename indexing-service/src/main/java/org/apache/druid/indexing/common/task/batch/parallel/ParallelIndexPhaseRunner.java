@@ -52,6 +52,10 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+/**
+ * Base class for different implementations of {@link ParallelIndexTaskRunner}.
+ * It creates sub tasks, schedule them, and monitor their status.
+ */
 public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTaskReportType extends SubTaskReport>
     implements ParallelIndexTaskRunner<SubTaskType, SubTaskReportType>
 {
@@ -92,6 +96,16 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
     this.maxNumTasks = tuningConfig.getMaxNumSubTasks();
     this.indexingServiceClient = Preconditions.checkNotNull(indexingServiceClient, "indexingServiceClient");
   }
+
+  /**
+   * Returns an iterator for {@link SubTaskSpec}s of this phase.
+   */
+  abstract Iterator<SubTaskSpec<SubTaskType>> subTaskSpecIterator() throws IOException;
+
+  /**
+   * Returns the total number of sub tasks required to execute this phase.
+   */
+  abstract int getTotalNumSubTasks() throws IOException;
 
   @Override
   public TaskState run() throws Exception
@@ -174,8 +188,8 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
               if (lastStatus != null) {
                 LOG.error("Failed because of the failed sub task[%s]", lastStatus.getId());
               } else {
-                final ParallelIndexSubTaskSpec spec =
-                    (ParallelIndexSubTaskSpec) taskCompleteEvent.getSpec();
+                final SinglePhaseSubTaskSpec spec =
+                    (SinglePhaseSubTaskSpec) taskCompleteEvent.getSpec();
                 LOG.error(
                     "Failed to run sub tasks for inputSplits[%s]",
                     getSplitsIfSplittable(spec.getIngestionSpec().getIOConfig().getFirehoseFactory())
@@ -375,14 +389,14 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
 
       if (monitorEntry != null) {
         subTaskSpecStatus = new SubTaskSpecStatus(
-            (ParallelIndexSubTaskSpec) monitorEntry.getSpec(),
+            (SinglePhaseSubTaskSpec) monitorEntry.getSpec(),
             monitorEntry.getRunningStatus(),
             monitorEntry.getTaskHistory()
         );
       } else {
         if (taskHistory != null && !taskHistory.isEmpty()) {
           subTaskSpecStatus = new SubTaskSpecStatus(
-              (ParallelIndexSubTaskSpec) taskHistory.getSpec(),
+              (SinglePhaseSubTaskSpec) taskHistory.getSpec(),
               null,
               taskHistory.getAttemptHistory()
           );
@@ -450,8 +464,4 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
   {
     return indexingServiceClient;
   }
-
-  abstract Iterator<SubTaskSpec<SubTaskType>> subTaskSpecIterator() throws IOException;
-
-  abstract int getTotalNumSubTasks() throws IOException;
 }

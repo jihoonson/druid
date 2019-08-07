@@ -30,15 +30,17 @@ import java.util.Iterator;
 import java.util.Map;
 
 /**
+ * {@link ParallelIndexTaskRunner} for the phase to create partitioned segments in multi-phase parallel indexing.
  *
+ * @see PartialSegmentMergeParallelIndexTaskRunner
  */
-public class PartialSegmentGenerateParallelIndexTaskRunner
+class PartialSegmentGenerateParallelIndexTaskRunner
     extends ParallelIndexPhaseRunner<PartialSegmentGenerateTask, GeneratedPartitionsReport>
 {
   private final ParallelIndexIngestionSpec ingestionSchema;
   private final FiniteFirehoseFactory<?, ?> baseFirehoseFactory;
 
-  public PartialSegmentGenerateParallelIndexTaskRunner(
+  PartialSegmentGenerateParallelIndexTaskRunner(
       TaskToolbox toolbox,
       String taskId,
       String groupId,

@@ -28,9 +28,9 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * This class is used in native parallel batch indexing, currently only in {@link SinglePhaseParallelIndexTaskRunner}.
- * In native parallel batch indexing, each subTask generates and pushes segments and sends a report to the
- * supervisorTask. Once the supervisorTask collects all reports, it publishes all the pushed segments at once.
+ * In the last phase of native parallel batch indexing, each sub task generates and pushes segments
+ * and sends a report to the supervisorTask. Once the supervisorTask collects all reports,
+ * it publishes all the pushed segments at once.
  */
 public class PushedSegmentsReport implements SubTaskReport
 {

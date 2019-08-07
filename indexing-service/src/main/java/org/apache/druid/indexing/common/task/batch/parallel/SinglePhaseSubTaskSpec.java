@@ -26,12 +26,12 @@ import org.apache.druid.segment.realtime.appenderator.DummyForInjectionAppendera
 
 import java.util.Map;
 
-class ParallelIndexSubTaskSpec extends SubTaskSpec<SinglePhaseSubTask>
+class SinglePhaseSubTaskSpec extends SubTaskSpec<SinglePhaseSubTask>
 {
   private final ParallelIndexIngestionSpec ingestionSpec;
 
   @JsonCreator
-  ParallelIndexSubTaskSpec(
+  SinglePhaseSubTaskSpec(
       String id,
       String groupId,
       String supervisorTaskId,

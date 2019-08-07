@@ -85,7 +85,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
   private static final int NUM_SUB_TASKS = 10;
 
   /** specId -> spec */
-  private final ConcurrentMap<String, ParallelIndexSubTaskSpec> subTaskSpecs = new ConcurrentHashMap<>();
+  private final ConcurrentMap<String, SinglePhaseSubTaskSpec> subTaskSpecs = new ConcurrentHashMap<>();
 
   /** specId -> taskStatusPlus */
   private final ConcurrentMap<String, TaskStatusPlus> runningSpecs = new ConcurrentHashMap<>();
@@ -94,7 +94,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
   private final ConcurrentHashMap<String, List<TaskStatusPlus>> taskHistories = new ConcurrentHashMap<>();
 
   /** taskId -> subTaskSpec */
-  private final ConcurrentMap<String, ParallelIndexSubTaskSpec> taskIdToSpec = new ConcurrentHashMap<>();
+  private final ConcurrentMap<String, SinglePhaseSubTaskSpec> taskIdToSpec = new ConcurrentHashMap<>();
 
   /** taskId -> task */
   private final CopyOnWriteArrayList<TestSubTask> runningTasks = new CopyOnWriteArrayList<>();
@@ -534,7 +534,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     }
 
     @Override
-    ParallelIndexSubTaskSpec newTaskSpec(InputSplit split)
+    SinglePhaseSubTaskSpec newTaskSpec(InputSplit split)
     {
       final FiniteFirehoseFactory baseFirehoseFactory = (FiniteFirehoseFactory) getIngestionSchema()
           .getIOConfig()
@@ -559,7 +559,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     }
   }
 
-  private class TestSubTaskSpec extends ParallelIndexSubTaskSpec
+  private class TestSubTaskSpec extends SinglePhaseSubTaskSpec
   {
     private final ParallelIndexSupervisorTask supervisorTask;
 

@@ -17,11 +17,19 @@
  * under the License.
  */
 
-package org.apache.druid.indexing.common.task.batch.parallel;
+package org.apache.druid.tests;
 
-public enum PhaseState
+/**
+ * These groups are used by continuous integration to split the integration tests into multiple jobs. Any tests that
+ * are not annotated with a group will still be run by an "other" integration test continuous integration job.
+ */
+public class TestNGGroup
 {
-  RUNNING,
-  SUCCEEDED,
-  FAILED
+  public static final String BATCH_INDEX = "batch-index";
+  public static final String HADOOP_INDEX = "hadoop-index";
+  public static final String KAFKA_INDEX = "kafka-index";
+  public static final String OTHER_INDEX = "other-index";
+  public static final String QUERY = "query";
+  public static final String REALTIME_INDEX = "realtime-index";
+  public static final String SECURITY = "security";
 }

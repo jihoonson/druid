@@ -70,6 +70,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
+/**
+ * The worker task of {@link PartialSegmentGenerateParallelIndexTaskRunner}. This task partitions input data by
+ * the segment granularity and partition dimensions in {@link org.apache.druid.indexer.partitions.PartitionsSpec}.
+ * Partitioned segments are stored in local storage using {@link ShuffleDataSegmentPusher}.
+ */
 public class PartialSegmentGenerateTask extends AbstractBatchIndexTask
 {
   public static final String TYPE = "partial_index_generate";
