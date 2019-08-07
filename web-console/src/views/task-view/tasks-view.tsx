@@ -44,7 +44,7 @@ import {
 import { AppToaster } from '../../singletons/toaster';
 import {
   addFilter,
-  addFilterNoQuotes,
+  addFilterRaw,
   booleanCustomTableFilter,
   formatDuration,
   getDruidErrorMessage,
@@ -549,7 +549,7 @@ ORDER BY "rank" DESC, "created_time" DESC`;
             const datasourceFilter = filtered.find(filter => filter.id === 'datasource');
             let newTaskFilter = taskFilter.filter(filter => filter.id !== 'datasource');
             if (datasourceFilter) {
-              newTaskFilter = addFilterNoQuotes(
+              newTaskFilter = addFilterRaw(
                 newTaskFilter,
                 datasourceFilter.id,
                 datasourceFilter.value,
@@ -726,7 +726,7 @@ ORDER BY "rank" DESC, "created_time" DESC`;
             const datasourceFilter = filtered.find(filter => filter.id === 'datasource');
             let newSupervisorFilter = supervisorFilter.filter(filter => filter.id !== 'datasource');
             if (datasourceFilter) {
-              newSupervisorFilter = addFilterNoQuotes(
+              newSupervisorFilter = addFilterRaw(
                 newSupervisorFilter,
                 datasourceFilter.id,
                 datasourceFilter.value,
@@ -1018,7 +1018,7 @@ ORDER BY "rank" DESC, "created_time" DESC`;
         {!noSqlMode && (
           <MenuItem
             icon={IconNames.APPLICATION}
-            text="See in SQL view"
+            text="View SQL query for table"
             onClick={() => goToQuery(TasksView.TASK_SQL)}
           />
         )}
@@ -1146,10 +1146,10 @@ ORDER BY "rank" DESC, "created_time" DESC`;
                 localStorageKey={LocalStorageKeys.TASKS_REFRESH_RATE}
                 onRefresh={auto => this.taskQueryManager.rerunLastQuery(auto)}
               />
-              {this.renderBulkTasksActions()}
               <Popover content={submitTaskMenu} position={Position.BOTTOM_LEFT}>
                 <Button icon={IconNames.PLUS} text="Submit task" />
               </Popover>
+              {this.renderBulkTasksActions()}
               <TableColumnSelector
                 columns={taskTableColumns}
                 onChange={column =>
