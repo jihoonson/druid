@@ -62,6 +62,12 @@ class PartialSegmentGenerateParallelIndexTaskRunner
   }
 
   @Override
+  public String getName()
+  {
+    return PartialSegmentGenerateTask.TYPE;
+  }
+
+  @Override
   Iterator<SubTaskSpec<PartialSegmentGenerateTask>> subTaskSpecIterator() throws IOException
   {
     return baseFirehoseFactory.getSplits().map(this::newTaskSpec).iterator();

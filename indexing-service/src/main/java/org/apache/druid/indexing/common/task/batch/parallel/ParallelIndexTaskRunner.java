@@ -44,6 +44,11 @@ import java.util.Set;
 public interface ParallelIndexTaskRunner<SubTaskType extends Task, SubTaskReportType extends SubTaskReport>
 {
   /**
+   * Returns the name of this runner.
+   */
+  String getName();
+
+  /**
    * Runs the task.
    */
   TaskState run() throws Exception;

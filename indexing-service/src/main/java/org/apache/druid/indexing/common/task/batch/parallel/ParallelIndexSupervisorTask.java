@@ -496,7 +496,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
         indexingRunner.getReports()
     );
     final List<PartialSegmentMergeIOConfig> ioConfigs = createMergeIOConfigs(
-        ingestionSchema.getTuningConfig().getMaxNumMergeTasks(),
+        ingestionSchema.getTuningConfig().getTotalNumMergeTasks(),
         partitionToLocations
     );
 
@@ -532,8 +532,8 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
             new PartitionLocation(
                 partitionStat.getTaskExecutorHost(),
                 partitionStat.getTaskExecutorPort(),
-                partitionStat.getInterval(),
                 subTaskId,
+                partitionStat.getInterval(),
                 partitionStat.getPartitionId()
             )
         );
@@ -544,15 +544,15 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   }
 
   private static List<PartialSegmentMergeIOConfig> createMergeIOConfigs(
-      int maxNumMergeTasks,
+      int totalNumMergeTasks,
       Map<Pair<Interval, Integer>, List<PartitionLocation>> partitionToLocations
   )
   {
-    final int numMergeTasks = Math.min(maxNumMergeTasks, partitionToLocations.size());
+    final int numMergeTasks = Math.min(totalNumMergeTasks, partitionToLocations.size());
     LOG.info(
-        "Number of merge tasks is set to [%d] based on maxNumMergeTasks[%d] and number of partitions[%d]",
+        "Number of merge tasks is set to [%d] based on totalNumMergeTasks[%d] and number of partitions[%d]",
         numMergeTasks,
-        maxNumMergeTasks,
+        totalNumMergeTasks,
         partitionToLocations.size()
     );
     // Randomly shuffle partitionIds to evenly distribute partitions of potentially different sizes
@@ -821,6 +821,24 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   {
     IndexTaskUtils.datasourceAuthorizationCheck(req, Action.READ, getDataSource(), authorizerMapper);
     return Response.ok(isParallelMode() ? "parallel" : "sequential").build();
+  }
+
+  @GET
+  @Path("/phase")
+  @Produces(MediaType.APPLICATION_ATOM_XML)
+  public Response getPhaseName(@Context final HttpServletRequest req)
+  {
+    IndexTaskUtils.datasourceAuthorizationCheck(req, Action.READ, getDataSource(), authorizerMapper);
+    if (isParallelMode()) {
+      final ParallelIndexTaskRunner runner = getCurrentRunner();
+      if (runner == null) {
+        return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity("task is not running").build();
+      } else {
+        return Response.ok(runner.getName()).build();
+      }
+    } else {
+      return Response.status(Status.BAD_REQUEST).entity("task is running in the sequential mode").build();
+    }
   }
 
   @GET

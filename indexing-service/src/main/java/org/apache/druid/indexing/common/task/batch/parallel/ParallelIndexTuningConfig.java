@@ -43,7 +43,7 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
   private static final Duration DEFAULT_CHAT_HANDLER_TIMEOUT = new Period("PT10S").toStandardDuration();
   private static final int DEFAULT_CHAT_HANDLER_NUM_RETRIES = 5;
   private static final int DEFAULT_MAX_NUM_SEGMENTS_TO_MERGE = 100;
-  private static final int DEFAULT_MAX_NUM_MERGE_TASKS = 10;
+  private static final int DEFAULT_TOTAL_NUM_MERGE_TASKS = 10;
 
   private final int maxNumSubTasks;
   private final int maxRetry;
@@ -61,10 +61,10 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
   private final int maxNumSegmentsToMerge;
 
   /**
-   * Max number of tasks for partial segment merge (that is, number of {@link PartialSegmentMergeTask}s).
+   * Total number of tasks for partial segment merge (that is, number of {@link PartialSegmentMergeTask}s).
    * Used only when this task runs with shuffle.
    */
-  private final int maxNumMergeTasks;
+  private final int totalNumMergeTasks;
 
   static ParallelIndexTuningConfig defaultConfig()
   {
@@ -118,7 +118,7 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
       @JsonProperty("chatHandlerTimeout") @Nullable Duration chatHandlerTimeout,
       @JsonProperty("chatHandlerNumRetries") @Nullable Integer chatHandlerNumRetries,
       @JsonProperty("maxNumSegmentsToMerge") @Nullable Integer maxNumSegmentsToMerge,
-      @JsonProperty("maxNumMergeTasks") @Nullable Integer maxNumMergeTasks,
+      @JsonProperty("totalNumMergeTasks") @Nullable Integer totalNumMergeTasks,
       @JsonProperty("logParseExceptions") @Nullable Boolean logParseExceptions,
       @JsonProperty("maxParseExceptions") @Nullable Integer maxParseExceptions,
       @JsonProperty("maxSavedParseExceptions") @Nullable Integer maxSavedParseExceptions
@@ -162,13 +162,13 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
                                  ? DEFAULT_MAX_NUM_SEGMENTS_TO_MERGE
                                  : maxNumSegmentsToMerge;
 
-    this.maxNumMergeTasks = maxNumMergeTasks == null
-                            ? DEFAULT_MAX_NUM_MERGE_TASKS
-                            : maxNumMergeTasks;
+    this.totalNumMergeTasks = totalNumMergeTasks == null
+                            ? DEFAULT_TOTAL_NUM_MERGE_TASKS
+                            : totalNumMergeTasks;
 
     Preconditions.checkArgument(this.maxNumSubTasks > 0, "maxNumSubTasks must be positive");
     Preconditions.checkArgument(this.maxNumSegmentsToMerge > 0, "maxNumSegmentsToMerge must be positive");
-    Preconditions.checkArgument(this.maxNumMergeTasks > 0, "maxNumMergeTasks must be positive");
+    Preconditions.checkArgument(this.totalNumMergeTasks > 0, "totalNumMergeTasks must be positive");
   }
 
   @JsonProperty
@@ -208,9 +208,9 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
   }
 
   @JsonProperty
-  public int getMaxNumMergeTasks()
+  public int getTotalNumMergeTasks()
   {
-    return maxNumMergeTasks;
+    return totalNumMergeTasks;
   }
 
   @Override
@@ -231,7 +231,7 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
            taskStatusCheckPeriodMs == that.taskStatusCheckPeriodMs &&
            chatHandlerNumRetries == that.chatHandlerNumRetries &&
            maxNumSegmentsToMerge == that.maxNumSegmentsToMerge &&
-           maxNumMergeTasks == that.maxNumMergeTasks &&
+           totalNumMergeTasks == that.totalNumMergeTasks &&
            Objects.equals(chatHandlerTimeout, that.chatHandlerTimeout);
   }
 
@@ -246,7 +246,7 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
         chatHandlerTimeout,
         chatHandlerNumRetries,
         maxNumSegmentsToMerge,
-        maxNumMergeTasks
+        totalNumMergeTasks
     );
   }
 }

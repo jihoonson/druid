@@ -58,6 +58,12 @@ class PartialSegmentMergeParallelIndexTaskRunner
   }
 
   @Override
+  public String getName()
+  {
+    return PartialSegmentMergeTask.TYPE;
+  }
+
+  @Override
   Iterator<SubTaskSpec<PartialSegmentMergeTask>> subTaskSpecIterator()
   {
     return mergeIOConfigs.stream().map(this::newTaskSpec).iterator();

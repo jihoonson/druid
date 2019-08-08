@@ -63,6 +63,12 @@ class SinglePhaseParallelIndexTaskRunner
     this.baseFirehoseFactory = (FiniteFirehoseFactory) ingestionSchema.getIOConfig().getFirehoseFactory();
   }
 
+  @Override
+  public String getName()
+  {
+    return SinglePhaseSubTask.TYPE;
+  }
+
   @VisibleForTesting
   ParallelIndexIngestionSpec getIngestionSchema()
   {
