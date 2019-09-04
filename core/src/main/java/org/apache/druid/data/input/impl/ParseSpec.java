@@ -114,4 +114,11 @@ public abstract class ParseSpec
     result = 31 * result + (dimensionsSpec != null ? dimensionsSpec.hashCode() : 0);
     return result;
   }
+
+  public boolean isSplittable()
+  {
+    return false;
+  }
+
+  public abstract InputRowReader createReader();
 }

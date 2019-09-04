@@ -128,4 +128,10 @@ public class CSVParseSpec extends ParseSpec
     return new CSVParseSpec(getTimestampSpec(), spec, listDelimiter, columns, hasHeaderRow, skipHeaderRows);
   }
 
+  @Override
+  public InputRowReader createReader()
+  {
+    return new CSVReader(listDelimiter, columns, hasHeaderRow, skipHeaderRows);
+  }
+
 }
