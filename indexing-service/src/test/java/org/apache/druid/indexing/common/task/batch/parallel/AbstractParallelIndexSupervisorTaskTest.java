@@ -307,6 +307,7 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
     {
       super(
           id,
+          null,
           taskResource,
           ingestionSchema,
           context,

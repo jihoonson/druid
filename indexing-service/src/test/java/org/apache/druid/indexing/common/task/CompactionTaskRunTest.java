@@ -24,6 +24,8 @@ import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.Files;
 import org.apache.druid.client.coordinator.CoordinatorClient;
+import org.apache.druid.client.indexing.IndexingServiceClient;
+import org.apache.druid.client.indexing.NoopIndexingServiceClient;
 import org.apache.druid.data.input.impl.CSVParseSpec;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.ParseSpec;
@@ -123,6 +125,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
   private static final RetryPolicyFactory RETRY_POLICY_FACTORY = new RetryPolicyFactory(new RetryPolicyConfig());
   private final RowIngestionMetersFactory rowIngestionMetersFactory;
+  private final IndexingServiceClient indexingServiceClient;
   private final CoordinatorClient coordinatorClient;
   private final SegmentLoaderFactory segmentLoaderFactory;
   private final LockGranularity lockGranularity;
@@ -133,6 +136,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
   {
     TestUtils testUtils = new TestUtils();
     rowIngestionMetersFactory = testUtils.getRowIngestionMetersFactory();
+    indexingServiceClient = new NoopIndexingServiceClient();
     coordinatorClient = new CoordinatorClient(null, null)
     {
       @Override
@@ -169,6 +173,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
         rowIngestionMetersFactory,
+        indexingServiceClient,
         coordinatorClient,
         segmentLoaderFactory,
         RETRY_POLICY_FACTORY,
@@ -213,6 +218,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
         rowIngestionMetersFactory,
+        indexingServiceClient,
         coordinatorClient,
         segmentLoaderFactory,
         RETRY_POLICY_FACTORY,
@@ -289,6 +295,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
         rowIngestionMetersFactory,
+        indexingServiceClient,
         coordinatorClient,
         segmentLoaderFactory,
         RETRY_POLICY_FACTORY,
@@ -386,6 +393,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
         rowIngestionMetersFactory,
+        indexingServiceClient,
         coordinatorClient,
         segmentLoaderFactory,
         RETRY_POLICY_FACTORY,
@@ -439,6 +447,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
         rowIngestionMetersFactory,
+        indexingServiceClient,
         coordinatorClient,
         segmentLoaderFactory,
         RETRY_POLICY_FACTORY,
@@ -486,6 +495,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
         rowIngestionMetersFactory,
+        indexingServiceClient,
         coordinatorClient,
         segmentLoaderFactory,
         RETRY_POLICY_FACTORY,
@@ -544,6 +554,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
         null,
         rowIngestionMetersFactory,
+        indexingServiceClient,
         coordinatorClient,
         segmentLoaderFactory,
         RETRY_POLICY_FACTORY,

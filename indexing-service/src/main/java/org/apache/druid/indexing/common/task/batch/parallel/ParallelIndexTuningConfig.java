@@ -67,7 +67,7 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
    */
   private final int totalNumMergeTasks;
 
-  static ParallelIndexTuningConfig defaultConfig()
+  public static ParallelIndexTuningConfig defaultConfig()
   {
     return new ParallelIndexTuningConfig(
         null,
@@ -117,7 +117,7 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
       @JsonProperty("maxNumSubTasks") @Deprecated @Nullable Integer maxNumSubTasks,
       @JsonProperty("maxNumConcurrentSubTasks") @Nullable Integer maxNumConcurrentSubTasks,
       @JsonProperty("maxRetry") @Nullable Integer maxRetry,
-      @JsonProperty("taskStatusCheckPeriodMs") @Nullable Integer taskStatusCheckPeriodMs,
+      @JsonProperty("taskStatusCheckPeriodMs") @Nullable Long taskStatusCheckPeriodMs,
       @JsonProperty("chatHandlerTimeout") @Nullable Duration chatHandlerTimeout,
       @JsonProperty("chatHandlerNumRetries") @Nullable Integer chatHandlerNumRetries,
       @JsonProperty("maxNumSegmentsToMerge") @Nullable Integer maxNumSegmentsToMerge,
@@ -222,6 +222,38 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
   public int getTotalNumMergeTasks()
   {
     return totalNumMergeTasks;
+  }
+
+  @Override
+  public ParallelIndexTuningConfig withPartitionsSpec(PartitionsSpec partitionsSpec)
+  {
+    return new ParallelIndexTuningConfig(
+        null,
+        null,
+        getMaxRowsInMemory(),
+        getMaxBytesInMemory(),
+        null,
+        null,
+        partitionsSpec,
+        getIndexSpec(),
+        getIndexSpecForIntermediatePersists(),
+        getMaxPendingPersists(),
+        isForceGuaranteedRollup(),
+        isReportParseExceptions(),
+        getPushTimeout(),
+        getSegmentWriteOutMediumFactory(),
+        null,
+        maxNumConcurrentSubTasks,
+        maxRetry,
+        taskStatusCheckPeriodMs,
+        chatHandlerTimeout,
+        chatHandlerNumRetries,
+        maxNumSegmentsToMerge,
+        totalNumMergeTasks,
+        isLogParseExceptions(),
+        getMaxParseExceptions(),
+        getMaxSavedParseExceptions()
+    );
   }
 
   @Override
