@@ -417,7 +417,8 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
         fireDepartmentMetrics,
         toolbox,
         dataSchema,
-        tuningConfig
+        tuningConfig,
+        firehoseFactory
     );
     boolean exceptionOccurred = false;
     try (

@@ -34,6 +34,7 @@ import com.google.common.collect.Interners;
 import com.google.inject.Inject;
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import org.apache.druid.guice.annotations.PublicApi;
+import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.jackson.CommaListJoinDeserializer;
 import org.apache.druid.jackson.CommaListJoinSerializer;
 import org.apache.druid.java.util.common.granularity.Granularities;
@@ -91,6 +92,8 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   private final List<String> dimensions;
   private final List<String> metrics;
   private final ShardSpec shardSpec;
+  @Nullable
+  private final PartitionsSpec compactionPartitionsSpec;
   private final long size;
 
   public DataSegment(
@@ -99,6 +102,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       List<String> dimensions,
       List<String> metrics,
       ShardSpec shardSpec,
+      PartitionsSpec compactionPartitionsSpec,
       Integer binaryVersion,
       long size
   )
@@ -111,6 +115,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
         dimensions,
         metrics,
         shardSpec,
+        compactionPartitionsSpec,
         binaryVersion,
         size
     );
@@ -136,6 +141,34 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
         dimensions,
         metrics,
         shardSpec,
+        null,
+        binaryVersion,
+        size
+    );
+  }
+
+  public DataSegment(
+      String dataSource,
+      Interval interval,
+      String version,
+      Map<String, Object> loadSpec,
+      List<String> dimensions,
+      List<String> metrics,
+      ShardSpec shardSpec,
+      PartitionsSpec compactionPartitionsSpec,
+      Integer binaryVersion,
+      long size
+  )
+  {
+    this(
+        dataSource,
+        interval,
+        version,
+        loadSpec,
+        dimensions,
+        metrics,
+        shardSpec,
+        compactionPartitionsSpec,
         binaryVersion,
         size,
         PruneLoadSpecHolder.DEFAULT
@@ -158,6 +191,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       @Nullable
           List<String> metrics,
       @JsonProperty("shardSpec") @Nullable ShardSpec shardSpec,
+      @JsonProperty("compactionPartitionsSpec") @Nullable PartitionsSpec compactionPartitionsSpec,
       @JsonProperty("binaryVersion") Integer binaryVersion,
       @JsonProperty("size") long size,
       @JacksonInject PruneLoadSpecHolder pruneLoadSpecHolder
@@ -170,6 +204,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     this.dimensions = prepareDimensionsOrMetrics(dimensions, DIMENSIONS_INTERNER);
     this.metrics = prepareDimensionsOrMetrics(metrics, METRICS_INTERNER);
     this.shardSpec = (shardSpec == null) ? new NumberedShardSpec(0, 1) : shardSpec;
+    this.compactionPartitionsSpec = compactionPartitionsSpec;
     this.binaryVersion = binaryVersion;
     this.size = size;
   }
@@ -254,6 +289,12 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
   public ShardSpec getShardSpec()
   {
     return shardSpec;
+  }
+
+  @JsonProperty
+  public PartitionsSpec getCompactionPartitionsSpec()
+  {
+    return compactionPartitionsSpec;
   }
 
   @JsonProperty
@@ -390,6 +431,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
            ", dimensions=" + dimensions +
            ", metrics=" + metrics +
            ", shardSpec=" + shardSpec +
+           ", compactionPartitionsSpec=" + compactionPartitionsSpec +
            ", size=" + size +
            '}';
   }
@@ -436,6 +478,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     private List<String> dimensions;
     private List<String> metrics;
     private ShardSpec shardSpec;
+    private PartitionsSpec compactionPartitionsSpec;
     private Integer binaryVersion;
     private long size;
 
@@ -457,6 +500,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       this.dimensions = segment.getDimensions();
       this.metrics = segment.getMetrics();
       this.shardSpec = segment.getShardSpec();
+      this.compactionPartitionsSpec = segment.compactionPartitionsSpec;
       this.binaryVersion = segment.getBinaryVersion();
       this.size = segment.getSize();
     }
@@ -503,6 +547,12 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       return this;
     }
 
+    public Builder compactionPartitionsSpec(PartitionsSpec compactionPartitionsSpec)
+    {
+      this.compactionPartitionsSpec = compactionPartitionsSpec;
+      return this;
+    }
+
     public Builder binaryVersion(Integer binaryVersion)
     {
       this.binaryVersion = binaryVersion;
@@ -531,6 +581,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
           dimensions,
           metrics,
           shardSpec,
+          compactionPartitionsSpec,
           binaryVersion,
           size
       );

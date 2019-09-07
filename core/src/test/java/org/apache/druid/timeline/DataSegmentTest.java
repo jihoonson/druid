@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.RangeSet;
 import org.apache.druid.TestObjectMapper;
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.jackson.JacksonUtils;
@@ -125,6 +126,7 @@ public class DataSegmentTest
         Arrays.asList("dim1", "dim2"),
         Arrays.asList("met1", "met2"),
         new NumberedShardSpec(3, 0),
+        new HashedPartitionsSpec(100000, null, ImmutableList.of("dim1")),
         TEST_VERSION,
         1
     );

@@ -91,6 +91,7 @@ public class ImmutableDruidDataSourceTest
       ImmutableList.of("dim1", "dim2"),
       ImmutableList.of("met1", "met2"),
       null,
+      null,
       1,
       100L,
       PruneLoadSpecHolder.DEFAULT
