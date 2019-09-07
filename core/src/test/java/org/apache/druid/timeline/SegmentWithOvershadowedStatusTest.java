@@ -30,6 +30,7 @@ import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.jackson.CommaListJoinDeserializer;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.jackson.JacksonUtils;
+import org.apache.druid.timeline.DataSegment.DeserializeSpec;
 import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
@@ -51,7 +52,7 @@ public class SegmentWithOvershadowedStatusTest
   public void setUp()
   {
     InjectableValues.Std injectableValues = new InjectableValues.Std();
-    injectableValues.addValue(DataSegment.PruneLoadSpecHolder.class, DataSegment.PruneLoadSpecHolder.DEFAULT);
+    injectableValues.addValue(DeserializeSpec.class, DeserializeSpec.DEFAULT);
     MAPPER.setInjectableValues(injectableValues);
   }
 

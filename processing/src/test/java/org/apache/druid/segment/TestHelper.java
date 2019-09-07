@@ -36,7 +36,7 @@ import org.apache.druid.query.timeseries.TimeseriesResultValue;
 import org.apache.druid.query.topn.TopNResultValue;
 import org.apache.druid.segment.column.ColumnConfig;
 import org.apache.druid.segment.writeout.SegmentWriteOutMediumFactory;
-import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.DataSegment.DeserializeSpec;
 import org.junit.Assert;
 
 import java.util.HashMap;
@@ -80,7 +80,7 @@ public class TestHelper
         new InjectableValues.Std()
             .addValue(ExprMacroTable.class.getName(), TestExprMacroTable.INSTANCE)
             .addValue(ObjectMapper.class.getName(), mapper)
-            .addValue(DataSegment.PruneLoadSpecHolder.class, DataSegment.PruneLoadSpecHolder.DEFAULT)
+            .addValue(DeserializeSpec.class, DeserializeSpec.DEFAULT)
     );
     return mapper;
   }

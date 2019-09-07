@@ -17,22 +17,18 @@
  * under the License.
  */
 
-package org.apache.druid.server;
+package org.apache.druid.timeline;
 
-import com.fasterxml.jackson.databind.InjectableValues;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.jackson.DefaultObjectMapper;
-import org.apache.druid.timeline.DataSegment.DeserializeSpec;
+import com.google.inject.BindingAnnotation;
 
-public class ServerTestHelper
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target({ElementType.PARAMETER, ElementType.FIELD})
+@Retention(RetentionPolicy.RUNTIME)
+@BindingAnnotation
+public @interface LoadPartitionsSpec
 {
-  public static final ObjectMapper MAPPER = new DefaultObjectMapper();
-
-  static {
-    MAPPER.setInjectableValues(
-        new InjectableValues.Std()
-            .addValue(ObjectMapper.class.getName(), MAPPER)
-            .addValue(DeserializeSpec.class, DeserializeSpec.DEFAULT)
-    );
-  }
 }

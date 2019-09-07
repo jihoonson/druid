@@ -89,6 +89,7 @@ import org.apache.druid.server.initialization.jetty.JettyServerInitializer;
 import org.apache.druid.server.lookup.cache.LookupCoordinatorManager;
 import org.apache.druid.server.lookup.cache.LookupCoordinatorManagerConfig;
 import org.apache.druid.server.router.TieredBrokerConfig;
+import org.apache.druid.timeline.LoadPartitionsSpec;
 import org.eclipse.jetty.server.Server;
 
 import java.util.ArrayList;
@@ -143,6 +144,7 @@ public class CliCoordinator extends ServerRunnable
                   .to(TieredBrokerConfig.DEFAULT_COORDINATOR_SERVICE_NAME);
             binder.bindConstant().annotatedWith(Names.named("servicePort")).to(8081);
             binder.bindConstant().annotatedWith(Names.named("tlsServicePort")).to(8281);
+            binder.bindConstant().annotatedWith(LoadPartitionsSpec.class).to(true);
 
             ConfigProvider.bind(binder, DruidCoordinatorConfig.class);
 

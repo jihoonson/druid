@@ -37,15 +37,12 @@ import org.apache.druid.guice.annotations.PublicApi;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.jackson.CommaListJoinDeserializer;
 import org.apache.druid.jackson.CommaListJoinSerializer;
-import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.query.SegmentDescriptor;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
-import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -69,17 +66,19 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
    * github.com/google/guice/wiki/FrequentlyAskedQuestions#how-can-i-inject-optional-parameters-into-a-constructor
    */
   @VisibleForTesting
-  public static class PruneLoadSpecHolder
+  public static class DeserializeSpec
   {
     @VisibleForTesting
-    public static final PruneLoadSpecHolder DEFAULT = new PruneLoadSpecHolder();
+    public static final DeserializeSpec DEFAULT = new DeserializeSpec();
 
     @Inject(optional = true) @PruneLoadSpec boolean pruneLoadSpec = false;
+    @Inject(optional = true) @LoadPartitionsSpec boolean loadPartitionsSpec = false;
   }
 
   private static final Interner<String> STRING_INTERNER = Interners.newWeakInterner();
   private static final Interner<List<String>> DIMENSIONS_INTERNER = Interners.newWeakInterner();
   private static final Interner<List<String>> METRICS_INTERNER = Interners.newWeakInterner();
+  private static final Interner<PartitionsSpec> PARTITIONS_SPEC_INTERNER = Interners.newWeakInterner();
   private static final Map<String, Object> PRUNED_LOAD_SPEC = ImmutableMap.of(
       "load spec is pruned, because it's not needed on Brokers, but eats a lot of heap space",
       ""
@@ -171,7 +170,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
         compactionPartitionsSpec,
         binaryVersion,
         size,
-        PruneLoadSpecHolder.DEFAULT
+        DeserializeSpec.DEFAULT
     );
   }
 
@@ -194,17 +193,19 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       @JsonProperty("compactionPartitionsSpec") @Nullable PartitionsSpec compactionPartitionsSpec,
       @JsonProperty("binaryVersion") Integer binaryVersion,
       @JsonProperty("size") long size,
-      @JacksonInject PruneLoadSpecHolder pruneLoadSpecHolder
+      @JacksonInject DeserializeSpec deserializeSpec
   )
   {
     this.id = SegmentId.of(dataSource, interval, version, shardSpec);
-    this.loadSpec = pruneLoadSpecHolder.pruneLoadSpec ? PRUNED_LOAD_SPEC : prepareLoadSpec(loadSpec);
+    this.loadSpec = deserializeSpec.pruneLoadSpec ? PRUNED_LOAD_SPEC : prepareLoadSpec(loadSpec);
     // Deduplicating dimensions and metrics lists as a whole because they are very likely the same for the same
     // dataSource
     this.dimensions = prepareDimensionsOrMetrics(dimensions, DIMENSIONS_INTERNER);
     this.metrics = prepareDimensionsOrMetrics(metrics, METRICS_INTERNER);
     this.shardSpec = (shardSpec == null) ? new NumberedShardSpec(0, 1) : shardSpec;
-    this.compactionPartitionsSpec = compactionPartitionsSpec;
+    this.compactionPartitionsSpec = deserializeSpec.loadPartitionsSpec
+                                    ? prepareCompactionPartitionsSpec(compactionPartitionsSpec)
+                                    : null;
     this.binaryVersion = binaryVersion;
     this.size = size;
   }
@@ -221,6 +222,15 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       result.put(STRING_INTERNER.intern(e.getKey()), e.getValue());
     }
     return result;
+  }
+
+  @Nullable
+  private PartitionsSpec prepareCompactionPartitionsSpec(@Nullable PartitionsSpec compactionPartitionsSpec)
+  {
+    if (compactionPartitionsSpec == null) {
+      return null;
+    }
+    return PARTITIONS_SPEC_INTERNER.intern(compactionPartitionsSpec);
   }
 
   private List<String> prepareDimensionsOrMetrics(@Nullable List<String> list, Interner<List<String>> interner)
@@ -291,6 +301,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     return shardSpec;
   }
 
+  @Nullable
   @JsonProperty
   public PartitionsSpec getCompactionPartitionsSpec()
   {
@@ -434,29 +445,6 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
            ", compactionPartitionsSpec=" + compactionPartitionsSpec +
            ", size=" + size +
            '}';
-  }
-
-  public static Comparator<DataSegment> bucketMonthComparator()
-  {
-    return new Comparator<DataSegment>()
-    {
-      @Override
-      public int compare(DataSegment lhs, DataSegment rhs)
-      {
-        int retVal;
-
-        DateTime lhsMonth = Granularities.MONTH.bucketStart(lhs.getInterval().getStart());
-        DateTime rhsMonth = Granularities.MONTH.bucketStart(rhs.getInterval().getStart());
-
-        retVal = lhsMonth.compareTo(rhsMonth);
-
-        if (retVal != 0) {
-          return retVal;
-        }
-
-        return lhs.compareTo(rhs);
-      }
-    };
   }
 
   public static Builder builder()

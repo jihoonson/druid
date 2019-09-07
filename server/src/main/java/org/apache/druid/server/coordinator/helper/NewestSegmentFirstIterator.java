@@ -243,9 +243,6 @@ public class NewestSegmentFirstIterator implements CompactionSegmentIterator
    * looked up for the last one day of the given intervalToSearch, and the next day is searched again if the size of
    * found segments are not enough to compact. This is repeated until enough amount of segments are found.
    *
-   * @param compactibleTimelineObjectHolderCursor timeline iterator
-   * @param config           compaction config
-   *
    * @return segments to compact
    */
   private static SegmentsToCompact findSegmentsToCompact(
