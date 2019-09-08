@@ -113,6 +113,7 @@ import org.apache.druid.server.security.Authenticator;
 import org.apache.druid.server.security.AuthenticatorMapper;
 import org.apache.druid.tasklogs.TaskLogStreamer;
 import org.apache.druid.tasklogs.TaskLogs;
+import org.apache.druid.timeline.PrunePartitionsSpec;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.HandlerList;
@@ -172,6 +173,7 @@ public class CliOverlord extends ServerRunnable
               binder.bindConstant().annotatedWith(Names.named("servicePort")).to(8090);
               binder.bindConstant().annotatedWith(Names.named("tlsServicePort")).to(8290);
             }
+            binder.bindConstant().annotatedWith(PrunePartitionsSpec.class).to(true);
 
             JsonConfigProvider.bind(binder, "druid.coordinator.asOverlord", CoordinatorOverlordServiceConfig.class);
             JsonConfigProvider.bind(binder, "druid.indexer.queue", TaskQueueConfig.class);

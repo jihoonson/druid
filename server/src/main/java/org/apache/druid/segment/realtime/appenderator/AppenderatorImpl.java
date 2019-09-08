@@ -750,8 +750,7 @@ public class AppenderatorImpl implements Appenderator
           // semantics.
           () -> dataSegmentPusher.push(
               mergedFile,
-              sink.getSegment()
-                  .withDimensions(IndexMerger.getMergedDimensionsFromQueryableIndexes(indexes)),
+              sink.getSegment().withDimensions(IndexMerger.getMergedDimensionsFromQueryableIndexes(indexes)),
               useUniquePath
           ),
           exception -> exception instanceof Exception,

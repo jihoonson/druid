@@ -30,16 +30,6 @@ import java.util.List;
  */
 class SegmentCompactorUtil
 {
-  //  static boolean isCompactibleSize(long targetBytes, long additionalBytes)
-  //  {
-  //    return currentTotalBytes + additionalBytes <= targetBytes;
-  //  }
-  //
-  //  static boolean isCompactibleNum(int numTargetSegments, int numCurrentSegments, int numAdditionalSegments)
-  //  {
-  //    return numCurrentSegments + numAdditionalSegments <= numTargetSegments;
-  //  }
-
   private static final double ALLOWED_MARGIN_FOR_SEGMENT_SIZE = 0.1;
 
   static boolean matchTargetSegmentSizeBytes(long targetCompactionSizeBytes, List<DataSegment> segments)

@@ -72,7 +72,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     public static final DeserializeSpec DEFAULT = new DeserializeSpec();
 
     @Inject(optional = true) @PruneLoadSpec boolean pruneLoadSpec = false;
-    @Inject(optional = true) @LoadPartitionsSpec boolean loadPartitionsSpec = false;
+    @Inject(optional = true) @PrunePartitionsSpec boolean prunePartitionsSpec = false;
   }
 
   private static final Interner<String> STRING_INTERNER = Interners.newWeakInterner();
@@ -203,9 +203,9 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
     this.dimensions = prepareDimensionsOrMetrics(dimensions, DIMENSIONS_INTERNER);
     this.metrics = prepareDimensionsOrMetrics(metrics, METRICS_INTERNER);
     this.shardSpec = (shardSpec == null) ? new NumberedShardSpec(0, 1) : shardSpec;
-    this.compactionPartitionsSpec = deserializeSpec.loadPartitionsSpec
-                                    ? prepareCompactionPartitionsSpec(compactionPartitionsSpec)
-                                    : null;
+    this.compactionPartitionsSpec = deserializeSpec.prunePartitionsSpec
+                                    ? null
+                                    : prepareCompactionPartitionsSpec(compactionPartitionsSpec);
     this.binaryVersion = binaryVersion;
     this.size = size;
   }
