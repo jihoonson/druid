@@ -23,6 +23,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
+import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
+import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.JodaUtils;
 import org.apache.druid.java.util.common.guava.Comparators;
@@ -44,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -83,7 +86,11 @@ public class NewestSegmentFirstIterator implements CompactionSegmentIterator
       final DataSourceCompactionConfig config = compactionConfigs.get(dataSource);
 
       if (config != null && !timeline.isEmpty()) {
-        final List<Interval> searchIntervals = findInitialSearchInterval(timeline, config.getSkipOffsetFromLatest(), skipIntervals.get(dataSource));
+        final List<Interval> searchIntervals = findInitialSearchInterval(
+            timeline,
+            config.getSkipOffsetFromLatest(),
+            skipIntervals.get(dataSource)
+        );
         if (!searchIntervals.isEmpty()) {
           timelineIterators.put(dataSource, new CompactibleTimelineObjectHolderCursor(timeline, searchIntervals));
         }
@@ -214,26 +221,64 @@ public class NewestSegmentFirstIterator implements CompactionSegmentIterator
     }
 
     /**
-     * Returns the latest holder.
+     * Returns a list of segments in the latest time chunk. These segments should be compacted together if they are
+     * compactible.
      */
     @Nullable
-    TimelineObjectHolder<String, DataSegment> get()
+    List<DataSegment> get() // TODO: iterator
     {
       if (holders.isEmpty()) {
         return null;
       } else {
-        return holders.get(holders.size() - 1);
+        return holders.get(holders.size() - 1)
+                      .getObject()
+                      .stream()
+                      .map(PartitionChunk::getObject)
+                      .collect(Collectors.toList());
       }
     }
 
     /**
      * Removes the latest holder, so that {@link #get()} returns the next one.
      */
-    void next()
+    void advance()
     {
       if (!holders.isEmpty()) {
         holders.remove(holders.size() - 1);
       }
+    }
+  }
+
+  private static boolean needsCompaction(DataSourceCompactionConfig config, SegmentsToCompact candidates)
+  {
+    Preconditions.checkState(!candidates.isEmpty(), "Empty candidates");
+    @Nullable final Long targetCompactionSizeBytes = config.getTargetCompactionSizeBytes();
+    @Nullable final Integer maxRowsPerSegment = config.getMaxRowsPerSegment();
+    @Nullable final Long maxTotalRows = config.getTuningConfig() == null
+                                        ? null
+                                        : config.getTuningConfig().getMaxTotalRows();
+
+    if (targetCompactionSizeBytes != null) {
+      return !SegmentCompactorUtil.matchTargetSegmentSizeBytes(targetCompactionSizeBytes, candidates.totalSize);
+    }
+
+    // maxRowsPerSegment must be not null if targetCompactionSizeBytes is null
+    Preconditions.checkNotNull(maxRowsPerSegment, "maxRowsPerSegment of auto compaction config");
+    final PartitionsSpec segmentPartitionsSpec = candidates.segments.get(0).getCompactionPartitionsSpec();
+    if (!(segmentPartitionsSpec instanceof DynamicPartitionsSpec)) {
+      return true;
+    }
+    final DynamicPartitionsSpec dynamicPartitionsSpec = (DynamicPartitionsSpec) segmentPartitionsSpec;
+    final boolean allCandidatesHaveSameCompactionPartitionsSpec = candidates
+        .segments
+        .stream()
+        .allMatch(segment -> dynamicPartitionsSpec.equals(segment.getCompactionPartitionsSpec()));
+
+    if (allCandidatesHaveSameCompactionPartitionsSpec) {
+      return !maxRowsPerSegment.equals(dynamicPartitionsSpec.getMaxRowsPerSegment())
+          || !Objects.equals(maxTotalRows, dynamicPartitionsSpec.getMaxTotalRows());
+    } else {
+      return true;
     }
   }
 
@@ -252,102 +297,172 @@ public class NewestSegmentFirstIterator implements CompactionSegmentIterator
   {
     final long inputSegmentSize = config.getInputSegmentSizeBytes();
     final int maxNumSegmentsToCompact = config.getMaxNumSegmentsToCompact();
-    final SegmentsToCompact segmentsToCompact = new SegmentsToCompact();
 
-    // Finds segments to compact together while iterating timeline from latest to oldest
-    while (compactibleTimelineObjectHolderCursor.hasNext()
-           && segmentsToCompact.getTotalSize() < inputSegmentSize
-           && segmentsToCompact.getNumSegments() < maxNumSegmentsToCompact) {
-      final TimelineObjectHolder<String, DataSegment> timeChunkHolder = Preconditions.checkNotNull(
-          compactibleTimelineObjectHolderCursor.get(),
-          "timelineObjectHolder"
+    while (compactibleTimelineObjectHolderCursor.hasNext()) {
+      final SegmentsToCompact candidates = new SegmentsToCompact(
+          Preconditions.checkNotNull(
+              compactibleTimelineObjectHolderCursor.get(),
+              "candidates"
+          )
       );
-      final List<PartitionChunk<DataSegment>> chunks = Lists.newArrayList(timeChunkHolder.getObject().iterator());
-      final long timeChunkSizeBytes = chunks.stream().mapToLong(chunk -> chunk.getObject().getSize()).sum();
-
-      final boolean isSameOrAbuttingInterval;
-      final Interval lastInterval = segmentsToCompact.getIntervalOfLastSegment();
-      if (lastInterval == null) {
-        isSameOrAbuttingInterval = true;
-      } else {
-        final Interval currentInterval = chunks.get(0).getObject().getInterval();
-        isSameOrAbuttingInterval = currentInterval.isEqual(lastInterval) || currentInterval.abuts(lastInterval);
-      }
-
-      // The segments in a holder should be added all together or not.
-      final boolean isCompactibleSize = SegmentCompactorUtil.isCompactibleSize(
-          inputSegmentSize,
-          segmentsToCompact.getTotalSize(),
-          timeChunkSizeBytes
-      );
-      final boolean isCompactibleNum = SegmentCompactorUtil.isCompactibleNum(
-          maxNumSegmentsToCompact,
-          segmentsToCompact.getNumSegments(),
-          chunks.size()
-      );
-      if (isCompactibleSize
-          && isCompactibleNum
-          && isSameOrAbuttingInterval
-          && segmentsToCompact.isEmpty()) {
-        chunks.forEach(chunk -> segmentsToCompact.add(chunk.getObject()));
-      } else {
-        if (segmentsToCompact.getNumSegments() > 1) {
-          // We found some segmens to compact and cannot add more. End here.
-          return segmentsToCompact;
+      compactibleTimelineObjectHolderCursor.advance();
+      if (candidates.getNumSegments() > 1) {
+        final boolean isCompactibleSize = candidates.getTotalSize() <= inputSegmentSize;
+        final boolean isCompactibleNum = candidates.getNumSegments() <= maxNumSegmentsToCompact;
+        final boolean needsCompaction = needsCompaction(config, candidates);
+        if (isCompactibleSize && isCompactibleNum && needsCompaction) {
+          return candidates;
         } else {
-          if (!SegmentCompactorUtil.isCompactibleSize(inputSegmentSize, 0, timeChunkSizeBytes)) {
-            final DataSegment segment = chunks.get(0).getObject();
-            segmentsToCompact.clear();
+          if (!isCompactibleSize) {
             log.warn(
-                "shardSize[%d] for dataSource[%s] and interval[%s] is larger than inputSegmentSize[%d]."
+                "partitionSize[%d] of datasource[%s] and interval[%s] is larger than inputSegmentSize[%d]."
                 + " Continue to the next shard.",
-                timeChunkSizeBytes,
-                segment.getDataSource(),
-                segment.getInterval(),
+                candidates.getTotalSize(),
+                candidates.segments.get(0).getDataSource(),
+                candidates.segments.get(0).getInterval(),
                 inputSegmentSize
             );
-          } else if (maxNumSegmentsToCompact < chunks.size()) {
-            final DataSegment segment = chunks.get(0).getObject();
-            segmentsToCompact.clear();
+          }
+          if (!isCompactibleNum) {
             log.warn(
-                "The number of segments[%d] for dataSource[%s] and interval[%s] is larger than "
+                "The number of segments[%d] of datasource[%s] and interval[%s] is larger than "
                 + "maxNumSegmentsToCompact[%d]. If you see lots of shards are being skipped due to too many "
                 + "segments, consider increasing 'numTargetCompactionSegments' and "
                 + "'druid.indexer.runner.maxZnodeBytes'. Continue to the next shard.",
-                chunks.size(),
-                segment.getDataSource(),
-                segment.getInterval(),
+                candidates.getNumSegments(),
+                candidates.segments.get(0).getDataSource(),
+                candidates.segments.get(0).getInterval(),
                 maxNumSegmentsToCompact
             );
-          } else {
-            if (segmentsToCompact.getNumSegments() == 1) {
-              // We found a segment which is smaller than targetCompactionSize but too large to compact with other
-              // segments. Skip this one.
-              segmentsToCompact.clear();
-              chunks.forEach(chunk -> segmentsToCompact.add(chunk.getObject()));
-            } else {
-              throw new ISE(
-                  "Cannot compact segments[%s]. shardBytes[%s], numSegments[%s] "
-                  + "with current segmentsToCompact[%s]",
-                  chunks.stream().map(PartitionChunk::getObject).collect(Collectors.toList()),
-                  timeChunkSizeBytes,
-                  chunks.size(),
-                  segmentsToCompact
-              );
-            }
+          }
+          if (!needsCompaction) {
+            log.info(
+                "Segments of datasource[%s] and interval[%s] doesn't need compaction. Skipping.",
+                candidates.segments.get(0).getDataSource(),
+                candidates.segments.get(0).getInterval()
+            );
           }
         }
+      } else if (candidates.getNumSegments() == 1) {
+        log.warn(
+            "There is only one segment[%s] in datasource[%s] and interval[%s]",
+            candidates.segments.get(0).getId(),
+            candidates.segments.get(0).getDataSource(),
+            candidates.segments.get(0).getInterval()
+        );
+      } else {
+        throw new ISE("No segment is found?");
       }
-
-      compactibleTimelineObjectHolderCursor.next();
     }
+    // Return an empty set
+    return new SegmentsToCompact();
 
-    if (segmentsToCompact.getNumSegments() == 1) {
-      // Don't compact a single segment
-      segmentsToCompact.clear();
-    }
 
-    return segmentsToCompact;
+
+
+
+
+
+
+
+
+
+
+
+  //    // Finds segments to compact together while iterating timeline from latest to oldest
+  //    while (compactibleTimelineObjectHolderCursor.hasNext()
+  //           && segmentsToCompact.getTotalSize() < inputSegmentSize
+  //           && segmentsToCompact.getNumSegments() < maxNumSegmentsToCompact) {
+  //      final TimelineObjectHolder<String, DataSegment> timeChunkHolder = Preconditions.checkNotNull(
+  //          compactibleTimelineObjectHolderCursor.get(),
+  //          "timelineObjectHolder"
+  //      );
+  //      final List<PartitionChunk<DataSegment>> chunks = Lists.newArrayList(timeChunkHolder.getObject().iterator());
+  //      final long timeChunkSizeBytes = chunks.stream().mapToLong(chunk -> chunk.getObject().getSize()).sum();
+  //
+  //      final boolean isSameOrAbuttingInterval;
+  //      final Interval lastInterval = segmentsToCompact.getIntervalOfLastSegment();
+  //      if (lastInterval == null) {
+  //        isSameOrAbuttingInterval = true;
+  //      } else {
+  //        final Interval currentInterval = chunks.get(0).getObject().getInterval();
+  //        isSameOrAbuttingInterval = currentInterval.isEqual(lastInterval) || currentInterval.abuts(lastInterval);
+  //      }
+  //
+  //      // The segments in a holder should be added all together or not.
+  //      final boolean isCompactibleSize = SegmentCompactorUtil.isCompactibleSize(
+  //          inputSegmentSize,
+  //          segmentsToCompact.getTotalSize(),
+  //          timeChunkSizeBytes
+  //      );
+  //      final boolean isCompactibleNum = SegmentCompactorUtil.isCompactibleNum(
+  //          maxNumSegmentsToCompact,
+  //          segmentsToCompact.getNumSegments(),
+  //          chunks.size()
+  //      );
+  //      if (isCompactibleSize
+  //          && isCompactibleNum
+  //          && isSameOrAbuttingInterval
+  //          && segmentsToCompact.isEmpty()) {
+  //        chunks.forEach(chunk -> segmentsToCompact.add(chunk.getObject()));
+  //      } else {
+  //        if (segmentsToCompact.getNumSegments() > 1) {
+  //          // We found some segmens to compact and cannot add more. End here.
+  //          return segmentsToCompact;
+  //        } else {
+  //          if (!SegmentCompactorUtil.isCompactibleSize(inputSegmentSize, 0, timeChunkSizeBytes)) {
+  //            final DataSegment segment = chunks.get(0).getObject();
+  //            segmentsToCompact.clear();
+  //            log.warn(
+  //                "shardSize[%d] for dataSource[%s] and interval[%s] is larger than inputSegmentSize[%d]."
+  //                + " Continue to the next shard.",
+  //                timeChunkSizeBytes,
+  //                segment.getDataSource(),
+  //                segment.getInterval(),
+  //                inputSegmentSize
+  //            );
+  //          } else if (maxNumSegmentsToCompact < chunks.size()) {
+  //            final DataSegment segment = chunks.get(0).getObject();
+  //            segmentsToCompact.clear();
+  //            log.warn(
+  //                "The number of segments[%d] for dataSource[%s] and interval[%s] is larger than "
+  //                + "maxNumSegmentsToCompact[%d]. If you see lots of shards are being skipped due to too many "
+  //                + "segments, consider increasing 'numTargetCompactionSegments' and "
+  //                + "'druid.indexer.runner.maxZnodeBytes'. Continue to the next shard.",
+  //                chunks.size(),
+  //                segment.getDataSource(),
+  //                segment.getInterval(),
+  //                maxNumSegmentsToCompact
+  //            );
+  //          } else {
+  //            if (segmentsToCompact.getNumSegments() == 1) {
+  //              // We found a segment which is smaller than targetCompactionSize but too large to compact with other
+  //              // segments. Skip this one.
+  //              segmentsToCompact.clear();
+  //              chunks.forEach(chunk -> segmentsToCompact.add(chunk.getObject()));
+  //            } else {
+  //              throw new ISE(
+  //                  "Cannot compact segments[%s]. shardBytes[%s], numSegments[%s] "
+  //                  + "with current segmentsToCompact[%s]",
+  //                  chunks.stream().map(PartitionChunk::getObject).collect(Collectors.toList()),
+  //                  timeChunkSizeBytes,
+  //                  chunks.size(),
+  //                  segmentsToCompact
+  //              );
+  //            }
+  //          }
+  //        }
+  //      }
+  //
+  //      compactibleTimelineObjectHolderCursor.advance();
+  //    }
+  //
+  //    if (segmentsToCompact.getNumSegments() == 1) {
+  //      // Don't compact a single segment
+  //      segmentsToCompact.clear();
+  //    }
+  //
+  //    return segmentsToCompact;
   }
 
   /**
@@ -507,29 +622,23 @@ public class NewestSegmentFirstIterator implements CompactionSegmentIterator
 
   private static class SegmentsToCompact
   {
-    private final List<DataSegment> segments = new ArrayList<>();
-    private long totalSize;
+    private final List<DataSegment> segments;
+    private final long totalSize;
 
-    private void add(DataSegment segment)
+    private SegmentsToCompact()
     {
-      segments.add(segment);
-      totalSize += segment.getSize();
+      this(Collections.emptyList());
+    }
+
+    private SegmentsToCompact(List<DataSegment> segments)
+    {
+      this.segments = segments;
+      this.totalSize = segments.stream().mapToLong(DataSegment::getSize).sum();
     }
 
     private boolean isEmpty()
     {
-      Preconditions.checkState((totalSize == 0) == segments.isEmpty());
       return segments.isEmpty();
-    }
-
-    @Nullable
-    private Interval getIntervalOfLastSegment()
-    {
-      if (segments.isEmpty()) {
-        return null;
-      } else {
-        return segments.get(segments.size() - 1).getInterval();
-      }
     }
 
     private int getNumSegments()
@@ -540,12 +649,6 @@ public class NewestSegmentFirstIterator implements CompactionSegmentIterator
     private long getTotalSize()
     {
       return totalSize;
-    }
-
-    private void clear()
-    {
-      segments.clear();
-      totalSize = 0;
     }
 
     @Override

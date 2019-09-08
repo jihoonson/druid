@@ -28,6 +28,7 @@ import org.apache.druid.client.indexing.ClientCompactQueryTuningConfig;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.client.indexing.NoopIndexingServiceClient;
 import org.apache.druid.indexer.TaskStatusPlus;
+import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.server.coordinator.CoordinatorCompactionConfig;
@@ -87,6 +88,7 @@ public class DruidCoordinatorSegmentCompactorTest
           segments.get(0).getDimensions(),
           segments.get(0).getMetrics(),
           NoneShardSpec.instance(),
+          new DynamicPartitionsSpec(tuningConfig.getMaxRowsPerSegment(), tuningConfig.getMaxTotalRows()),
           1,
           segments.stream().mapToLong(DataSegment::getSize).sum()
       );
