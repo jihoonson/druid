@@ -259,7 +259,7 @@ public class NewestSegmentFirstIterator implements CompactionSegmentIterator
                                         : config.getTuningConfig().getMaxTotalRows();
 
     if (targetCompactionSizeBytes != null) {
-      return !SegmentCompactorUtil.matchTargetSegmentSizeBytes(targetCompactionSizeBytes, candidates.totalSize);
+      return !SegmentCompactorUtil.matchTargetSegmentSizeBytes(targetCompactionSizeBytes, candidates.segments);
     }
 
     // maxRowsPerSegment must be not null if targetCompactionSizeBytes is null
