@@ -588,7 +588,7 @@ export interface GranularitySpec {
   queryGranularity?: string;
   segmentGranularity?: string;
   rollup?: boolean;
-  intervals?: string;
+  intervals?: string | string[];
 }
 
 export interface MetricSpec {
@@ -1456,16 +1456,15 @@ function basenameFromFilename(filename: string): string | undefined {
 }
 
 export function fillDataSourceNameIfNeeded(spec: IngestionSpec): IngestionSpec {
-  // Do not overwrite if the spec already has a name
-  if (deepGet(spec, 'dataSchema.dataSource')) return spec;
-  const ioConfig = deepGet(spec, 'ioConfig');
-  if (!ioConfig) return spec;
-  const possibleName = guessDataSourceName(ioConfig);
+  const possibleName = guessDataSourceName(spec);
   if (!possibleName) return spec;
   return deepSet(spec, 'dataSchema.dataSource', possibleName);
 }
 
-export function guessDataSourceName(ioConfig: IoConfig): string | undefined {
+export function guessDataSourceName(spec: IngestionSpec): string | undefined {
+  const ioConfig = deepGet(spec, 'ioConfig');
+  if (!ioConfig) return;
+
   switch (ioConfig.type) {
     case 'index':
     case 'index_parallel':
@@ -1542,11 +1541,11 @@ export interface TuningConfig {
   fetchThreads?: number;
 }
 
-export function invalidTuningConfig(tuningConfig: TuningConfig): boolean {
+export function invalidTuningConfig(tuningConfig: TuningConfig, intervals: any): boolean {
   return Boolean(
     tuningConfig.type === 'index_parallel' &&
       tuningConfig.forceGuaranteedRollup &&
-      !tuningConfig.numShards,
+      (!tuningConfig.numShards || !intervals),
   );
 }
 
@@ -1562,7 +1561,6 @@ export function getPartitionRelatedTuningSpecFormFields(
           type: 'boolean',
           info: (
             <>
-              <p>Does not currently work with parallel ingestion</p>
               <p>
                 Forces guaranteeing the perfect rollup. The perfect rollup optimizes the total size
                 of generated segments and querying time while indexing time will be increased. If
