@@ -172,9 +172,6 @@ public class CompactionTask extends AbstractBatchIndexTask
       }
   );
 
-  @JsonIgnore
-  private List<ParallelIndexSupervisorTask> indexTaskSpecs;
-
   @JsonCreator
   public CompactionTask(
       @JsonProperty("id") final String id,
@@ -317,32 +314,38 @@ public class CompactionTask extends AbstractBatchIndexTask
   @Override
   public TaskStatus runTask(TaskToolbox toolbox) throws Exception
   {
-    if (indexTaskSpecs == null) {
-      final List<ParallelIndexIngestionSpec> ingestionSpecs = createIngestionSchema(
-          toolbox,
-          segmentProvider,
-          partitionConfigurationManager,
-          dimensionsSpec,
-          metricsSpec,
-          segmentGranularity,
-          jsonMapper,
-          coordinatorClient,
-          segmentLoaderFactory,
-          retryPolicyFactory
-      );
-      indexTaskSpecs = ingestionSpecs.stream().map(ingestionSpec -> new ParallelIndexSupervisorTask(
-          getId(),
-          getGroupId(),
-          getTaskResource(),
-          ingestionSpec,
-          createContextForSubtask(),
-          indexingServiceClient,
-          chatHandlerProvider,
-          authorizerMapper,
-          rowIngestionMetersFactory,
-          appenderatorsManager
-      )).collect(Collectors.toList());
-    }
+    final List<ParallelIndexIngestionSpec> ingestionSpecs = createIngestionSchema(
+        toolbox,
+        segmentProvider,
+        partitionConfigurationManager,
+        dimensionsSpec,
+        metricsSpec,
+        segmentGranularity,
+        jsonMapper,
+        coordinatorClient,
+        segmentLoaderFactory,
+        retryPolicyFactory
+    );
+    final List<ParallelIndexSupervisorTask> indexTaskSpecs = IntStream
+        .range(0, ingestionSpecs.size())
+        .mapToObj(i -> {
+          final String subtaskId = tuningConfig == null || tuningConfig.getMaxNumConcurrentSubTasks() == 1
+                                   ? createIndexTaskSpecId(i)
+                                   : getId();
+          return new ParallelIndexSupervisorTask(
+              subtaskId,
+              getGroupId(),
+              getTaskResource(),
+              ingestionSpecs.get(i),
+              createContextForSubtask(),
+              indexingServiceClient,
+              chatHandlerProvider,
+              authorizerMapper,
+              rowIngestionMetersFactory,
+              appenderatorsManager
+          );
+        })
+        .collect(Collectors.toList());
 
     if (indexTaskSpecs.isEmpty()) {
       log.warn("Interval[%s] has no segments, nothing to do.", interval);

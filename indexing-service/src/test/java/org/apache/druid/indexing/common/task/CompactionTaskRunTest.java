@@ -56,6 +56,7 @@ import org.apache.druid.segment.loading.SegmentLoaderConfig;
 import org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager;
 import org.apache.druid.segment.loading.StorageLocationConfig;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
+import org.apache.druid.segment.realtime.firehose.NoopChatHandlerProvider;
 import org.apache.druid.server.security.AuthTestUtils;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedOverwriteShardSpec;
@@ -171,7 +172,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         DATA_SOURCE,
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
-        null,
+        new NoopChatHandlerProvider(),
         rowIngestionMetersFactory,
         indexingServiceClient,
         coordinatorClient,
@@ -216,7 +217,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         DATA_SOURCE,
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
-        null,
+        new NoopChatHandlerProvider(),
         rowIngestionMetersFactory,
         indexingServiceClient,
         coordinatorClient,
@@ -293,7 +294,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         DATA_SOURCE,
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
-        null,
+        new NoopChatHandlerProvider(),
         rowIngestionMetersFactory,
         indexingServiceClient,
         coordinatorClient,
@@ -338,7 +339,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         ),
         null,
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
-        null,
+        new NoopChatHandlerProvider(),
         rowIngestionMetersFactory,
         appenderatorsManager
     );
@@ -391,7 +392,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         DATA_SOURCE,
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
-        null,
+        new NoopChatHandlerProvider(),
         rowIngestionMetersFactory,
         indexingServiceClient,
         coordinatorClient,
@@ -445,7 +446,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         DATA_SOURCE,
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
-        null,
+        new NoopChatHandlerProvider(),
         rowIngestionMetersFactory,
         indexingServiceClient,
         coordinatorClient,
@@ -493,7 +494,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         DATA_SOURCE,
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
-        null,
+        new NoopChatHandlerProvider(),
         rowIngestionMetersFactory,
         indexingServiceClient,
         coordinatorClient,
@@ -552,7 +553,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         DATA_SOURCE,
         getObjectMapper(),
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
-        null,
+        new NoopChatHandlerProvider(),
         rowIngestionMetersFactory,
         indexingServiceClient,
         coordinatorClient,
@@ -664,7 +665,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
         ),
         null,
         AuthTestUtils.TEST_AUTHORIZER_MAPPER,
-        null,
+        new NoopChatHandlerProvider(),
         rowIngestionMetersFactory,
         appenderatorsManager
     );
