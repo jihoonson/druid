@@ -239,14 +239,14 @@ public class NewestSegmentFirstIterator implements CompactionSegmentIterator
   private static boolean needsCompaction(DataSourceCompactionConfig config, SegmentsToCompact candidates)
   {
     Preconditions.checkState(!candidates.isEmpty(), "Empty candidates");
-    @Nullable final Long targetCompactionSizeBytes = config.getTargetCompactionSizeBytes();
-    @Nullable final Integer maxRowsPerSegment = config.getMaxRowsPerSegment();
-    @Nullable final Long maxTotalRows = config.getTuningConfig() == null
+    final int maxRowsPerSegment = config.getMaxRowsPerSegment() == null
+                                  ? PartitionsSpec.DEFAULT_MAX_ROWS_PER_SEGMENT
+                                  : config.getMaxRowsPerSegment();
+    @Nullable Long maxTotalRows = config.getTuningConfig() == null
                                         ? null
                                         : config.getTuningConfig().getMaxTotalRows();
+    maxTotalRows = maxTotalRows == null ? Long.MAX_VALUE : maxTotalRows;
 
-    // maxRowsPerSegment must be not null if targetCompactionSizeBytes is null
-    Preconditions.checkNotNull(maxRowsPerSegment, "maxRowsPerSegment of auto compaction config");
     final PartitionsSpec segmentPartitionsSpec = candidates.segments.get(0).getCompactionPartitionsSpec();
     if (!(segmentPartitionsSpec instanceof DynamicPartitionsSpec)) {
       return true;
@@ -258,7 +258,7 @@ public class NewestSegmentFirstIterator implements CompactionSegmentIterator
         .allMatch(segment -> dynamicPartitionsSpec.equals(segment.getCompactionPartitionsSpec()));
 
     if (allCandidatesHaveSameCompactionPartitionsSpec) {
-      return !maxRowsPerSegment.equals(dynamicPartitionsSpec.getMaxRowsPerSegment())
+      return !Objects.equals(maxRowsPerSegment, dynamicPartitionsSpec.getMaxRowsPerSegment())
           || !Objects.equals(maxTotalRows, dynamicPartitionsSpec.getMaxTotalRows());
     } else {
       return true;
@@ -279,7 +279,6 @@ public class NewestSegmentFirstIterator implements CompactionSegmentIterator
   )
   {
     final long inputSegmentSize = config.getInputSegmentSizeBytes();
-    final @Nullable Long targetCompactionSizeBytes = config.getTargetCompactionSizeBytes();
     final int maxNumSegmentsToCompact = config.getMaxNumSegmentsToCompact();
 
     while (compactibleTimelineObjectHolderCursor.hasNext()) {

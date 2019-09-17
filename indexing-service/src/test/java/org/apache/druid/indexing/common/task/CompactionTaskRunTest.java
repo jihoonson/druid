@@ -193,7 +193,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
           segments.get(i).getInterval()
       );
       Assert.assertEquals(
-          new DynamicPartitionsSpec(499520, Long.MAX_VALUE),
+          new DynamicPartitionsSpec(5000000, Long.MAX_VALUE),
           segments.get(i).getCompactionPartitionsSpec()
       );
       if (lockGranularity == LockGranularity.SEGMENT) {
@@ -241,7 +241,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
           segments.get(i).getInterval()
       );
       Assert.assertEquals(
-          new DynamicPartitionsSpec(499520, Long.MAX_VALUE),
+          new DynamicPartitionsSpec(5000000, Long.MAX_VALUE),
           segments.get(i).getCompactionPartitionsSpec()
       );
       if (lockGranularity == LockGranularity.SEGMENT) {
@@ -271,7 +271,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
           segments.get(i).getInterval()
       );
       Assert.assertEquals(
-          new DynamicPartitionsSpec(954697, Long.MAX_VALUE),
+          new DynamicPartitionsSpec(5000000, Long.MAX_VALUE),
           segments.get(i).getCompactionPartitionsSpec()
       );
       if (lockGranularity == LockGranularity.SEGMENT) {
@@ -378,7 +378,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
           segments.get(i).getInterval()
       );
       Assert.assertEquals(
-          new DynamicPartitionsSpec(499520, Long.MAX_VALUE),
+          new DynamicPartitionsSpec(5000000, Long.MAX_VALUE),
           segments.get(i).getCompactionPartitionsSpec()
       );
       if (lockGranularity == LockGranularity.SEGMENT) {
@@ -426,7 +426,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014-01-01/2014-01-02"), segments.get(0).getInterval());
     Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(0).getShardSpec());
     Assert.assertEquals(
-        new DynamicPartitionsSpec(499520, Long.MAX_VALUE),
+        new DynamicPartitionsSpec(5000000, Long.MAX_VALUE),
         segments.get(0).getCompactionPartitionsSpec()
     );
 
@@ -447,7 +447,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
       Assert.assertEquals(Intervals.of("2014-01-01T0%d:00:00/2014-01-01T0%d:00:00", i, i + 1), segments.get(i).getInterval());
       Assert.assertEquals(new NumberedShardSpec(0, 0), segments.get(i).getShardSpec());
       Assert.assertEquals(
-          new DynamicPartitionsSpec(2639772, Long.MAX_VALUE),
+          new DynamicPartitionsSpec(5000000, Long.MAX_VALUE),
           segments.get(i).getCompactionPartitionsSpec()
       );
     }

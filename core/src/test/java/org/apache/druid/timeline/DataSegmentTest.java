@@ -30,7 +30,7 @@ import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.jackson.JacksonUtils;
-import org.apache.druid.timeline.DataSegment.DeserializeSpec;
+import org.apache.druid.timeline.DataSegment.PruneSpecs;
 import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.PartitionChunk;
@@ -104,7 +104,7 @@ public class DataSegmentTest
   public void setUp()
   {
     InjectableValues.Std injectableValues = new InjectableValues.Std();
-    injectableValues.addValue(DeserializeSpec.class, DeserializeSpec.DEFAULT);
+    injectableValues.addValue(PruneSpecs.class, PruneSpecs.DEFAULT);
     MAPPER.setInjectableValues(injectableValues);
   }
 

@@ -183,7 +183,6 @@ public class DruidCoordinatorSegmentCompactor implements DruidCoordinatorHelper
         // make tuningConfig
         final String taskId = indexingServiceClient.compactSegments(
             segmentsToCompact,
-            config.getTargetCompactionSizeBytes(),
             config.getTaskPriority(),
             ClientCompactQueryTuningConfig.from(config.getTuningConfig(), config.getMaxRowsPerSegment()),
             config.getTaskContext()

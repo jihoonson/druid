@@ -22,7 +22,7 @@ package org.apache.druid.server;
 import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.druid.jackson.DefaultObjectMapper;
-import org.apache.druid.timeline.DataSegment.DeserializeSpec;
+import org.apache.druid.timeline.DataSegment.PruneSpecs;
 
 public class ServerTestHelper
 {
@@ -32,7 +32,7 @@ public class ServerTestHelper
     MAPPER.setInjectableValues(
         new InjectableValues.Std()
             .addValue(ObjectMapper.class.getName(), MAPPER)
-            .addValue(DeserializeSpec.class, DeserializeSpec.DEFAULT)
+            .addValue(PruneSpecs.class, PruneSpecs.DEFAULT)
     );
   }
 }

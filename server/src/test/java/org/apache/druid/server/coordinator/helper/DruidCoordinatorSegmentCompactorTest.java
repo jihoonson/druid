@@ -48,7 +48,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -67,7 +66,6 @@ public class DruidCoordinatorSegmentCompactorTest
     @Override
     public String compactSegments(
         List<DataSegment> segments,
-        @Nullable Long targetCompactionSizeBytes,
         int compactionTaskPriority,
         ClientCompactQueryTuningConfig tuningConfig,
         Map<String, Object> context
@@ -98,7 +96,10 @@ public class DruidCoordinatorSegmentCompactorTest
             segments.get(0).getDimensions(),
             segments.get(0).getMetrics(),
             new NumberedShardSpec(i, 0),
-            new DynamicPartitionsSpec(tuningConfig.getMaxRowsPerSegment(), tuningConfig.getMaxTotalRows()),
+            new DynamicPartitionsSpec(
+                tuningConfig.getMaxRowsPerSegment(),
+                tuningConfig.getMaxTotalRowsOr(Long.MAX_VALUE)
+            ),
             1,
             segmentSize
         );
@@ -377,7 +378,6 @@ public class DruidCoordinatorSegmentCompactorTest
               dataSource,
               0,
               50L,
-              20L,
               null,
               null,
               new Period("PT1H"), // smaller than segment interval

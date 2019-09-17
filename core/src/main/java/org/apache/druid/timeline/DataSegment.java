@@ -66,10 +66,10 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
    * github.com/google/guice/wiki/FrequentlyAskedQuestions#how-can-i-inject-optional-parameters-into-a-constructor
    */
   @VisibleForTesting
-  public static class DeserializeSpec
+  public static class PruneSpecs
   {
     @VisibleForTesting
-    public static final DeserializeSpec DEFAULT = new DeserializeSpec();
+    public static final PruneSpecs DEFAULT = new PruneSpecs();
 
     @Inject(optional = true) @PruneLoadSpec boolean pruneLoadSpec = false;
     @Inject(optional = true) @PrunePartitionsSpec boolean prunePartitionsSpec = false;
@@ -170,7 +170,7 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
         compactionPartitionsSpec,
         binaryVersion,
         size,
-        DeserializeSpec.DEFAULT
+        PruneSpecs.DEFAULT
     );
   }
 
@@ -193,17 +193,17 @@ public class DataSegment implements Comparable<DataSegment>, Overshadowable<Data
       @JsonProperty("compactionPartitionsSpec") @Nullable PartitionsSpec compactionPartitionsSpec,
       @JsonProperty("binaryVersion") Integer binaryVersion,
       @JsonProperty("size") long size,
-      @JacksonInject DeserializeSpec deserializeSpec
+      @JacksonInject PruneSpecs pruneSpecs
   )
   {
     this.id = SegmentId.of(dataSource, interval, version, shardSpec);
-    this.loadSpec = deserializeSpec.pruneLoadSpec ? PRUNED_LOAD_SPEC : prepareLoadSpec(loadSpec);
+    this.loadSpec = pruneSpecs.pruneLoadSpec ? PRUNED_LOAD_SPEC : prepareLoadSpec(loadSpec);
     // Deduplicating dimensions and metrics lists as a whole because they are very likely the same for the same
     // dataSource
     this.dimensions = prepareDimensionsOrMetrics(dimensions, DIMENSIONS_INTERNER);
     this.metrics = prepareDimensionsOrMetrics(metrics, METRICS_INTERNER);
     this.shardSpec = (shardSpec == null) ? new NumberedShardSpec(0, 1) : shardSpec;
-    this.compactionPartitionsSpec = deserializeSpec.prunePartitionsSpec
+    this.compactionPartitionsSpec = pruneSpecs.prunePartitionsSpec
                                     ? null
                                     : prepareCompactionPartitionsSpec(compactionPartitionsSpec);
     this.binaryVersion = binaryVersion;
