@@ -57,8 +57,7 @@ import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.CompactionTask.Builder;
 import org.apache.druid.indexing.common.task.CompactionTask.PartitionConfigurationManager;
 import org.apache.druid.indexing.common.task.CompactionTask.SegmentProvider;
-import org.apache.druid.indexing.common.task.IndexTask.IndexIOConfig;
-import org.apache.druid.indexing.common.task.IndexTask.IndexTuningConfig;
+import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexIOConfig;
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexIngestionSpec;
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexTuningConfig;
 import org.apache.druid.indexing.firehose.IngestSegmentFirehoseFactory;
@@ -252,6 +251,7 @@ public class CompactionTaskTest
                   binder.bind(CoordinatorClient.class).toInstance(coordinatorClient);
                   binder.bind(SegmentLoaderFactory.class).toInstance(new SegmentLoaderFactory(null, objectMapper));
                   binder.bind(AppenderatorsManager.class).toInstance(appenderatorsManager);
+                  binder.bind(IndexingServiceClient.class).toInstance(new NoopIndexingServiceClient());
                 }
             )
         )
@@ -464,188 +464,203 @@ public class CompactionTaskTest
     );
   }
 
-//  @Test
-//  public void testCreateIngestionSchemaWithTargetPartitionSize() throws IOException, SegmentLoadingException
-//  {
-//    final ParallelIndexTuningConfig tuningConfig = new IndexTuningConfig(
-//        null,
-//        null,
-//        500000,
-//        1000000L,
-//        null,
-//        null,
-//        null,
-//        null,
-//        new HashedPartitionsSpec(6, null, null),
-//        new IndexSpec(
-//            new RoaringBitmapSerdeFactory(true),
-//            CompressionStrategy.LZ4,
-//            CompressionStrategy.LZF,
-//            LongEncodingStrategy.LONGS
-//        ),
-//        null,
-//        5000,
-//        true,
-//        false,
-//        null,
-//        100L,
-//        null,
-//        null,
-//        null,
-//        null
-//    );
-//    final List<IndexIngestionSpec> ingestionSpecs = CompactionTask.createIngestionSchema(
-//        toolbox,
-//        new SegmentProvider(DATA_SOURCE, COMPACTION_INTERVAL),
-//        new PartitionConfigurationManager(null, tuningConfig),
-//        null,
-//        null,
-//        null,
-//        objectMapper,
-//        coordinatorClient,
-//        segmentLoaderFactory,
-//        retryPolicyFactory
-//    );
-//    final List<DimensionsSpec> expectedDimensionsSpec = getExpectedDimensionsSpecForAutoGeneration();
-//
-//    ingestionSpecs.sort(
-//        (s1, s2) -> Comparators.intervalsByStartThenEnd().compare(
-//            s1.getDataSchema().getGranularitySpec().inputIntervals().get(0),
-//            s2.getDataSchema().getGranularitySpec().inputIntervals().get(0)
-//        )
-//    );
-//    Assert.assertEquals(6, ingestionSpecs.size());
-//    assertIngestionSchema(
-//        ingestionSpecs,
-//        expectedDimensionsSpec,
-//        AGGREGATORS,
-//        SEGMENT_INTERVALS,
-//        tuningConfig,
-//        Granularities.MONTH
-//    );
-//  }
+  @Test
+  public void testCreateIngestionSchemaWithTargetPartitionSize() throws IOException, SegmentLoadingException
+  {
+    final ParallelIndexTuningConfig tuningConfig = new ParallelIndexTuningConfig(
+        100000,
+        null,
+        500000,
+        1000000L,
+        null,
+        null,
+        null,
+        new IndexSpec(
+            new RoaringBitmapSerdeFactory(true),
+            CompressionStrategy.LZ4,
+            CompressionStrategy.LZF,
+            LongEncodingStrategy.LONGS
+        ),
+        null,
+        null,
+        true,
+        false,
+        null,
+        null,
+        null,
+        10,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+    );
+    final List<ParallelIndexIngestionSpec> ingestionSpecs = CompactionTask.createIngestionSchema(
+        toolbox,
+        new SegmentProvider(DATA_SOURCE, COMPACTION_INTERVAL),
+        new PartitionConfigurationManager(null, tuningConfig),
+        null,
+        null,
+        null,
+        objectMapper,
+        coordinatorClient,
+        segmentLoaderFactory,
+        retryPolicyFactory
+    );
+    final List<DimensionsSpec> expectedDimensionsSpec = getExpectedDimensionsSpecForAutoGeneration();
 
-//  @Test
-//  public void testCreateIngestionSchemaWithMaxTotalRows() throws IOException, SegmentLoadingException
-//  {
-//    final IndexTuningConfig tuningConfig = new IndexTuningConfig(
-//        null,
-//        null,
-//        500000,
-//        1000000L,
-//        null,
-//        null,
-//        null,
-//        null,
-//        new HashedPartitionsSpec(null, 6, null),
-//        new IndexSpec(
-//            new RoaringBitmapSerdeFactory(true),
-//            CompressionStrategy.LZ4,
-//            CompressionStrategy.LZF,
-//            LongEncodingStrategy.LONGS
-//        ),
-//        null,
-//        5000,
-//        true,
-//        false,
-//        null,
-//        100L,
-//        null,
-//        null,
-//        null,
-//        null
-//    );
-//    final List<IndexIngestionSpec> ingestionSpecs = CompactionTask.createIngestionSchema(
-//        toolbox,
-//        new SegmentProvider(DATA_SOURCE, COMPACTION_INTERVAL),
-//        new PartitionConfigurationManager(null, tuningConfig),
-//        null,
-//        null,
-//        null,
-//        objectMapper,
-//        coordinatorClient,
-//        segmentLoaderFactory,
-//        retryPolicyFactory
-//    );
-//    final List<DimensionsSpec> expectedDimensionsSpec = getExpectedDimensionsSpecForAutoGeneration();
-//
-//    ingestionSpecs.sort(
-//        (s1, s2) -> Comparators.intervalsByStartThenEnd().compare(
-//            s1.getDataSchema().getGranularitySpec().inputIntervals().get(0),
-//            s2.getDataSchema().getGranularitySpec().inputIntervals().get(0)
-//        )
-//    );
-//    Assert.assertEquals(6, ingestionSpecs.size());
-//    assertIngestionSchema(
-//        ingestionSpecs,
-//        expectedDimensionsSpec,
-//        AGGREGATORS,
-//        SEGMENT_INTERVALS,
-//        tuningConfig,
-//        Granularities.MONTH
-//    );
-//  }
+    ingestionSpecs.sort(
+        (s1, s2) -> Comparators.intervalsByStartThenEnd().compare(
+            s1.getDataSchema().getGranularitySpec().inputIntervals().get(0),
+            s2.getDataSchema().getGranularitySpec().inputIntervals().get(0)
+        )
+    );
+    Assert.assertEquals(6, ingestionSpecs.size());
+    assertIngestionSchema(
+        ingestionSpecs,
+        expectedDimensionsSpec,
+        AGGREGATORS,
+        SEGMENT_INTERVALS,
+        tuningConfig,
+        Granularities.MONTH
+    );
+  }
 
-//  @Test
-//  public void testCreateIngestionSchemaWithNumShards() throws IOException, SegmentLoadingException
-//  {
-//    final IndexTuningConfig tuningConfig = new IndexTuningConfig(
-//        null,
-//        null,
-//        500000,
-//        1000000L,
-//        null,
-//        null,
-//        null,
-//        null,
-//        new HashedPartitionsSpec(null, 3, null),
-//        new IndexSpec(
-//            new RoaringBitmapSerdeFactory(true),
-//            CompressionStrategy.LZ4,
-//            CompressionStrategy.LZF,
-//            LongEncodingStrategy.LONGS
-//        ),
-//        null,
-//        5000,
-//        true,
-//        false,
-//        null,
-//        100L,
-//        null,
-//        null,
-//        null,
-//        null
-//    );
-//    final List<IndexIngestionSpec> ingestionSpecs = CompactionTask.createIngestionSchema(
-//        toolbox,
-//        new SegmentProvider(DATA_SOURCE, COMPACTION_INTERVAL),
-//        new PartitionConfigurationManager(null, tuningConfig),
-//        null,
-//        null,
-//        null,
-//        objectMapper,
-//        coordinatorClient,
-//        segmentLoaderFactory,
-//        retryPolicyFactory
-//    );
-//    final List<DimensionsSpec> expectedDimensionsSpec = getExpectedDimensionsSpecForAutoGeneration();
-//
-//    ingestionSpecs.sort(
-//        (s1, s2) -> Comparators.intervalsByStartThenEnd().compare(
-//            s1.getDataSchema().getGranularitySpec().inputIntervals().get(0),
-//            s2.getDataSchema().getGranularitySpec().inputIntervals().get(0)
-//        )
-//    );
-//    Assert.assertEquals(6, ingestionSpecs.size());
-//    assertIngestionSchema(
-//        ingestionSpecs,
-//        expectedDimensionsSpec,
-//        AGGREGATORS,
-//        SEGMENT_INTERVALS,
-//        tuningConfig,
-//        Granularities.MONTH
-//    );
-//  }
+  @Test
+  public void testCreateIngestionSchemaWithMaxTotalRows() throws IOException, SegmentLoadingException
+  {
+    final ParallelIndexTuningConfig tuningConfig = new ParallelIndexTuningConfig(
+        null,
+        null,
+        500000,
+        1000000L,
+        1000000L,
+        null,
+        null,
+        new IndexSpec(
+            new RoaringBitmapSerdeFactory(true),
+            CompressionStrategy.LZ4,
+            CompressionStrategy.LZF,
+            LongEncodingStrategy.LONGS
+        ),
+        null,
+        null,
+        false,
+        false,
+        5000L,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+    );
+    final List<ParallelIndexIngestionSpec> ingestionSpecs = CompactionTask.createIngestionSchema(
+        toolbox,
+        new SegmentProvider(DATA_SOURCE, COMPACTION_INTERVAL),
+        new PartitionConfigurationManager(null, tuningConfig),
+        null,
+        null,
+        null,
+        objectMapper,
+        coordinatorClient,
+        segmentLoaderFactory,
+        retryPolicyFactory
+    );
+    final List<DimensionsSpec> expectedDimensionsSpec = getExpectedDimensionsSpecForAutoGeneration();
+
+    ingestionSpecs.sort(
+        (s1, s2) -> Comparators.intervalsByStartThenEnd().compare(
+            s1.getDataSchema().getGranularitySpec().inputIntervals().get(0),
+            s2.getDataSchema().getGranularitySpec().inputIntervals().get(0)
+        )
+    );
+    Assert.assertEquals(6, ingestionSpecs.size());
+    assertIngestionSchema(
+        ingestionSpecs,
+        expectedDimensionsSpec,
+        AGGREGATORS,
+        SEGMENT_INTERVALS,
+        tuningConfig,
+        Granularities.MONTH
+    );
+  }
+
+  @Test
+  public void testCreateIngestionSchemaWithNumShards() throws IOException, SegmentLoadingException
+  {
+    final ParallelIndexTuningConfig tuningConfig = new ParallelIndexTuningConfig(
+        null,
+        null,
+        500000,
+        1000000L,
+        null,
+        null,
+        new HashedPartitionsSpec(null, 3, null),
+        new IndexSpec(
+            new RoaringBitmapSerdeFactory(true),
+            CompressionStrategy.LZ4,
+            CompressionStrategy.LZF,
+            LongEncodingStrategy.LONGS
+        ),
+        null,
+        null,
+        true,
+        false,
+        5000L,
+        null,
+        null,
+        10,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+    );
+    final List<ParallelIndexIngestionSpec> ingestionSpecs = CompactionTask.createIngestionSchema(
+        toolbox,
+        new SegmentProvider(DATA_SOURCE, COMPACTION_INTERVAL),
+        new PartitionConfigurationManager(null, tuningConfig),
+        null,
+        null,
+        null,
+        objectMapper,
+        coordinatorClient,
+        segmentLoaderFactory,
+        retryPolicyFactory
+    );
+    final List<DimensionsSpec> expectedDimensionsSpec = getExpectedDimensionsSpecForAutoGeneration();
+
+    ingestionSpecs.sort(
+        (s1, s2) -> Comparators.intervalsByStartThenEnd().compare(
+            s1.getDataSchema().getGranularitySpec().inputIntervals().get(0),
+            s2.getDataSchema().getGranularitySpec().inputIntervals().get(0)
+        )
+    );
+    Assert.assertEquals(6, ingestionSpecs.size());
+    assertIngestionSchema(
+        ingestionSpecs,
+        expectedDimensionsSpec,
+        AGGREGATORS,
+        SEGMENT_INTERVALS,
+        tuningConfig,
+        Granularities.MONTH
+    );
+  }
 
   @Test
   public void testCreateIngestionSchemaWithCustomDimensionsSpec() throws IOException, SegmentLoadingException
@@ -856,47 +871,52 @@ public class CompactionTaskTest
   @Test
   public void testTargetPartitionSizeWithPartitionConfig() throws IOException, SegmentLoadingException
   {
-//    final IndexTuningConfig tuningConfig = new IndexTuningConfig(
-//        null,
-//        null,
-//        500000,
-//        1000000L,
-//        null,
-//        null,
-//        null,
-//        null,
-//        new HashedPartitionsSpec(6, null, null),
-//        new IndexSpec(
-//            new RoaringBitmapSerdeFactory(true),
-//            CompressionStrategy.LZ4,
-//            CompressionStrategy.LZF,
-//            LongEncodingStrategy.LONGS
-//        ),
-//        null,
-//        5000,
-//        true,
-//        false,
-//        null,
-//        100L,
-//        null,
-//        null,
-//        null,
-//        null
-//    );
-//    expectedException.expect(IllegalArgumentException.class);
-//    expectedException.expectMessage("targetCompactionSizeBytes[6] cannot be used with");
-//    final List<IndexIngestionSpec> ingestionSpecs = CompactionTask.createIngestionSchema(
-//        toolbox,
-//        new SegmentProvider(DATA_SOURCE, COMPACTION_INTERVAL),
-//        new PartitionConfigurationManager(6L, tuningConfig),
-//        null,
-//        null,
-//        null,
-//        objectMapper,
-//        coordinatorClient,
-//        segmentLoaderFactory,
-//        retryPolicyFactory
-//    );
+    final ParallelIndexTuningConfig tuningConfig = new ParallelIndexTuningConfig(
+        10000,
+        null,
+        500000,
+        1000000L,
+        null,
+        null,
+        new HashedPartitionsSpec(1000, null, null),
+        new IndexSpec(
+            new RoaringBitmapSerdeFactory(true),
+            CompressionStrategy.LZ4,
+            CompressionStrategy.LZF,
+            LongEncodingStrategy.LONGS
+        ),
+        null,
+        null,
+        true,
+        false,
+        5000L,
+        null,
+        null,
+        10,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+    );
+    expectedException.expect(IllegalArgumentException.class);
+    expectedException.expectMessage("targetCompactionSizeBytes[6] cannot be used with");
+    final List<ParallelIndexIngestionSpec> ingestionSpecs = CompactionTask.createIngestionSchema(
+        toolbox,
+        new SegmentProvider(DATA_SOURCE, COMPACTION_INTERVAL),
+        new PartitionConfigurationManager(6L, tuningConfig),
+        null,
+        null,
+        null,
+        objectMapper,
+        coordinatorClient,
+        segmentLoaderFactory,
+        retryPolicyFactory
+    );
   }
 
   @Test
@@ -1045,14 +1065,12 @@ public class CompactionTaskTest
         expectedDimensionsSpecs,
         expectedMetricsSpec,
         expectedSegmentIntervals,
-        new IndexTuningConfig(
+        new ParallelIndexTuningConfig(
             null,
             null,
             500000,
             1000000L,
             Long.MAX_VALUE,
-            null,
-            null,
             null,
             new HashedPartitionsSpec(41943040, null, null), // automatically computed targetPartitionSize
             new IndexSpec(
@@ -1062,11 +1080,18 @@ public class CompactionTaskTest
                 LongEncodingStrategy.LONGS
             ),
             null,
-            5000,
+            null,
             true,
             false,
+            5000L,
             null,
-            100L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
             null,
             null,
             null,
@@ -1081,7 +1106,7 @@ public class CompactionTaskTest
       List<DimensionsSpec> expectedDimensionsSpecs,
       List<AggregatorFactory> expectedMetricsSpec,
       List<Interval> expectedSegmentIntervals,
-      IndexTuningConfig expectedTuningConfig,
+      ParallelIndexTuningConfig expectedTuningConfig,
       Granularity expectedSegmentGranularity
   )
   {
@@ -1126,7 +1151,7 @@ public class CompactionTaskTest
       );
 
       // assert ioConfig
-      final IndexIOConfig ioConfig = ingestionSchema.getIOConfig();
+      final ParallelIndexIOConfig ioConfig = ingestionSchema.getIOConfig();
       Assert.assertFalse(ioConfig.isAppendToExisting());
       final FirehoseFactory firehoseFactory = ioConfig.getFirehoseFactory();
       Assert.assertTrue(firehoseFactory instanceof IngestSegmentFirehoseFactory);

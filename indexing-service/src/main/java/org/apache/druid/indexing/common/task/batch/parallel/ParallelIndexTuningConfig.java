@@ -292,4 +292,18 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
         totalNumMergeTasks
     );
   }
+
+  @Override
+  public String toString()
+  {
+    return "ParallelIndexTuningConfig{" +
+           "maxNumConcurrentSubTasks=" + maxNumConcurrentSubTasks +
+           ", maxRetry=" + maxRetry +
+           ", taskStatusCheckPeriodMs=" + taskStatusCheckPeriodMs +
+           ", chatHandlerTimeout=" + chatHandlerTimeout +
+           ", chatHandlerNumRetries=" + chatHandlerNumRetries +
+           ", maxNumSegmentsToMerge=" + maxNumSegmentsToMerge +
+           ", totalNumMergeTasks=" + totalNumMergeTasks +
+           "} " + super.toString();
+  }
 }
