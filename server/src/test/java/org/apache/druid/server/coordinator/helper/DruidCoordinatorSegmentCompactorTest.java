@@ -88,6 +88,7 @@ public class DruidCoordinatorSegmentCompactorTest
           )
       );
       final String version = "newVersion_" + compactVersionSuffix++;
+      final long segmentSize = segments.stream().mapToLong(DataSegment::getSize).sum() / 2;
       for (int i = 0; i < 2; i++) {
         DataSegment compactSegment = new DataSegment(
             segments.get(0).getDataSource(),
@@ -99,7 +100,7 @@ public class DruidCoordinatorSegmentCompactorTest
             new NumberedShardSpec(i, 0),
             new DynamicPartitionsSpec(tuningConfig.getMaxRowsPerSegment(), tuningConfig.getMaxTotalRows()),
             1,
-            segments.stream().mapToLong(DataSegment::getSize).sum() / 2
+            segmentSize
         );
 
         timeline.add(
@@ -108,6 +109,7 @@ public class DruidCoordinatorSegmentCompactorTest
             compactSegment.getShardSpec().createChunk(compactSegment)
         );
       }
+
       return "task_" + idSuffix++;
     }
 
@@ -302,11 +304,10 @@ public class DruidCoordinatorSegmentCompactorTest
       List<PartitionChunk<DataSegment>> chunks = Lists.newArrayList(holders.get(0).getObject());
       Assert.assertEquals(2, chunks.size());
       final String expectedVersion = expectedVersionSupplier.get();
-      chunks.forEach(chunk -> {
-        DataSegment segment = chunk.getObject();
-        Assert.assertEquals(expectedInterval, segment.getInterval());
-        Assert.assertEquals(expectedVersion, segment.getVersion());
-      });
+      for (PartitionChunk<DataSegment> chunk : chunks) {
+        Assert.assertEquals(expectedInterval, chunk.getObject().getInterval());
+        Assert.assertEquals(expectedVersion, chunk.getObject().getVersion());
+      }
     }
   }
 
