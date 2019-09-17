@@ -139,51 +139,6 @@ public class DataSourceCompactionConfigTest
   }
 
   @Test
-  public void testSerdeTargetCompactionSizeBytesWithMaxRowsPerSegment()
-  {
-    expectedException.expect(IllegalArgumentException.class);
-    expectedException.expectMessage(
-        "targetCompactionSizeBytes[10000] cannot be used with maxRowsPerSegment[1000] and maxTotalRows[null]"
-    );
-    final DataSourceCompactionConfig config = new DataSourceCompactionConfig(
-        "dataSource",
-        null,
-        500L,
-        1000,
-        20,
-        new Period(3600),
-        null,
-        ImmutableMap.of("key", "val")
-    );
-  }
-
-  @Test
-  public void testSerdeTargetCompactionSizeBytesWithMaxTotalRows()
-  {
-    expectedException.expect(IllegalArgumentException.class);
-    expectedException.expectMessage(
-        "targetCompactionSizeBytes[10000] cannot be used with maxRowsPerSegment[null] and maxTotalRows[10000]"
-    );
-    final DataSourceCompactionConfig config = new DataSourceCompactionConfig(
-        "dataSource",
-        null,
-        500L,
-        null,
-        20,
-        new Period(3600),
-        new UserCompactTuningConfig(
-            null,
-            null,
-            10000L,
-            null,
-            null,
-            null
-        ),
-        ImmutableMap.of("key", "val")
-    );
-  }
-
-  @Test
   public void testSerdeMaxTotalRowsWithMaxRowsPerSegment() throws IOException
   {
     final DataSourceCompactionConfig config = new DataSourceCompactionConfig(
