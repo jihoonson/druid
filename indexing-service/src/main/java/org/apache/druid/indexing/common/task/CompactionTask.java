@@ -329,21 +329,11 @@ public class CompactionTask extends AbstractBatchIndexTask
     final List<ParallelIndexSupervisorTask> indexTaskSpecs = IntStream
         .range(0, ingestionSpecs.size())
         .mapToObj(i -> {
+          // TODO: comment
           final String subtaskId = tuningConfig == null || tuningConfig.getMaxNumConcurrentSubTasks() == 1
                                    ? createIndexTaskSpecId(i)
                                    : getId();
-          return new ParallelIndexSupervisorTask(
-              subtaskId,
-              getGroupId(),
-              getTaskResource(),
-              ingestionSpecs.get(i),
-              createContextForSubtask(),
-              indexingServiceClient,
-              chatHandlerProvider,
-              authorizerMapper,
-              rowIngestionMetersFactory,
-              appenderatorsManager
-          );
+          return newTask(subtaskId, ingestionSpecs.get(i));
         })
         .collect(Collectors.toList());
 
@@ -386,10 +376,29 @@ public class CompactionTask extends AbstractBatchIndexTask
     }
   }
 
-  private Map<String, Object> createContextForSubtask()
+  @VisibleForTesting
+  ParallelIndexSupervisorTask newTask(String taskId, ParallelIndexIngestionSpec ingestionSpec)
+  {
+    return new ParallelIndexSupervisorTask(
+        taskId,
+        getGroupId(),
+        getTaskResource(),
+        ingestionSpec,
+        createContextForSubtask(),
+        indexingServiceClient,
+        chatHandlerProvider,
+        authorizerMapper,
+        rowIngestionMetersFactory,
+        appenderatorsManager
+    );
+  }
+
+  @VisibleForTesting
+  Map<String, Object> createContextForSubtask()
   {
     final Map<String, Object> newContext = new HashMap<>(getContext());
     newContext.put(CTX_KEY_APPENDERATOR_TRACKING_TASK_ID, getId());
+    newContext.put(Tasks.PRIORITY_KEY, getPriority());
     return newContext;
   }
 

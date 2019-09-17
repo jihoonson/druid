@@ -76,6 +76,7 @@ import org.junit.runners.Parameterized;
 import javax.annotation.Nullable;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,15 +91,13 @@ import java.util.concurrent.Future;
 @RunWith(Parameterized.class)
 public class CompactionTaskRunTest extends IngestionTestBase
 {
-  public static final String DATA_SOURCE = "test";
-
   @Rule
   public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
 
-  private static final ParseSpec DEFAULT_PARSE_SPEC = new CSVParseSpec(
+  public static final ParseSpec DEFAULT_PARSE_SPEC = new CSVParseSpec(
       new TimestampSpec(
           "ts",
           "auto",
@@ -124,14 +123,17 @@ public class CompactionTaskRunTest extends IngestionTestBase
     );
   }
 
+  private static final String DATA_SOURCE = "test";
   private static final RetryPolicyFactory RETRY_POLICY_FACTORY = new RetryPolicyFactory(new RetryPolicyConfig());
   private final RowIngestionMetersFactory rowIngestionMetersFactory;
   private final IndexingServiceClient indexingServiceClient;
   private final CoordinatorClient coordinatorClient;
   private final SegmentLoaderFactory segmentLoaderFactory;
   private final LockGranularity lockGranularity;
+  private final AppenderatorsManager appenderatorsManager;
+
   private ExecutorService exec;
-  private AppenderatorsManager appenderatorsManager;
+  private File localDeepStorage;
 
   public CompactionTaskRunTest(LockGranularity lockGranularity)
   {
@@ -152,15 +154,17 @@ public class CompactionTaskRunTest extends IngestionTestBase
   }
 
   @Before
-  public void setup()
+  public void setup() throws IOException
   {
     exec = Execs.multiThreaded(2, "compaction-task-run-test-%d");
+    localDeepStorage = temporaryFolder.newFolder();
   }
 
   @After
   public void teardown()
   {
     exec.shutdownNow();
+    temporaryFolder.delete();
   }
 
   @Test
@@ -686,31 +690,53 @@ public class CompactionTaskRunTest extends IngestionTestBase
   {
     getLockbox().add(task);
     getTaskStorage().insert(task, TaskStatus.running(task.getId()));
-    final TestLocalTaskActionClient actionClient = createActionClient(task);
 
-    final File deepStorageDir = temporaryFolder.newFolder();
     final ObjectMapper objectMapper = getObjectMapper();
     objectMapper.registerSubtypes(
         new NamedType(LocalLoadSpec.class, "local")
     );
     objectMapper.registerSubtypes(LocalDataSegmentPuller.class);
 
+    final TaskToolbox box = createTaskToolbox(objectMapper, task);
+
+    task.addToContext(Tasks.FORCE_TIME_CHUNK_LOCK_KEY, lockGranularity == LockGranularity.TIME_CHUNK);
+    if (task.isReady(box.getTaskActionClient())) {
+      if (readyLatchToCountDown != null) {
+        readyLatchToCountDown.countDown();
+      }
+      if (latchToAwaitBeforeRun != null) {
+        latchToAwaitBeforeRun.await();
+      }
+      TaskStatus status = task.run(box);
+      shutdownTask(task);
+      final List<DataSegment> segments = new ArrayList<>(
+          ((TestLocalTaskActionClient) box.getTaskActionClient()).getPublishedSegments()
+      );
+      Collections.sort(segments);
+      return Pair.of(status, segments);
+    } else {
+      throw new ISE("task[%s] is not ready", task.getId());
+    }
+  }
+
+  private TaskToolbox createTaskToolbox(ObjectMapper objectMapper, Task task) throws IOException
+  {
     final SegmentLoader loader = new SegmentLoaderLocalCacheManager(
         getIndexIO(),
         new SegmentLoaderConfig() {
           @Override
           public List<StorageLocationConfig> getLocations()
           {
-            return ImmutableList.of(new StorageLocationConfig(deepStorageDir, null, null));
+            return ImmutableList.of(new StorageLocationConfig(localDeepStorage, null, null));
           }
         },
         objectMapper
     );
 
-    final TaskToolbox box = new TaskToolbox(
+    return new TaskToolbox(
         null,
         null,
-        actionClient,
+        createActionClient(task),
         null,
         new LocalDataSegmentPusher(new LocalDataSegmentPusherConfig()),
         new NoopDataSegmentKiller(),
@@ -737,22 +763,5 @@ public class CompactionTaskRunTest extends IngestionTestBase
         new NoopTestTaskReportFileWriter(),
         null
     );
-
-    task.addToContext(Tasks.FORCE_TIME_CHUNK_LOCK_KEY, lockGranularity == LockGranularity.TIME_CHUNK);
-    if (task.isReady(box.getTaskActionClient())) {
-      if (readyLatchToCountDown != null) {
-        readyLatchToCountDown.countDown();
-      }
-      if (latchToAwaitBeforeRun != null) {
-        latchToAwaitBeforeRun.await();
-      }
-      TaskStatus status = task.run(box);
-      shutdownTask(task);
-      final List<DataSegment> segments = new ArrayList<>(actionClient.getPublishedSegments());
-      Collections.sort(segments);
-      return Pair.of(status, segments);
-    } else {
-      throw new ISE("task[%s] is not ready", task.getId());
-    }
   }
 }
