@@ -113,7 +113,6 @@ import org.apache.druid.server.security.Authenticator;
 import org.apache.druid.server.security.AuthenticatorMapper;
 import org.apache.druid.tasklogs.TaskLogStreamer;
 import org.apache.druid.tasklogs.TaskLogs;
-import org.apache.druid.timeline.PrunePartitionsSpec;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.HandlerList;
