@@ -46,7 +46,6 @@ public class SpecificSegmentsSpec implements CompactionInputSpec
     );
   }
 
-
   @JsonCreator
   public SpecificSegmentsSpec(@JsonProperty("segments") List<String> segments)
   {

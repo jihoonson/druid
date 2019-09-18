@@ -17,24 +17,11 @@
  * under the License.
  */
 
-package org.apache.druid.indexing.common.task;
+package org.apache.druid.client.indexing;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import org.apache.druid.timeline.DataSegment;
-import org.joda.time.Interval;
-
-import java.util.List;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
-@JsonSubTypes(value = {
-    @Type(name = CompactionIntervalSpec.TYPE, value = CompactionIntervalSpec.class),
-    @Type(name = SpecificSegmentsSpec.TYPE, value = SpecificSegmentsSpec.class)
-})
-public interface CompactionInputSpec
+public interface IOConfig
 {
-  Interval findInterval(String dataSource);
-
-  boolean validateSegments(List<DataSegment> segments);
 }

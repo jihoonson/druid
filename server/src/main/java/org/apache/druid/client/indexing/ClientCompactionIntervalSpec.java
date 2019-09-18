@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.druid.indexing.common.task;
+package org.apache.druid.client.indexing;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -32,16 +32,27 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class CompactionIntervalSpec implements CompactionInputSpec
+public class ClientCompactionIntervalSpec implements ClientCompactionInputSpec
 {
   public static final String TYPE = "interval";
+
 
   private final Interval interval;
   @Nullable
   private final String sha256OfSortedSegmentIds;
 
+  public static ClientCompactionIntervalSpec fromSegments(List<DataSegment> segments)
+  {
+    return new ClientCompactionIntervalSpec(
+        JodaUtils.umbrellaInterval(
+            segments.stream().map(DataSegment::getInterval).collect(Collectors.toList())
+        ),
+        SegmentUtils.hashIds(segments)
+    );
+  }
+
   @JsonCreator
-  public CompactionIntervalSpec(
+  public ClientCompactionIntervalSpec(
       @JsonProperty("interval") Interval interval,
       @JsonProperty("sha256OfSortedSegmentIds") @Nullable String sha256OfSortedSegmentIds
   )
@@ -73,24 +84,6 @@ public class CompactionIntervalSpec implements CompactionInputSpec
   }
 
   @Override
-  public boolean validateSegments(List<DataSegment> segments)
-  {
-    final Interval segmentsInterval = JodaUtils.umbrellaInterval(
-        segments.stream().map(DataSegment::getInterval).collect(Collectors.toList())
-    );
-    if (interval.overlaps(segmentsInterval)) {
-      if (sha256OfSortedSegmentIds != null) {
-        final String hashOfThem = SegmentUtils.hashIds(segments);
-        return hashOfThem.equals(sha256OfSortedSegmentIds);
-      } else {
-        return true;
-      }
-    } else {
-      return false;
-    }
-  }
-
-  @Override
   public boolean equals(Object o)
   {
     if (this == o) {
@@ -99,7 +92,7 @@ public class CompactionIntervalSpec implements CompactionInputSpec
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    CompactionIntervalSpec that = (CompactionIntervalSpec) o;
+    ClientCompactionIntervalSpec that = (ClientCompactionIntervalSpec) o;
     return Objects.equals(interval, that.interval) &&
            Objects.equals(sha256OfSortedSegmentIds, that.sha256OfSortedSegmentIds);
   }
@@ -113,9 +106,9 @@ public class CompactionIntervalSpec implements CompactionInputSpec
   @Override
   public String toString()
   {
-    return "CompactionIntervalSpec{" +
+    return "ClientCompactionIntervalSpec{" +
            "interval=" + interval +
-           ", sha256OfSegmentIds='" + sha256OfSortedSegmentIds + '\'' +
+           ", sha256OfSortedSegmentIds='" + sha256OfSortedSegmentIds + '\'' +
            '}';
   }
 }

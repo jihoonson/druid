@@ -81,6 +81,7 @@ import org.apache.druid.segment.IndexMergerV9;
 import org.apache.druid.segment.IndexSpec;
 import org.apache.druid.segment.Metadata;
 import org.apache.druid.segment.QueryableIndex;
+import org.apache.druid.segment.SegmentUtils;
 import org.apache.druid.segment.SimpleQueryableIndex;
 import org.apache.druid.segment.column.BaseColumn;
 import org.apache.druid.segment.column.BitmapIndex;
@@ -337,7 +338,7 @@ public class CompactionTaskTest
     );
     final CompactionTask task = builder
         .inputSpec(
-            new CompactionIntervalSpec(COMPACTION_INTERVAL, StringUtils.fromUtf8(CompactionIntervalSpec.hash(SEGMENTS)))
+            new CompactionIntervalSpec(COMPACTION_INTERVAL, SegmentUtils.hashIds(SEGMENTS))
         )
         .tuningConfig(createTuningConfig())
         .context(ImmutableMap.of("testKey", "testContext"))
