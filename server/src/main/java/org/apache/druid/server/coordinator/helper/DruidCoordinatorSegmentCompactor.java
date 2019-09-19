@@ -178,7 +178,7 @@ public class DruidCoordinatorSegmentCompactor implements DruidCoordinatorHelper
       final List<DataSegment> segmentsToCompact = iterator.next();
       final String dataSourceName = segmentsToCompact.get(0).getDataSource();
 
-      if (segmentsToCompact.size() > 1) {
+      if (!segmentsToCompact.isEmpty()) {
         final DataSourceCompactionConfig config = compactionConfigs.get(dataSourceName);
         // make tuningConfig
         final String taskId = indexingServiceClient.compactSegments(
@@ -192,8 +192,6 @@ public class DruidCoordinatorSegmentCompactor implements DruidCoordinatorHelper
             taskId,
             Iterables.transform(segmentsToCompact, DataSegment::getId)
         );
-      } else if (segmentsToCompact.size() == 1) {
-        throw new ISE("Found one segments[%s] to compact", segmentsToCompact);
       } else {
         throw new ISE("Failed to find segments for dataSource[%s]", dataSourceName);
       }
