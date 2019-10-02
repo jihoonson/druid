@@ -19,20 +19,15 @@
 
 package org.apache.druid.data.input;
 
-import org.apache.druid.data.input.impl.ParseSpec;
-import org.apache.druid.java.util.common.parsers.ParseException;
-
-import javax.annotation.Nullable;
-import java.io.File;
+import java.io.Closeable;
 import java.io.IOException;
 
-public interface FirehoseFactory2
+public interface SamplingFirehose extends Closeable
 {
-  boolean isSplittable();
+  boolean hasMore() throws IOException;
 
-  ParseSpec getParseSpec();
+  SamplerInputRowPlusRaw next() throws IOException;
 
-  Firehose connect(@Nullable File temporaryDirectory) throws IOException, ParseException;
-
-  SamplingFirehose sample(@Nullable File temporaryDirectory) throws IOException, ParseException;
+  @Override
+  void close() throws IOException;
 }

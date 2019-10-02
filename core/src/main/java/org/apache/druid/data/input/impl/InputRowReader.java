@@ -20,14 +20,15 @@
 package org.apache.druid.data.input.impl;
 
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
-import java.nio.channels.ByteChannel;
-import java.util.Iterator;
+import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * stateful (header row, linesToSkip)
  */
 public interface InputRowReader
 {
-  Iterator<InputRow> read(ByteChannel inputChannel);
+  CloseableIterator<InputRow> read(InputStream inputStream) throws IOException;
 }

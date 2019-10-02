@@ -53,7 +53,6 @@ public abstract class AbstractFlatTextFormatParser implements Parser<String, Obj
   }
 
   private final String listDelimiter;
-  private final Splitter listSplitter;
   private final Function<String, Object> valueFunction;
   private final boolean hasHeaderRow;
   private final int maxSkipHeaderRows;
@@ -70,8 +69,7 @@ public abstract class AbstractFlatTextFormatParser implements Parser<String, Obj
   )
   {
     this.listDelimiter = listDelimiter != null ? listDelimiter : Parsers.DEFAULT_LIST_DELIMITER;
-    this.listSplitter = Splitter.on(this.listDelimiter);
-    this.valueFunction = ParserUtils.getMultiValueFunction(this.listDelimiter, this.listSplitter);
+    this.valueFunction = ParserUtils.getMultiValueFunction(this.listDelimiter, Splitter.on(this.listDelimiter));
 
     this.hasHeaderRow = hasHeaderRow;
     this.maxSkipHeaderRows = maxSkipHeaderRows;

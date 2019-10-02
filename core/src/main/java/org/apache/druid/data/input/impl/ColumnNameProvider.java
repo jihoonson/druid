@@ -17,22 +17,12 @@
  * under the License.
  */
 
-package org.apache.druid.data.input;
+package org.apache.druid.data.input.impl;
 
-import org.apache.druid.data.input.impl.ParseSpec;
-import org.apache.druid.java.util.common.parsers.ParseException;
+import java.io.InputStream;
+import java.util.List;
 
-import javax.annotation.Nullable;
-import java.io.File;
-import java.io.IOException;
-
-public interface FirehoseFactory2
+public interface ColumnNameProvider
 {
-  boolean isSplittable();
-
-  ParseSpec getParseSpec();
-
-  Firehose connect(@Nullable File temporaryDirectory) throws IOException, ParseException;
-
-  SamplingFirehose sample(@Nullable File temporaryDirectory) throws IOException, ParseException;
+  List<String> getColumnNames(InputStream inputStream);
 }

@@ -22,6 +22,7 @@ package org.apache.druid.data.input.orc;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.impl.InputRowReader;
 import org.apache.druid.data.input.impl.NestedDataParseSpec;
 import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.data.input.impl.TimestampSpec;
@@ -53,6 +54,12 @@ public class OrcParseSpec extends NestedDataParseSpec<JSONPathSpec>
   public ParseSpec withDimensionsSpec(DimensionsSpec spec)
   {
     return new OrcParseSpec(getTimestampSpec(), spec, getFlattenSpec());
+  }
+
+  @Override
+  public InputRowReader createReader()
+  {
+    return null;
   }
 
   @Override

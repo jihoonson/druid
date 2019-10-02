@@ -21,12 +21,15 @@ package org.apache.druid.data.input;
 
 import org.apache.druid.guice.annotations.PublicApi;
 import org.apache.druid.java.util.common.DateTimes;
+import org.apache.druid.java.util.common.ISE;
 import org.joda.time.DateTime;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
+ *
  */
 @PublicApi
 public class MapBasedInputRow extends MapBasedRow implements InputRow
@@ -67,5 +70,38 @@ public class MapBasedInputRow extends MapBasedRow implements InputRow
            ", event=" + getEvent() +
            ", dimensions=" + dimensions +
            '}';
+  }
+
+  public static class Builder
+  {
+    private final Map<String, Object> event = new HashMap<>();
+
+    private final long timestamp;
+    private final List<String> dimensions;
+
+    public Builder(long timestamp, List<String> dimensions)
+    {
+      this.timestamp = timestamp;
+      this.dimensions = dimensions;
+    }
+
+    public Builder addEvent(String column, Object value)
+    {
+      final Object prevValue = event.put(column, value);
+      if (prevValue != null) {
+        throw new ISE(
+            "Duplicate column[%s] found. Previous value was [%s] and current value is [%s]",
+            column,
+            prevValue,
+            value
+        );
+      }
+      return this;
+    }
+
+    public MapBasedInputRow build()
+    {
+      return new MapBasedInputRow(timestamp, dimensions, event);
+    }
   }
 }
