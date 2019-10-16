@@ -17,18 +17,13 @@
  * under the License.
  */
 
-package org.apache.druid.data.input.impl;
+package org.apache.druid.data.input;
 
-import org.apache.druid.data.input.InputRow;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.IOException;
-import java.io.InputStream;
 
-/**
- * stateful (header row, linesToSkip)
- */
-public interface InputRowReader
+public interface FirehoseV2
 {
-  CloseableIterator<InputRow> read(InputStream inputStream) throws IOException;
+  CloseableIterator<InputRow> read(InputRowReader reader) throws IOException;
 }

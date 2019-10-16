@@ -21,7 +21,9 @@ package org.apache.druid.data.input.impl;
 
 import com.opencsv.CSVParser;
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputRowReader;
 import org.apache.druid.data.input.MapBasedInputRow;
+import org.apache.druid.data.input.FirehoseV2;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.collect.Utils;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
@@ -31,10 +33,8 @@ import org.joda.time.DateTime;
 import javax.annotation.Nullable;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -65,9 +65,9 @@ public class CSVReader implements InputRowReader
   }
 
   @Override
-  public CloseableIterator<InputRow> read(InputStream inputStream) throws IOException
+  public CloseableIterator<InputRow> read(FirehoseV2 objectSource) throws IOException
   {
-    final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+    final BufferedReader reader = new BufferedReader(new InputStreamReader(objectSource.open()));
     final List<String> columns;
     if (hasHeaderRow) {
       final String headerLine = reader.readLine();

@@ -21,6 +21,7 @@ package org.apache.druid.data.input.impl;
 
 import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputRowReader;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import javax.annotation.Nullable;
