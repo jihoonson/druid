@@ -21,9 +21,10 @@ package org.apache.druid.data.input;
 
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
+import java.io.Closeable;
 import java.io.IOException;
 
-public interface FirehoseV2
+public interface FirehoseV2 extends Closeable
 {
-  CloseableIterator<InputRow> read(InputRowReader reader) throws IOException;
+  CloseableIterator<InputRow> read() throws IOException;
 }

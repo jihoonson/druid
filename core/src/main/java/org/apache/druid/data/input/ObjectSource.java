@@ -19,6 +19,8 @@
 
 package org.apache.druid.data.input;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 
@@ -26,5 +28,5 @@ public interface ObjectSource
 {
   URI getPath();
 
-  InputStream open();
+  InputStream open() throws IOException;
 }

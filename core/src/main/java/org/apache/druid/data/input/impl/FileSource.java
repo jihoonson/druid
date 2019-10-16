@@ -19,68 +19,76 @@
 
 package org.apache.druid.data.input.impl;
 
-import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowReader;
-import org.apache.druid.data.input.NonTextFileReader;
-import org.apache.druid.data.input.FirehoseV2;
-import org.apache.druid.data.input.TextFileReader;
-import org.apache.druid.java.util.common.parsers.CloseableIterator;
+import org.apache.druid.data.input.ObjectSource;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.io.InputStream;
+import java.net.URI;
 
-public class FileSource implements FirehoseV2
+public class FileSource implements ObjectSource
 {
   private final File file;
 
-  public FileSource(File file) throws FileNotFoundException
+  public FileSource(File file)
   {
     this.file = file;
   }
 
   @Override
-  public CloseableIterator<InputRow> read(InputRowReader reader) throws IOException
+  public URI getPath()
   {
-    if (reader.isTextFormat()) {
-      return readText((TextFileReader) reader);
-    } else {
-      return ((NonTextFileReader) reader).read(file.getPath());
-    }
+    return file.toURI();
   }
 
-  private CloseableIterator<InputRow> readText(TextFileReader reader) throws IOException
+  @Override
+  public InputStream open() throws FileNotFoundException
   {
-    final RandomAccessFile randomAccessFile = new RandomAccessFile(file, "r");
-    return new CloseableIterator<InputRow>()
-    {
-      String next = randomAccessFile.readLine();
-
-      @Override
-      public boolean hasNext()
-      {
-        return next != null;
-      }
-
-      @Override
-      public InputRow next()
-      {
-        try {
-          final InputRow row = reader.read(next);
-          next = randomAccessFile.readLine();
-          return row;
-        }
-        catch (IOException e) {
-          throw new RuntimeException(e);
-        }
-      }
-
-      @Override
-      public void close() throws IOException
-      {
-        randomAccessFile.close();
-      }
-    };
+    return new FileInputStream(file);
   }
+
+//  @Override
+//  public CloseableIterator<InputRow> read(InputRowReader reader) throws IOException
+//  {
+//    if (reader.isTextFormat()) {
+//      return readText((TextFileReader) reader);
+//    } else {
+//      return ((NonTextFileReader) reader).read(file.getPath());
+//    }
+//  }
+//
+//  private CloseableIterator<InputRow> readText(TextFileReader reader) throws IOException
+//  {
+//    final RandomAccessFile randomAccessFile = new RandomAccessFile(file, "r");
+//    return new CloseableIterator<InputRow>()
+//    {
+//      String next = randomAccessFile.readLine();
+//
+//      @Override
+//      public boolean hasNext()
+//      {
+//        return next != null;
+//      }
+//
+//      @Override
+//      public InputRow next()
+//      {
+//        try {
+//          final InputRow row = reader.read(next);
+//          next = randomAccessFile.readLine();
+//          return row;
+//        }
+//        catch (IOException e) {
+//          throw new RuntimeException(e);
+//        }
+//      }
+//
+//      @Override
+//      public void close() throws IOException
+//      {
+//        randomAccessFile.close();
+//      }
+//    };
+//  }
 }
