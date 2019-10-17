@@ -19,24 +19,30 @@
 
 package org.apache.druid.data.input;
 
-import org.apache.druid.java.util.common.parsers.CloseableIterator;
+import org.apache.druid.io.ByteBufferInputStream;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 
-public class ByteSource implements FirehoseV2
+public class ByteSource implements ObjectSource
 {
   private final ByteBuffer buffer;
 
   public ByteSource(ByteBuffer buffer)
   {
-    this.buffer = buffer;
+    this.buffer = buffer.duplicate();
   }
 
   @Override
-  public CloseableIterator<InputRow> read(InputRowReader reader) throws IOException
+  public String getPath()
   {
+    return "buffer";
+  }
 
-    return null;
+  @Override
+  public InputStream open() throws IOException
+  {
+    return new ByteBufferInputStream(buffer);
   }
 }

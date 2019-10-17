@@ -25,7 +25,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
-import java.net.URI;
 
 public class FileSource implements ObjectSource
 {
@@ -37,9 +36,9 @@ public class FileSource implements ObjectSource
   }
 
   @Override
-  public URI getPath()
+  public String getPath()
   {
-    return file.toURI();
+    return file.getPath();
   }
 
   @Override

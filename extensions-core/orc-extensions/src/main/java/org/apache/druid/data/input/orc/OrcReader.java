@@ -20,34 +20,100 @@
 package org.apache.druid.data.input.orc;
 
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.InputRowReader;
+import org.apache.druid.data.input.ObjectSource;
+import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.impl.MapInputRowParser;
 import org.apache.druid.data.input.impl.TimestampSpec;
+import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 import org.apache.druid.java.util.common.parsers.ObjectFlattener;
 import org.apache.druid.java.util.common.parsers.ObjectFlatteners;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.orc.OrcFile;
+import org.apache.orc.Reader;
+import org.apache.orc.RecordReader;
+import org.apache.orc.TypeDescription;
+import org.apache.orc.mapred.OrcMapredRecordReader;
 import org.apache.orc.mapred.OrcStruct;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.util.Collections;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Set;
 
 public class OrcReader implements InputRowReader
 {
   private final TimestampSpec timestampSpec;
-  private final DimensionsSpec dimensionsSpec;
+  private final List<String> dimensions;
+  private final Set<String> dimensionExclusions;
   private final ObjectFlattener<OrcStruct> orcStructFlattener;
 
   OrcReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec, JSONPathSpec flattenSpec)
   {
     this.timestampSpec = timestampSpec;
-    this.dimensionsSpec = dimensionsSpec != null ? dimensionsSpec : DimensionsSpec.EMPTY;
+    this.dimensions = dimensionsSpec != null ? dimensionsSpec.getDimensionNames() : Collections.emptyList();
+    this.dimensionExclusions = dimensionsSpec != null ? dimensionsSpec.getDimensionExclusions() : Collections.emptySet();
     this.orcStructFlattener = ObjectFlatteners.create(flattenSpec, new OrcStructFlattenerMaker(false));
   }
 
   @Override
-  public CloseableIterator<InputRow> read(InputStream inputStream) throws IOException
+  public CloseableIterator<InputRow> read(ObjectSource source) throws IOException
   {
-    return null;
+    final Path path = new Path(source.getPath());
+    Closer closer = Closer.create();
+    final Reader reader = closer.register(OrcFile.createReader(path, OrcFile.readerOptions(new Configuration())));
+    // TODO: build schema from flattenSpec
+//    final RecordReader recordReader = reader.rows(reader.options().schema());
+    final TypeDescription schema = reader.getSchema();
+    final RecordReader batchReader = reader.rows(reader.options());
+    final OrcMapredRecordReader<OrcStruct> recordReader = new OrcMapredRecordReader<>(batchReader, schema);
+    closer.register(recordReader::close);
+
+    return new CloseableIterator<InputRow>()
+    {
+      final NullWritable key = recordReader.createKey();
+      final OrcStruct value = recordReader.createValue();
+      Boolean hasNext = null;
+
+      @Override
+      public boolean hasNext()
+      {
+        if (hasNext == null) {
+          try {
+            hasNext = recordReader.next(key, value);
+          }
+          catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        }
+        return hasNext;
+      }
+
+      @Override
+      public InputRow next()
+      {
+        if (!hasNext) {
+          throw new NoSuchElementException();
+        }
+        hasNext = null;
+        return MapInputRowParser.parse(
+            timestampSpec,
+            dimensions,
+            dimensionExclusions,
+            orcStructFlattener.flatten(value)
+        );
+      }
+
+      @Override
+      public void close() throws IOException
+      {
+        closer.close();
+      }
+    };
   }
 }

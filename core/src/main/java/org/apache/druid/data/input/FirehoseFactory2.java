@@ -32,7 +32,7 @@ public interface FirehoseFactory2
 
   ParseSpec getParseSpec();
 
-  Firehose connect(@Nullable File temporaryDirectory) throws IOException, ParseException;
+  FirehoseV2 connect(@Nullable File temporaryDirectory) throws IOException, ParseException;
 
   SamplingFirehose sample(@Nullable File temporaryDirectory) throws IOException, ParseException;
 }

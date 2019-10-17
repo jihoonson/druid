@@ -24,7 +24,7 @@ import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import java.io.Closeable;
 import java.io.IOException;
 
-public interface FirehoseV2 extends Closeable
+public interface FirehoseV2
 {
   CloseableIterator<InputRow> read() throws IOException;
 }

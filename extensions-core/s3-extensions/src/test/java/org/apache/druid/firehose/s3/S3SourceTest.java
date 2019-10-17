@@ -17,35 +17,16 @@
  * under the License.
  */
 
-package org.apache.druid.data.input;
+package org.apache.druid.firehose.s3;
 
-import org.apache.druid.java.util.common.parsers.ParseException;
+import org.junit.Test;
 
-import javax.annotation.Nullable;
-
-public class SamplerInputRowPlusRaw
+public class S3SourceTest
 {
-  @Nullable
-  private final InputRow inputRow;
 
-  @Nullable
-  private final byte[] raw;
-
-  private final int sortKey;
-
-  @Nullable
-  private final ParseException parseException;
-
-  public SamplerInputRowPlusRaw(
-      @Nullable InputRow inputRow,
-      byte[] raw,
-      @Nullable int sortKey,
-      @Nullable ParseException parseException
-  )
+  @Test
+  public void test()
   {
-    this.inputRow = inputRow;
-    this.raw = raw;
-    this.sortKey = sortKey;
-    this.parseException = parseException;
+
   }
 }

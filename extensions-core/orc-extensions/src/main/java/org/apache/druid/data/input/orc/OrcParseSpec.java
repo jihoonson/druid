@@ -59,7 +59,7 @@ public class OrcParseSpec extends NestedDataParseSpec<JSONPathSpec>
   @Override
   public InputRowReader createReader()
   {
-    return null;
+    return new OrcReader(getTimestampSpec(), getDimensionsSpec(), getFlattenSpec());
   }
 
   @Override

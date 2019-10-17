@@ -23,7 +23,7 @@ import com.opencsv.CSVParser;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowReader;
 import org.apache.druid.data.input.MapBasedInputRow;
-import org.apache.druid.data.input.FirehoseV2;
+import org.apache.druid.data.input.ObjectSource;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.collect.Utils;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
@@ -65,7 +65,7 @@ public class CSVReader implements InputRowReader
   }
 
   @Override
-  public CloseableIterator<InputRow> read(FirehoseV2 objectSource) throws IOException
+  public CloseableIterator<InputRow> read(ObjectSource objectSource) throws IOException
   {
     final BufferedReader reader = new BufferedReader(new InputStreamReader(objectSource.open()));
     final List<String> columns;

@@ -121,5 +121,8 @@ public abstract class ParseSpec
     return false;
   }
 
-  public abstract InputRowReader createReader();
+  public InputRowReader createReader()
+  {
+    return null;
+  }
 }
