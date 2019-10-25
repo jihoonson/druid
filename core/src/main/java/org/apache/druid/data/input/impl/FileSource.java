@@ -19,75 +19,76 @@
 
 package org.apache.druid.data.input.impl;
 
-import org.apache.druid.data.input.ObjectSource;
+import org.apache.druid.data.input.InputSplit;
+import org.apache.druid.data.input.SplitSource;
+import org.apache.druid.java.util.common.Cleaners.Cleanable;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 
-public class FileSource implements ObjectSource
+public class FileSource implements SplitSource<File>
 {
-  private final File file;
+  private final InputSplit<File> split;
+  private final RandomAccessFile file;
+  private final FileChannel channel;
 
-  public FileSource(File file)
+  public FileSource(File file) throws FileNotFoundException
   {
-    this.file = file;
+    this.split = new InputSplit<>(file);
+    this.file = new RandomAccessFile(file, "r");
+    this.channel = this.file.getChannel();
+  }
+
+  public FileSource(File file, long start, long length) throws IOException
+  {
+    this.split = new InputSplit<>(file, start, length);
+    this.file = new RandomAccessFile(file, "r");
+    this.channel = this.file.getChannel();
+    this.channel.position(start);
   }
 
   @Override
-  public String getPath()
+  public CleanableFile fetch(File temporaryDirectory)
   {
-    return file.getPath();
+    return new CleanableFile()
+    {
+      @Override
+      public File file()
+      {
+        return split.get();
+      }
+
+      @Override
+      public void cleanup()
+      {
+        // Do nothing, we don't want to delete local files.
+      }
+    };
+  }
+
+  @Override
+  public InputSplit<File> getSplit()
+  {
+    return split;
   }
 
   @Override
   public InputStream open() throws FileNotFoundException
   {
-    return new FileInputStream(file);
+    return Channels.newInputStream(channel);
   }
 
-//  @Override
-//  public CloseableIterator<InputRow> read(InputRowReader reader) throws IOException
-//  {
-//    if (reader.isTextFormat()) {
-//      return readText((TextFileReader) reader);
-//    } else {
-//      return ((NonTextFileReader) reader).read(file.getPath());
-//    }
-//  }
-//
-//  private CloseableIterator<InputRow> readText(TextFileReader reader) throws IOException
-//  {
-//    final RandomAccessFile randomAccessFile = new RandomAccessFile(file, "r");
-//    return new CloseableIterator<InputRow>()
-//    {
-//      String next = randomAccessFile.readLine();
-//
-//      @Override
-//      public boolean hasNext()
-//      {
-//        return next != null;
-//      }
-//
-//      @Override
-//      public InputRow next()
-//      {
-//        try {
-//          final InputRow row = reader.read(next);
-//          next = randomAccessFile.readLine();
-//          return row;
-//        }
-//        catch (IOException e) {
-//          throw new RuntimeException(e);
-//        }
-//      }
-//
-//      @Override
-//      public void close() throws IOException
-//      {
-//        randomAccessFile.close();
-//      }
-//    };
-//  }
+  @Override
+  public int read(ByteBuffer buffer, int offset, int length) throws IOException
+  {
+    buffer.position(0);
+    buffer.limit(length);
+    return channel.read(buffer, offset);
+  }
 }

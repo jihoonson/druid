@@ -21,7 +21,7 @@ package org.apache.druid.data.input;
 
 import java.io.IOException;
 
-public interface TextFileReader extends InputRowReader
+public interface TextFileReader extends SplitReader
 {
   InputRow readLine(String line) throws IOException;
 }

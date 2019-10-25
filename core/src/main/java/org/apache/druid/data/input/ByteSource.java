@@ -25,24 +25,33 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
-public class ByteSource implements ObjectSource
+public class ByteSource implements SplitSource
 {
-  private final ByteBuffer buffer;
+  private final InputSplit<ByteBuffer> split;
 
   public ByteSource(ByteBuffer buffer)
   {
-    this.buffer = buffer.duplicate();
+    this.split = new InputSplit<>(buffer.duplicate());
   }
 
   @Override
-  public String getPath()
+  public InputSplit<ByteBuffer> getSplit()
   {
-    return "buffer";
+    return split;
   }
 
   @Override
   public InputStream open() throws IOException
   {
-    return new ByteBufferInputStream(buffer);
+    return new ByteBufferInputStream(split.get());
+  }
+
+  @Override
+  public int read(ByteBuffer buffer, int offset, int length)
+  {
+    final ByteBuffer thisBuffer = split.get();
+    thisBuffer.position(offset).limit(length);
+    buffer.put(thisBuffer);
+    return buffer.remaining();
   }
 }

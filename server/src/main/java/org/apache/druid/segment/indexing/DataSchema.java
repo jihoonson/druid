@@ -22,6 +22,8 @@ package org.apache.druid.segment.indexing;
 import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
@@ -37,6 +39,7 @@ import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.transform.TransformSpec;
 
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
@@ -54,6 +57,9 @@ public class DataSchema
   private static final Pattern INVALIDCHARS = Pattern.compile("(?s).*[^\\S ].*");
   private final String dataSource;
   private final Map<String, Object> parser;
+
+  @Nullable
+  private final DimensionsSpec dimensionsSpec;
   private final AggregatorFactory[] aggregators;
   private final GranularitySpec granularitySpec;
   private final TransformSpec transformSpec;
@@ -66,6 +72,7 @@ public class DataSchema
   public DataSchema(
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("parser") Map<String, Object> parser,
+      @JsonProperty("dimensionsSpec") DimensionsSpec dimensionsSpec,
       @JsonProperty("metricsSpec") AggregatorFactory[] aggregators,
       @JsonProperty("granularitySpec") GranularitySpec granularitySpec,
       @JsonProperty("transformSpec") TransformSpec transformSpec,
@@ -98,6 +105,7 @@ public class DataSchema
       log.warn("No metricsSpec has been specified. Are you sure this is what you want?");
     }
 
+    this.dimensionsSpec = dimensionsSpec;
     this.aggregators = aggregators == null ? new AggregatorFactory[]{} : aggregators;
   }
 
@@ -150,7 +158,16 @@ public class DataSchema
     }
 
     if (inputRowParser.getParseSpec() != null) {
-      final DimensionsSpec dimensionsSpec = inputRowParser.getParseSpec().getDimensionsSpec();
+      final DimensionsSpec dimensionsSpec;
+
+      if (this.dimensionsSpec != null && inputRowParser.getParseSpec().getDimensionsSpec() == null) {
+        dimensionsSpec = this.dimensionsSpec;
+      } else if (this.dimensionsSpec == null && inputRowParser.getParseSpec().getDimensionsSpec() != null) {
+        dimensionsSpec = inputRowParser.getParseSpec().getDimensionsSpec();
+      } else {
+        throw new IAE("bad");
+      }
+
       final TimestampSpec timestampSpec = inputRowParser.getParseSpec().getTimestampSpec();
 
       // exclude timestamp from dimensions by default, unless explicitly included in the list of dimensions
@@ -200,6 +217,14 @@ public class DataSchema
     return aggregators;
   }
 
+  @JsonProperty("dimensionsSpec")
+  @JsonInclude(Include.NON_NULL)
+  @Nullable
+  public DimensionsSpec getDimensionsSpec()
+  {
+    return dimensionsSpec;
+  }
+
   @JsonProperty
   public GranularitySpec getGranularitySpec()
   {
@@ -214,12 +239,12 @@ public class DataSchema
 
   public DataSchema withGranularitySpec(GranularitySpec granularitySpec)
   {
-    return new DataSchema(dataSource, parser, aggregators, granularitySpec, transformSpec, jsonMapper);
+    return new DataSchema(dataSource, parser, dimensionsSpec, aggregators, granularitySpec, transformSpec, jsonMapper);
   }
 
   public DataSchema withTransformSpec(TransformSpec transformSpec)
   {
-    return new DataSchema(dataSource, parser, aggregators, granularitySpec, transformSpec, jsonMapper);
+    return new DataSchema(dataSource, parser, dimensionsSpec, aggregators, granularitySpec, transformSpec, jsonMapper);
   }
 
   @Override
@@ -228,6 +253,7 @@ public class DataSchema
     return "DataSchema{" +
            "dataSource='" + dataSource + '\'' +
            ", parser=" + parser +
+           (dimensionsSpec != null ? ", dimensions=" + dimensionsSpec : "") +
            ", aggregators=" + Arrays.toString(aggregators) +
            ", granularitySpec=" + granularitySpec +
            ", transformSpec=" + transformSpec +

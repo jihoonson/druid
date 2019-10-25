@@ -17,15 +17,32 @@
  * under the License.
  */
 
-package org.apache.druid.data.input;
+package org.apache.druid.data.input.impl;
 
+import com.google.common.collect.ImmutableList;
+import org.apache.druid.data.input.FirehoseV2;
+import org.apache.druid.data.input.InputRow;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
+
+import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
+import java.util.Collection;
 
-public interface ObjectSource
+public class LocalFirehoseV2 extends SplitIteratingFirehose<File, FileSource>
 {
-  String getPath();
-
-  InputStream open() throws IOException;
+  public LocalFirehoseV2(ParseSpec parseSpec, Collection<File> files)
+  {
+    super(
+        parseSpec,
+        files.iterator(),
+        file -> {
+          try {
+            return ImmutableList.of(new FileSource(file)).iterator();
+          }
+          catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        }
+    );
+  }
 }

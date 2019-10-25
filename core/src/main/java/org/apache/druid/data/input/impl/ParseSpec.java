@@ -19,16 +19,21 @@
 
 package org.apache.druid.data.input.impl;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.google.common.base.Preconditions;
-import org.apache.druid.data.input.InputRowReader;
+import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.guice.annotations.ExtensionPoint;
 import org.apache.druid.guice.annotations.PublicApi;
+import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.parsers.Parser;
 
+import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Objects;
 
 @ExtensionPoint
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "format")
@@ -44,13 +49,16 @@ import java.util.List;
 })
 public abstract class ParseSpec
 {
+  @Nullable // TODO: move to dataSchema
   private final TimestampSpec timestampSpec;
+
+  @Nullable
   private final DimensionsSpec dimensionsSpec;
 
-  protected ParseSpec(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
+  protected ParseSpec(TimestampSpec timestampSpec, @Nullable DimensionsSpec dimensionsSpec)
   {
     this.timestampSpec = Preconditions.checkNotNull(timestampSpec, "parseSpec requires timestampSpec");
-    this.dimensionsSpec = Preconditions.checkNotNull(dimensionsSpec, "parseSpec requires dimensionSpec");
+    this.dimensionsSpec = dimensionsSpec;
   }
 
   @JsonProperty
@@ -60,6 +68,7 @@ public abstract class ParseSpec
   }
 
   @JsonProperty
+  @JsonInclude(Include.NON_NULL)
   public DimensionsSpec getDimensionsSpec()
   {
     return dimensionsSpec;
@@ -71,6 +80,8 @@ public abstract class ParseSpec
     // do nothing
   }
 
+  // Will be deprecated
+  @Deprecated
   public Parser<String, Object> makeParser()
   {
     return null;
@@ -96,32 +107,25 @@ public abstract class ParseSpec
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-
     ParseSpec parseSpec = (ParseSpec) o;
-
-    if (timestampSpec != null ? !timestampSpec.equals(parseSpec.timestampSpec) : parseSpec.timestampSpec != null) {
-      return false;
-    }
-    return !(dimensionsSpec != null
-             ? !dimensionsSpec.equals(parseSpec.dimensionsSpec)
-             : parseSpec.dimensionsSpec != null);
-
+    return timestampSpec.equals(parseSpec.timestampSpec) &&
+           Objects.equals(dimensionsSpec, parseSpec.dimensionsSpec);
   }
 
   @Override
   public int hashCode()
   {
-    int result = timestampSpec != null ? timestampSpec.hashCode() : 0;
-    result = 31 * result + (dimensionsSpec != null ? dimensionsSpec.hashCode() : 0);
-    return result;
+    return Objects.hash(timestampSpec, dimensionsSpec);
   }
+
+  // New interfaces
 
   public boolean isSplittable()
   {
     return false;
   }
 
-  public InputRowReader createReader()
+  public SplitReader createReader()
   {
     return null;
   }

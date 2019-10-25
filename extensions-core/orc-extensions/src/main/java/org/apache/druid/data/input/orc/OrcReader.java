@@ -20,8 +20,8 @@
 package org.apache.druid.data.input.orc;
 
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowReader;
-import org.apache.druid.data.input.ObjectSource;
+import org.apache.druid.data.input.SplitReader;
+import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.MapInputRowParser;
 import org.apache.druid.data.input.impl.TimestampSpec;
@@ -40,20 +40,21 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.mapred.OrcMapredRecordReader;
 import org.apache.orc.mapred.OrcStruct;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
-public class OrcReader implements InputRowReader
+public class OrcReader implements SplitReader
 {
   private final TimestampSpec timestampSpec;
   private final List<String> dimensions;
   private final Set<String> dimensionExclusions;
   private final ObjectFlattener<OrcStruct> orcStructFlattener;
 
-  OrcReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec, JSONPathSpec flattenSpec)
+  OrcReader(TimestampSpec timestampSpec, @Nullable DimensionsSpec dimensionsSpec, JSONPathSpec flattenSpec)
   {
     this.timestampSpec = timestampSpec;
     this.dimensions = dimensionsSpec != null ? dimensionsSpec.getDimensionNames() : Collections.emptyList();
@@ -62,9 +63,9 @@ public class OrcReader implements InputRowReader
   }
 
   @Override
-  public CloseableIterator<InputRow> read(ObjectSource source) throws IOException
+  public CloseableIterator<InputRow> read(SplitSource source) throws IOException
   {
-    final Path path = new Path(source.getPath());
+    final Path path = new Path(source.fetch(/* tmp dir from firehose factory connect method */));
     Closer closer = Closer.create();
     final Reader reader = closer.register(OrcFile.createReader(path, OrcFile.readerOptions(new Configuration())));
     // TODO: build schema from flattenSpec

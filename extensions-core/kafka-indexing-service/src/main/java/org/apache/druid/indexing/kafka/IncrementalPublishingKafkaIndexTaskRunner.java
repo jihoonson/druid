@@ -22,6 +22,7 @@ package org.apache.druid.indexing.kafka;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Optional;
+import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskToolbox;
@@ -68,7 +69,7 @@ public class IncrementalPublishingKafkaIndexTaskRunner extends SeekableStreamInd
 
   public IncrementalPublishingKafkaIndexTaskRunner(
       KafkaIndexTask task,
-      InputRowParser<ByteBuffer> parser,
+      SplitReader reader,
       AuthorizerMapper authorizerMapper,
       Optional<ChatHandlerProvider> chatHandlerProvider,
       CircularBuffer<Throwable> savedParseExceptions,
@@ -79,7 +80,7 @@ public class IncrementalPublishingKafkaIndexTaskRunner extends SeekableStreamInd
   {
     super(
         task,
-        parser,
+        reader,
         authorizerMapper,
         chatHandlerProvider,
         savedParseExceptions,

@@ -29,11 +29,22 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class InputSplit<T>
 {
   private final T split;
+  private final long start;
+  private final long length;
 
   @JsonCreator
   public InputSplit(@JsonProperty("split") T split)
   {
     this.split = split;
+    this.start = -1;
+    this.length = -1;
+  }
+
+  public InputSplit(T split, long start, long length)
+  {
+    this.split = split;
+    this.start = start;
+    this.length = length;
   }
 
   @JsonProperty("split")
@@ -48,5 +59,17 @@ public class InputSplit<T>
     return "InputSplit{" +
            "split=" + split +
            "}";
+  }
+
+  // Maybe future interfaces
+
+  public long start()
+  {
+    return start;
+  }
+
+  public long length()
+  {
+    return length;
   }
 }

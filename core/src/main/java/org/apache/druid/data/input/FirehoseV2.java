@@ -21,7 +21,6 @@ package org.apache.druid.data.input;
 
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
-import java.io.Closeable;
 import java.io.IOException;
 
 public interface FirehoseV2

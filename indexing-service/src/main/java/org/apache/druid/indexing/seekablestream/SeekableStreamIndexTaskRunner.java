@@ -36,9 +36,10 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import org.apache.druid.data.input.ByteSource;
 import org.apache.druid.data.input.Committer;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.impl.InputRowParser;
+import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.discovery.DiscoveryDruidNode;
 import org.apache.druid.discovery.LookupNodeService;
 import org.apache.druid.discovery.NodeType;
@@ -69,6 +70,7 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.collect.Utils;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
@@ -196,7 +198,7 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
   private final SeekableStreamIndexTask<PartitionIdType, SequenceOffsetType> task;
   private final SeekableStreamIndexTaskIOConfig<PartitionIdType, SequenceOffsetType> ioConfig;
   private final SeekableStreamIndexTaskTuningConfig tuningConfig;
-  private final InputRowParser<ByteBuffer> parser;
+  private final SplitReader reader;
   private final AuthorizerMapper authorizerMapper;
   private final Optional<ChatHandlerProvider> chatHandlerProvider;
   private final CircularBuffer<Throwable> savedParseExceptions;
@@ -226,7 +228,7 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
 
   public SeekableStreamIndexTaskRunner(
       final SeekableStreamIndexTask<PartitionIdType, SequenceOffsetType> task,
-      final InputRowParser<ByteBuffer> parser,
+      final SplitReader reader,
       final AuthorizerMapper authorizerMapper,
       final Optional<ChatHandlerProvider> chatHandlerProvider,
       final CircularBuffer<Throwable> savedParseExceptions,
@@ -239,7 +241,7 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
     this.task = task;
     this.ioConfig = task.getIOConfig();
     this.tuningConfig = task.getTuningConfig();
-    this.parser = parser;
+    this.reader = reader;
     this.authorizerMapper = authorizerMapper;
     this.chatHandlerProvider = chatHandlerProvider;
     this.savedParseExceptions = savedParseExceptions;
@@ -602,7 +604,11 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
                 } else {
                   rows = new ArrayList<>();
                   for (byte[] valueBytes : valueBytess) {
-                    rows.addAll(parser.parseBatch(ByteBuffer.wrap(valueBytes)));
+                    final CloseableIterator<InputRow> rowIterator = reader.read(
+                        new ByteSource(ByteBuffer.wrap(valueBytes))
+                    );
+                    rowIterator.forEachRemaining(rows::add);
+                    rowIterator.close();
                   }
                 }
                 boolean isPersistRequired = false;

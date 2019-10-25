@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * stateful (header row, linesToSkip)
  */
-public interface InputRowReader
+public interface SplitReader
 {
-  CloseableIterator<InputRow> read(ObjectSource source) throws IOException;
+  CloseableIterator<InputRow> read(SplitSource source) throws IOException;
 }

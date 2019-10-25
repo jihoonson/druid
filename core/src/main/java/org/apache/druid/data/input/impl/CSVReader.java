@@ -21,9 +21,9 @@ package org.apache.druid.data.input.impl;
 
 import com.opencsv.CSVParser;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowReader;
+import org.apache.druid.data.input.SplitReader;
+import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.data.input.MapBasedInputRow;
-import org.apache.druid.data.input.ObjectSource;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.collect.Utils;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
@@ -39,11 +39,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
-public class CSVReader implements InputRowReader
+public class CSVReader implements SplitReader
 {
   private final CSVParser parser = new CSVParser();
   private final TimestampSpec timestampSpec;
-  private final String listDelimiter;
+  private final String listDelimiter; // TODO: use this
   @Nullable
   private final List<String> columns;
   private final boolean hasHeaderRow;
@@ -65,12 +65,15 @@ public class CSVReader implements InputRowReader
   }
 
   @Override
-  public CloseableIterator<InputRow> read(ObjectSource objectSource) throws IOException
+  public CloseableIterator<InputRow> read(SplitSource splitSource) throws IOException
   {
-    final BufferedReader reader = new BufferedReader(new InputStreamReader(objectSource.open()));
+    final BufferedReader reader;
+    reader = new BufferedReader(new InputStreamReader(splitSource.open()));
     final List<String> columns;
+    long headerBytes = 0;
     if (hasHeaderRow) {
       final String headerLine = reader.readLine();
+      headerBytes += headerLine.length();
       columns = Arrays.asList(parser.parseLine(headerLine));
     } else {
       columns = this.columns;
@@ -80,12 +83,14 @@ public class CSVReader implements InputRowReader
     }
 
     for (int i = 0; i < skipHeaderRows; i++) {
-      reader.readLine();
+      headerBytes += reader.readLine().length();
     }
+    final long skippedBytes = headerBytes;
 
     return new CloseableIterator<InputRow>()
     {
       String nextLine = null;
+      long readBytes = skippedBytes;
 
       @Override
       public boolean hasNext()
@@ -94,8 +99,15 @@ public class CSVReader implements InputRowReader
           return true;
         } else {
           try {
-            nextLine = reader.readLine();
-            return (nextLine != null);
+            if (readBytes < splitSource.getSplit().length()) {
+              nextLine = reader.readLine();
+              if (nextLine != null) {
+                readBytes += nextLine.length();
+              }
+              return (nextLine != null);
+            } else {
+              return false;
+            }
           }
           catch (IOException e) {
             throw new RuntimeException(e);

@@ -21,8 +21,8 @@ package org.apache.druid.data.input.impl;
 
 import org.apache.druid.data.input.FirehoseV2;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowReader;
-import org.apache.druid.data.input.ObjectSource;
+import org.apache.druid.data.input.SplitReader;
+import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.IOException;
@@ -30,17 +30,17 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 
-public class ObjectIteratingFirehose<T, V extends ObjectSource> implements FirehoseV2
+public class SplitIteratingFirehose<T, V extends SplitSource> implements FirehoseV2
 {
-  private final InputRowReader inputRowReader;
+  private final SplitReader splitReader;
   private final Iterator<T> objectIterator;
-  private final Function<T, V> objectSourceFn;
+  private final Function<T, Iterator<V>> splitSourceFn;
 
-  public ObjectIteratingFirehose(ParseSpec parseSpec, Iterator<T> objectIterator, Function<T, V> objectSourceFn)
+  public SplitIteratingFirehose(ParseSpec parseSpec, Iterator<T> objectIterator, Function<T, Iterator<V>> splitSourceFn)
   {
-    this.inputRowReader = parseSpec.createReader();
+    this.splitReader = parseSpec.createReader();
     this.objectIterator = objectIterator;
-    this.objectSourceFn = objectSourceFn;
+    this.splitSourceFn = splitSourceFn;
   }
 
   @Override
@@ -48,12 +48,14 @@ public class ObjectIteratingFirehose<T, V extends ObjectSource> implements Fireh
   {
     return new CloseableIterator<InputRow>()
     {
+      Iterator<V> splitIterator = null;
       CloseableIterator<InputRow> rowIterator = null;
 
       @Override
       public boolean hasNext()
       {
-        return (rowIterator != null && rowIterator.hasNext()) || objectIterator.hasNext();
+        checkRowIterator();
+        return rowIterator != null && rowIterator.hasNext();
       }
 
       @Override
@@ -63,22 +65,29 @@ public class ObjectIteratingFirehose<T, V extends ObjectSource> implements Fireh
           throw new NoSuchElementException();
         }
 
-        if ((rowIterator == null || !rowIterator.hasNext()) && objectIterator.hasNext()) {
-          try {
-            if (rowIterator != null) {
-              rowIterator.close();
-            }
-
-            rowIterator = inputRowReader.read(objectSourceFn.apply(objectIterator.next()));
-          }
-          catch (IOException e) {
-            throw new RuntimeException(e);
-          }
-        }
-        if (!rowIterator.hasNext()) {
-          throw new NoSuchElementException();
-        }
         return rowIterator.next();
+      }
+
+      private void checkRowIterator()
+      {
+        if (rowIterator == null || !rowIterator.hasNext()) {
+          checkSplitIterator();
+          if (splitIterator != null && splitIterator.hasNext()) {
+            try {
+              rowIterator = splitReader.read(splitIterator.next());
+            }
+            catch (IOException e) {
+              throw new RuntimeException(e);
+            }
+          }
+        }
+      }
+
+      private void checkSplitIterator()
+      {
+        if ((splitIterator == null || !splitIterator.hasNext()) && objectIterator.hasNext()) {
+          splitIterator = splitSourceFn.apply(objectIterator.next());
+        }
       }
 
       @Override

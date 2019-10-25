@@ -25,14 +25,19 @@ import org.apache.druid.java.util.common.parsers.ParseException;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
+import java.util.stream.Stream;
 
-public interface FirehoseFactory2
+public interface FirehoseFactory2<T>
 {
   boolean isSplittable();
 
-  ParseSpec getParseSpec();
+  Stream<InputSplit<T>> getSplits(@Nullable SplitHintSpec splitHintSpec) throws IOException;
 
-  FirehoseV2 connect(@Nullable File temporaryDirectory) throws IOException, ParseException;
+  int getNumSplits(@Nullable SplitHintSpec splitHintSpec) throws IOException;
 
-  SamplingFirehose sample(@Nullable File temporaryDirectory) throws IOException, ParseException;
+  FirehoseFactory2<T> withSplit(InputSplit<T> split);
+
+  FirehoseV2 connect(ParseSpec parseSpec, @Nullable File temporaryDirectory) throws IOException, ParseException;
+
+  SamplingFirehose sample(ParseSpec parseSpec, @Nullable File temporaryDirectory) throws IOException, ParseException;
 }

@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
@@ -35,7 +36,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ObjectIteratingFirehoseTest
+public class SplitIteratingFirehoseTest
 {
   @Rule
   public final TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -48,10 +49,11 @@ public class ObjectIteratingFirehoseTest
       final File file = temporaryFolder.newFile("test_" + i);
       files.add(file);
       try (Writer writer = Files.newBufferedWriter(file.toPath(), StandardCharsets.UTF_8)) {
-        writer.write(StringUtils.format("%d,%s,%d", 20190101 + i, "name_" + i, i));
+        writer.write(StringUtils.format("%d,%s,%d\n", 20190101 + i, "name_" + i, i));
+        writer.write(StringUtils.format("%d,%s,%d", 20190102 + i, "name_" + (i + 1), i + 1));
       }
     }
-    final ObjectIteratingFirehose<File, FileSource> firehose = new ObjectIteratingFirehose<>(
+    final SplitIteratingFirehose<File, FileSource> firehose = new SplitIteratingFirehose<>(
         new CSVParseSpec(
             new TimestampSpec("time", null, null),
             new DimensionsSpec(
@@ -63,7 +65,14 @@ public class ObjectIteratingFirehoseTest
             0
         ),
         files.iterator(),
-        FileSource::new
+        file -> {
+          try {
+            return ImmutableList.of(new FileSource(file, 0, 18), new FileSource(file, 18, 34)).iterator();
+          }
+          catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        }
     );
 
     try (CloseableIterator<InputRow> iterator = firehose.read()) {

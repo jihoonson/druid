@@ -19,15 +19,11 @@
 
 package org.apache.druid.data.input;
 
-import java.io.Closeable;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
+
 import java.io.IOException;
 
-public interface SamplingFirehose extends Closeable
+public interface SamplingFirehose
 {
-  boolean hasMore() throws IOException;
-
-  SamplerInputRowPlusRaw next() throws IOException;
-
-  @Override
-  void close() throws IOException;
+  CloseableIterator<SamplerInputRowPlusRaw> read() throws IOException;
 }
