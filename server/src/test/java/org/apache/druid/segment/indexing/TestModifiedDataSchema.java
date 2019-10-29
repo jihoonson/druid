@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.transform.TransformSpec;
@@ -37,6 +38,7 @@ public class TestModifiedDataSchema extends DataSchema
   public TestModifiedDataSchema(
       @JsonProperty("dataSource") String dataSource,
       @JsonProperty("parser") Map<String, Object> parser,
+      @JsonProperty("dimensionsSpec") DimensionsSpec dimensionsSpec,
       @JsonProperty("metricsSpec") AggregatorFactory[] aggregators,
       @JsonProperty("granularitySpec") GranularitySpec granularitySpec,
       @JsonProperty("transformSpec") TransformSpec transformSpec,
@@ -44,7 +46,7 @@ public class TestModifiedDataSchema extends DataSchema
       @JsonProperty("extra") String extra
   )
   {
-    super(dataSource, parser, aggregators, granularitySpec, transformSpec, jsonMapper);
+    super(dataSource, parser, dimensionsSpec, aggregators, granularitySpec, transformSpec, jsonMapper);
     this.extra = extra;
   }
 

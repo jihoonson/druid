@@ -28,7 +28,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
@@ -53,7 +52,7 @@ public class SplitIteratingFirehoseTest
         writer.write(StringUtils.format("%d,%s,%d", 20190102 + i, "name_" + (i + 1), i + 1));
       }
     }
-    final SplitIteratingFirehose<File, FileSource> firehose = new SplitIteratingFirehose<>(
+    final SplitIteratingFirehose<File> firehose = new SplitIteratingFirehose<>(
         new CSVParseSpec(
             new TimestampSpec("time", null, null),
             new DimensionsSpec(
@@ -64,15 +63,14 @@ public class SplitIteratingFirehoseTest
             false,
             0
         ),
-        files.iterator(),
-        file -> {
+        files.stream().flatMap(file -> {
           try {
-            return ImmutableList.of(new FileSource(file, 0, 18), new FileSource(file, 18, 34)).iterator();
+            return ImmutableList.of(new FileSource(file, 0, 18), new FileSource(file, 18, 34)).stream();
           }
           catch (IOException e) {
             throw new RuntimeException(e);
           }
-        }
+        })
     );
 
     try (CloseableIterator<InputRow> iterator = firehose.read()) {

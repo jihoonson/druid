@@ -239,19 +239,19 @@ public abstract class PrefetchableTextFilesFirehoseFactory<T>
               throw new NoSuchElementException();
             }
 
-            final OpenedObject<T> openedObject = fetcher.next();
+            final OpenObject<T> openObject = fetcher.next();
             try {
               return new ResourceCloseableLineIterator(
                   new InputStreamReader(
-                      wrapObjectStream(openedObject.getObject(), openedObject.getObjectStream()),
+                      wrapObjectStream(openObject.getObject(), openObject.getObjectStream()),
                       StandardCharsets.UTF_8
                   ),
-                  openedObject.getResourceCloser()
+                  openObject.getResourceCloser()
               );
             }
             catch (IOException e) {
               try {
-                openedObject.getResourceCloser().close();
+                openObject.getResourceCloser().close();
               }
               catch (Throwable t) {
                 e.addSuppressed(t);

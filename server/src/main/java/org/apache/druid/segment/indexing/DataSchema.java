@@ -19,18 +19,12 @@
 
 package org.apache.druid.segment.indexing;
 
-import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
 import org.apache.druid.data.input.impl.DimensionsSpec;
-import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -39,13 +33,12 @@ import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.transform.TransformSpec;
 
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 
 /**
@@ -56,31 +49,24 @@ public class DataSchema
   private static final Logger log = new Logger(DataSchema.class);
   private static final Pattern INVALIDCHARS = Pattern.compile("(?s).*[^\\S ].*");
   private final String dataSource;
-  private final Map<String, Object> parser;
-
-  @Nullable
+  private final TimestampSpec timestampSpec;
   private final DimensionsSpec dimensionsSpec;
   private final AggregatorFactory[] aggregators;
   private final GranularitySpec granularitySpec;
   private final TransformSpec transformSpec;
 
-  private final ObjectMapper jsonMapper;
-
-  private InputRowParser cachedParser;
-
   @JsonCreator
   public DataSchema(
       @JsonProperty("dataSource") String dataSource,
-      @JsonProperty("parser") Map<String, Object> parser,
+      @JsonProperty("timestampSpec") TimestampSpec timestampSpec,
       @JsonProperty("dimensionsSpec") DimensionsSpec dimensionsSpec,
       @JsonProperty("metricsSpec") AggregatorFactory[] aggregators,
       @JsonProperty("granularitySpec") GranularitySpec granularitySpec,
-      @JsonProperty("transformSpec") TransformSpec transformSpec,
-      @JacksonInject ObjectMapper jsonMapper
+      @JsonProperty("transformSpec") TransformSpec transformSpec
   )
   {
-    this.jsonMapper = Preconditions.checkNotNull(jsonMapper, "null ObjectMapper.");
-    this.parser = parser;
+    this.timestampSpec = Preconditions.checkNotNull(timestampSpec, "timestampSpec");
+    this.dimensionsSpec = computeDimensionsSpec(timestampSpec, Preconditions.checkNotNull(dimensionsSpec), aggregators);
     this.transformSpec = transformSpec == null ? TransformSpec.NONE : transformSpec;
 
     validateDatasourceName(dataSource);
@@ -105,11 +91,10 @@ public class DataSchema
       log.warn("No metricsSpec has been specified. Are you sure this is what you want?");
     }
 
-    this.dimensionsSpec = dimensionsSpec;
     this.aggregators = aggregators == null ? new AggregatorFactory[]{} : aggregators;
   }
 
-  static void validateDatasourceName(String dataSource)
+  private static void validateDatasourceName(String dataSource)
   {
     Preconditions.checkArgument(
         !Strings.isNullOrEmpty(dataSource),
@@ -123,106 +108,59 @@ public class DataSchema
     Preconditions.checkArgument(!dataSource.contains("/"), "dataSource cannot contain the '/' character.");
   }
 
+  private static DimensionsSpec computeDimensionsSpec(
+      TimestampSpec timestampSpec,
+      DimensionsSpec dimensionsSpec,
+      AggregatorFactory[] aggregators
+  )
+  {
+    final Set<String> dimensionExclusions = new HashSet<>();
+
+    final String timestampColumn = timestampSpec.getTimestampColumn();
+    if (!(dimensionsSpec.hasCustomDimensions() && dimensionsSpec.getDimensionNames().contains(timestampColumn))) {
+      dimensionExclusions.add(timestampColumn);
+    }
+
+    for (AggregatorFactory aggregator : aggregators) {
+      dimensionExclusions.addAll(aggregator.requiredFields());
+      dimensionExclusions.add(aggregator.getName());
+    }
+
+    final Set<String> metSet = Arrays.stream(aggregators).map(AggregatorFactory::getName).collect(Collectors.toSet());
+    final Set<String> dimSet = new HashSet<>(dimensionsSpec.getDimensionNames());
+    final Set<String> overlap = Sets.intersection(metSet, dimSet);
+    if (!overlap.isEmpty()) {
+      throw new IAE(
+          "Cannot have overlapping dimensions and metrics of the same name. Please change the name of the metric. Overlap: %s",
+          overlap
+      );
+    }
+
+    return dimensionsSpec.withDimensionExclusions(Sets.difference(dimensionExclusions, dimSet));
+  }
+
   @JsonProperty
   public String getDataSource()
   {
     return dataSource;
   }
 
-  @JsonProperty("parser")
-  public Map<String, Object> getParserMap()
+  @JsonProperty
+  public TimestampSpec getTimestampSpec()
   {
-    return parser;
+    return timestampSpec;
   }
 
-  @JsonIgnore
-  public InputRowParser getParser()
+  @JsonProperty
+  public DimensionsSpec getDimensionsSpec()
   {
-    if (parser == null) {
-      log.warn("No parser has been specified");
-      return null;
-    }
-
-    if (cachedParser != null) {
-      return cachedParser;
-    }
-
-    final InputRowParser inputRowParser = transformSpec.decorate(
-        jsonMapper.convertValue(this.parser, InputRowParser.class)
-    );
-
-    final Set<String> dimensionExclusions = new HashSet<>();
-    for (AggregatorFactory aggregator : aggregators) {
-      dimensionExclusions.addAll(aggregator.requiredFields());
-      dimensionExclusions.add(aggregator.getName());
-    }
-
-    if (inputRowParser.getParseSpec() != null) {
-      final DimensionsSpec dimensionsSpec;
-
-      if (this.dimensionsSpec != null && inputRowParser.getParseSpec().getDimensionsSpec() == null) {
-        dimensionsSpec = this.dimensionsSpec;
-      } else if (this.dimensionsSpec == null && inputRowParser.getParseSpec().getDimensionsSpec() != null) {
-        dimensionsSpec = inputRowParser.getParseSpec().getDimensionsSpec();
-      } else {
-        throw new IAE("bad");
-      }
-
-      final TimestampSpec timestampSpec = inputRowParser.getParseSpec().getTimestampSpec();
-
-      // exclude timestamp from dimensions by default, unless explicitly included in the list of dimensions
-      if (timestampSpec != null) {
-        final String timestampColumn = timestampSpec.getTimestampColumn();
-        if (!(dimensionsSpec.hasCustomDimensions() && dimensionsSpec.getDimensionNames().contains(timestampColumn))) {
-          dimensionExclusions.add(timestampColumn);
-        }
-      }
-      if (dimensionsSpec != null) {
-        final Set<String> metSet = new HashSet<>();
-        for (AggregatorFactory aggregator : aggregators) {
-          metSet.add(aggregator.getName());
-        }
-        final Set<String> dimSet = Sets.newHashSet(dimensionsSpec.getDimensionNames());
-        final Set<String> overlap = Sets.intersection(metSet, dimSet);
-        if (!overlap.isEmpty()) {
-          throw new IAE(
-              "Cannot have overlapping dimensions and metrics of the same name. Please change the name of the metric. Overlap: %s",
-              overlap
-          );
-        }
-
-        cachedParser = inputRowParser.withParseSpec(
-            inputRowParser.getParseSpec()
-                          .withDimensionsSpec(
-                              dimensionsSpec
-                                  .withDimensionExclusions(
-                                      Sets.difference(dimensionExclusions, dimSet)
-                                  )
-                          )
-        );
-      } else {
-        cachedParser = inputRowParser;
-      }
-    } else {
-      log.warn("No parseSpec in parser has been specified.");
-      cachedParser = inputRowParser;
-    }
-
-    return cachedParser;
+    return dimensionsSpec;
   }
 
   @JsonProperty("metricsSpec")
   public AggregatorFactory[] getAggregators()
   {
     return aggregators;
-  }
-
-  @JsonProperty("dimensionsSpec")
-  @JsonInclude(Include.NON_NULL)
-  @Nullable
-  public DimensionsSpec getDimensionsSpec()
-  {
-    return dimensionsSpec;
   }
 
   @JsonProperty
@@ -239,12 +177,12 @@ public class DataSchema
 
   public DataSchema withGranularitySpec(GranularitySpec granularitySpec)
   {
-    return new DataSchema(dataSource, parser, dimensionsSpec, aggregators, granularitySpec, transformSpec, jsonMapper);
+    return new DataSchema(dataSource, timestampSpec, dimensionsSpec, aggregators, granularitySpec, transformSpec);
   }
 
   public DataSchema withTransformSpec(TransformSpec transformSpec)
   {
-    return new DataSchema(dataSource, parser, dimensionsSpec, aggregators, granularitySpec, transformSpec, jsonMapper);
+    return new DataSchema(dataSource, timestampSpec, dimensionsSpec, aggregators, granularitySpec, transformSpec);
   }
 
   @Override
@@ -252,8 +190,8 @@ public class DataSchema
   {
     return "DataSchema{" +
            "dataSource='" + dataSource + '\'' +
-           ", parser=" + parser +
-           (dimensionsSpec != null ? ", dimensions=" + dimensionsSpec : "") +
+           ", timestampSpec=" + timestampSpec +
+           ", dimensionsSpec=" + dimensionsSpec +
            ", aggregators=" + Arrays.toString(aggregators) +
            ", granularitySpec=" + granularitySpec +
            ", transformSpec=" + transformSpec +

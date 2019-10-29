@@ -139,7 +139,7 @@ public class RealtimePlumberSchoolTest
             new StringInputRowParser(
                 new JSONParseSpec(
                     new TimestampSpec("timestamp", "auto", null),
-                    new DimensionsSpec(null, null, null),
+                    null,
                     null,
                     null
                 ),
@@ -147,6 +147,7 @@ public class RealtimePlumberSchoolTest
             ),
             Map.class
         ),
+        new DimensionsSpec(null, null, null),
         new AggregatorFactory[]{new CountAggregatorFactory("rows")},
         new UniformGranularitySpec(Granularities.HOUR, Granularities.NONE, null),
         null,
@@ -159,7 +160,7 @@ public class RealtimePlumberSchoolTest
             new StringInputRowParser(
                 new JSONParseSpec(
                     new TimestampSpec("timestamp", "auto", null),
-                    new DimensionsSpec(null, null, null),
+                    null,
                     null,
                     null
                 ),
@@ -167,6 +168,7 @@ public class RealtimePlumberSchoolTest
             ),
             Map.class
         ),
+        new DimensionsSpec(null, null, null),
         new AggregatorFactory[]{new CountAggregatorFactory("rows")},
         new UniformGranularitySpec(Granularities.YEAR, Granularities.NONE, null),
         null,

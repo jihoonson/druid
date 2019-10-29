@@ -26,7 +26,6 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.query.filter.ValueMatcher;
 import org.apache.druid.query.groupby.RowBasedColumnSelectorFactory;
 import org.apache.druid.segment.column.ColumnHolder;
-import org.apache.druid.segment.column.ValueType;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
@@ -44,7 +43,7 @@ public class Transformer
   private final ThreadLocal<Row> rowSupplierForValueMatcher = new ThreadLocal<>();
   private final ValueMatcher valueMatcher;
 
-  Transformer(final TransformSpec transformSpec, final Map<String, ValueType> rowSignature)
+  Transformer(final TransformSpec transformSpec)
   {
     for (final Transform transform : transformSpec.getTransforms()) {
       transforms.put(transform.getName(), transform.getRowFunction());
@@ -55,7 +54,7 @@ public class Transformer
                                   .makeMatcher(
                                       RowBasedColumnSelectorFactory.create(
                                           rowSupplierForValueMatcher::get,
-                                          rowSignature
+                                          null
                                       )
                                   );
     } else {

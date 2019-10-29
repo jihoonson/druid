@@ -25,6 +25,7 @@ import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.data.input.MapBasedInputRow;
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.collect.Utils;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.ParseException;
@@ -68,7 +69,7 @@ public class CSVReader implements SplitReader
   public CloseableIterator<InputRow> read(SplitSource splitSource) throws IOException
   {
     final BufferedReader reader;
-    reader = new BufferedReader(new InputStreamReader(splitSource.open()));
+    reader = new BufferedReader(new InputStreamReader(splitSource.open(), StringUtils.UTF8_STRING));
     final List<String> columns;
     long headerBytes = 0;
     if (hasHeaderRow) {

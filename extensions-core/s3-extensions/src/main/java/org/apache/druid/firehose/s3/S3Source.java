@@ -22,6 +22,7 @@ package org.apache.druid.firehose.s3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
+import com.google.common.base.Predicate;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.java.util.common.ISE;
@@ -89,5 +90,11 @@ public class S3Source implements SplitSource
       }
     }
     return totalReadBytes;
+  }
+
+  @Override
+  public Predicate<Throwable> getRetryCondition()
+  {
+    return S3Utils.S3RETRY;
   }
 }

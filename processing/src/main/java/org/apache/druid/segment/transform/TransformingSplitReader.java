@@ -17,74 +17,49 @@
  * under the License.
  */
 
-package org.apache.druid.data.input.impl;
+package org.apache.druid.segment.transform;
 
-import org.apache.druid.data.input.FirehoseV2;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
-import java.util.stream.Stream;
 
-public class SplitIteratingFirehose<T> implements FirehoseV2
+public class TransformingSplitReader implements SplitReader
 {
-  private final SplitReader splitReader;
-  private final Iterator<SplitSource<T>> sourceIterator;
+  private final SplitReader reader;
+  private final Transformer transformer;
 
-  public SplitIteratingFirehose(ParseSpec parseSpec, Stream<SplitSource<T>> sourceStream)
+  TransformingSplitReader(SplitReader reader, Transformer transformer)
   {
-    this.splitReader = parseSpec.createReader();
-    this.sourceIterator = sourceStream.iterator();
+    this.reader = reader;
+    this.transformer = transformer;
   }
 
   @Override
-  public CloseableIterator<InputRow> read() throws IOException
+  public CloseableIterator<InputRow> read(SplitSource source) throws IOException
   {
     return new CloseableIterator<InputRow>()
     {
-      CloseableIterator<InputRow> rowIterator = null;
+      private final CloseableIterator<InputRow> delegate = reader.read(source);
 
       @Override
       public boolean hasNext()
       {
-        checkRowIterator();
-        return rowIterator != null && rowIterator.hasNext();
+        return delegate.hasNext();
       }
 
       @Override
       public InputRow next()
       {
-        if (!hasNext()) {
-          throw new NoSuchElementException();
-        }
-
-        return rowIterator.next();
-      }
-
-      private void checkRowIterator()
-      {
-        if (rowIterator == null || !rowIterator.hasNext()) {
-          if (sourceIterator.hasNext()) {
-            try {
-              rowIterator = splitReader.read(sourceIterator.next());
-            }
-            catch (IOException e) {
-              throw new RuntimeException(e);
-            }
-          }
-        }
+        return transformer.transform(delegate.next());
       }
 
       @Override
       public void close() throws IOException
       {
-        if (rowIterator != null) {
-          rowIterator.close();
-        }
+        delegate.close();
       }
     };
   }

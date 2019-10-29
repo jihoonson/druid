@@ -34,6 +34,7 @@ import org.apache.druid.java.util.common.parsers.ParseException;
 
 import javax.annotation.Nullable;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.stream.Stream;
@@ -61,7 +62,7 @@ public class LocalFirehoseFactory2 implements FirehoseFactory2<File>
   }
 
   @Override
-  public Stream<InputSplit<File>> getSplits(@Nullable SplitHintSpec splitHintSpec) throws IOException
+  public Stream<InputSplit<File>> getSplits(@Nullable SplitHintSpec splitHintSpec)
   {
     checkFilesInitialized();
     return files.stream().map(InputSplit::new);
@@ -105,15 +106,14 @@ public class LocalFirehoseFactory2 implements FirehoseFactory2<File>
   {
     return new SplitIteratingFirehose<>(
         parseSpec,
-        files.iterator(),
-        file -> {
+        getSplits(null).map(split -> {
           try {
-            return ImmutableList.of(new FileSource(file)).iterator();
+            return new FileSource(split);
           }
-          catch (IOException e) {
+          catch (FileNotFoundException e) {
             throw new RuntimeException(e);
           }
-        }
+        })
     );
   }
 

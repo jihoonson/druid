@@ -113,7 +113,7 @@ public class DefaultOfflineAppenderatorFactoryTest
         new MapInputRowParser(
             new JSONParseSpec(
                 new TimestampSpec("ts", "auto", null),
-                new DimensionsSpec(null, null, null),
+                null,
                 null,
                 null
             )
@@ -123,6 +123,7 @@ public class DefaultOfflineAppenderatorFactoryTest
     DataSchema schema = new DataSchema(
         "dataSourceName",
         parserMap,
+        new DimensionsSpec(null, null, null),
         new AggregatorFactory[]{
             new CountAggregatorFactory("count"),
             new LongSumAggregatorFactory("met", "met")

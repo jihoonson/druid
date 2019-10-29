@@ -98,13 +98,13 @@ public class FileFetcher<T> extends Fetcher<T>
   }
 
   /**
-   * Generates an instance of {@link OpenedObject} for which the underlying stream may be re-opened and retried
+   * Generates an instance of {@link OpenObject} for which the underlying stream may be re-opened and retried
    * based on the exception and retry condition.
    */
   @Override
-  protected OpenedObject<T> generateOpenObject(T object) throws IOException
+  protected OpenObject<T> generateOpenObject(T object) throws IOException
   {
-    return new OpenedObject<>(
+    return new OpenObject<>(
         object,
         new RetryingInputStream<>(object, openObjectFunction, retryCondition, getMaxFetchRetry()),
         getNoopCloser()

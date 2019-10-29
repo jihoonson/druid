@@ -19,7 +19,7 @@
 
 package org.apache.druid.data.input;
 
-import org.apache.druid.data.input.impl.ParseSpec;
+import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.java.util.common.parsers.ParseException;
 
 import javax.annotation.Nullable;
@@ -31,13 +31,13 @@ public interface FirehoseFactory2<T>
 {
   boolean isSplittable();
 
-  Stream<InputSplit<T>> getSplits(@Nullable SplitHintSpec splitHintSpec) throws IOException;
+  Stream<InputSplit<T>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException;
 
   int getNumSplits(@Nullable SplitHintSpec splitHintSpec) throws IOException;
 
   FirehoseFactory2<T> withSplit(InputSplit<T> split);
 
-  FirehoseV2 connect(ParseSpec parseSpec, @Nullable File temporaryDirectory) throws IOException, ParseException;
+  FirehoseV2 connect(InputFormat inputFormat, @Nullable File temporaryDirectory) throws IOException, ParseException;
 
-  SamplingFirehose sample(ParseSpec parseSpec, @Nullable File temporaryDirectory) throws IOException, ParseException;
+  SamplingFirehose sample(InputFormat inputFormat, @Nullable File temporaryDirectory) throws IOException, ParseException;
 }

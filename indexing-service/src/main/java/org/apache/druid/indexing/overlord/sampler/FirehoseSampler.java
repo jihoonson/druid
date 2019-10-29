@@ -156,7 +156,14 @@ public class FirehoseSampler
     Preconditions.checkNotNull(firehoseFactory, "firehoseFactory required");
 
     if (dataSchema == null) {
-      dataSchema = new DataSchema("sampler", null, null, null, null, objectMapper);
+      dataSchema = new DataSchema(
+          "sampler",
+          TimestampSpec.noop(),
+          DimensionsSpec.EMPTY,
+          null,
+          null,
+          null
+      );
     }
 
     if (samplerConfig == null) {
@@ -170,9 +177,9 @@ public class FirehoseSampler
                                      : EMPTY_PARSER_SHIM);
 
     final IncrementalIndexSchema indexSchema = new IncrementalIndexSchema.Builder()
-        .withTimestampSpec(parser)
+        .withTimestampSpec(dataSchema.getTimestampSpec())
         .withQueryGranularity(dataSchema.getGranularitySpec().getQueryGranularity())
-        .withDimensionsSpec(parser)
+        .withDimensionsSpec(dataSchema.getDimensionsSpec())
         .withMetrics(ArrayUtils.addAll(dataSchema.getAggregators(), INTERNAL_ORDERING_AGGREGATOR))
         .withRollup(dataSchema.getGranularitySpec().isRollup())
         .build();

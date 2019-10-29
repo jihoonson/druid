@@ -28,7 +28,6 @@ import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.guice.annotations.ExtensionPoint;
 import org.apache.druid.guice.annotations.PublicApi;
-import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.parsers.Parser;
 
 import javax.annotation.Nullable;

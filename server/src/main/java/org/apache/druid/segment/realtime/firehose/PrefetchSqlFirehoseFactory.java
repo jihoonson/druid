@@ -33,7 +33,7 @@ import org.apache.druid.data.input.impl.prefetch.CacheManager;
 import org.apache.druid.data.input.impl.prefetch.Fetcher;
 import org.apache.druid.data.input.impl.prefetch.JsonIterator;
 import org.apache.druid.data.input.impl.prefetch.ObjectOpenFunction;
-import org.apache.druid.data.input.impl.prefetch.OpenedObject;
+import org.apache.druid.data.input.impl.prefetch.OpenObject;
 import org.apache.druid.data.input.impl.prefetch.PrefetchConfig;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.concurrent.Execs;
@@ -216,9 +216,9 @@ public abstract class PrefetchSqlFirehoseFactory<T>
               TypeReference<Map<String, Object>> type = new TypeReference<Map<String, Object>>()
               {
               };
-              final OpenedObject<T> openedObject = fetcher.next();
-              final InputStream stream = openedObject.getObjectStream();
-              return new JsonIterator<>(type, stream, openedObject.getResourceCloser(), objectMapper);
+              final OpenObject<T> openObject = fetcher.next();
+              final InputStream stream = openObject.getObjectStream();
+              return new JsonIterator<>(type, stream, openObject.getResourceCloser(), objectMapper);
             }
             catch (Exception ioe) {
               throw new RuntimeException(ioe);

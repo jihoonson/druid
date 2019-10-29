@@ -19,18 +19,19 @@
 
 package org.apache.druid.data.input;
 
-import com.google.common.io.ByteStreams;
-import com.google.common.io.Files;
+import com.google.common.base.Predicate;
 import org.apache.druid.java.util.common.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.Optional;
 
 public interface SplitSource<T>
 {
+  int FETCH_BUFFER_SIZE = 4 * 1024;
+  int MAX_FETCH_RETRY = 3;
+
   interface CleanableFile
   {
     File file();
@@ -38,12 +39,18 @@ public interface SplitSource<T>
     void cleanup();
   }
 
-  default CleanableFile fetch(File temporaryDirectory) throws IOException
+  default CleanableFile fetch(File temporaryDirectory, byte[] fetchBuffer) throws IOException
   {
-    // call open, write to temporaryDirectory, return it along with a cleanup method that deletes it
-
     final File tempFile = File.createTempFile("druid-split", ".tmp", temporaryDirectory);
-    FileUtils.copyLarge(getSplit().get(), )
+    final long copied = FileUtils.copyLarge(
+        open(),
+        tempFile,
+        fetchBuffer,
+        getRetryCondition(),
+        MAX_FETCH_RETRY,
+        "Failed to fetch"
+    );
+    // log copied?
 
     return new CleanableFile()
     {
@@ -56,6 +63,7 @@ public interface SplitSource<T>
       @Override
       public void cleanup()
       {
+        // log on fail?
         tempFile.delete();
       }
     };
@@ -74,4 +82,6 @@ public interface SplitSource<T>
    * Will not be included in the first implementation.
    */
   int read(ByteBuffer buffer, int offset, int length) throws IOException;
+
+  Predicate<Throwable> getRetryCondition();
 }

@@ -19,30 +19,12 @@
 
 package org.apache.druid.data.input.impl;
 
-import com.google.common.collect.ImmutableList;
-import org.apache.druid.data.input.FirehoseV2;
-import org.apache.druid.data.input.InputRow;
-import org.apache.druid.java.util.common.parsers.CloseableIterator;
+import org.apache.druid.data.input.SplitReader;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Collection;
-
-public class LocalFirehoseV2 extends SplitIteratingFirehose<File, FileSource>
+// will replace ParseSpec
+public interface InputFormat
 {
-  public LocalFirehoseV2(ParseSpec parseSpec, Collection<File> files)
-  {
-    super(
-        parseSpec,
-        files.iterator(),
-        file -> {
-          try {
-            return ImmutableList.of(new FileSource(file)).iterator();
-          }
-          catch (IOException e) {
-            throw new RuntimeException(e);
-          }
-        }
-    );
-  }
+  boolean isSplittable();
+
+  SplitReader createReader(TimestampSpec timestampSpec);
 }

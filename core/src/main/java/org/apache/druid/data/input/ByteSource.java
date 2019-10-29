@@ -19,6 +19,8 @@
 
 package org.apache.druid.data.input;
 
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import org.apache.druid.io.ByteBufferInputStream;
 
 import java.io.IOException;
@@ -53,5 +55,11 @@ public class ByteSource implements SplitSource
     thisBuffer.position(offset).limit(length);
     buffer.put(thisBuffer);
     return buffer.remaining();
+  }
+
+  @Override
+  public Predicate<Throwable> getRetryCondition()
+  {
+    return Predicates.alwaysFalse();
   }
 }

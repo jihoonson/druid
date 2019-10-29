@@ -19,9 +19,10 @@
 
 package org.apache.druid.data.input.impl;
 
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitSource;
-import org.apache.druid.java.util.common.Cleaners.Cleanable;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -38,10 +39,10 @@ public class FileSource implements SplitSource<File>
   private final RandomAccessFile file;
   private final FileChannel channel;
 
-  public FileSource(File file) throws FileNotFoundException
+  public FileSource(InputSplit<File> split) throws FileNotFoundException
   {
-    this.split = new InputSplit<>(file);
-    this.file = new RandomAccessFile(file, "r");
+    this.split = split;
+    this.file = new RandomAccessFile(split.get(), "r");
     this.channel = this.file.getChannel();
   }
 
@@ -54,7 +55,7 @@ public class FileSource implements SplitSource<File>
   }
 
   @Override
-  public CleanableFile fetch(File temporaryDirectory)
+  public CleanableFile fetch(File temporaryDirectory, byte[] fetchBuffer)
   {
     return new CleanableFile()
     {
@@ -67,7 +68,7 @@ public class FileSource implements SplitSource<File>
       @Override
       public void cleanup()
       {
-        // Do nothing, we don't want to delete local files.
+        // do nothing
       }
     };
   }
@@ -90,5 +91,11 @@ public class FileSource implements SplitSource<File>
     buffer.position(0);
     buffer.limit(length);
     return channel.read(buffer, offset);
+  }
+
+  @Override
+  public Predicate<Throwable> getRetryCondition()
+  {
+    return Predicates.alwaysFalse();
   }
 }
