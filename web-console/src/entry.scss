@@ -62,17 +62,3 @@ svg {
     margin-bottom: 0;
   }
 }
-
-.bp3-form-group {
-  .bp3-form-content {
-    position: relative;
-
-    & > .bp3-popover-wrapper {
-      position: absolute;
-      right: 0;
-      top: 7px;
-    }
-  }
-}
-
-// Some SplitterLayout globals
