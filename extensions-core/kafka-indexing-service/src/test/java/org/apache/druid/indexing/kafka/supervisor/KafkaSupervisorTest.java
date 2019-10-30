@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import kafka.admin.AdminUtils;
+import kafka.admin.BrokerMetadata;
 import kafka.admin.RackAwareMode;
 import kafka.utils.ZkUtils;
 import org.apache.curator.test.TestingCluster;
@@ -51,6 +52,7 @@ import org.apache.druid.indexing.kafka.KafkaIndexTaskClient;
 import org.apache.druid.indexing.kafka.KafkaIndexTaskClientFactory;
 import org.apache.druid.indexing.kafka.KafkaIndexTaskIOConfig;
 import org.apache.druid.indexing.kafka.KafkaIndexTaskTuningConfig;
+import org.apache.druid.indexing.kafka.KafkaRecordSupplier;
 import org.apache.druid.indexing.kafka.test.TestBroker;
 import org.apache.druid.indexing.overlord.DataSourceMetadata;
 import org.apache.druid.indexing.overlord.IndexerMetadataStorageCoordinator;
@@ -88,7 +90,9 @@ import org.apache.druid.server.metrics.ExceptionCapturingServiceEmitter;
 import org.apache.druid.server.metrics.NoopServiceEmitter;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.security.JaasUtils;
+import org.apache.zookeeper.ZKUtil;
 import org.easymock.Capture;
 import org.easymock.CaptureType;
 import org.easymock.EasyMock;
@@ -105,17 +109,23 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import scala.None;
+import scala.Option;
+import scala.collection.Seq;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
 
@@ -151,6 +161,7 @@ public class KafkaSupervisorTest extends EasyMockSupport
   private RowIngestionMetersFactory rowIngestionMetersFactory;
   private ExceptionCapturingServiceEmitter serviceEmitter;
   private SupervisorStateManagerConfig supervisorConfig;
+  private KafkaRecordSupplier supervisorRecordSupplier;
 
   private static String getTopic()
   {
@@ -183,7 +194,9 @@ public class KafkaSupervisorTest extends EasyMockSupport
             "num.partitions",
             String.valueOf(NUM_PARTITIONS),
             "auto.create.topics.enable",
-            String.valueOf(false)
+            String.valueOf(false),
+            "delete.topic.enable",
+            String.valueOf(true)
         )
     );
     kafkaServer.start();
@@ -203,6 +216,7 @@ public class KafkaSupervisorTest extends EasyMockSupport
     indexerMetadataStorageCoordinator = createMock(IndexerMetadataStorageCoordinator.class);
     taskClient = createMock(KafkaIndexTaskClient.class);
     taskQueue = createMock(TaskQueue.class);
+    supervisorRecordSupplier = createMock(KafkaRecordSupplier.class);
 
     topic = getTopic();
     rowIngestionMetersFactory = new TestUtils().getRowIngestionMetersFactory();
@@ -552,7 +566,7 @@ public class KafkaSupervisorTest extends EasyMockSupport
   public void testLatestOffset() throws Exception
   {
     supervisor = getTestableSupervisor(1, 1, false, "PT1H", null, null);
-    addSomeEvents(1100);
+    addSomeEvents(9);
 
     Capture<KafkaIndexTask> captured = Capture.newInstance();
     EasyMock.expect(taskMaster.getTaskQueue()).andReturn(Optional.of(taskQueue)).anyTimes();
@@ -565,24 +579,68 @@ public class KafkaSupervisorTest extends EasyMockSupport
     ).anyTimes();
     EasyMock.expect(taskQueue.add(EasyMock.capture(captured))).andReturn(true);
     replayAll();
-
     supervisor.start();
     supervisor.runInternal();
     verifyAll();
 
     KafkaIndexTask task = captured.getValue();
     Assert.assertEquals(
-        1101L,
+        10,
         task.getIOConfig().getStartSequenceNumbers().getPartitionSequenceNumberMap().get(0).longValue()
     );
     Assert.assertEquals(
-        1101L,
+        10,
         task.getIOConfig().getStartSequenceNumbers().getPartitionSequenceNumberMap().get(1).longValue()
     );
     Assert.assertEquals(
-        1101L,
+        10,
         task.getIOConfig().getStartSequenceNumbers().getPartitionSequenceNumberMap().get(2).longValue()
     );
+
+    addMoreEvents(9, 6);
+    EasyMock.reset(taskQueue, taskStorage);
+
+//    EasyMock.expect(supervisorRecordSupplier.getPartitionIds(EasyMock.anyString())).andReturn(ImmutableSet.of(0,1,2,3,4,5)).anyTimes();
+    EasyMock.expect(taskStorage.getActiveTasksByDatasource(DATASOURCE)).andReturn(ImmutableList.of()).anyTimes();
+    Capture<KafkaIndexTask> newcaptured = Capture.newInstance();
+    EasyMock.expect(taskQueue.add(EasyMock.capture(newcaptured))).andReturn(true);
+    EasyMock.replay(taskStorage, taskQueue);
+    supervisor.runInternal();
+    verifyAll();
+    Assert.assertEquals(0, newcaptured.getValue().getIOConfig().getConsumerProperties().get("metadata.max.age.ms"));
+    Assert.assertEquals(
+        100,
+        task.getIOConfig().getStartSequenceNumbers().getPartitionSequenceNumberMap().get(3).longValue()
+    );
+    Assert.assertEquals(
+        100,
+        task.getIOConfig().getStartSequenceNumbers().getPartitionSequenceNumberMap().get(4).longValue()
+    );
+    Assert.assertEquals(
+        100,
+        task.getIOConfig().getStartSequenceNumbers().getPartitionSequenceNumberMap().get(5).longValue()
+    );
+
+//    EasyMock.reset(taskQueue, taskStorage);
+//    Capture<KafkaIndexTask> newcaptured = Capture.newInstance();
+//    EasyMock.expect(taskStorage.getActiveTasksByDatasource(DATASOURCE)).andReturn(ImmutableList.of()).anyTimes();
+//    EasyMock.expect(taskQueue.add(EasyMock.capture(newcaptured))).andReturn(true);
+//    supervisor.runInternal();
+//    replayAll();
+//
+//    Assert.assertEquals(
+//        1101L,
+//        task.getIOConfig().getStartSequenceNumbers().getPartitionSequenceNumberMap().get(3).longValue()
+//    );
+//    Assert.assertEquals(
+//        1101L,
+//        task.getIOConfig().getStartSequenceNumbers().getPartitionSequenceNumberMap().get(4).longValue()
+//    );
+//    Assert.assertEquals(
+//        1101L,
+//        task.getIOConfig().getStartSequenceNumbers().getPartitionSequenceNumberMap().get(5).longValue()
+//    );
+
   }
 
   /**
@@ -621,7 +679,8 @@ public class KafkaSupervisorTest extends EasyMockSupport
 
     List<Task> tasks = captured.getValues();
 
-    EasyMock.reset(taskStorage, taskClient);
+    EasyMock.reset(taskStorage);
+    EasyMock.reset(taskClient);
 
     EasyMock.expect(taskClient.getStatusAsync(EasyMock.anyString()))
             .andReturn(Futures.immediateFuture(Status.NOT_STARTED))
@@ -654,12 +713,15 @@ public class KafkaSupervisorTest extends EasyMockSupport
     supervisor.runInternal();
     verifyAll();
 
-    // test that a task succeeding causes a new task to be re-queued with the next offset range
+    // test that a task succeeding causes a new task to be re-queued with the next offset range and causes any replica
+    // tasks to be shutdown
     Capture<Task> newTasksCapture = Capture.newInstance(CaptureType.ALL);
     Capture<String> shutdownTaskIdCapture = Capture.newInstance();
     List<Task> imStillRunning = tasks.subList(1, 4);
     KafkaIndexTask iAmSuccess = (KafkaIndexTask) tasks.get(0);
-    EasyMock.reset(taskStorage, taskQueue, taskClient);
+    EasyMock.reset(taskStorage);
+    EasyMock.reset(taskQueue);
+    EasyMock.reset(taskClient);
     EasyMock.expect(taskStorage.getActiveTasksByDatasource(DATASOURCE)).andReturn(imStillRunning).anyTimes();
     for (Task task : imStillRunning) {
       EasyMock.expect(taskStorage.getStatus(task.getId()))
@@ -673,11 +735,11 @@ public class KafkaSupervisorTest extends EasyMockSupport
     EasyMock.expect(taskQueue.add(EasyMock.capture(newTasksCapture))).andReturn(true).times(2);
     EasyMock.expect(taskClient.stopAsync(EasyMock.capture(shutdownTaskIdCapture), EasyMock.eq(false)))
             .andReturn(Futures.immediateFuture(true));
-    EasyMock.replay(taskStorage, taskQueue, taskClient);
-
-    // make sure partitionIds get updated
-    Assert.assertFalse(supervisor.getParitionIds().isEmpty());
+    EasyMock.replay(taskStorage);
+    EasyMock.replay(taskQueue);
+    EasyMock.replay(taskClient);
     supervisor.removePartitionId(0);
+
     supervisor.runInternal();
     verifyAll();
     KafkaIndexTask task = (KafkaIndexTask) newTasksCapture.getValues().get(0);
@@ -3258,6 +3320,41 @@ public class KafkaSupervisorTest extends EasyMockSupport
     }
   }
 
+  private void addMoreEvents(int numEventsPerPartition, int num_partitions) throws Exception
+  {
+    Seq<BrokerMetadata> brokerList = AdminUtils.getBrokerMetadatas(zkUtils, RackAwareMode.Enforced$.MODULE$, Option.apply(zkUtils.getSortedBrokerList()));
+    scala.collection.Map<Object, Seq<Object>> replicaAssignment = AdminUtils.assignReplicasToBrokers(
+        brokerList,
+        num_partitions,
+        1, 0, 0
+    );
+//    AdminUtils.addPartitions(zkUtils, topic, replicaAssignment,brokerList, num_partitions, );
+    AdminUtils.createOrUpdateTopicPartitionAssignmentPathInZK(zkUtils, topic, replicaAssignment, new Properties(), true);
+
+    try (final KafkaProducer<byte[], byte[]> kafkaProducer = kafkaServer.newProducer()) {
+      kafkaProducer.initTransactions();
+      kafkaProducer.beginTransaction();
+      for (int i = NUM_PARTITIONS; i < num_partitions; i++) {
+        for (int j = 0; j < numEventsPerPartition; j++) {
+          kafkaProducer.send(
+              new ProducerRecord<>(
+                  topic,
+                  i,
+                  null,
+                  StringUtils.toUtf8(StringUtils.format("event-%d", j))
+              )
+          ).get();
+        }
+      }
+      kafkaProducer.commitTransaction();
+      List <PartitionInfo> partitionInfos = kafkaProducer.partitionsFor(topic);
+      System.out.println("producer.partitionsFor " + partitionInfos);
+    }
+    System.out.println(topic +" configs");
+    System.out.println(AdminUtils.fetchAllTopicConfigs(zkUtils).get(topic));
+
+  }
+
   private TestableKafkaSupervisor getTestableSupervisor(
       int replicas,
       int taskCount,
@@ -3340,6 +3437,7 @@ public class KafkaSupervisorTest extends EasyMockSupport
     final Map<String, Object> consumerProperties = KafkaConsumerConfigs.getConsumerProperties();
     consumerProperties.put("myCustomKey", "myCustomValue");
     consumerProperties.put("bootstrap.servers", kafkaHost);
+    consumerProperties.put("metadata.max.age.ms", 0);
     KafkaSupervisorIOConfig kafkaSupervisorIOConfig = new KafkaSupervisorIOConfig(
         topic,
         replicas,
