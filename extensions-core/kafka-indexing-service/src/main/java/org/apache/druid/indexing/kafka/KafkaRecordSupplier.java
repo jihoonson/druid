@@ -69,6 +69,7 @@ public class KafkaRecordSupplier implements RecordSupplier<Integer, Long>
   @Override
   public void assign(Set<StreamPartition<Integer>> streamPartitions)
   {
+    System.out.println("assign");
     wrapExceptions(() -> consumer.assign(streamPartitions
                                              .stream()
                                              .map(x -> new TopicPartition(x.getStream(), x.getPartitionId()))
@@ -159,6 +160,7 @@ public class KafkaRecordSupplier implements RecordSupplier<Integer, Long>
   @Override
   public Set<Integer> getPartitionIds(String stream)
   {
+    System.out.println("getPartitionIds");
     return wrapExceptions(() -> {
       List<PartitionInfo> partitions = consumer.partitionsFor(stream);
       if (partitions == null) {

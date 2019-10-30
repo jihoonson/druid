@@ -34,7 +34,7 @@ public class KafkaConsumerConfigs
   public static Map<String, Object> getConsumerProperties()
   {
     final Map<String, Object> props = new HashMap<>();
-    props.put("metadata.max.age.ms", "10000");
+//    props.put("metadata.max.age.ms", "10000");
     props.put("group.id", StringUtils.format("kafka-supervisor-%s", RandomIdUtils.getRandomId()));
     props.put("auto.offset.reset", "none");
     props.put("enable.auto.commit", "false");
