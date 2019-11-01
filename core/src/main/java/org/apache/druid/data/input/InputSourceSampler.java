@@ -19,33 +19,11 @@
 
 package org.apache.druid.data.input;
 
-import org.apache.druid.data.input.impl.DimensionsSpec;
-import org.apache.druid.data.input.impl.InputFormat;
-import org.apache.druid.data.input.impl.TimestampSpec;
-import org.apache.druid.java.util.common.parsers.ParseException;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
-import javax.annotation.Nullable;
-import java.io.File;
 import java.io.IOException;
 
-public interface InputSource
+public interface InputSourceSampler
 {
-  default boolean isSplittable()
-  {
-    return false;
-  }
-
-  InputSourceReader reader(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
-      @Nullable File temporaryDirectory
-  ) throws IOException, ParseException;
-
-  InputSourceSampler sampler(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
-      @Nullable File temporaryDirectory
-  ) throws IOException, ParseException;
+  CloseableIterator<SamplerInputRowPlusRaw> sample() throws IOException;
 }

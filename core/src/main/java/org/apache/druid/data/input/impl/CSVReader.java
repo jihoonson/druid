@@ -33,6 +33,7 @@ import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Arrays;
@@ -66,7 +67,7 @@ public class CSVReader implements SplitReader
   }
 
   @Override
-  public CloseableIterator<InputRow> read(SplitSource splitSource) throws IOException
+  public CloseableIterator<InputRow> read(SplitSource splitSource, File temporaryDirectory) throws IOException
   {
     final BufferedReader reader;
     reader = new BufferedReader(new InputStreamReader(splitSource.open(), StringUtils.UTF8_STRING));

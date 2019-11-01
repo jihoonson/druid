@@ -17,35 +17,33 @@
  * under the License.
  */
 
-package org.apache.druid.data.input;
+package org.apache.druid.data.input.orc;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.data.input.impl.DimensionsSpec;
-import org.apache.druid.data.input.impl.InputFormat;
+import org.apache.druid.data.input.impl.NestedInputFormat;
 import org.apache.druid.data.input.impl.TimestampSpec;
-import org.apache.druid.java.util.common.parsers.ParseException;
+import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 
-import javax.annotation.Nullable;
-import java.io.File;
-import java.io.IOException;
-
-public interface InputSource
+public class OrcInputFormat extends NestedInputFormat
 {
-  default boolean isSplittable()
+  @JsonCreator
+  public OrcInputFormat(@JsonProperty("flattenSpec") JSONPathSpec flattenSpec)
+  {
+    super(flattenSpec);
+  }
+
+  @Override
+  public boolean isSplittable()
   {
     return false;
   }
 
-  InputSourceReader reader(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
-      @Nullable File temporaryDirectory
-  ) throws IOException, ParseException;
-
-  InputSourceSampler sampler(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
-      @Nullable File temporaryDirectory
-  ) throws IOException, ParseException;
+  @Override
+  public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
+  {
+    return new OrcReader(timestampSpec, dimensionsSpec, getFlattenSpec());
+  }
 }

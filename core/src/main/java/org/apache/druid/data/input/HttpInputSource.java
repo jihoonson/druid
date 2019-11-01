@@ -22,9 +22,10 @@ package org.apache.druid.data.input;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
+import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.HttpSource;
 import org.apache.druid.data.input.impl.InputFormat;
-import org.apache.druid.data.input.impl.SplitIteratingFirehose;
+import org.apache.druid.data.input.impl.SplitIteratingReader;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.metadata.PasswordProvider;
@@ -37,7 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
-public class HttpInputSource implements InputSource<URI>
+public class HttpInputSource implements SplittableInputSource<URI>
 {
   private final List<URI> uris;
   @Nullable
@@ -71,13 +72,13 @@ public class HttpInputSource implements InputSource<URI>
   }
 
   @Override
-  public int getNumSplits(@Nullable SplitHintSpec splitHintSpec)
+  public int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
     return uris.size();
   }
 
   @Override
-  public InputSource<URI> withSplit(InputSplit<URI> split)
+  public SplittableInputSource<URI> withSplit(InputSplit<URI> split)
   {
     return new HttpInputSource(
         Collections.singletonList(split.get()),
@@ -87,23 +88,31 @@ public class HttpInputSource implements InputSource<URI>
   }
 
   @Override
-  public FirehoseV2 connect(TimestampSpec timestampSpec, InputFormat inputFormat, @Nullable File temporaryDirectory)
+  public InputSourceReader reader(
+      TimestampSpec timestampSpec,
+      DimensionsSpec dimensionsSpec,
+      InputFormat inputFormat,
+      @Nullable File temporaryDirectory
+  )
       throws IOException, ParseException
   {
-    return new SplitIteratingFirehose<>(
+    return new SplitIteratingReader<>(
         timestampSpec,
+        dimensionsSpec,
         inputFormat,
         getSplits(inputFormat, null).map(split -> new HttpSource(
             split,
             httpAuthenticationUsername,
             httpAuthenticationPasswordProvider
-        ))
+        )),
+        temporaryDirectory
     );
   }
 
   @Override
-  public SamplingFirehose sample(
+  public InputSourceSampler sampler(
       TimestampSpec timestampSpec,
+      DimensionsSpec dimensionsSpec,
       InputFormat inputFormat,
       @Nullable File temporaryDirectory
   )

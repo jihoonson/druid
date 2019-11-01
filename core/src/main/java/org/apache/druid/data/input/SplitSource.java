@@ -22,6 +22,7 @@ package org.apache.druid.data.input;
 import com.google.common.base.Predicate;
 import org.apache.druid.java.util.common.FileUtils;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,11 +33,9 @@ public interface SplitSource<T>
   int FETCH_BUFFER_SIZE = 4 * 1024;
   int MAX_FETCH_RETRY = 3;
 
-  interface CleanableFile
+  interface CleanableFile extends Closeable
   {
     File file();
-
-    void cleanup();
   }
 
   default CleanableFile fetch(File temporaryDirectory, byte[] fetchBuffer) throws IOException
@@ -61,7 +60,7 @@ public interface SplitSource<T>
       }
 
       @Override
-      public void cleanup()
+      public void close()
       {
         // log on fail?
         tempFile.delete();

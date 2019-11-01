@@ -23,7 +23,7 @@ import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.IOException;
 
-public interface SamplingFirehose
+public interface InputSourceReader
 {
-  CloseableIterator<SamplerInputRowPlusRaw> read() throws IOException;
+  CloseableIterator<InputRow> read() throws IOException;
 }

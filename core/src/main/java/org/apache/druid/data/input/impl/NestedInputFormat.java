@@ -19,12 +19,21 @@
 
 package org.apache.druid.data.input.impl;
 
-import org.apache.druid.data.input.SplitReader;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 
-// will replace ParseSpec
-public interface InputFormat
+public abstract class NestedInputFormat implements InputFormat
 {
-  boolean isSplittable();
+  private final JSONPathSpec flattenSpec;
 
-  SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec);
+  protected NestedInputFormat(JSONPathSpec flattenSpec)
+  {
+    this.flattenSpec = flattenSpec;
+  }
+
+  @JsonProperty("flattenSpec")
+  public JSONPathSpec getFlattenSpec()
+  {
+    return flattenSpec;
+  }
 }

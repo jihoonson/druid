@@ -25,11 +25,11 @@ import com.google.common.collect.ImmutableList;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
-import org.apache.druid.data.input.InputSource;
-import org.apache.druid.data.input.FirehoseV2;
+import org.apache.druid.data.input.InputSourceReader;
+import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.InputSplit;
-import org.apache.druid.data.input.SamplingFirehose;
 import org.apache.druid.data.input.SplitHintSpec;
+import org.apache.druid.data.input.SplittableInputSource;
 import org.apache.druid.java.util.common.parsers.ParseException;
 
 import javax.annotation.Nullable;
@@ -39,7 +39,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.stream.Stream;
 
-public class LocalInputSource implements InputSource<File>
+public class LocalInputSource implements SplittableInputSource<File>
 {
   private final File baseDir;
   private final String filter;
@@ -64,22 +64,22 @@ public class LocalInputSource implements InputSource<File>
   @Override
   public Stream<InputSplit<File>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
-    checkFilesInitialized();
+    checkFilesInitialized(inputFormat, splitHintSpec);
     return files.stream().map(InputSplit::new);
   }
 
   @Override
-  public int getNumSplits(@Nullable SplitHintSpec splitHintSpec) throws IOException
+  public int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException
   {
-    checkFilesInitialized();
+    checkFilesInitialized(inputFormat, splitHintSpec);
     return files.size();
   }
 
-  private void checkFilesInitialized()
+  private void checkFilesInitialized(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
     if (files == null) {
       // TODO: we can check the file format is splittable in the future such as
-      // if (parseSpec.isSplittable()) {
+      // if (inputFormat.isSplittable()) {
       //   files = ...
       // }
       // else {
@@ -94,7 +94,7 @@ public class LocalInputSource implements InputSource<File>
   }
 
   @Override
-  public InputSource<File> withSplit(InputSplit<File> split)
+  public SplittableInputSource<File> withSplit(InputSplit<File> split)
   {
     final LocalInputSource newFactory = new LocalInputSource(null, null);
     newFactory.files = ImmutableList.of(split.get());
@@ -102,11 +102,17 @@ public class LocalInputSource implements InputSource<File>
   }
 
   @Override
-  public FirehoseV2 connect(TimestampSpec timestampSpec, InputFormat inputFormat, @Nullable File temporaryDirectory)
+  public InputSourceReader reader(
+      TimestampSpec timestampSpec,
+      DimensionsSpec dimensionsSpec,
+      InputFormat inputFormat,
+      @Nullable File temporaryDirectory
+  )
       throws ParseException
   {
-    return new SplitIteratingFirehose<>(
+    return new SplitIteratingReader<>(
         timestampSpec,
+        dimensionsSpec,
         inputFormat,
         getSplits(inputFormat, null).map(split -> {
           try {
@@ -115,13 +121,15 @@ public class LocalInputSource implements InputSource<File>
           catch (FileNotFoundException e) {
             throw new RuntimeException(e);
           }
-        })
+        }),
+        temporaryDirectory
     );
   }
 
   @Override
-  public SamplingFirehose sample(
+  public InputSourceSampler sampler(
       TimestampSpec timestampSpec,
+      DimensionsSpec dimensionsSpec,
       InputFormat inputFormat,
       @Nullable File temporaryDirectory
   ) throws IOException, ParseException

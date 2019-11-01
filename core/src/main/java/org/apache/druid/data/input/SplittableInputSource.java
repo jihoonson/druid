@@ -19,11 +19,23 @@
 
 package org.apache.druid.data.input;
 
-import org.apache.druid.java.util.common.parsers.CloseableIterator;
+import org.apache.druid.data.input.impl.InputFormat;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
+import java.util.stream.Stream;
 
-public interface FirehoseV2
+public interface SplittableInputSource<T> extends InputSource
 {
-  CloseableIterator<InputRow> read() throws IOException;
+  @Override
+  default boolean isSplittable()
+  {
+    return true;
+  }
+
+  Stream<InputSplit<T>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException;
+
+  int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException;
+
+  SplittableInputSource<T> withSplit(InputSplit<T> split);
 }

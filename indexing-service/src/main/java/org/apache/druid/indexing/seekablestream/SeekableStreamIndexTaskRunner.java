@@ -605,7 +605,8 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
                   rows = new ArrayList<>();
                   for (byte[] valueBytes : valueBytess) {
                     final CloseableIterator<InputRow> rowIterator = reader.read(
-                        new ByteSource(ByteBuffer.wrap(valueBytes))
+                        new ByteSource(ByteBuffer.wrap(valueBytes)),
+                        toolbox.getFirehoseTemporaryDir()
                     );
                     rowIterator.forEachRemaining(rows::add);
                     rowIterator.close();

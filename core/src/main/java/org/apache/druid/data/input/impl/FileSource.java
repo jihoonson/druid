@@ -66,7 +66,7 @@ public class FileSource implements SplitSource<File>
       }
 
       @Override
-      public void cleanup()
+      public void close()
       {
         // do nothing
       }

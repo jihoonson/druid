@@ -85,7 +85,6 @@ public class CSVInputFormat implements InputFormat
     return skipHeaderRows;
   }
 
-
   @Override
   public boolean isSplittable()
   {
@@ -93,7 +92,7 @@ public class CSVInputFormat implements InputFormat
   }
 
   @Override
-  public SplitReader createReader(TimestampSpec timestampSpec)
+  public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
     return new CSVReader(timestampSpec, listDelimiter, columns, hasHeaderRow, skipHeaderRows);
   }

@@ -35,7 +35,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SplitIteratingFirehoseTest
+public class SplitIteratingReaderTest
 {
   @Rule
   public final TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -52,14 +52,14 @@ public class SplitIteratingFirehoseTest
         writer.write(StringUtils.format("%d,%s,%d", 20190102 + i, "name_" + (i + 1), i + 1));
       }
     }
-    final SplitIteratingFirehose<File> firehose = new SplitIteratingFirehose<>(
-        new CSVParseSpec(
-            new TimestampSpec("time", null, null),
-            new DimensionsSpec(
-                DimensionsSpec.getDefaultSchemas(ImmutableList.of("time", "name", "score"))
-            ),
-            null,
+    final SplitIteratingReader<File> firehose = new SplitIteratingReader<>(
+        new TimestampSpec("time", null, null),
+        new DimensionsSpec(
+            DimensionsSpec.getDefaultSchemas(ImmutableList.of("time", "name", "score"))
+        ),
+        new CSVInputFormat(
             ImmutableList.of("time", "name", "score"),
+            null,
             false,
             0
         ),
@@ -70,7 +70,8 @@ public class SplitIteratingFirehoseTest
           catch (IOException e) {
             throw new RuntimeException(e);
           }
-        })
+        }),
+        temporaryFolder.newFolder()
     );
 
     try (CloseableIterator<InputRow> iterator = firehose.read()) {

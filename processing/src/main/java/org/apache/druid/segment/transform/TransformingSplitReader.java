@@ -24,6 +24,7 @@ import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
+import java.io.File;
 import java.io.IOException;
 
 public class TransformingSplitReader implements SplitReader
@@ -38,11 +39,11 @@ public class TransformingSplitReader implements SplitReader
   }
 
   @Override
-  public CloseableIterator<InputRow> read(SplitSource source) throws IOException
+  public CloseableIterator<InputRow> read(SplitSource source, File temporaryDirectory) throws IOException
   {
     return new CloseableIterator<InputRow>()
     {
-      private final CloseableIterator<InputRow> delegate = reader.read(source);
+      private final CloseableIterator<InputRow> delegate = reader.read(source, temporaryDirectory);
 
       @Override
       public boolean hasNext()

@@ -22,6 +22,7 @@ package org.apache.druid.data.input.orc;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.data.input.SplitSource;
+import org.apache.druid.data.input.SplitSource.CleanableFile;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.MapInputRowParser;
 import org.apache.druid.data.input.impl.TimestampSpec;
@@ -41,6 +42,7 @@ import org.apache.orc.mapred.OrcMapredRecordReader;
 import org.apache.orc.mapred.OrcStruct;
 
 import javax.annotation.Nullable;
+import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -53,6 +55,7 @@ public class OrcReader implements SplitReader
   private final List<String> dimensions;
   private final Set<String> dimensionExclusions;
   private final ObjectFlattener<OrcStruct> orcStructFlattener;
+  private final byte[] buffer = new byte[SplitSource.FETCH_BUFFER_SIZE];
 
   OrcReader(TimestampSpec timestampSpec, @Nullable DimensionsSpec dimensionsSpec, JSONPathSpec flattenSpec)
   {
@@ -63,10 +66,11 @@ public class OrcReader implements SplitReader
   }
 
   @Override
-  public CloseableIterator<InputRow> read(SplitSource source) throws IOException
+  public CloseableIterator<InputRow> read(SplitSource source, File temporaryDirectory) throws IOException
   {
-    final Path path = new Path(source.fetch(/* tmp dir from firehose factory connect method */));
     Closer closer = Closer.create();
+    final CleanableFile file = closer.register(source.fetch(temporaryDirectory, buffer));
+    final Path path = new Path(file.file().toURI());
     final Reader reader = closer.register(OrcFile.createReader(path, OrcFile.readerOptions(new Configuration())));
     // TODO: build schema from flattenSpec
 //    final RecordReader recordReader = reader.rows(reader.options().schema());

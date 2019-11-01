@@ -19,30 +19,35 @@
 
 package org.apache.druid.data.input.impl;
 
-import org.apache.druid.data.input.FirehoseV2;
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.stream.Stream;
 
-public class SplitIteratingFirehose<T> implements FirehoseV2
+public class SplitIteratingReader<T> implements InputSourceReader
 {
   private final SplitReader splitReader;
   private final Iterator<SplitSource<T>> sourceIterator;
+  private final File temporaryDirectory;
 
-  public SplitIteratingFirehose(
+  public SplitIteratingReader(
       TimestampSpec timestampSpec,
+      DimensionsSpec dimensionsSpec,
       InputFormat inputFormat,
-      Stream<SplitSource<T>> sourceStream
+      Stream<SplitSource<T>> sourceStream,
+      File temporaryDirectory
   )
   {
-    this.splitReader = inputFormat.createReader(timestampSpec);
+    this.splitReader = inputFormat.createReader(timestampSpec, dimensionsSpec);
     this.sourceIterator = sourceStream.iterator();
+    this.temporaryDirectory = temporaryDirectory;
   }
 
   @Override
@@ -74,7 +79,7 @@ public class SplitIteratingFirehose<T> implements FirehoseV2
         if (rowIterator == null || !rowIterator.hasNext()) {
           if (sourceIterator.hasNext()) {
             try {
-              rowIterator = splitReader.read(sourceIterator.next());
+              rowIterator = splitReader.read(sourceIterator.next(), temporaryDirectory);
             }
             catch (IOException e) {
               throw new RuntimeException(e);
