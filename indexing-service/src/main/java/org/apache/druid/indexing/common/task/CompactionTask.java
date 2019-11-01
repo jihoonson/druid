@@ -37,11 +37,9 @@ import org.apache.druid.data.input.impl.DimensionSchema.MultiValueHandling;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.DoubleDimensionSchema;
 import org.apache.druid.data.input.impl.FloatDimensionSchema;
-import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.data.input.impl.LongDimensionSchema;
-import org.apache.druid.data.input.impl.NoopInputRowParser;
 import org.apache.druid.data.input.impl.StringDimensionSchema;
-import org.apache.druid.data.input.impl.TimeAndDimsParseSpec;
+import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.Checks;
 import org.apache.druid.indexer.Property;
 import org.apache.druid.indexer.TaskStatus;
@@ -67,7 +65,6 @@ import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.granularity.GranularityType;
 import org.apache.druid.java.util.common.guava.Comparators;
-import org.apache.druid.java.util.common.jackson.JacksonUtils;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.segment.DimensionHandler;
@@ -534,7 +531,7 @@ public class CompactionTask extends AbstractBatchIndexTask
             null,
             null, // no filter
             // set dimensions and metrics names to make sure that the generated dataSchema is used for the firehose
-            dataSchema.getParser().getParseSpec().getDimensionsSpec().getDimensionNames(),
+            dataSchema.getDimensionsSpec().getDimensionNames(),
             Arrays.stream(dataSchema.getAggregators()).map(AggregatorFactory::getName).collect(Collectors.toList()),
             null,
             toolbox.getIndexIO(),
@@ -602,15 +599,14 @@ public class CompactionTask extends AbstractBatchIndexTask
     final AggregatorFactory[] finalMetricsSpec = metricsSpec == null
                                                  ? createMetricsSpec(queryableIndexAndSegments)
                                                  : convertToCombiningFactories(metricsSpec);
-    final InputRowParser parser = new NoopInputRowParser(new TimeAndDimsParseSpec(null, finalDimensionsSpec));
 
     return new DataSchema(
         dataSource,
-        jsonMapper.convertValue(parser, JacksonUtils.TYPE_REFERENCE_MAP_STRING_OBJECT),
+        TimestampSpec.noop(),
+        finalDimensionsSpec,
         finalMetricsSpec,
         granularitySpec,
-        null,
-        jsonMapper
+        null
     );
   }
 

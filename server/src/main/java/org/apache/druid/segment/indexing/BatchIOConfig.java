@@ -17,27 +17,19 @@
  * under the License.
  */
 
-package org.apache.druid.data.input;
+package org.apache.druid.segment.indexing;
 
+import org.apache.druid.data.input.InputSource;
 import org.apache.druid.data.input.impl.InputFormat;
-import org.apache.druid.java.util.common.parsers.ParseException;
 
-import javax.annotation.Nullable;
-import java.io.File;
-import java.io.IOException;
-import java.util.stream.Stream;
-
-public interface FirehoseFactory2<T>
+/**
+ * IOConfig for all batch tasks except compactionTask
+ *
+ * @param <T> type for {@link org.apache.druid.data.input.InputSplit}
+ */
+public interface BatchIOConfig<T> extends IOConfig
 {
-  boolean isSplittable();
+  InputSource<T> getInputSource();
 
-  Stream<InputSplit<T>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException;
-
-  int getNumSplits(@Nullable SplitHintSpec splitHintSpec) throws IOException;
-
-  FirehoseFactory2<T> withSplit(InputSplit<T> split);
-
-  FirehoseV2 connect(InputFormat inputFormat, @Nullable File temporaryDirectory) throws IOException, ParseException;
-
-  SamplingFirehose sample(InputFormat inputFormat, @Nullable File temporaryDirectory) throws IOException, ParseException;
+  InputFormat getInputFormat();
 }

@@ -19,8 +19,10 @@
 
 package org.apache.druid.segment.indexing;
 
+import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
@@ -33,8 +35,10 @@ import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.transform.TransformSpec;
 
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -62,7 +66,20 @@ public class DataSchema
       @JsonProperty("dimensionsSpec") DimensionsSpec dimensionsSpec,
       @JsonProperty("metricsSpec") AggregatorFactory[] aggregators,
       @JsonProperty("granularitySpec") GranularitySpec granularitySpec,
-      @JsonProperty("transformSpec") TransformSpec transformSpec
+      @JsonProperty("transformSpec") TransformSpec transformSpec,
+      @Deprecated @JsonProperty("parser") @Nullable Map<String, Object> parser,
+      @JacksonInject ObjectMapper objectMapper
+  )
+  {
+  }
+
+  private DataSchema(
+      String dataSource,
+      TimestampSpec timestampSpec,
+      DimensionsSpec dimensionsSpec,
+      AggregatorFactory[] aggregators,
+      GranularitySpec granularitySpec,
+      TransformSpec transformSpec
   )
   {
     this.timestampSpec = Preconditions.checkNotNull(timestampSpec, "timestampSpec");

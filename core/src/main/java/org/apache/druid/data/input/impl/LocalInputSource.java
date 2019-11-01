@@ -25,7 +25,7 @@ import com.google.common.collect.ImmutableList;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
-import org.apache.druid.data.input.FirehoseFactory2;
+import org.apache.druid.data.input.InputSource;
 import org.apache.druid.data.input.FirehoseV2;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SamplingFirehose;
@@ -39,14 +39,14 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.stream.Stream;
 
-public class LocalFirehoseFactory2 implements FirehoseFactory2<File>
+public class LocalInputSource implements InputSource<File>
 {
   private final File baseDir;
   private final String filter;
 
   private Collection<File> files;
 
-  public LocalFirehoseFactory2(
+  public LocalInputSource(
       @JsonProperty("baseDir") File baseDir,
       @JsonProperty("filter") String filter
   )
@@ -62,7 +62,7 @@ public class LocalFirehoseFactory2 implements FirehoseFactory2<File>
   }
 
   @Override
-  public Stream<InputSplit<File>> getSplits(@Nullable SplitHintSpec splitHintSpec)
+  public Stream<InputSplit<File>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
     checkFilesInitialized();
     return files.stream().map(InputSplit::new);
@@ -94,19 +94,21 @@ public class LocalFirehoseFactory2 implements FirehoseFactory2<File>
   }
 
   @Override
-  public FirehoseFactory2<File> withSplit(InputSplit<File> split)
+  public InputSource<File> withSplit(InputSplit<File> split)
   {
-    final LocalFirehoseFactory2 newFactory = new LocalFirehoseFactory2(null, null);
+    final LocalInputSource newFactory = new LocalInputSource(null, null);
     newFactory.files = ImmutableList.of(split.get());
     return newFactory;
   }
 
   @Override
-  public FirehoseV2 connect(ParseSpec parseSpec, @Nullable File temporaryDirectory) throws ParseException
+  public FirehoseV2 connect(TimestampSpec timestampSpec, InputFormat inputFormat, @Nullable File temporaryDirectory)
+      throws ParseException
   {
     return new SplitIteratingFirehose<>(
-        parseSpec,
-        getSplits(null).map(split -> {
+        timestampSpec,
+        inputFormat,
+        getSplits(inputFormat, null).map(split -> {
           try {
             return new FileSource(split);
           }
@@ -118,7 +120,11 @@ public class LocalFirehoseFactory2 implements FirehoseFactory2<File>
   }
 
   @Override
-  public SamplingFirehose sample(ParseSpec parseSpec, @Nullable File temporaryDirectory) throws IOException, ParseException
+  public SamplingFirehose sample(
+      TimestampSpec timestampSpec,
+      InputFormat inputFormat,
+      @Nullable File temporaryDirectory
+  ) throws IOException, ParseException
   {
     return null;
   }

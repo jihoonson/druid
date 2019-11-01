@@ -35,9 +35,13 @@ public class SplitIteratingFirehose<T> implements FirehoseV2
   private final SplitReader splitReader;
   private final Iterator<SplitSource<T>> sourceIterator;
 
-  public SplitIteratingFirehose(ParseSpec parseSpec, Stream<SplitSource<T>> sourceStream)
+  public SplitIteratingFirehose(
+      TimestampSpec timestampSpec,
+      InputFormat inputFormat,
+      Stream<SplitSource<T>> sourceStream
+  )
   {
-    this.splitReader = parseSpec.createReader();
+    this.splitReader = inputFormat.createReader(timestampSpec);
     this.sourceIterator = sourceStream.iterator();
   }
 

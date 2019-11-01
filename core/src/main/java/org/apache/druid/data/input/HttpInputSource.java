@@ -23,8 +23,9 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.impl.HttpSource;
-import org.apache.druid.data.input.impl.ParseSpec;
+import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.SplitIteratingFirehose;
+import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.metadata.PasswordProvider;
 
@@ -36,7 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
-public class HttpFirehoseFactory2 implements FirehoseFactory2<URI>
+public class HttpInputSource implements InputSource<URI>
 {
   private final List<URI> uris;
   @Nullable
@@ -45,7 +46,7 @@ public class HttpFirehoseFactory2 implements FirehoseFactory2<URI>
   private final PasswordProvider httpAuthenticationPasswordProvider;
 
   @JsonCreator
-  public HttpFirehoseFactory2(
+  public HttpInputSource(
       @JsonProperty("uris") List<URI> uris,
       @JsonProperty("httpAuthenticationUsername") @Nullable String httpAuthenticationUsername,
       @JsonProperty("httpAuthenticationPassword") @Nullable PasswordProvider httpAuthenticationPasswordProvider
@@ -64,7 +65,7 @@ public class HttpFirehoseFactory2 implements FirehoseFactory2<URI>
   }
 
   @Override
-  public Stream<InputSplit<URI>> getSplits(@Nullable SplitHintSpec splitHintSpec)
+  public Stream<InputSplit<URI>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
     return uris.stream().map(InputSplit::new);
   }
@@ -76,9 +77,9 @@ public class HttpFirehoseFactory2 implements FirehoseFactory2<URI>
   }
 
   @Override
-  public FirehoseFactory2<URI> withSplit(InputSplit<URI> split)
+  public InputSource<URI> withSplit(InputSplit<URI> split)
   {
-    return new HttpFirehoseFactory2(
+    return new HttpInputSource(
         Collections.singletonList(split.get()),
         httpAuthenticationUsername,
         httpAuthenticationPasswordProvider
@@ -86,16 +87,26 @@ public class HttpFirehoseFactory2 implements FirehoseFactory2<URI>
   }
 
   @Override
-  public FirehoseV2 connect(ParseSpec parseSpec, @Nullable File temporaryDirectory) throws IOException, ParseException
+  public FirehoseV2 connect(TimestampSpec timestampSpec, InputFormat inputFormat, @Nullable File temporaryDirectory)
+      throws IOException, ParseException
   {
     return new SplitIteratingFirehose<>(
-        parseSpec,
-        getSplits(null).map(split -> new HttpSource(split, httpAuthenticationUsername, httpAuthenticationPasswordProvider))
+        timestampSpec,
+        inputFormat,
+        getSplits(inputFormat, null).map(split -> new HttpSource(
+            split,
+            httpAuthenticationUsername,
+            httpAuthenticationPasswordProvider
+        ))
     );
   }
 
   @Override
-  public SamplingFirehose sample(ParseSpec parseSpec, @Nullable File temporaryDirectory)
+  public SamplingFirehose sample(
+      TimestampSpec timestampSpec,
+      InputFormat inputFormat,
+      @Nullable File temporaryDirectory
+  )
       throws IOException, ParseException
   {
     return null;
