@@ -117,6 +117,12 @@ public class CSVParseSpec extends ParseSpec
   }
 
   @Override
+  public InputFormat toInputFormat()
+  {
+    return new CSVInputFormat(columns, listDelimiter, hasHeaderRow, skipHeaderRows);
+  }
+
+  @Override
   public ParseSpec withTimestampSpec(TimestampSpec spec)
   {
     return new CSVParseSpec(spec, getDimensionsSpec(), listDelimiter, columns, hasHeaderRow, skipHeaderRows);
@@ -126,11 +132,5 @@ public class CSVParseSpec extends ParseSpec
   public ParseSpec withDimensionsSpec(DimensionsSpec spec)
   {
     return new CSVParseSpec(getTimestampSpec(), spec, listDelimiter, columns, hasHeaderRow, skipHeaderRows);
-  }
-
-  @Override
-  public CSVReader createReader()
-  {
-    return new CSVReader(getTimestampSpec(), listDelimiter, columns, hasHeaderRow, skipHeaderRows);
   }
 }

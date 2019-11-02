@@ -42,7 +42,7 @@ public class TestModifiedDataSchema extends DataSchema
       @JsonProperty("extra") String extra
   )
   {
-    super(dataSource, timestampSpec, dimensionsSpec, aggregators, granularitySpec, transformSpec);
+    super(dataSource, timestampSpec, dimensionsSpec, aggregators, granularitySpec, transformSpec, null, null);
     this.extra = extra;
   }
 

@@ -68,6 +68,13 @@ public class TimeAndDimsParseSpec extends ParseSpec
   }
 
   @Override
+  public InputFormat toInputFormat()
+  {
+    // TODO: is this correct?
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public ParseSpec withTimestampSpec(TimestampSpec spec)
   {
     return new TimeAndDimsParseSpec(spec, getDimensionsSpec());

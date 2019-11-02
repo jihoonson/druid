@@ -24,12 +24,12 @@ import org.apache.druid.data.input.impl.InputFormat;
 
 /**
  * IOConfig for all batch tasks except compactionTask
- *
- * @param <T> type for {@link org.apache.druid.data.input.InputSplit}
  */
-public interface BatchIOConfig<T> extends IOConfig
+public interface BatchIOConfig extends IOConfig
 {
-  InputSource<T> getInputSource();
+  InputSource getInputSource();
 
   InputFormat getInputFormat();
+
+  boolean appendToExisting();
 }

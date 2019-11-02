@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableList;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.druid.data.input.impl.DimensionSchema;
 import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.HadoopIOConfig;
 import org.apache.druid.indexer.HadoopIngestionSpec;
 import org.apache.druid.indexer.HadoopTuningConfig;
@@ -165,14 +166,6 @@ public class MaterializedViewSupervisorSpec implements SupervisorSpec
   {
     String taskId = StringUtils.format("%s_%s_%s", TASK_PREFIX, dataSourceName, DateTimes.nowUtc());
 
-    // generate parser
-    Map<String, Object> parseSpec = new HashMap<>();
-    parseSpec.put("format", "timeAndDims");
-    parseSpec.put("dimensionsSpec", dimensionsSpec);
-    Map<String, Object> parser = new HashMap<>();
-    parser.put("type", "map");
-    parser.put("parseSpec", parseSpec);
-
     //generate HadoopTuningConfig
     HadoopTuningConfig tuningConfigForTask = new HadoopTuningConfig(
         tuningConfig.getWorkingPath(),
@@ -210,11 +203,13 @@ public class MaterializedViewSupervisorSpec implements SupervisorSpec
     // generate DataSchema
     DataSchema dataSchema = new DataSchema(
         dataSourceName,
-        parser,
+        new TimestampSpec(null, null, null),
+        dimensionsSpec,
         aggregators,
         granularitySpec,
         TransformSpec.NONE,
-        objectMapper
+        null,
+        null
     );
 
     // generate DatasourceIngestionSpec

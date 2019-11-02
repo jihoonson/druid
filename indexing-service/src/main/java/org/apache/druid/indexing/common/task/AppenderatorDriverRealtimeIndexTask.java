@@ -273,7 +273,7 @@ public class AppenderatorDriverRealtimeIndexTask extends AbstractTask implements
     this.metrics = fireDepartmentForMetrics.getMetrics();
 
     final Supplier<Committer> committerSupplier = Committers.nilSupplier();
-    final File firehoseTempDir = toolbox.getFirehoseTemporaryDir();
+    final File firehoseTempDir = toolbox.getIndexingTmpDir();
 
     DiscoveryDruidNode discoveryDruidNode = createDiscoveryDruidNode(toolbox);
 

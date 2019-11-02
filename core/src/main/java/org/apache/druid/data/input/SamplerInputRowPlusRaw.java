@@ -37,15 +37,13 @@ public class SamplerInputRowPlusRaw
   private final ParseException parseException;
 
   public SamplerInputRowPlusRaw(
-      @Nullable InputRow inputRow,
-      byte[] raw,
-      @Nullable int sortKey,
-      @Nullable ParseException parseException
+      InputRowPlusRaw inputRowPlusRaw,
+      @Nullable int sortKey
   )
   {
-    this.inputRow = inputRow;
-    this.raw = raw;
+    this.inputRow = inputRowPlusRaw.getInputRow();
+    this.raw = inputRowPlusRaw.getRaw();
     this.sortKey = sortKey;
-    this.parseException = parseException;
+    this.parseException = inputRowPlusRaw.getParseException();
   }
 }

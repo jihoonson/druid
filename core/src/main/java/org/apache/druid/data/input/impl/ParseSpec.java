@@ -29,6 +29,7 @@ import org.apache.druid.java.util.common.parsers.Parser;
 
 import java.util.List;
 
+@Deprecated
 @ExtensionPoint
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "format")
 @JsonSubTypes(value = {
@@ -74,6 +75,8 @@ public abstract class ParseSpec
   {
     return null;
   }
+
+  public abstract InputFormat toInputFormat();
 
   @PublicApi
   public ParseSpec withTimestampSpec(TimestampSpec spec)

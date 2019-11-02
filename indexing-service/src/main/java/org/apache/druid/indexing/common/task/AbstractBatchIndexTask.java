@@ -22,6 +22,7 @@ package org.apache.druid.indexing.common.task;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.FirehoseFactory;
+import org.apache.druid.data.input.InputSource;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
@@ -380,7 +381,7 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
   public static boolean isGuaranteedRollup(IndexIOConfig ioConfig, IndexTuningConfig tuningConfig)
   {
     Preconditions.checkState(
-        !tuningConfig.isForceGuaranteedRollup() || !ioConfig.isAppendToExisting(),
+        !tuningConfig.isForceGuaranteedRollup() || !ioConfig.appendToExisting(),
         "Perfect rollup cannot be guaranteed when appending to existing dataSources"
     );
     return tuningConfig.isForceGuaranteedRollup();
@@ -463,7 +464,7 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
       String dataSource,
       TaskActionClient actionClient,
       List<Interval> intervalsToRead,
-      FirehoseFactory firehoseFactory
+      InputSource inputSource
   ) throws IOException
   {
     if (firehoseFactory instanceof IngestSegmentFirehoseFactory) {
