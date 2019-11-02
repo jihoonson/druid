@@ -19,31 +19,12 @@
 
 package org.apache.druid.data.input;
 
-import org.apache.druid.java.util.common.parsers.ParseException;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
-import javax.annotation.Nullable;
+import java.io.File;
+import java.io.IOException;
 
-public class SamplerInputRowPlusRaw
+public interface SplitSampler
 {
-  @Nullable
-  private final InputRow inputRow;
-
-  @Nullable
-  private final byte[] raw;
-
-  private final int sortKey;
-
-  @Nullable
-  private final ParseException parseException;
-
-  public SamplerInputRowPlusRaw(
-      InputRowPlusRaw inputRowPlusRaw,
-      @Nullable int sortKey
-  )
-  {
-    this.inputRow = inputRowPlusRaw.getInputRow();
-    this.raw = inputRowPlusRaw.getRaw();
-    this.sortKey = sortKey;
-    this.parseException = inputRowPlusRaw.getParseException();
-  }
+  CloseableIterator<InputRowPlusRaw> sample(SplitSource source, File temporaryDirectory) throws IOException;
 }

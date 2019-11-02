@@ -21,35 +21,27 @@ package org.apache.druid.data.input.impl;
 
 import com.opencsv.CSVParser;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.SplitReader;
-import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.data.input.MapBasedInputRow;
+import org.apache.druid.data.input.TextReader;
 import org.apache.druid.java.util.common.ISE;
-import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.collect.Utils;
-import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.ParseException;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
-import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 
-public class CSVReader implements SplitReader
+public class CSVReader extends TextReader
 {
   private final CSVParser parser = new CSVParser();
-  private final TimestampSpec timestampSpec;
   private final String listDelimiter; // TODO: use this
-  @Nullable
-  private final List<String> columns;
   private final boolean hasHeaderRow;
   private final int skipHeaderRows;
+  @Nullable
+  private List<String> columns;
 
   CSVReader(
       TimestampSpec timestampSpec,
@@ -59,92 +51,43 @@ public class CSVReader implements SplitReader
       int skipHeaderRows
   )
   {
-    this.timestampSpec = timestampSpec;
+    super(timestampSpec);
     this.listDelimiter = listDelimiter;
-    this.columns = columns;
     this.hasHeaderRow = hasHeaderRow;
     this.skipHeaderRows = skipHeaderRows;
+    this.columns = columns;
+
+    if (hasHeaderRow && (columns != null && !columns.isEmpty())) {
+      throw new IllegalArgumentException("columns must be empty if hasHeaderRow = true");
+    }
   }
 
   @Override
-  public CloseableIterator<InputRow> read(SplitSource splitSource, File temporaryDirectory) throws IOException
+  public InputRow readLine(String line) throws IOException
   {
-    final BufferedReader reader;
-    reader = new BufferedReader(new InputStreamReader(splitSource.open(), StringUtils.UTF8_STRING));
-    final List<String> columns;
-    long headerBytes = 0;
-    if (hasHeaderRow) {
-      final String headerLine = reader.readLine();
-      headerBytes += headerLine.length();
-      columns = Arrays.asList(parser.parseLine(headerLine));
-    } else {
-      columns = this.columns;
+    final String[] parsed = parser.parseLine(line);
+    final Map<String, Object> zipped = Utils.zipMapPartial(columns, Arrays.asList(parsed));
+    final DateTime timestamp = getTimestampSpec().extractTimestamp(zipped);
+    if (timestamp == null) {
+      throw new ParseException("null timestamp");
+    }
+    return new MapBasedInputRow(timestamp, columns, zipped);
+  }
+
+  @Override
+  public int getNumHeaderLines()
+  {
+    return (hasHeaderRow ? 1 : 0) + skipHeaderRows;
+  }
+
+  @Override
+  public void processHeaderLine(String line) throws IOException
+  {
+    if (hasHeaderRow && (columns == null || columns.isEmpty())) {
+      columns = Arrays.asList(parser.parseLine(line));
     }
     if (columns == null || columns.isEmpty()) {
       throw new ISE("Empty columns");
     }
-
-    for (int i = 0; i < skipHeaderRows; i++) {
-      headerBytes += reader.readLine().length();
-    }
-    final long skippedBytes = headerBytes;
-
-    return new CloseableIterator<InputRow>()
-    {
-      String nextLine = null;
-      long readBytes = skippedBytes;
-
-      @Override
-      public boolean hasNext()
-      {
-        if (nextLine != null) {
-          return true;
-        } else {
-          try {
-            if (readBytes < splitSource.getSplit().length()) {
-              nextLine = reader.readLine();
-              if (nextLine != null) {
-                readBytes += nextLine.length();
-              }
-              return (nextLine != null);
-            } else {
-              return false;
-            }
-          }
-          catch (IOException e) {
-            throw new RuntimeException(e);
-          }
-        }
-      }
-
-      @Override
-      public InputRow next()
-      {
-        if (nextLine != null || hasNext()) {
-          String line = nextLine;
-          nextLine = null;
-          try {
-            final String[] parsed = parser.parseLine(line);
-            final Map<String, Object> zipped = Utils.zipMapPartial(columns, Arrays.asList(parsed));
-            final DateTime timestamp = timestampSpec.extractTimestamp(zipped);
-            if (timestamp == null) {
-              throw new ParseException("null timestamp");
-            }
-            return new MapBasedInputRow(timestamp, columns, zipped);
-          }
-          catch (IOException e) {
-            throw new RuntimeException(e);
-          }
-        } else {
-          throw new NoSuchElementException();
-        }
-      }
-
-      @Override
-      public void close() throws IOException
-      {
-        reader.close();
-      }
-    };
   }
 }

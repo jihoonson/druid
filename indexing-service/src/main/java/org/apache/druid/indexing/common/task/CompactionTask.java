@@ -539,6 +539,8 @@ public class CompactionTask extends AbstractBatchIndexTask
             segmentLoaderFactory,
             retryPolicyFactory
         ),
+        null,
+        null,
         false
     );
   }
@@ -606,6 +608,8 @@ public class CompactionTask extends AbstractBatchIndexTask
         finalDimensionsSpec,
         finalMetricsSpec,
         granularitySpec,
+        null,
+        null,
         null
     );
   }

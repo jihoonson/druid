@@ -27,13 +27,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
-public class ByteSource implements SplitSource
+public class ByteSource implements SplitSource<ByteBuffer>
 {
   private final InputSplit<ByteBuffer> split;
 
   public ByteSource(ByteBuffer buffer)
   {
     this.split = new InputSplit<>(buffer.duplicate());
+  }
+
+  public ByteSource(byte[] bytes)
+  {
+    this(ByteBuffer.wrap(bytes));
   }
 
   @Override

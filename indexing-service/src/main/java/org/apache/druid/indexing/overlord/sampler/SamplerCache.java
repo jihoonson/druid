@@ -21,12 +21,19 @@ package org.apache.druid.indexing.overlord.sampler;
 
 import org.apache.druid.client.cache.Cache;
 import org.apache.druid.data.input.ByteBufferInputRowParser;
+import org.apache.druid.data.input.ByteSource;
 import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowPlusRaw;
-import org.apache.druid.data.input.impl.InputRowParser;
+import org.apache.druid.data.input.InputSource;
+import org.apache.druid.data.input.InputSourceReader;
+import org.apache.druid.data.input.InputSourceSampler;
+import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.impl.InputFormat;
+import org.apache.druid.data.input.impl.SplitIteratingSampler;
 import org.apache.druid.data.input.impl.StringInputRowParser;
+import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.java.util.emitter.EmittingLogger;
@@ -80,7 +87,7 @@ public class SamplerCache
   }
 
   @Nullable
-  public FirehoseFactory getAsFirehoseFactory(String key, InputRowParser parser)
+  public FirehoseFactory getAsFirehoseFactory(String key, InputFormat inputFormat)
   {
     if (!(parser instanceof ByteBufferInputRowParser)) {
       log.warn("SamplerCache expects a ByteBufferInputRowParser");
@@ -98,6 +105,46 @@ public class SamplerCache
       public Firehose connect(ByteBufferInputRowParser parser, @Nullable File temporaryDirectory)
       {
         return new SamplerCacheFirehose(parser, data);
+      }
+    };
+  }
+
+  @Nullable
+  InputSource getAsInputSource(String key)
+  {
+    final Collection<byte[]> data = get(key);
+    if (data == null) {
+      return null;
+    }
+
+    return new InputSource()
+    {
+      @Override
+      public InputSourceReader reader(
+          TimestampSpec timestampSpec,
+          DimensionsSpec dimensionsSpec,
+          InputFormat inputFormat,
+          @Nullable File temporaryDirectory
+      ) throws ParseException
+      {
+        throw new UnsupportedOperationException("Call sampler() instead");
+      }
+
+      @Override
+      public InputSourceSampler sampler(
+          TimestampSpec timestampSpec,
+          DimensionsSpec dimensionsSpec,
+          InputFormat inputFormat,
+          @Nullable File temporaryDirectory
+      ) throws ParseException
+      {
+        return new SplitIteratingSampler<>(
+            timestampSpec,
+            dimensionsSpec,
+            inputFormat,
+            data.stream().map(ByteSource::new),
+            temporaryDirectory
+        );
       }
     };
   }

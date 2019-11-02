@@ -19,9 +19,9 @@
 
 package org.apache.druid.data.input.impl;
 
-import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputSourceReader;
-import org.apache.druid.data.input.SplitReader;
+import org.apache.druid.data.input.InputRowPlusRaw;
+import org.apache.druid.data.input.InputSourceSampler;
+import org.apache.druid.data.input.SplitSampler;
 import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
@@ -31,13 +31,13 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.stream.Stream;
 
-public class SplitIteratingReader<T> implements InputSourceReader
+public class SplitIteratingSampler<T> implements InputSourceSampler
 {
-  private final SplitReader splitReader;
+  private final SplitSampler splitSampler;
   private final Iterator<SplitSource<T>> sourceIterator;
   private final File temporaryDirectory;
 
-  public SplitIteratingReader(
+  public SplitIteratingSampler(
       TimestampSpec timestampSpec,
       DimensionsSpec dimensionsSpec,
       InputFormat inputFormat,
@@ -45,17 +45,17 @@ public class SplitIteratingReader<T> implements InputSourceReader
       File temporaryDirectory
   )
   {
-    this.splitReader = inputFormat.createReader(timestampSpec, dimensionsSpec);
+    this.splitSampler = inputFormat.createSampler(timestampSpec, dimensionsSpec);
     this.sourceIterator = sourceStream.iterator();
     this.temporaryDirectory = temporaryDirectory;
   }
 
   @Override
-  public CloseableIterator<InputRow> read()
+  public CloseableIterator<InputRowPlusRaw> sample()
   {
-    return new CloseableIterator<InputRow>()
+    return new CloseableIterator<InputRowPlusRaw>()
     {
-      CloseableIterator<InputRow> rowIterator = null;
+      CloseableIterator<InputRowPlusRaw> rowIterator = null;
 
       @Override
       public boolean hasNext()
@@ -65,7 +65,7 @@ public class SplitIteratingReader<T> implements InputSourceReader
       }
 
       @Override
-      public InputRow next()
+      public InputRowPlusRaw next()
       {
         if (!hasNext()) {
           throw new NoSuchElementException();
@@ -81,7 +81,7 @@ public class SplitIteratingReader<T> implements InputSourceReader
               rowIterator.close();
             }
             if (sourceIterator.hasNext()) {
-              rowIterator = splitReader.read(sourceIterator.next(), temporaryDirectory);
+              rowIterator = splitSampler.sample(sourceIterator.next(), temporaryDirectory);
             }
           }
           catch (IOException e) {
@@ -94,7 +94,7 @@ public class SplitIteratingReader<T> implements InputSourceReader
       public void close() throws IOException
       {
         if (rowIterator != null) {
-          rowIterator.close();
+
         }
       }
     };

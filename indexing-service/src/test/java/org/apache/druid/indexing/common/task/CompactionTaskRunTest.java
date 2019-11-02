@@ -27,9 +27,9 @@ import com.google.common.io.Files;
 import org.apache.druid.client.coordinator.CoordinatorClient;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.client.indexing.NoopIndexingServiceClient;
-import org.apache.druid.data.input.impl.CSVParseSpec;
+import org.apache.druid.data.input.impl.CSVInputFormat;
 import org.apache.druid.data.input.impl.DimensionsSpec;
-import org.apache.druid.data.input.impl.ParseSpec;
+import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
@@ -100,19 +100,15 @@ public class CompactionTaskRunTest extends IngestionTestBase
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
 
-  public static final ParseSpec DEFAULT_PARSE_SPEC = new CSVParseSpec(
-      new TimestampSpec(
-          "ts",
-          "auto",
-          null
-      ),
-      new DimensionsSpec(
-          DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim")),
-          Collections.emptyList(),
-          Collections.emptyList()
-      ),
-      null,
+  static final TimestampSpec DEFAULT_TIMESTAMP_SPEC = new TimestampSpec("ts", "auto", null);
+  static final DimensionsSpec DEFAULT_DIMENSIONS_SPEC = new DimensionsSpec(
+      DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim")),
+      Collections.emptyList(),
+      Collections.emptyList()
+  );
+  static final InputFormat DEFAULT_INPUT_FORMAT = new CSVInputFormat(
       Arrays.asList("ts", "dim", "val"),
+      null,
       false,
       0
   );
@@ -349,14 +345,15 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         null,
         IndexTaskTest.createIngestionSpec(
-            getObjectMapper(),
             tmpDir,
-            DEFAULT_PARSE_SPEC,
+            DEFAULT_TIMESTAMP_SPEC,
+            DEFAULT_DIMENSIONS_SPEC,
             new UniformGranularitySpec(
                 Granularities.HOUR,
                 Granularities.MINUTE,
                 null
             ),
+            DEFAULT_INPUT_FORMAT,
             IndexTaskTest.createTuningConfig(2, 2, null, 2L, null, null, false, true),
             false
         ),
@@ -678,14 +675,15 @@ public class CompactionTaskRunTest extends IngestionTestBase
         null,
         null,
         IndexTaskTest.createIngestionSpec(
-            getObjectMapper(),
             tmpDir,
-            DEFAULT_PARSE_SPEC,
+            DEFAULT_TIMESTAMP_SPEC,
+            DEFAULT_DIMENSIONS_SPEC,
             new UniformGranularitySpec(
                 Granularities.HOUR,
                 Granularities.MINUTE,
                 null
             ),
+            DEFAULT_INPUT_FORMAT,
             IndexTaskTest.createTuningConfig(2, 2, null, 2L, null, null, false, true),
             appendToExisting
         ),

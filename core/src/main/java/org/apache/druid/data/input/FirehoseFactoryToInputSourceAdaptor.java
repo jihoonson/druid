@@ -47,7 +47,7 @@ public class FirehoseFactoryToInputSourceAdaptor implements InputSource
   public InputSourceReader reader(
       TimestampSpec timestampSpec,
       DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
+      @Nullable InputFormat inputFormat, // inputFormat should be null
       @Nullable File temporaryDirectory
   ) throws IOException, ParseException
   {
@@ -58,7 +58,7 @@ public class FirehoseFactoryToInputSourceAdaptor implements InputSource
   public InputSourceSampler sampler(
       TimestampSpec timestampSpec,
       DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
+      @Nullable InputFormat inputFormat, // inputFormat should be null
       @Nullable File temporaryDirectory
   ) throws IOException, ParseException
   {

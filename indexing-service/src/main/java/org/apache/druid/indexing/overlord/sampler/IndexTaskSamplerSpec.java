@@ -23,20 +23,25 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
-import org.apache.druid.data.input.FirehoseFactory;
-import org.apache.druid.indexing.common.task.IndexTask;
+import org.apache.druid.data.input.InputSource;
+import org.apache.druid.data.input.impl.InputFormat;
+import org.apache.druid.data.input.impl.InputRowParser;
+import org.apache.druid.indexing.common.task.IndexTask.IndexIngestionSpec;
 import org.apache.druid.segment.indexing.DataSchema;
+
+import javax.annotation.Nullable;
 
 public class IndexTaskSamplerSpec implements SamplerSpec
 {
   private final DataSchema dataSchema;
-  private final FirehoseFactory firehoseFactory;
+  private final InputSource inputSource;
+  private final InputFormat inputFormat;
   private final SamplerConfig samplerConfig;
   private final FirehoseSampler firehoseSampler;
 
   @JsonCreator
   public IndexTaskSamplerSpec(
-      @JsonProperty("spec") final IndexTask.IndexIngestionSpec ingestionSpec,
+      @JsonProperty("spec") final IndexIngestionSpec ingestionSpec,
       @JsonProperty("samplerConfig") final SamplerConfig samplerConfig,
       @JacksonInject FirehoseSampler firehoseSampler
   )
@@ -45,9 +50,14 @@ public class IndexTaskSamplerSpec implements SamplerSpec
 
     Preconditions.checkNotNull(ingestionSpec.getIOConfig(), "[spec.ioConfig] is required");
 
-    this.firehoseFactory = Preconditions.checkNotNull(
-        ingestionSpec.getIOConfig().getFirehoseFactory(),
-        "[spec.ioConfig.firehose] is required"
+    @Nullable
+    final InputRowParser inputRowParser = ingestionSpec.getDataSchema().getInputRowParser();
+    this.inputSource = Preconditions.checkNotNull(
+        ingestionSpec.getIOConfig().getNonNullInputSource(inputRowParser),
+        "[spec.ioConfig.inputSource] is required"
+    );
+    this.inputFormat = ingestionSpec.getIOConfig().getNonNullInputFormat(
+        inputRowParser == null ? null : inputRowParser.getParseSpec()
     );
 
     this.samplerConfig = samplerConfig;
@@ -57,6 +67,6 @@ public class IndexTaskSamplerSpec implements SamplerSpec
   @Override
   public SamplerResponse sample()
   {
-    return firehoseSampler.sample(firehoseFactory, dataSchema, samplerConfig);
+    return firehoseSampler.sample(dataSchema, inputSource, inputFormat, samplerConfig);
   }
 }

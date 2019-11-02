@@ -20,8 +20,8 @@
 package org.apache.druid.data.input.impl;
 
 import org.apache.druid.data.input.Firehose;
+import org.apache.druid.data.input.InputRowPlusRaw;
 import org.apache.druid.data.input.InputSourceSampler;
-import org.apache.druid.data.input.SamplerInputRowPlusRaw;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.IOException;
@@ -36,9 +36,9 @@ public class FirehoseToInputSourceSamplerAdaptor implements InputSourceSampler
   }
 
   @Override
-  public CloseableIterator<SamplerInputRowPlusRaw> sample() throws IOException
+  public CloseableIterator<InputRowPlusRaw> sample()
   {
-    return new CloseableIterator<SamplerInputRowPlusRaw>()
+    return new CloseableIterator<InputRowPlusRaw>()
     {
       @Override
       public boolean hasNext()
@@ -52,10 +52,10 @@ public class FirehoseToInputSourceSamplerAdaptor implements InputSourceSampler
       }
 
       @Override
-      public SamplerInputRowPlusRaw next()
+      public InputRowPlusRaw next()
       {
         try {
-          return new SamplerInputRowPlusRaw(firehose.nextRowWithRaw(), sortKey);
+          return firehose.nextRowWithRaw();
         }
         catch (IOException e) {
           throw new RuntimeException(e);

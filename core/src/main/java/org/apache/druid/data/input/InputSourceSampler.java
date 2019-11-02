@@ -25,5 +25,5 @@ import java.io.IOException;
 
 public interface InputSourceSampler
 {
-  CloseableIterator<SamplerInputRowPlusRaw> sample() throws IOException;
+  CloseableIterator<InputRowPlusRaw> sample() throws IOException;
 }

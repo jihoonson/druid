@@ -27,6 +27,7 @@ import org.apache.druid.guice.annotations.ExtensionPoint;
 import org.apache.druid.guice.annotations.PublicApi;
 import org.apache.druid.java.util.common.parsers.Parser;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 @Deprecated
@@ -76,6 +77,10 @@ public abstract class ParseSpec
     return null;
   }
 
+  /**
+   * Return null if it's not supported.
+   */
+  @Nullable
   public abstract InputFormat toInputFormat();
 
   @PublicApi

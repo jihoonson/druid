@@ -22,10 +22,9 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 import com.google.common.collect.ImmutableList;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.InputSplit;
-import org.apache.druid.data.input.impl.CSVParseSpec;
+import org.apache.druid.data.input.impl.CSVInputFormat;
 import org.apache.druid.data.input.impl.DimensionsSpec;
-import org.apache.druid.data.input.impl.ParseSpec;
-import org.apache.druid.data.input.impl.StringInputRowParser;
+import org.apache.druid.data.input.impl.LocalInputSource;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
@@ -59,7 +58,6 @@ import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.loading.SegmentLoader;
 import org.apache.druid.segment.loading.SegmentLoadingException;
-import org.apache.druid.segment.realtime.firehose.LocalFirehoseFactory;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.joda.time.Interval;
@@ -159,7 +157,14 @@ public class MultiPhaseParallelIndexingTest extends AbstractParallelIndexSupervi
     final ParallelIndexSupervisorTask task = newTask(
         interval,
         new ParallelIndexIOConfig(
-            new LocalFirehoseFactory(inputDir, "test_*", null),
+            null,
+            new LocalInputSource(inputDir, "test_*"),
+            new CSVInputFormat(
+                Arrays.asList("ts", "dim1", "dim2", "val"),
+                null,
+                false,
+                0
+            ),
             false
         ),
         partitionsSpec
@@ -223,34 +228,18 @@ public class MultiPhaseParallelIndexingTest extends AbstractParallelIndexSupervi
       ParallelIndexTuningConfig tuningConfig
   )
   {
-    // set up ingestion spec
-    final ParseSpec parseSpec = new CSVParseSpec(
-        new TimestampSpec(
-            "ts",
-            "auto",
-            null
-        ),
-        new DimensionsSpec(
-            DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim1", "dim2")),
-            new ArrayList<>(),
-            new ArrayList<>()
-        ),
-        null,
-        Arrays.asList("ts", "dim1", "dim2", "val"),
-        false,
-        0
-    );
-
-    //noinspection unchecked
     final ParallelIndexIngestionSpec ingestionSpec = new ParallelIndexIngestionSpec(
         new DataSchema(
             "dataSource",
-            getObjectMapper().convertValue(
-                new StringInputRowParser(
-                    parseSpec,
-                    null
-                ),
-                Map.class
+            new TimestampSpec(
+                "ts",
+                "auto",
+                null
+            ),
+            new DimensionsSpec(
+                DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim1", "dim2")),
+                new ArrayList<>(),
+                new ArrayList<>()
             ),
             new AggregatorFactory[]{
                 new LongSumAggregatorFactory("val", "val")
@@ -260,6 +249,7 @@ public class MultiPhaseParallelIndexingTest extends AbstractParallelIndexSupervi
                 Granularities.MINUTE,
                 interval == null ? null : Collections.singletonList(interval)
             ),
+            null,
             null,
             getObjectMapper()
         ),
@@ -414,8 +404,10 @@ public class MultiPhaseParallelIndexingTest extends AbstractParallelIndexSupervi
       final ParallelIndexIngestionSpec subTaskIngestionSpec = new ParallelIndexIngestionSpec(
           getIngestionSchema().getDataSchema(),
           new ParallelIndexIOConfig(
-              getBaseFirehoseFactory().withSplit(split),
-              getIngestionSchema().getIOConfig().isAppendToExisting()
+              null,
+              getBaseInputSource().withSplit(split),
+              getIngestionSchema().getIOConfig().getInputFormat(),
+              getIngestionSchema().getIOConfig().appendToExisting()
           ),
           getIngestionSchema().getTuningConfig()
       );

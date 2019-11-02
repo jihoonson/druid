@@ -17,23 +17,45 @@
  * under the License.
  */
 
-package org.apache.druid.data.input.orc;
+package org.apache.druid.data.input.impl;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonParser.Feature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.data.input.SplitSampler;
-import org.apache.druid.data.input.impl.DimensionsSpec;
-import org.apache.druid.data.input.impl.NestedInputFormat;
-import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 
-public class OrcInputFormat extends NestedInputFormat
+import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Map.Entry;
+
+public class JsonInputFormat extends NestedInputFormat
 {
+  private final Map<String, Boolean> featureSpec;
+  private final ObjectMapper objectMapper;
+
   @JsonCreator
-  public OrcInputFormat(@JsonProperty("flattenSpec") JSONPathSpec flattenSpec)
+  public JsonInputFormat(
+      @JsonProperty("flattenSpec") JSONPathSpec flattenSpec,
+      @JsonProperty("featureSpec") @Nullable Map<String, Boolean> featureSpec
+  )
   {
     super(flattenSpec);
+    this.featureSpec = featureSpec == null ? Collections.emptyMap() : featureSpec;
+    this.objectMapper = new ObjectMapper();
+    for (Entry<String, Boolean> entry : this.featureSpec.entrySet()) {
+      Feature feature = Feature.valueOf(entry.getKey());
+      objectMapper.configure(feature, entry.getValue());
+    }
+  }
+
+  @JsonProperty
+  public Map<String, Boolean> getFeatureSpec()
+  {
+    return featureSpec;
   }
 
   @Override
@@ -45,7 +67,7 @@ public class OrcInputFormat extends NestedInputFormat
   @Override
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
-    return new OrcReader(timestampSpec, dimensionsSpec, getFlattenSpec());
+    return new JsonReader(timestampSpec, getFlattenSpec(), objectMapper);
   }
 
   @Override
@@ -53,7 +75,6 @@ public class OrcInputFormat extends NestedInputFormat
       TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec
   )
   {
-    // TODO
-    throw new UnsupportedOperationException();
+    return new JsonReader(timestampSpec, getFlattenSpec(), objectMapper);
   }
 }

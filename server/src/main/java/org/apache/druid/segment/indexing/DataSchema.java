@@ -229,9 +229,13 @@ public class DataSchema
     return parserMap;
   }
 
+  @Nullable
   public InputRowParser getInputRowParser()
   {
     if (inputRowParser == null) {
+      if (parserMap == null) {
+        return null;
+      }
       inputRowParser = objectMapper.convertValue(parserMap, InputRowParser.class);
     }
     return inputRowParser;

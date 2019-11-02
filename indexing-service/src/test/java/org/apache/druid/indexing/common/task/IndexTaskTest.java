@@ -26,14 +26,14 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
-import org.apache.druid.data.input.impl.CSVParseSpec;
+import org.apache.druid.data.input.impl.CSVInputFormat;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.FloatDimensionSchema;
-import org.apache.druid.data.input.impl.JSONParseSpec;
+import org.apache.druid.data.input.impl.InputFormat;
+import org.apache.druid.data.input.impl.JsonInputFormat;
+import org.apache.druid.data.input.impl.LocalInputSource;
 import org.apache.druid.data.input.impl.LongDimensionSchema;
-import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.data.input.impl.StringDimensionSchema;
-import org.apache.druid.data.input.impl.StringInputRowParser;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
@@ -73,7 +73,6 @@ import org.apache.druid.segment.loading.SegmentLoaderConfig;
 import org.apache.druid.segment.loading.SegmentLoaderLocalCacheManager;
 import org.apache.druid.segment.loading.StorageLocationConfig;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
-import org.apache.druid.segment.realtime.firehose.LocalFirehoseFactory;
 import org.apache.druid.segment.realtime.firehose.WindowedStorageAdapter;
 import org.apache.druid.segment.transform.ExpressionTransform;
 import org.apache.druid.segment.transform.TransformSpec;
@@ -115,19 +114,15 @@ public class IndexTaskTest extends IngestionTestBase
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
 
-  private static final ParseSpec DEFAULT_PARSE_SPEC = new CSVParseSpec(
-      new TimestampSpec(
-          "ts",
-          "auto",
-          null
-      ),
-      new DimensionsSpec(
-          DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim")),
-          new ArrayList<>(),
-          new ArrayList<>()
-      ),
-      null,
+  private static final TimestampSpec DEFAULT_TIMESTAMP_SPEC = new TimestampSpec("ts", "auto", null);
+  private static final DimensionsSpec DEFAULT_DIMENSIONS_SPEC = new DimensionsSpec(
+      DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim")),
+      Collections.emptyList(),
+      Collections.emptyList()
+  );
+  private static final InputFormat DEFAULT_INPUT_FORMAT = new CSVInputFormat(
       Arrays.asList("ts", "dim", "val"),
+      null,
       false,
       0
   );
@@ -198,8 +193,9 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
+            null,
+            null,
             null,
             null,
             createTuningConfigWithMaxRowsPerSegment(2, true),
@@ -246,8 +242,8 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
+            null,
             null,
             new TransformSpec(
                 new SelectorDimFilter("dim", "b", null),
@@ -255,6 +251,7 @@ public class IndexTaskTest extends IngestionTestBase
                     new ExpressionTransform("dimt", "concat(dim,dim)", ExprMacroTable.nil())
                 )
             ),
+            null,
             null,
             createTuningConfigWithMaxRowsPerSegment(2, false),
             false
@@ -295,13 +292,14 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
+            null,
             null,
             new ArbitraryGranularitySpec(
                 Granularities.MINUTE,
                 Collections.singletonList(Intervals.of("2014-01-01/2014-01-02"))
             ),
+            null,
             createTuningConfigWithMaxRowsPerSegment(10, true),
             false
         ),
@@ -333,14 +331,15 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
+            null,
             null,
             new UniformGranularitySpec(
                 Granularities.HOUR,
                 Granularities.HOUR,
                 Collections.singletonList(Intervals.of("2014-01-01T08:00:00Z/2014-01-01T09:00:00Z"))
             ),
+            null,
             createTuningConfigWithMaxRowsPerSegment(50, true),
             false
         ),
@@ -372,8 +371,9 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
+            null,
+            null,
             null,
             null,
             createTuningConfigWithNumShards(1, null, true),
@@ -412,8 +412,9 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
+            null,
+            null,
             null,
             null,
             createTuningConfigWithNumShards(2, ImmutableList.of("dim"), true),
@@ -488,8 +489,9 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
+            null,
+            null,
             null,
             null,
             createTuningConfigWithMaxRowsPerSegment(2, false),
@@ -536,14 +538,15 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
+            null,
             null,
             new UniformGranularitySpec(
                 Granularities.HOUR,
                 Granularities.MINUTE,
                 null
             ),
+            null,
             createTuningConfigWithMaxRowsPerSegment(2, true),
             false
         ),
@@ -590,25 +593,19 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
-            new CSVParseSpec(
-                new TimestampSpec(
-                    "time",
-                    "auto",
-                    null
-                ),
-                new DimensionsSpec(
-                    null,
-                    new ArrayList<>(),
-                    new ArrayList<>()
-                ),
+            new TimestampSpec(
+                "time",
+                "auto",
+                null
+            ),
+            new DimensionsSpec(
                 null,
-                null,
-                true,
-                0
+                new ArrayList<>(),
+                new ArrayList<>()
             ),
             null,
+            new CSVInputFormat(null, null, true, 0),
             createTuningConfigWithMaxRowsPerSegment(2, true),
             false
         ),
@@ -644,25 +641,19 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
-            new CSVParseSpec(
-                new TimestampSpec(
-                    "time",
-                    "auto",
-                    null
-                ),
-                new DimensionsSpec(
-                    null,
-                    new ArrayList<>(),
-                    new ArrayList<>()
-                ),
+            new TimestampSpec(
+                "time",
+                "auto",
+                null
+            ),
+            new DimensionsSpec(
                 null,
-                Arrays.asList("time", "dim", "val"),
-                true,
-                0
+                new ArrayList<>(),
+                new ArrayList<>()
             ),
             null,
+            new CSVInputFormat(Arrays.asList("time", "dim", "val"), null, true, 0),
             createTuningConfigWithMaxRowsPerSegment(2, true),
             false
         ),
@@ -704,14 +695,15 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
+            null,
             null,
             new UniformGranularitySpec(
                 Granularities.HOUR,
                 Granularities.MINUTE,
                 null
             ),
+            null,
             createTuningConfig(2, 2, null, 2L, null, null, false, true),
             false
         ),
@@ -750,8 +742,8 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
+            null,
             null,
             new UniformGranularitySpec(
                 Granularities.DAY,
@@ -759,6 +751,7 @@ public class IndexTaskTest extends IngestionTestBase
                 true,
                 null
             ),
+            null,
             createTuningConfig(3, 2, null, 2L, null, null, true, true),
             false
         ),
@@ -796,8 +789,8 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         null,
         createIngestionSpec(
-            jsonMapper,
             tmpDir,
+            null,
             null,
             new UniformGranularitySpec(
                 Granularities.DAY,
@@ -805,6 +798,7 @@ public class IndexTaskTest extends IngestionTestBase
                 true,
                 null
             ),
+            null,
             createTuningConfig(3, 2, null, 2L, null, null, false, true),
             false
         ),
@@ -861,25 +855,19 @@ public class IndexTaskTest extends IngestionTestBase
     // GranularitySpec.intervals and numShards must be null to verify reportParseException=false is respected both in
     // IndexTask.determineShardSpecs() and IndexTask.generateAndPublishSegments()
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
-        jsonMapper,
         tmpDir,
-        new CSVParseSpec(
-            new TimestampSpec(
-                "time",
-                "auto",
-                null
-            ),
-            new DimensionsSpec(
-                null,
-                new ArrayList<>(),
-                new ArrayList<>()
-            ),
+        new TimestampSpec(
+            "time",
+            "auto",
+            null
+        ),
+        new DimensionsSpec(
             null,
-            Arrays.asList("time", "dim", "val"),
-            true,
-            0
+            new ArrayList<>(),
+            new ArrayList<>()
         ),
         null,
+        new CSVInputFormat(Arrays.asList("time", "dim", "val"), null, true, 0),
         createTuningConfig(2, null, null, null, null, null, false, false), // ignore parse exception,
         false
     );
@@ -916,25 +904,19 @@ public class IndexTaskTest extends IngestionTestBase
     }
 
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
-        jsonMapper,
         tmpDir,
-        new CSVParseSpec(
-            new TimestampSpec(
-                "time",
-                "auto",
-                null
-            ),
-            new DimensionsSpec(
-                null,
-                new ArrayList<>(),
-                new ArrayList<>()
-            ),
+        new TimestampSpec(
+            "time",
+            "auto",
+            null
+        ),
+        new DimensionsSpec(
             null,
-            Arrays.asList("time", "dim", "val"),
-            true,
-            0
+            new ArrayList<>(),
+            new ArrayList<>()
         ),
         null,
+        new CSVInputFormat(Arrays.asList("time", "dim", "val"), null, true, 0),
         createTuningConfig(2, null, null, null, null, null, false, true), // report parse exception
         false
     );
@@ -1011,27 +993,23 @@ public class IndexTaskTest extends IngestionTestBase
     );
 
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
-        jsonMapper,
         tmpDir,
-        new JSONParseSpec(
-            new TimestampSpec(
-                "time",
-                "auto",
-                null
-            ),
-            new DimensionsSpec(
-                Arrays.asList(
-                    new StringDimensionSchema("dim"),
-                    new LongDimensionSchema("dimLong"),
-                    new FloatDimensionSchema("dimFloat")
-                ),
-                new ArrayList<>(),
-                new ArrayList<>()
-            ),
-            null,
+        new TimestampSpec(
+            "time",
+            "auto",
             null
         ),
+        new DimensionsSpec(
+            Arrays.asList(
+                new StringDimensionSchema("dim"),
+                new LongDimensionSchema("dimLong"),
+                new FloatDimensionSchema("dimFloat")
+            ),
+            new ArrayList<>(),
+            new ArrayList<>()
+        ),
         null,
+        new JsonInputFormat(null, null),
         tuningConfig,
         false
     );
@@ -1136,29 +1114,23 @@ public class IndexTaskTest extends IngestionTestBase
     );
 
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
-        jsonMapper,
         tmpDir,
-        new CSVParseSpec(
-            new TimestampSpec(
-                "time",
-                "auto",
-                null
+        new TimestampSpec(
+            "time",
+            "auto",
+            null
+        ),
+        new DimensionsSpec(
+            Arrays.asList(
+                new StringDimensionSchema("dim"),
+                new LongDimensionSchema("dimLong"),
+                new FloatDimensionSchema("dimFloat")
             ),
-            new DimensionsSpec(
-                Arrays.asList(
-                    new StringDimensionSchema("dim"),
-                    new LongDimensionSchema("dimLong"),
-                    new FloatDimensionSchema("dimFloat")
-                ),
-                new ArrayList<>(),
-                new ArrayList<>()
-            ),
-            null,
-            Arrays.asList("time", "dim", "dimLong", "dimFloat", "val"),
-            true,
-            0
+            new ArrayList<>(),
+            new ArrayList<>()
         ),
         null,
+        new CSVInputFormat(Arrays.asList("time", "dim", "dimLong", "dimFloat", "val"), null, true, 0),
         tuningConfig,
         false
     );
@@ -1254,29 +1226,23 @@ public class IndexTaskTest extends IngestionTestBase
     );
 
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
-        jsonMapper,
         tmpDir,
-        new CSVParseSpec(
-            new TimestampSpec(
-                "time",
-                "auto",
-                null
+        new TimestampSpec(
+            "time",
+            "auto",
+            null
+        ),
+        new DimensionsSpec(
+            Arrays.asList(
+                new StringDimensionSchema("dim"),
+                new LongDimensionSchema("dimLong"),
+                new FloatDimensionSchema("dimFloat")
             ),
-            new DimensionsSpec(
-                Arrays.asList(
-                    new StringDimensionSchema("dim"),
-                    new LongDimensionSchema("dimLong"),
-                    new FloatDimensionSchema("dimFloat")
-                ),
-                new ArrayList<>(),
-                new ArrayList<>()
-            ),
-            null,
-            Arrays.asList("time", "dim", "dimLong", "dimFloat", "val"),
-            true,
-            0
+            new ArrayList<>(),
+            new ArrayList<>()
         ),
         null,
+        new CSVInputFormat(Arrays.asList("time", "dim", "dimLong", "dimFloat", "val"), null, true, 0),
         tuningConfig,
         false
     );
@@ -1359,25 +1325,19 @@ public class IndexTaskTest extends IngestionTestBase
     }
 
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
-        jsonMapper,
         tmpDir,
-        new CSVParseSpec(
-            new TimestampSpec(
-                "time",
-                "auto",
-                null
-            ),
-            new DimensionsSpec(
-                null,
-                null,
-                null
-            ),
+        new TimestampSpec(
+            "time",
+            "auto",
+            null
+        ),
+        new DimensionsSpec(
             null,
             null,
-            true,
-            0
+            null
         ),
         null,
+        new CSVInputFormat(null, null, true, 0),
         createTuningConfig(2, 1, null, null, null, null, true, true), // report parse exception
         false
     );
@@ -1431,25 +1391,19 @@ public class IndexTaskTest extends IngestionTestBase
     }
 
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
-        jsonMapper,
         tmpDir,
-        new CSVParseSpec(
-            new TimestampSpec(
-                "time",
-                "auto",
-                null
-            ),
-            new DimensionsSpec(
-                null,
-                new ArrayList<>(),
-                new ArrayList<>()
-            ),
+        new TimestampSpec(
+            "time",
+            "auto",
+            null
+        ),
+        new DimensionsSpec(
             null,
-            Arrays.asList("time", "", ""),
-            true,
-            0
+            new ArrayList<>(),
+            new ArrayList<>()
         ),
         null,
+        new CSVInputFormat(Arrays.asList("time", "", ""), null, true, 0),
         createTuningConfig(2, null, null, null, null, null, false, true), // report parse exception
         false
     );
@@ -1495,8 +1449,8 @@ public class IndexTaskTest extends IngestionTestBase
           null,
           null,
           createIngestionSpec(
-              jsonMapper,
               tmpDir,
+              null,
               null,
               new UniformGranularitySpec(
                   Granularities.DAY,
@@ -1504,6 +1458,7 @@ public class IndexTaskTest extends IngestionTestBase
                   true,
                   null
               ),
+              null,
               createTuningConfig(3, 2, null, 2L, null, null, false, true),
               false
           ),
@@ -1563,8 +1518,8 @@ public class IndexTaskTest extends IngestionTestBase
           null,
           null,
           createIngestionSpec(
-              jsonMapper,
               tmpDir,
+              null,
               null,
               new UniformGranularitySpec(
                   segmentGranularity,
@@ -1572,6 +1527,7 @@ public class IndexTaskTest extends IngestionTestBase
                   true,
                   null
               ),
+              null,
               createTuningConfig(3, 2, null, 2L, null, null, false, true),
               false
           ),
@@ -1697,31 +1653,34 @@ public class IndexTaskTest extends IngestionTestBase
   }
 
   public static IndexTask.IndexIngestionSpec createIngestionSpec(
-      ObjectMapper objectMapper,
       File baseDir,
-      ParseSpec parseSpec,
+      @Nullable TimestampSpec timestampSpec,
+      @Nullable DimensionsSpec dimensionsSpec,
       GranularitySpec granularitySpec,
+      @Nullable InputFormat inputFormat,
       IndexTuningConfig tuningConfig,
       boolean appendToExisting
   )
   {
     return createIngestionSpec(
-        objectMapper,
         baseDir,
-        parseSpec,
+        timestampSpec,
+        dimensionsSpec,
         TransformSpec.NONE,
         granularitySpec,
+        inputFormat,
         tuningConfig,
         appendToExisting
     );
   }
 
   public static IndexTask.IndexIngestionSpec createIngestionSpec(
-      ObjectMapper objectMapper,
       File baseDir,
-      ParseSpec parseSpec,
+      @Nullable TimestampSpec timestampSpec,
+      @Nullable DimensionsSpec dimensionsSpec,
       TransformSpec transformSpec,
       GranularitySpec granularitySpec,
+      @Nullable InputFormat inputFormat,
       IndexTuningConfig tuningConfig,
       boolean appendToExisting
   )
@@ -1729,13 +1688,8 @@ public class IndexTaskTest extends IngestionTestBase
     return new IndexTask.IndexIngestionSpec(
         new DataSchema(
             "test",
-            objectMapper.convertValue(
-                new StringInputRowParser(
-                    parseSpec != null ? parseSpec : DEFAULT_PARSE_SPEC,
-                    null
-                ),
-                Map.class
-            ),
+            timestampSpec == null ? DEFAULT_TIMESTAMP_SPEC : timestampSpec,
+            dimensionsSpec == null ? DEFAULT_DIMENSIONS_SPEC : dimensionsSpec,
             new AggregatorFactory[]{
                 new LongSumAggregatorFactory("val", "val")
             },
@@ -1745,14 +1699,13 @@ public class IndexTaskTest extends IngestionTestBase
                 Collections.singletonList(Intervals.of("2014/2015"))
             ),
             transformSpec,
-            objectMapper
+            null,
+            null
         ),
         new IndexTask.IndexIOConfig(
-            new LocalFirehoseFactory(
-                baseDir,
-                "druid*",
-                null
-            ),
+            null,
+            new LocalInputSource(baseDir, "druid*"),
+            inputFormat == null ? DEFAULT_INPUT_FORMAT : inputFormat,
             appendToExisting
         ),
         tuningConfig

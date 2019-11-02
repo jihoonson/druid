@@ -20,6 +20,7 @@
 package org.apache.druid.data.input.impl;
 
 import org.apache.druid.data.input.SplitReader;
+import org.apache.druid.data.input.SplitSampler;
 
 // will replace ParseSpec
 public interface InputFormat
@@ -27,4 +28,6 @@ public interface InputFormat
   boolean isSplittable();
 
   SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec);
+
+  SplitSampler createSampler(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec);
 }
