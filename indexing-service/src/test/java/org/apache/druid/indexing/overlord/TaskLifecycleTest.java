@@ -40,12 +40,11 @@ import org.apache.druid.data.input.InputSource;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.MapBasedInputRow;
-import org.apache.druid.data.input.SplitReader;
-import org.apache.druid.data.input.SplitSampler;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.data.input.impl.MapInputRowParser;
+import org.apache.druid.data.input.impl.NoopInputFormat;
 import org.apache.druid.data.input.impl.TimeAndDimsParseSpec;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.discovery.DataNodeService;
@@ -308,31 +307,6 @@ public class TaskLifecycleTest
 
         }
       };
-    }
-  }
-
-  private static class NoopInputFormat implements InputFormat
-  {
-    @Override
-    public boolean isSplittable()
-    {
-      return false;
-    }
-
-    @Override
-    public SplitReader createReader(
-        TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec
-    )
-    {
-      return null;
-    }
-
-    @Override
-    public SplitSampler createSampler(
-        TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec
-    )
-    {
-      return null;
     }
   }
 

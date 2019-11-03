@@ -21,10 +21,15 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 
 import com.google.common.collect.Iterables;
 import org.apache.druid.client.indexing.IndexingServiceClient;
-import org.apache.druid.data.input.FiniteFirehoseFactory;
+import org.apache.druid.data.input.InputSourceReader;
+import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitHintSpec;
-import org.apache.druid.data.input.impl.StringInputRowParser;
+import org.apache.druid.data.input.SplittableInputSource;
+import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.impl.InputFormat;
+import org.apache.druid.data.input.impl.NoopInputFormat;
+import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.TaskStatusPlus;
@@ -37,6 +42,7 @@ import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
+import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
 import org.apache.druid.segment.indexing.DataSchema;
@@ -51,6 +57,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import javax.annotation.Nullable;
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -90,8 +97,10 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     final ParallelIndexSupervisorTask task = newTask(
         Intervals.of("2017/2018"),
         new ParallelIndexIOConfig(
+            null,
             // Sub tasks would run forever
-            new TestFirehoseFactory(Pair.of(new TestInput(Integer.MAX_VALUE, TaskState.SUCCESS), 4)),
+            new TestInputSource(Pair.of(new TestInput(Integer.MAX_VALUE, TaskState.SUCCESS), 4)),
+            new NoopInputFormat(),
             false
         )
     );
@@ -124,10 +133,12 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     final ParallelIndexSupervisorTask task = newTask(
         Intervals.of("2017/2018"),
         new ParallelIndexIOConfig(
-            new TestFirehoseFactory(
+            null,
+            new TestInputSource(
                 Pair.of(new TestInput(10L, TaskState.FAILED), 1),
                 Pair.of(new TestInput(Integer.MAX_VALUE, TaskState.FAILED), 3)
             ),
+            new NoopInputFormat(),
             false
         )
     );
@@ -161,8 +172,8 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
       ParallelIndexIOConfig ioConfig
   )
   {
-    final TestFirehoseFactory firehoseFactory = (TestFirehoseFactory) ioConfig.getFirehoseFactory();
-    final int numTotalSubTasks = firehoseFactory.getNumSplits(null);
+    final TestInputSource inputSource = (TestInputSource) ioConfig.getInputSource();
+    final int numTotalSubTasks = inputSource.getNumSplits(new NoopInputFormat(), null);
     // set up ingestion spec
     final ParallelIndexIngestionSpec ingestionSpec = new ParallelIndexIngestionSpec(
         new DataSchema(
@@ -230,12 +241,12 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     }
   }
 
-  private static class TestFirehoseFactory implements FiniteFirehoseFactory<StringInputRowParser, TestInput>
+  private static class TestInputSource implements SplittableInputSource<TestInput>
   {
     private final List<InputSplit<TestInput>> splits;
 
     @SafeVarargs
-    private TestFirehoseFactory(Pair<TestInput, Integer>... inputSpecs)
+    private TestInputSource(Pair<TestInput, Integer>... inputSpecs)
     {
       splits = new ArrayList<>();
       for (Pair<TestInput, Integer> inputSpec : inputSpecs) {
@@ -246,27 +257,49 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
       }
     }
 
-    private TestFirehoseFactory(InputSplit<TestInput> split)
+    private TestInputSource(InputSplit<TestInput> split)
     {
       this.splits = Collections.singletonList(split);
     }
 
     @Override
-    public Stream<InputSplit<TestInput>> getSplits(@Nullable SplitHintSpec splitHintSpec)
+    public Stream<InputSplit<TestInput>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
     {
       return splits.stream();
     }
 
     @Override
-    public int getNumSplits(@Nullable SplitHintSpec splitHintSpec)
+    public int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
     {
       return splits.size();
     }
 
     @Override
-    public FiniteFirehoseFactory<StringInputRowParser, TestInput> withSplit(InputSplit<TestInput> split)
+    public SplittableInputSource<TestInput> withSplit(InputSplit<TestInput> split)
     {
-      return new TestFirehoseFactory(split);
+      return new TestInputSource(split);
+    }
+
+    @Override
+    public InputSourceReader reader(
+        TimestampSpec timestampSpec,
+        DimensionsSpec dimensionsSpec,
+        InputFormat inputFormat,
+        @Nullable File temporaryDirectory
+    ) throws ParseException
+    {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public InputSourceSampler sampler(
+        TimestampSpec timestampSpec,
+        DimensionsSpec dimensionsSpec,
+        InputFormat inputFormat,
+        @Nullable File temporaryDirectory
+    ) throws ParseException
+    {
+      throw new UnsupportedOperationException();
     }
   }
 
@@ -325,9 +358,9 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     @Override
     SinglePhaseSubTaskSpec newTaskSpec(InputSplit split)
     {
-      final FiniteFirehoseFactory baseFirehoseFactory = (FiniteFirehoseFactory) getIngestionSchema()
+      final SplittableInputSource baseInputSource = (SplittableInputSource) getIngestionSchema()
           .getIOConfig()
-          .getFirehoseFactory();
+          .getInputSource();
       return new TestSinglePhaseSubTaskSpec(
           supervisorTask.getId() + "_" + getAndIncrementNextSpecId(),
           supervisorTask.getGroupId(),
@@ -335,7 +368,9 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
           new ParallelIndexIngestionSpec(
               getIngestionSchema().getDataSchema(),
               new ParallelIndexIOConfig(
-                  baseFirehoseFactory.withSplit(split),
+                  null,
+                  baseInputSource.withSplit(split),
+                  getIngestionSchema().getIOConfig().getInputFormat(),
                   getIngestionSchema().getIOConfig().isAppendToExisting()
               ),
               getIngestionSchema().getTuningConfig()
@@ -417,9 +452,8 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     @Override
     public TaskStatus run(final TaskToolbox toolbox) throws Exception
     {
-      final TestFirehoseFactory firehoseFactory = (TestFirehoseFactory) getIngestionSchema().getIOConfig()
-                                                                                            .getFirehoseFactory();
-      final TestInput testInput = Iterables.getOnlyElement(firehoseFactory.splits).get();
+      final TestInputSource inputSource = (TestInputSource) getIngestionSchema().getIOConfig().getInputSource();
+      final TestInput testInput = Iterables.getOnlyElement(inputSource.splits).get();
       Thread.sleep(testInput.runTime);
       return TaskStatus.fromCode(getId(), testInput.finalState);
     }
