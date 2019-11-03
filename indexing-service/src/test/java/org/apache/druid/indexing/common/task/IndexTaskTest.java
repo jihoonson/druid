@@ -1759,7 +1759,7 @@ public class IndexTaskTest extends IngestionTestBase
               transformSpec,
               objectMapper
           ),
-          new IndexTask.IndexIOConfig(
+          new IndexIOConfig(
               new LocalFirehoseFactory(
                   baseDir,
                   "druid*",
