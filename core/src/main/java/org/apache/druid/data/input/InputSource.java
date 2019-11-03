@@ -36,7 +36,8 @@ import java.io.IOException;
 @ExtensionPoint
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes(value = {
-    @Type(name = "local", value = LocalInputSource.class)
+    @Type(name = "local", value = LocalInputSource.class),
+    @Type(name = "http", value = HttpInputSource.class)
 })
 public interface InputSource
 {
