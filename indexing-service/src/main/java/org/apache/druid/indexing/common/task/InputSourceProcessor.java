@@ -95,11 +95,13 @@ public class InputSourceProcessor
                                                         ? (DynamicPartitionsSpec) partitionsSpec
                                                         : null;
     final GranularitySpec granularitySpec = dataSchema.getGranularitySpec();
-    final InputSourceReader inputSourceReader = inputSource.reader(
-        dataSchema.getNonNullTimestampSpec(),
-        dataSchema.getNonNullDimensionsSpec(),
-        inputFormat,
-        tmpDir
+    final InputSourceReader inputSourceReader = dataSchema.getTransformSpec().decorate(
+        inputSource.reader(
+            dataSchema.getNonNullTimestampSpec(),
+            dataSchema.getNonNullDimensionsSpec(),
+            inputFormat,
+            tmpDir
+        )
     );
     try (final CloseableIterator<InputRow> inputRowIterator = inputSourceReader.read()) {
       while (inputRowIterator.hasNext()) {
@@ -130,7 +132,6 @@ public class InputSourceProcessor
           final AppenderatorDriverAddResult addResult = driver.add(inputRow, sequenceName);
 
           if (addResult.isOk()) {
-
             // incremental segment publishment is allowed only when rollup doesn't have to be perfect.
             if (dynamicPartitionsSpec != null) {
               final boolean isPushRequired = addResult.isPushRequired(

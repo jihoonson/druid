@@ -297,14 +297,14 @@ public class PartialSegmentGenerateTask extends AbstractBatchIndexTask
     try (final BatchAppenderatorDriver driver = BatchAppenderators.newDriver(appenderator, toolbox, segmentAllocator)) {
       driver.startJob();
 
-      final InputSourceProcessor firehoseProcessor = new InputSourceProcessor(
+      final InputSourceProcessor inputSourceProcessor = new InputSourceProcessor(
           buildSegmentsMeters,
           null,
           tuningConfig.isLogParseExceptions(),
           tuningConfig.getMaxParseExceptions(),
           pushTimeout
       );
-      final SegmentsAndMetadata pushed = firehoseProcessor.process(
+      final SegmentsAndMetadata pushed = inputSourceProcessor.process(
           dataSchema,
           driver,
           partitionsSpec,

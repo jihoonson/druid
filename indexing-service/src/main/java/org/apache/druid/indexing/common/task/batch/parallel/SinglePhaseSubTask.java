@@ -37,6 +37,8 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
 import org.apache.druid.indexing.common.actions.SurrogateAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
+import org.apache.druid.indexing.common.stats.DropwizardRowIngestionMeters;
+import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.task.AbstractBatchIndexTask;
 import org.apache.druid.indexing.common.task.BatchAppenderators;
 import org.apache.druid.indexing.common.task.ClientBasedTaskInfoProvider;
@@ -423,11 +425,13 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
         tuningConfig,
         getContextValue(Tasks.STORE_COMPACTION_STATE_KEY, Tasks.DEFAULT_STORE_COMPACTION_STATE)
     );
-    final InputSourceReader inputSourceReader = inputSource.reader(
-        ingestionSchema.getDataSchema().getNonNullTimestampSpec(),
-        ingestionSchema.getDataSchema().getNonNullDimensionsSpec(),
-        ParallelIndexSupervisorTask.getInputFormat(ingestionSchema),
-        tmpDir
+    final InputSourceReader inputSourceReader = dataSchema.getTransformSpec().decorate(
+        inputSource.reader(
+            ingestionSchema.getDataSchema().getNonNullTimestampSpec(),
+            ingestionSchema.getDataSchema().getNonNullDimensionsSpec(),
+            ParallelIndexSupervisorTask.getInputFormat(ingestionSchema),
+            tmpDir
+        )
     );
 
     boolean exceptionOccurred = false;

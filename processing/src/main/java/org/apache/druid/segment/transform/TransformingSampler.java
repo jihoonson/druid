@@ -39,6 +39,7 @@ public class TransformingSampler implements InputSourceSampler
   @Override
   public CloseableIterator<InputRowPlusRaw> sample() throws IOException
   {
-    return delegate.sample().map(transformer::transform);
+//    return delegate.sample().map(transformer::transform);
+    return null;
   }
 }
