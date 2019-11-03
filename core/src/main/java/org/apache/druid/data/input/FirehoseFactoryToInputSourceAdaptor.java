@@ -31,8 +31,9 @@ import org.apache.druid.java.util.common.parsers.ParseException;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
+import java.util.stream.Stream;
 
-public class FirehoseFactoryToInputSourceAdaptor implements InputSource
+public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSource
 {
   private final FirehoseFactory firehoseFactory;
   private final InputRowParser inputRowParser;
@@ -41,6 +42,46 @@ public class FirehoseFactoryToInputSourceAdaptor implements InputSource
   {
     this.firehoseFactory = firehoseFactory;
     this.inputRowParser = Preconditions.checkNotNull(inputRowParser, "inputRowParser");
+  }
+
+  @Override
+  public boolean isSplittable()
+  {
+    return firehoseFactory.isSplittable();
+  }
+
+  @Override
+  public Stream<InputSplit> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
+      throws IOException
+  {
+    if (firehoseFactory.isSplittable()) {
+      return ((FiniteFirehoseFactory) firehoseFactory).getSplits(splitHintSpec);
+    } else {
+      throw new UnsupportedOperationException();
+    }
+  }
+
+  @Override
+  public int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException
+  {
+    if (firehoseFactory.isSplittable()) {
+      return ((FiniteFirehoseFactory) firehoseFactory).getNumSplits(splitHintSpec);
+    } else {
+      throw new UnsupportedOperationException();
+    }
+  }
+
+  @Override
+  public SplittableInputSource withSplit(InputSplit split)
+  {
+    if (firehoseFactory.isSplittable()) {
+      return new FirehoseFactoryToInputSourceAdaptor(
+          ((FiniteFirehoseFactory) firehoseFactory).withSplit(split),
+          inputRowParser
+      );
+    } else {
+      throw new UnsupportedOperationException();
+    }
   }
 
   @Override

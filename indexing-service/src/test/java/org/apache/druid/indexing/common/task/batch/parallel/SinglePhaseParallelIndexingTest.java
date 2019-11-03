@@ -21,8 +21,9 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.druid.client.indexing.IndexingServiceClient;
-import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.InputSplit;
+import org.apache.druid.data.input.SplittableInputSource;
+import org.apache.druid.data.input.impl.LocalInputSource;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskToolbox;
@@ -38,7 +39,6 @@ import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
-import org.apache.druid.segment.realtime.firehose.LocalFirehoseFactory;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
 import org.apache.druid.timeline.partition.PartitionChunk;
@@ -120,7 +120,9 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
     final ParallelIndexSupervisorTask task = newTask(
         Intervals.of("2017/2018"),
         new ParallelIndexIOConfig(
-            new LocalFirehoseFactory(inputDir, "test_*", null),
+            null,
+            new LocalInputSource(inputDir, "test_*"),
+            DEFAULT_INPUT_FORMAT,
             false
         )
     );
@@ -160,7 +162,9 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
         interval,
         segmentGranularity,
         new ParallelIndexIOConfig(
-            new LocalFirehoseFactory(inputDir, "test_*", null),
+            null,
+            new LocalInputSource(inputDir, "test_*"),
+            DEFAULT_INPUT_FORMAT,
             appendToExisting
         )
     );
@@ -235,7 +239,8 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
     final ParallelIndexSupervisorTask task = newTask(
         Intervals.of("2017/2018"),
         new ParallelIndexIOConfig(
-            new LocalFirehoseFactory(inputDir, "test_*", null)
+            null,
+            new LocalInputSource(inputDir, "test_*")
             {
               @Override
               public boolean isSplittable()
@@ -243,6 +248,7 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
                 return false;
               }
             },
+            DEFAULT_INPUT_FORMAT,
             false
         )
     );
@@ -261,7 +267,9 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
     final ParallelIndexSupervisorTask task = newTask(
         Intervals.of("2020/2021"),
         new ParallelIndexIOConfig(
-            new LocalFirehoseFactory(inputDir, "test_*", null),
+            null,
+            new LocalInputSource(inputDir, "test_*"),
+            DEFAULT_INPUT_FORMAT,
             false
         )
     );
@@ -281,7 +289,9 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
         Intervals.of("2017/2018"),
         Granularities.DAY,
         new ParallelIndexIOConfig(
-            new LocalFirehoseFactory(inputDir, "test_*", null),
+            null,
+            new LocalInputSource(inputDir, "test_*"),
+            DEFAULT_INPUT_FORMAT,
             false
         ),
         new ParallelIndexTuningConfig(
@@ -469,9 +479,9 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
     @Override
     SinglePhaseSubTaskSpec newTaskSpec(InputSplit split)
     {
-      final FiniteFirehoseFactory baseFirehoseFactory = (FiniteFirehoseFactory) getIngestionSchema()
+      final SplittableInputSource baseInputSource = (SplittableInputSource) getIngestionSchema()
           .getIOConfig()
-          .getFirehoseFactory();
+          .getNonNullInputSource(getIngestionSchema().getDataSchema().getParser());
       return new TestSinglePhaseSubTaskSpec(
           supervisorTask.getId() + "_" + getAndIncrementNextSpecId(),
           supervisorTask.getGroupId(),
@@ -479,7 +489,9 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
           new ParallelIndexIngestionSpec(
               getIngestionSchema().getDataSchema(),
               new ParallelIndexIOConfig(
-                  baseFirehoseFactory.withSplit(split),
+                  null,
+                  baseInputSource.withSplit(split),
+                  getIngestionSchema().getIOConfig().getInputFormat(),
                   getIngestionSchema().getIOConfig().isAppendToExisting()
               ),
               getIngestionSchema().getTuningConfig()
