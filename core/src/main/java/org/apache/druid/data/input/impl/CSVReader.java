@@ -19,7 +19,11 @@
 
 package org.apache.druid.data.input.impl;
 
+import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
+import com.google.common.collect.Iterables;
 import com.opencsv.CSVParser;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.TextReader;
@@ -38,9 +42,9 @@ import java.util.Map;
 public class CSVReader extends TextReader
 {
   private final CSVParser parser = new CSVParser();
-  private final String listDelimiter; // TODO: use this
   private final boolean hasHeaderRow;
   private final int skipHeaderRows;
+  private final Function<String, Object> multiValueFunction;
   @Nullable
   private List<String> columns;
 
@@ -54,9 +58,10 @@ public class CSVReader extends TextReader
   )
   {
     super(timestampSpec, dimensionsSpec);
-    this.listDelimiter = listDelimiter == null ? Parsers.DEFAULT_LIST_DELIMITER : listDelimiter;
     this.hasHeaderRow = hasHeaderRow;
     this.skipHeaderRows = skipHeaderRows;
+    final String finalListDelimeter = listDelimiter == null ? Parsers.DEFAULT_LIST_DELIMITER : listDelimiter;
+    this.multiValueFunction = ParserUtils.getMultiValueFunction(finalListDelimeter, Splitter.on(finalListDelimeter));
     this.columns = hasHeaderRow ? null : columns; // columns will be overriden by header row
   }
 
@@ -64,7 +69,10 @@ public class CSVReader extends TextReader
   public InputRow readLine(String line) throws IOException
   {
     final String[] parsed = parser.parseLine(line);
-    final Map<String, Object> zipped = Utils.zipMapPartial(columns, Arrays.asList(parsed));
+    final Map<String, Object> zipped = Utils.zipMapPartial(
+        Preconditions.checkNotNull(columns, "columns"),
+        Iterables.transform(Arrays.asList(parsed), multiValueFunction)
+    );
     return MapInputRowParser.parse(getTimestampSpec(), getDimensionsSpec(), zipped);
   }
 
