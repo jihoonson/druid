@@ -32,7 +32,6 @@ import org.apache.druid.storage.s3.ServerSideEncryptingAmazonS3;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.nio.ByteBuffer;
 
 public class S3Source implements SplitSource
 {
@@ -70,26 +69,6 @@ public class S3Source implements SplitSource
     catch (AmazonS3Exception e) {
       throw new IOException(e);
     }
-  }
-
-  @Override
-  public int read(ByteBuffer buffer, int offset, int length) throws IOException
-  {
-    if (inputStream == null) {
-      inputStream = (S3ObjectInputStream) open();
-    }
-    int remaining = length;
-    int totalReadBytes = 0;
-    int readBytes = 0;
-    while (remaining > 0 && readBytes != -1) {
-      readBytes = inputStream.read(buf);
-      if (readBytes > 0) {
-        buffer.put(buf, totalReadBytes, readBytes);
-        totalReadBytes += readBytes;
-        remaining -= readBytes;
-      }
-    }
-    return totalReadBytes;
   }
 
   @Override

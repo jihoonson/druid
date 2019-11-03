@@ -23,55 +23,36 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitSource;
+import org.apache.druid.io.ByteBufferInputStream;
 
-import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
-import java.io.RandomAccessFile;
-import java.nio.channels.Channels;
-import java.nio.channels.FileChannel;
+import java.nio.ByteBuffer;
 
-public class FileSource implements SplitSource<File>
+public class ByteSource implements SplitSource<ByteBuffer>
 {
-  private final InputSplit<File> split;
-  private final FileChannel channel;
+  private final InputSplit<ByteBuffer> split;
 
-  FileSource(InputSplit<File> split) throws FileNotFoundException
+  public ByteSource(ByteBuffer buffer)
   {
-    this.split = split;
-    final RandomAccessFile file = new RandomAccessFile(split.get(), "r");
-    this.channel = file.getChannel();
+    this.split = new InputSplit<>(buffer.duplicate());
+  }
+
+  public ByteSource(byte[] bytes)
+  {
+    this(ByteBuffer.wrap(bytes));
   }
 
   @Override
-  public CleanableFile fetch(File temporaryDirectory, byte[] fetchBuffer)
-  {
-    return new CleanableFile()
-    {
-      @Override
-      public File file()
-      {
-        return split.get();
-      }
-
-      @Override
-      public void close()
-      {
-        // do nothing
-      }
-    };
-  }
-
-  @Override
-  public InputSplit<File> getSplit()
+  public InputSplit<ByteBuffer> getSplit()
   {
     return split;
   }
 
   @Override
-  public InputStream open() throws FileNotFoundException
+  public InputStream open() throws IOException
   {
-    return Channels.newInputStream(channel);
+    return new ByteBufferInputStream(split.get());
   }
 
   @Override

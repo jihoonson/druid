@@ -21,6 +21,7 @@ package org.apache.druid.data.input.impl;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.junit.Rule;
@@ -65,7 +66,7 @@ public class SplitIteratingReaderTest
         ),
         files.stream().flatMap(file -> {
           try {
-            return ImmutableList.of(new FileSource(file, 0, 18), new FileSource(file, 18, 34)).stream();
+            return ImmutableList.of(new FileSource(new InputSplit<>(file))).stream();
           }
           catch (IOException e) {
             throw new RuntimeException(e);

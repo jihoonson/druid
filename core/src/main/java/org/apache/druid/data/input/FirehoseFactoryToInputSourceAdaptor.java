@@ -25,8 +25,8 @@ import org.apache.druid.data.input.impl.FirehoseToInputSourceReaderAdaptor;
 import org.apache.druid.data.input.impl.FirehoseToInputSourceSamplerAdaptor;
 import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.InputRowParser;
+import org.apache.druid.data.input.impl.SplittableInputSource;
 import org.apache.druid.data.input.impl.TimestampSpec;
-import org.apache.druid.java.util.common.parsers.ParseException;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -90,9 +90,14 @@ public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSourc
       DimensionsSpec dimensionsSpec,
       @Nullable InputFormat inputFormat, // inputFormat will be ignored
       @Nullable File temporaryDirectory
-  ) throws IOException, ParseException
+  )
   {
-    return new FirehoseToInputSourceReaderAdaptor(firehoseFactory.connect(inputRowParser, temporaryDirectory));
+    try {
+      return new FirehoseToInputSourceReaderAdaptor(firehoseFactory.connect(inputRowParser, temporaryDirectory));
+    }
+    catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -101,11 +106,16 @@ public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSourc
       DimensionsSpec dimensionsSpec,
       @Nullable InputFormat inputFormat, // inputFormat will be ignored
       @Nullable File temporaryDirectory
-  ) throws IOException, ParseException
+  )
   {
     // FirehoseSampler still uses firehose and this is not being called anywhere yet.
-    return new FirehoseToInputSourceSamplerAdaptor(
-        firehoseFactory.connectForSampler(inputRowParser, temporaryDirectory)
-    );
+    try {
+      return new FirehoseToInputSourceSamplerAdaptor(
+          firehoseFactory.connectForSampler(inputRowParser, temporaryDirectory)
+      );
+    }
+    catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 }

@@ -55,7 +55,7 @@ public class OrcReader implements SplitReader
   private final List<String> dimensions;
   private final Set<String> dimensionExclusions;
   private final ObjectFlattener<OrcStruct> orcStructFlattener;
-  private final byte[] buffer = new byte[SplitSource.FETCH_BUFFER_SIZE];
+  private final byte[] buffer = new byte[SplitSource.DEFAULT_FETCH_BUFFER_SIZE];
 
   OrcReader(TimestampSpec timestampSpec, @Nullable DimensionsSpec dimensionsSpec, JSONPathSpec flattenSpec)
   {

@@ -113,7 +113,7 @@ public abstract class TextReader implements SplitReader, SplitSampler
     };
   }
 
-  public abstract InputRow readLine(String line) throws IOException;
+  public abstract InputRow readLine(String line) throws IOException, ParseException;
 
   public abstract int getNumHeaderLines();
 

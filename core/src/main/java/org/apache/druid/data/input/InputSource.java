@@ -23,11 +23,11 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.impl.HttpInputSource;
 import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.LocalInputSource;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.guice.annotations.ExtensionPoint;
-import org.apache.druid.java.util.common.parsers.ParseException;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -51,12 +51,13 @@ public interface InputSource
       DimensionsSpec dimensionsSpec,
       InputFormat inputFormat,
       @Nullable File temporaryDirectory
-  ) throws IOException, ParseException;
+  ) throws IOException;
 
+  // TODO: maybe merge sampler and reader
   InputSourceSampler sampler(
       TimestampSpec timestampSpec,
       DimensionsSpec dimensionsSpec,
       InputFormat inputFormat,
       @Nullable File temporaryDirectory
-  ) throws IOException, ParseException;
+  ) throws IOException;
 }

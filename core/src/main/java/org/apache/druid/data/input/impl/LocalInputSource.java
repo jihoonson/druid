@@ -19,6 +19,7 @@
 
 package org.apache.druid.data.input.impl;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -29,8 +30,6 @@ import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitHintSpec;
-import org.apache.druid.data.input.SplittableInputSource;
-import org.apache.druid.java.util.common.parsers.ParseException;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -46,6 +45,7 @@ public class LocalInputSource implements SplittableInputSource<File>
 
   private Collection<File> files;
 
+  @JsonCreator
   public LocalInputSource(
       @JsonProperty("baseDir") File baseDir,
       @JsonProperty("filter") String filter
@@ -53,6 +53,18 @@ public class LocalInputSource implements SplittableInputSource<File>
   {
     this.baseDir = baseDir;
     this.filter = filter;
+  }
+
+  @JsonProperty
+  public File getBaseDir()
+  {
+    return baseDir;
+  }
+
+  @JsonProperty
+  public String getFilter()
+  {
+    return filter;
   }
 
   @Override
@@ -96,9 +108,10 @@ public class LocalInputSource implements SplittableInputSource<File>
   @Override
   public SplittableInputSource<File> withSplit(InputSplit<File> split)
   {
-    final LocalInputSource newFactory = new LocalInputSource(null, null);
-    newFactory.files = ImmutableList.of(split.get());
-    return newFactory;
+    // TODO: fix this
+    final LocalInputSource newSource = new LocalInputSource(null, null);
+    newSource.files = ImmutableList.of(split.get());
+    return newSource;
   }
 
   @Override
@@ -108,7 +121,6 @@ public class LocalInputSource implements SplittableInputSource<File>
       InputFormat inputFormat,
       @Nullable File temporaryDirectory
   )
-      throws ParseException
   {
     return new SplitIteratingReader<>(
         timestampSpec,
@@ -132,7 +144,7 @@ public class LocalInputSource implements SplittableInputSource<File>
       DimensionsSpec dimensionsSpec,
       InputFormat inputFormat,
       @Nullable File temporaryDirectory
-  ) throws IOException, ParseException
+  )
   {
     return null;
   }

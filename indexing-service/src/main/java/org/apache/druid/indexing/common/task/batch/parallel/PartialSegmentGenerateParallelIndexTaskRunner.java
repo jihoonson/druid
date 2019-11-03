@@ -22,7 +22,7 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.InputSplit;
-import org.apache.druid.data.input.SplittableInputSource;
+import org.apache.druid.data.input.impl.SplittableInputSource;
 import org.apache.druid.indexing.common.TaskToolbox;
 
 import java.io.IOException;

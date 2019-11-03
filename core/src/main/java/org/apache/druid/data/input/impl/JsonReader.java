@@ -27,6 +27,7 @@ import org.apache.druid.java.util.common.parsers.JSONFlattenerMaker;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 import org.apache.druid.java.util.common.parsers.ObjectFlattener;
 import org.apache.druid.java.util.common.parsers.ObjectFlatteners;
+import org.apache.druid.java.util.common.parsers.ParseException;
 
 import java.io.IOException;
 import java.util.Map;
@@ -49,7 +50,7 @@ public class JsonReader extends TextReader
   }
 
   @Override
-  public InputRow readLine(String line) throws IOException
+  public InputRow readLine(String line) throws IOException, ParseException
   {
     final JsonNode document = mapper.readValue(line, JsonNode.class);
     final Map<String, Object> flattened = flattener.flatten(document);

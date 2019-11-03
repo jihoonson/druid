@@ -17,32 +17,32 @@
  * under the License.
  */
 
-package org.apache.druid.data.input;
+package org.apache.druid.inputsource.hdfs;
 
 import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
-import org.apache.druid.io.ByteBufferInputStream;
+import org.apache.druid.data.input.InputSplit;
+import org.apache.druid.data.input.SplitSource;
+import org.apache.druid.storage.hdfs.HdfsDataSegmentPuller;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 
-public class ByteSource implements SplitSource<ByteBuffer>
+public class HdfsSource implements SplitSource<Path>
 {
-  private final InputSplit<ByteBuffer> split;
+  private final Configuration conf;
+  private final InputSplit<Path> split;
 
-  public ByteSource(ByteBuffer buffer)
+  HdfsSource(Configuration conf, InputSplit<Path> split)
   {
-    this.split = new InputSplit<>(buffer.duplicate());
-  }
-
-  public ByteSource(byte[] bytes)
-  {
-    this(ByteBuffer.wrap(bytes));
+    this.conf = conf;
+    this.split = split;
   }
 
   @Override
-  public InputSplit<ByteBuffer> getSplit()
+  public InputSplit<Path> getSplit()
   {
     return split;
   }
@@ -50,21 +50,13 @@ public class ByteSource implements SplitSource<ByteBuffer>
   @Override
   public InputStream open() throws IOException
   {
-    return new ByteBufferInputStream(split.get());
-  }
-
-  @Override
-  public int read(ByteBuffer buffer, int offset, int length)
-  {
-    final ByteBuffer thisBuffer = split.get();
-    thisBuffer.position(offset).limit(length);
-    buffer.put(thisBuffer);
-    return buffer.remaining();
+    final FileSystem fs = split.get().getFileSystem(conf);
+    return fs.open(split.get());
   }
 
   @Override
   public Predicate<Throwable> getRetryCondition()
   {
-    return Predicates.alwaysFalse();
+    return HdfsDataSegmentPuller.RETRY_PREDICATE;
   }
 }

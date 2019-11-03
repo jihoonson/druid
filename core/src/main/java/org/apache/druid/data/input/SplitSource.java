@@ -21,17 +21,19 @@ package org.apache.druid.data.input;
 
 import com.google.common.base.Predicate;
 import org.apache.druid.java.util.common.FileUtils;
+import org.apache.druid.java.util.common.logger.Logger;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 
 public interface SplitSource<T>
 {
-  int FETCH_BUFFER_SIZE = 4 * 1024;
-  int MAX_FETCH_RETRY = 3;
+  Logger LOG = new Logger(SplitSource.class);
+
+  int DEFAULT_FETCH_BUFFER_SIZE = 4 * 1024;
+  int DEFAULT_MAX_FETCH_RETRY = 3;
 
   interface CleanableFile extends Closeable
   {
@@ -41,15 +43,14 @@ public interface SplitSource<T>
   default CleanableFile fetch(File temporaryDirectory, byte[] fetchBuffer) throws IOException
   {
     final File tempFile = File.createTempFile("druid-split", ".tmp", temporaryDirectory);
-    final long copied = FileUtils.copyLarge(
+    FileUtils.copyLarge(
         open(),
         tempFile,
         fetchBuffer,
         getRetryCondition(),
-        MAX_FETCH_RETRY,
+        DEFAULT_MAX_FETCH_RETRY,
         "Failed to fetch"
     );
-    // log copied?
 
     return new CleanableFile()
     {
@@ -62,8 +63,9 @@ public interface SplitSource<T>
       @Override
       public void close()
       {
-        // log on fail?
-        tempFile.delete();
+        if (!tempFile.delete()) {
+          LOG.warn("Failed to remove file[%s]", tempFile.getAbsolutePath());
+        }
       }
     };
   }
@@ -74,13 +76,6 @@ public interface SplitSource<T>
    * Basic way to read a split.
    */
   InputStream open() throws IOException;
-
-  /**
-   * This is for the future use case when we want to read a portion of a file.
-   * Some storage types don't support nio, but they can just copy into the dst buffer.
-   * Will not be included in the first implementation.
-   */
-  int read(ByteBuffer buffer, int offset, int length) throws IOException;
 
   Predicate<Throwable> getRetryCondition();
 }

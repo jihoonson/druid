@@ -97,7 +97,6 @@ import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.java.util.common.jackson.JacksonUtils;
-import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 import org.apache.druid.java.util.metrics.Monitor;
@@ -318,7 +317,7 @@ public class TaskLifecycleTest
         DimensionsSpec dimensionsSpec,
         InputFormat inputFormat,
         @Nullable File temporaryDirectory
-    ) throws ParseException
+    )
     {
       return () -> {
         final Iterator<InputRow> inputRowIterator = IDX_TASK_INPUT_ROWS.iterator();
@@ -332,7 +331,7 @@ public class TaskLifecycleTest
         DimensionsSpec dimensionsSpec,
         InputFormat inputFormat,
         @Nullable File temporaryDirectory
-    ) throws ParseException
+    )
     {
       throw new UnsupportedOperationException();
     }

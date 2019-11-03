@@ -29,6 +29,7 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.TextReader;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.collect.Utils;
+import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.java.util.common.parsers.ParserUtils;
 import org.apache.druid.java.util.common.parsers.Parsers;
 
@@ -66,7 +67,7 @@ public class CSVReader extends TextReader
   }
 
   @Override
-  public InputRow readLine(String line) throws IOException
+  public InputRow readLine(String line) throws IOException, ParseException
   {
     final String[] parsed = parser.parseLine(line);
     final Map<String, Object> zipped = Utils.zipMapPartial(

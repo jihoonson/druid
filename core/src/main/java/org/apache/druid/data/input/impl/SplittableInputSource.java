@@ -17,9 +17,11 @@
  * under the License.
  */
 
-package org.apache.druid.data.input;
+package org.apache.druid.data.input.impl;
 
-import org.apache.druid.data.input.impl.InputFormat;
+import org.apache.druid.data.input.InputSource;
+import org.apache.druid.data.input.InputSplit;
+import org.apache.druid.data.input.SplitHintSpec;
 
 import javax.annotation.Nullable;
 import java.io.IOException;

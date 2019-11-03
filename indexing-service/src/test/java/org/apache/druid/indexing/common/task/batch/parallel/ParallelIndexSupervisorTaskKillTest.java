@@ -25,10 +25,10 @@ import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitHintSpec;
-import org.apache.druid.data.input.SplittableInputSource;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.NoopInputFormat;
+import org.apache.druid.data.input.impl.SplittableInputSource;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
@@ -42,7 +42,6 @@ import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
-import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
 import org.apache.druid.segment.indexing.DataSchema;
@@ -286,7 +285,7 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
         DimensionsSpec dimensionsSpec,
         InputFormat inputFormat,
         @Nullable File temporaryDirectory
-    ) throws ParseException
+    )
     {
       throw new UnsupportedOperationException();
     }
@@ -297,7 +296,7 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
         DimensionsSpec dimensionsSpec,
         InputFormat inputFormat,
         @Nullable File temporaryDirectory
-    ) throws ParseException
+    )
     {
       throw new UnsupportedOperationException();
     }

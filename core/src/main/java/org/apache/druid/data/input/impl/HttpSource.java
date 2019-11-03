@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URLConnection;
-import java.nio.ByteBuffer;
 import java.util.Base64;
 
 public class HttpSource implements SplitSource<URI>
@@ -42,7 +41,7 @@ public class HttpSource implements SplitSource<URI>
   @Nullable
   private final PasswordProvider httpAuthenticationPasswordProvider;
 
-  public HttpSource(
+  HttpSource(
       InputSplit<URI> split,
       @Nullable String httpAuthenticationUsername,
       @Nullable PasswordProvider httpAuthenticationPasswordProvider
@@ -63,12 +62,6 @@ public class HttpSource implements SplitSource<URI>
   public InputStream open() throws IOException
   {
     return openURLConnection(split.get()).getInputStream();
-  }
-
-  @Override
-  public int read(ByteBuffer buffer, int offset, int length) throws IOException
-  {
-    throw new UnsupportedOperationException();
   }
 
   @Override
