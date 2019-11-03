@@ -31,17 +31,13 @@ public class NoopInputFormat implements InputFormat
   }
 
   @Override
-  public SplitReader createReader(
-      TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec
-  )
+  public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
     return null;
   }
 
   @Override
-  public SplitSampler createSampler(
-      TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec
-  )
+  public SplitSampler createSampler(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
     return null;
   }
