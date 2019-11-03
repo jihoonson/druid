@@ -83,18 +83,17 @@ public class FireDepartmentTest
                             "auto",
                             null
                         ),
-                        null,
+                        new DimensionsSpec(
+                            DimensionsSpec.getDefaultSchemas(Arrays.asList("dim1", "dim2")),
+                            null,
+                            null
+                        ),
                         null,
                         null
                     ),
                     null
                 ),
                 Map.class
-            ),
-            new DimensionsSpec(
-                DimensionsSpec.getDefaultSchemas(Arrays.asList("dim1", "dim2")),
-                null,
-                null
             ),
             new AggregatorFactory[]{
                 new CountAggregatorFactory("count")

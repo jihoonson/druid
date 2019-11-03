@@ -70,7 +70,7 @@ public class DataSchemaTest
         new StringInputRowParser(
             new JSONParseSpec(
                 new TimestampSpec("time", "auto", null),
-                null,
+                new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("dimB", "dimA")), null, null),
                 null,
                 null
             ),
@@ -81,7 +81,6 @@ public class DataSchemaTest
     DataSchema schema = new DataSchema(
         "test",
         parser,
-        new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("dimB", "dimA")), null, null),
         new AggregatorFactory[]{
             new DoubleSumAggregatorFactory("metric1", "col1"),
             new DoubleSumAggregatorFactory("metric2", "col2"),
@@ -93,7 +92,7 @@ public class DataSchemaTest
 
     Assert.assertEquals(
         ImmutableSet.of("time", "col1", "col2", "metric1", "metric2"),
-        schema.getParser().getParseSpec().getDimensionsSpec().getDimensionExclusions()
+        schema.getNonNullDimensionsSpec().getDimensionExclusions()
     );
   }
 
@@ -119,7 +118,6 @@ public class DataSchemaTest
     DataSchema schema = new DataSchema(
         "test",
         parser,
-        new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("dimB", "dimA")), null, null),
         new AggregatorFactory[]{
             new DoubleSumAggregatorFactory("metric1", "col1"),
             new DoubleSumAggregatorFactory("metric2", "col2"),
@@ -157,7 +155,6 @@ public class DataSchemaTest
     DataSchema schema = new DataSchema(
         "test",
         parserMap,
-        new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("dimB", "dimA")), null, null),
         new AggregatorFactory[]{
             new DoubleSumAggregatorFactory("metric1", "col1"),
             new DoubleSumAggregatorFactory("metric2", "col2"),
@@ -216,7 +213,6 @@ public class DataSchemaTest
     DataSchema schema = new DataSchema(
         "test",
         parser,
-        new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("dimB", "dimA")), null, null),
         new AggregatorFactory[]{
             new DoubleSumAggregatorFactory("metric1", "col1"),
             new DoubleSumAggregatorFactory("metric2", "col2"),
@@ -250,7 +246,6 @@ public class DataSchemaTest
     DataSchema schema = new DataSchema(
         "test",
         parser,
-        new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("dimB", "dimA")), null, null),
         new AggregatorFactory[]{
             new DoubleSumAggregatorFactory("metric1", "col1"),
             new DoubleSumAggregatorFactory("metric2", "col2"),
@@ -321,7 +316,6 @@ public class DataSchemaTest
     DataSchema schema = new DataSchema(
         "",
         parser,
-        new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("dimB", "dimA")), null, null),
         new AggregatorFactory[]{
             new DoubleSumAggregatorFactory("metric1", "col1"),
             new DoubleSumAggregatorFactory("metric2", "col2"),
@@ -354,7 +348,6 @@ public class DataSchemaTest
       DataSchema schema = new DataSchema(
           dataSource,
           Collections.emptyMap(),
-          null,
           null,
           null,
           null,
@@ -440,7 +433,6 @@ public class DataSchemaTest
     DataSchema originalSchema = new DataSchema(
         "test",
         parser,
-        new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("dimB", "dimA")), null, null),
         new AggregatorFactory[]{
             new DoubleSumAggregatorFactory("metric1", "col1"),
             new DoubleSumAggregatorFactory("metric2", "col2"),
@@ -479,14 +471,15 @@ public class DataSchemaTest
 
     TestModifiedDataSchema originalSchema = new TestModifiedDataSchema(
         "test",
-        parser,
-        new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("dimB", "dimA")), null, null),
+        null,
+        null,
         new AggregatorFactory[]{
             new DoubleSumAggregatorFactory("metric1", "col1"),
             new DoubleSumAggregatorFactory("metric2", "col2"),
             },
         new ArbitraryGranularitySpec(Granularities.DAY, ImmutableList.of(Intervals.of("2014/2015"))),
         null,
+        parser,
         jsonMapper,
         "some arbitrary string"
     );

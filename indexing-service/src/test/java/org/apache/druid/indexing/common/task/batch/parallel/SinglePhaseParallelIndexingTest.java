@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.InputSplit;
-import org.apache.druid.data.input.impl.StringInputRowParser;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskToolbox;
@@ -397,17 +396,11 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
   )
   {
     // set up ingestion spec
-    //noinspection unchecked
     final ParallelIndexIngestionSpec ingestionSpec = new ParallelIndexIngestionSpec(
         new DataSchema(
             "dataSource",
-            getObjectMapper().convertValue(
-                new StringInputRowParser(
-                    DEFAULT_PARSE_SPEC,
-                    null
-                ),
-                Map.class
-            ),
+            DEFAULT_TIMESTAMP_SPEC,
+            DEFAULT_DIMENSIONS_SPEC,
             new AggregatorFactory[]{
                 new LongSumAggregatorFactory("val", "val")
             },
@@ -416,8 +409,7 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
                 Granularities.MINUTE,
                 interval == null ? null : Collections.singletonList(interval)
             ),
-            null,
-            getObjectMapper()
+            null
         ),
         ioConfig,
         tuningConfig

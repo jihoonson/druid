@@ -19,17 +19,17 @@
 
 package org.apache.druid.data.input.impl;
 
+import com.google.common.base.Strings;
 import com.opencsv.CSVParser;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.MapBasedInputRow;
 import org.apache.druid.data.input.TextReader;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.collect.Utils;
-import org.apache.druid.java.util.common.parsers.ParseException;
-import org.joda.time.DateTime;
+import org.apache.druid.java.util.common.parsers.ParserUtils;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -45,21 +45,18 @@ public class CSVReader extends TextReader
 
   CSVReader(
       TimestampSpec timestampSpec,
+      DimensionsSpec dimensionsSpec,
       String listDelimiter,
       @Nullable List<String> columns,
       boolean hasHeaderRow,
       int skipHeaderRows
   )
   {
-    super(timestampSpec);
+    super(timestampSpec, dimensionsSpec);
     this.listDelimiter = listDelimiter;
     this.hasHeaderRow = hasHeaderRow;
     this.skipHeaderRows = skipHeaderRows;
-    this.columns = columns;
-
-    if (hasHeaderRow && (columns != null && !columns.isEmpty())) {
-      throw new IllegalArgumentException("columns must be empty if hasHeaderRow = true");
-    }
+    this.columns = hasHeaderRow ? null : columns; // columns will be overriden by header row
   }
 
   @Override
@@ -67,11 +64,7 @@ public class CSVReader extends TextReader
   {
     final String[] parsed = parser.parseLine(line);
     final Map<String, Object> zipped = Utils.zipMapPartial(columns, Arrays.asList(parsed));
-    final DateTime timestamp = getTimestampSpec().extractTimestamp(zipped);
-    if (timestamp == null) {
-      throw new ParseException("null timestamp");
-    }
-    return new MapBasedInputRow(timestamp, columns, zipped);
+    return MapInputRowParser.parse(getTimestampSpec(), getDimensionsSpec(), zipped);
   }
 
   @Override
@@ -84,10 +77,26 @@ public class CSVReader extends TextReader
   public void processHeaderLine(String line) throws IOException
   {
     if (hasHeaderRow && (columns == null || columns.isEmpty())) {
-      columns = Arrays.asList(parser.parseLine(line));
+      setColumns(Arrays.asList(parser.parseLine(line)));
     }
     if (columns == null || columns.isEmpty()) {
       throw new ISE("Empty columns");
     }
+  }
+
+  private void setColumns(List<String> parsedLine)
+  {
+    columns = new ArrayList<>(parsedLine.size());
+    for (int i = 0; i < parsedLine.size(); i++) {
+      if (Strings.isNullOrEmpty(parsedLine.get(i))) {
+        columns.add(ParserUtils.getDefaultColumnName(i));
+      } else {
+        columns.add(parsedLine.get(i));
+      }
+    }
+    if (columns.isEmpty()) {
+      columns = ParserUtils.generateFieldNames(parsedLine.size());
+    }
+    ParserUtils.validateFields(columns);
   }
 }

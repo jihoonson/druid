@@ -608,8 +608,6 @@ public class CompactionTask extends AbstractBatchIndexTask
         finalDimensionsSpec,
         finalMetricsSpec,
         granularitySpec,
-        null,
-        null,
         null
     );
   }

@@ -33,7 +33,9 @@ import java.util.stream.Stream;
 
 public class SplitIteratingSampler<T> implements InputSourceSampler
 {
-  private final SplitSampler splitSampler;
+  private final TimestampSpec timestampSpec;
+  private final DimensionsSpec dimensionsSpec;
+  private final InputFormat inputFormat;
   private final Iterator<SplitSource<T>> sourceIterator;
   private final File temporaryDirectory;
 
@@ -45,7 +47,9 @@ public class SplitIteratingSampler<T> implements InputSourceSampler
       File temporaryDirectory
   )
   {
-    this.splitSampler = inputFormat.createSampler(timestampSpec, dimensionsSpec);
+    this.timestampSpec = timestampSpec;
+    this.dimensionsSpec = dimensionsSpec;
+    this.inputFormat = inputFormat;
     this.sourceIterator = sourceStream.iterator();
     this.temporaryDirectory = temporaryDirectory;
   }
@@ -81,6 +85,8 @@ public class SplitIteratingSampler<T> implements InputSourceSampler
               rowIterator.close();
             }
             if (sourceIterator.hasNext()) {
+              // SplitSampler is stateful and so a new one should be created per split.
+              final SplitSampler splitSampler = inputFormat.createSampler(timestampSpec, dimensionsSpec);
               rowIterator = splitSampler.sample(sourceIterator.next(), temporaryDirectory);
             }
           }

@@ -24,8 +24,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.data.input.impl.DimensionsSpec;
-import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.task.RealtimeIndexTask;
 import org.apache.druid.indexing.common.task.TaskResource;
@@ -36,10 +34,8 @@ import org.apache.druid.segment.realtime.FireDepartment;
 import org.apache.druid.segment.realtime.firehose.LocalFirehoseFactory;
 
 import java.io.File;
-import java.util.Collections;
 
 /**
- *
  */
 @JsonTypeName("test_realtime")
 public class TestRealtimeTask extends RealtimeIndexTask
@@ -59,16 +55,7 @@ public class TestRealtimeTask extends RealtimeIndexTask
         id,
         taskResource,
         new FireDepartment(
-            new DataSchema(
-                dataSource,
-                TimestampSpec.noop(),
-                new DimensionsSpec(Collections.emptyList()),
-                new AggregatorFactory[]{},
-                null,
-                null,
-                null,
-                mapper
-            ),
+            new DataSchema(dataSource, null, new AggregatorFactory[]{}, null, null, mapper),
             new RealtimeIOConfig(
                 new LocalFirehoseFactory(new File("lol"), "rofl", null),
                 (schema, config, metrics) -> null

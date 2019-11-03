@@ -45,4 +45,11 @@ public class ParallelIndexIOConfig extends IndexIOConfig
   {
     super(firehoseFactory, inputSource, inputFormat, appendToExisting);
   }
+
+  // old constructor for backward compatibility
+  @Deprecated
+  public ParallelIndexIOConfig(FirehoseFactory firehoseFactory, @Nullable Boolean appendToExisting)
+  {
+    this(firehoseFactory, null, null, appendToExisting);
+  }
 }

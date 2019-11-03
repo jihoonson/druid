@@ -197,12 +197,14 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
               } else {
                 final SinglePhaseSubTaskSpec spec =
                     (SinglePhaseSubTaskSpec) taskCompleteEvent.getSpec();
-                final InputRowParser inputRowParser = spec.getIngestionSpec().getDataSchema().getInputRowParser();
+                final InputRowParser inputRowParser = spec.getIngestionSpec().getDataSchema().getParser();
                 LOG.error(
                     "Failed to run sub tasks for inputSplits[%s]",
                     getSplitsIfSplittable(
                         spec.getIngestionSpec().getIOConfig().getNonNullInputSource(inputRowParser),
-                        spec.getIngestionSpec().getIOConfig().getNonNullInputFormat(inputRowParser.getParseSpec()),
+                        spec.getIngestionSpec().getIOConfig().getNonNullInputFormat(
+                            inputRowParser == null ? null : inputRowParser.getParseSpec()
+                        ),
                         tuningConfig.getSplitHintSpec()
                     )
                 );

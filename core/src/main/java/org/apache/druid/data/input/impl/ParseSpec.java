@@ -81,7 +81,10 @@ public abstract class ParseSpec
    * Return null if it's not supported.
    */
   @Nullable
-  public abstract InputFormat toInputFormat();
+  public InputFormat toInputFormat()
+  {
+    return null;
+  }
 
   @PublicApi
   public ParseSpec withTimestampSpec(TimestampSpec spec)

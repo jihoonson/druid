@@ -154,7 +154,7 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
     this.indexingServiceClient = indexingServiceClient;
     this.taskClientFactory = taskClientFactory;
     this.appenderatorsManager = appenderatorsManager;
-    this.missingIntervalsInOverwriteMode = !ingestionSchema.getIOConfig().appendToExisting()
+    this.missingIntervalsInOverwriteMode = !ingestionSchema.getIOConfig().isAppendToExisting()
                                            && !ingestionSchema.getDataSchema()
                                                               .getGranularitySpec()
                                                               .bucketIntervals()
@@ -210,7 +210,7 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
       );
     }
     final InputSource inputSource = ingestionSchema.getIOConfig().getNonNullInputSource(
-        ingestionSchema.getDataSchema().getInputRowParser()
+        ingestionSchema.getDataSchema().getParser()
     );
 
     final File tmpDir = toolbox.getIndexingTmpDir();
@@ -248,7 +248,7 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
   @Override
   public boolean requireLockExistingSegments()
   {
-    return !ingestionSchema.getIOConfig().appendToExisting();
+    return !ingestionSchema.getIOConfig().isAppendToExisting();
   }
 
   @Override
@@ -318,7 +318,7 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
     {
       final GranularitySpec granularitySpec = ingestionSchema.getDataSchema().getGranularitySpec();
       final SegmentLockHelper segmentLockHelper = getSegmentLockHelper();
-      if (ingestionSchema.getIOConfig().appendToExisting() || isUseSegmentLock()) {
+      if (ingestionSchema.getIOConfig().isAppendToExisting() || isUseSegmentLock()) {
         return new ActionBasedSegmentAllocator(
             toolbox.getTaskActionClient(),
             ingestionSchema.getDataSchema(),

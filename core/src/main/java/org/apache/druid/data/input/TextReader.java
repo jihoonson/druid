@@ -20,6 +20,7 @@
 package org.apache.druid.data.input;
 
 import org.apache.commons.io.LineIterator;
+import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
@@ -32,15 +33,22 @@ import java.io.InputStreamReader;
 public abstract class TextReader implements SplitReader, SplitSampler
 {
   private final TimestampSpec timestampSpec;
+  private final DimensionsSpec dimensionsSpec;
 
-  public TextReader(TimestampSpec timestampSpec)
+  public TextReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
     this.timestampSpec = timestampSpec;
+    this.dimensionsSpec = dimensionsSpec;
   }
 
   public TimestampSpec getTimestampSpec()
   {
     return timestampSpec;
+  }
+
+  public DimensionsSpec getDimensionsSpec()
+  {
+    return dimensionsSpec;
   }
 
   @Override
@@ -51,7 +59,7 @@ public abstract class TextReader implements SplitReader, SplitSampler
         return readLine(line);
       }
       catch (IOException e) {
-        throw new RuntimeException(e);
+        throw new ParseException(e, "Unable to parse row [%s]", line);
       }
     });
   }

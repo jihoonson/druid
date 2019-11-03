@@ -22,13 +22,15 @@ package org.apache.druid.data.input.impl;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 
+import javax.annotation.Nullable;
+
 public abstract class NestedInputFormat implements InputFormat
 {
   private final JSONPathSpec flattenSpec;
 
-  protected NestedInputFormat(JSONPathSpec flattenSpec)
+  protected NestedInputFormat(@Nullable JSONPathSpec flattenSpec)
   {
-    this.flattenSpec = flattenSpec;
+    this.flattenSpec = flattenSpec == null ? JSONPathSpec.DEFAULT : flattenSpec;
   }
 
   @JsonProperty("flattenSpec")

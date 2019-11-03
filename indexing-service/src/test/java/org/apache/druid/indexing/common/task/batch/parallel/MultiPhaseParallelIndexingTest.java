@@ -249,9 +249,7 @@ public class MultiPhaseParallelIndexingTest extends AbstractParallelIndexSupervi
                 Granularities.MINUTE,
                 interval == null ? null : Collections.singletonList(interval)
             ),
-            null,
-            null,
-            getObjectMapper()
+            null
         ),
         ioConfig,
         tuningConfig
@@ -407,7 +405,7 @@ public class MultiPhaseParallelIndexingTest extends AbstractParallelIndexSupervi
               null,
               getBaseInputSource().withSplit(split),
               getIngestionSchema().getIOConfig().getInputFormat(),
-              getIngestionSchema().getIOConfig().appendToExisting()
+              getIngestionSchema().getIOConfig().isAppendToExisting()
           ),
           getIngestionSchema().getTuningConfig()
       );

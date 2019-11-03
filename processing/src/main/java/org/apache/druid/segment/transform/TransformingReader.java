@@ -17,19 +17,28 @@
  * under the License.
  */
 
-package org.apache.druid.segment.indexing;
+package org.apache.druid.segment.transform;
 
-import org.apache.druid.data.input.InputSource;
-import org.apache.druid.data.input.impl.InputFormat;
+import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputSourceReader;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
-/**
- * IOConfig for all batch tasks except compactionTask
- */
-public interface BatchIOConfig extends IOConfig
+import java.io.IOException;
+
+public class TransformingReader implements InputSourceReader
 {
-  InputSource getInputSource();
+  private final InputSourceReader delegate;
+  private final Transformer transformer;
 
-  InputFormat getInputFormat();
+  TransformingReader(InputSourceReader delegate, Transformer transformer)
+  {
+    this.delegate = delegate;
+    this.transformer = transformer;
+  }
 
-  boolean isAppendToExisting();
+  @Override
+  public CloseableIterator<InputRow> read() throws IOException
+  {
+    return delegate.read().map(transformer::transform);
+  }
 }

@@ -128,7 +128,7 @@ public class AppenderatorTester implements AutoCloseable
         new MapInputRowParser(
             new JSONParseSpec(
                 new TimestampSpec("ts", "auto", null),
-                null,
+                new DimensionsSpec(null, null, null),
                 null,
                 null
             )
@@ -138,7 +138,6 @@ public class AppenderatorTester implements AutoCloseable
     schema = new DataSchema(
         DATASOURCE,
         parserMap,
-        new DimensionsSpec(null, null, null),
         new AggregatorFactory[]{
             new CountAggregatorFactory("count"),
             new LongSumAggregatorFactory("met", "met")

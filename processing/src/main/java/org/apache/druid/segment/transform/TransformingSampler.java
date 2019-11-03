@@ -19,49 +19,26 @@
 
 package org.apache.druid.segment.transform;
 
-import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.SplitReader;
-import org.apache.druid.data.input.SplitSource;
+import org.apache.druid.data.input.InputRowPlusRaw;
+import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
-import java.io.File;
 import java.io.IOException;
 
-public class TransformingSplitReader implements SplitReader
+public class TransformingSampler implements InputSourceSampler
 {
-  private final SplitReader reader;
+  private final InputSourceSampler delegate;
   private final Transformer transformer;
 
-  TransformingSplitReader(SplitReader reader, Transformer transformer)
+  TransformingSampler(InputSourceSampler delegate, Transformer transformer)
   {
-    this.reader = reader;
+    this.delegate = delegate;
     this.transformer = transformer;
   }
 
   @Override
-  public CloseableIterator<InputRow> read(SplitSource source, File temporaryDirectory) throws IOException
+  public CloseableIterator<InputRowPlusRaw> sample() throws IOException
   {
-    return new CloseableIterator<InputRow>()
-    {
-      private final CloseableIterator<InputRow> delegate = reader.read(source, temporaryDirectory);
-
-      @Override
-      public boolean hasNext()
-      {
-        return delegate.hasNext();
-      }
-
-      @Override
-      public InputRow next()
-      {
-        return transformer.transform(delegate.next());
-      }
-
-      @Override
-      public void close() throws IOException
-      {
-        delegate.close();
-      }
-    };
+    return delegate.sample().map(transformer::transform);
   }
 }

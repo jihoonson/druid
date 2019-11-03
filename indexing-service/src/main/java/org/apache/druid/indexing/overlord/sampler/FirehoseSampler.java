@@ -19,27 +19,31 @@
 
 package org.apache.druid.indexing.overlord.sampler;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.io.Files;
 import com.google.inject.Inject;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.druid.common.utils.UUIDUtils;
+import org.apache.druid.data.input.Firehose;
+import org.apache.druid.data.input.FirehoseFactory;
+import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowPlusRaw;
-import org.apache.druid.data.input.InputSource;
-import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.Row;
-import org.apache.druid.data.input.SplitReader;
-import org.apache.druid.data.input.SplitSampler;
+import org.apache.druid.data.input.impl.AbstractTextFilesFirehoseFactory;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.InputFormat;
+import org.apache.druid.data.input.impl.InputRowParser;
+import org.apache.druid.data.input.impl.ParseSpec;
+import org.apache.druid.data.input.impl.StringInputRowParser;
 import org.apache.druid.data.input.impl.TimestampSpec;
-import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
-import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.ParseException;
+import org.apache.druid.java.util.common.parsers.Parser;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.LongMinAggregatorFactory;
@@ -55,7 +59,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,29 +74,68 @@ public class FirehoseSampler
   // We need two of these because firehose factories based on AbstractTextFilesFirehoseFactory expect to be used with
   // StringInputRowParser, while all the others expect InputRowParser.
   // ---------------------------
-  private static final InputFormat NOOP_INPUT_FORMAT = new InputFormat()
+  private static final InputRowParser EMPTY_STRING_PARSER_SHIM = new StringInputRowParser(
+      new ParseSpec(new TimestampSpec(null, null, DateTimes.EPOCH), new DimensionsSpec(null))
+      {
+        @Override
+        public Parser<String, Object> makeParser()
+        {
+          return new Parser<String, Object>()
+          {
+            @Nullable
+            @Override
+            public Map<String, Object> parseToMap(String input)
+            {
+              throw new ParseException(null);
+            }
+
+            @Override
+            public void setFieldNames(Iterable<String> fieldNames)
+            {
+            }
+
+            @Override
+            public List<String> getFieldNames()
+            {
+              return ImmutableList.of();
+            }
+          };
+        }
+
+        @Nullable
+        @Override
+        public InputFormat toInputFormat()
+        {
+          return null;
+        }
+      }, null);
+
+  private static final InputRowParser EMPTY_PARSER_SHIM = new InputRowParser()
   {
     @Override
-    public boolean isSplittable()
+    public ParseSpec getParseSpec()
     {
-      return false;
+      return null;
     }
 
     @Override
-    public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
+    public InputRowParser withParseSpec(ParseSpec parseSpec)
     {
-      return (source, temporaryDirectory) -> CloseableIterators.withEmptyBaggage(Collections.emptyIterator());
+      return null;
     }
 
     @Override
-    public SplitSampler createSampler(
-        TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec
-    )
+    public List<InputRow> parseBatch(Object input)
     {
-      return (source, temporaryDirectory) -> CloseableIterators.withEmptyBaggage(Collections.emptyIterator());
+      throw new ParseException(null);
+    }
+
+    @Override
+    public InputRow parse(Object input)
+    {
+      throw new ParseException(null);
     }
   };
-
   // ---------------------------
 
   // We want to be able to sort the list of processed results back into the same order that we read them from the
@@ -107,41 +149,33 @@ public class FirehoseSampler
       SamplerInputRow.SAMPLER_ORDERING_COLUMN
   );
 
+  private final ObjectMapper objectMapper;
   private final SamplerCache samplerCache;
 
   @Inject
-  public FirehoseSampler(SamplerCache samplerCache)
+  public FirehoseSampler(ObjectMapper objectMapper, SamplerCache samplerCache)
   {
+    this.objectMapper = objectMapper;
     this.samplerCache = samplerCache;
   }
 
-  public SamplerResponse sample(
-      DataSchema dataSchema,
-      InputSource inputSource,
-      @Nullable InputFormat inputFormat,
-      SamplerConfig samplerConfig
-  )
+  public SamplerResponse sample(FirehoseFactory firehoseFactory, DataSchema dataSchema, SamplerConfig samplerConfig)
   {
-    Preconditions.checkNotNull(inputSource, "inputSource required");
+    Preconditions.checkNotNull(firehoseFactory, "firehoseFactory required");
 
     if (dataSchema == null) {
-      dataSchema = new DataSchema(
-          "sampler",
-          TimestampSpec.noop(),
-          DimensionsSpec.EMPTY,
-          null,
-          null,
-          null,
-          null,
-          null
-      );
+      dataSchema = new DataSchema("sampler", null, null, null, null, objectMapper);
     }
 
     if (samplerConfig == null) {
       samplerConfig = SamplerConfig.empty();
     }
 
-    final InputFormat nonNullInputFormat = inputFormat == null ? NOOP_INPUT_FORMAT : inputFormat;
+    final InputRowParser parser = dataSchema.getParser() != null
+                                  ? dataSchema.getParser()
+                                  : (firehoseFactory instanceof AbstractTextFilesFirehoseFactory
+                                     ? EMPTY_STRING_PARSER_SHIM
+                                     : EMPTY_PARSER_SHIM);
 
     final IncrementalIndexSchema indexSchema = new IncrementalIndexSchema.Builder()
         .withTimestampSpec(dataSchema.getNonNullTimestampSpec())
@@ -151,13 +185,13 @@ public class FirehoseSampler
         .withRollup(dataSchema.getGranularitySpec().isRollup())
         .build();
 
-    InputSource myInputSource = null;
+    FirehoseFactory myFirehoseFactory = null;
     boolean usingCachedData = true;
     if (!samplerConfig.isSkipCache() && samplerConfig.getCacheKey() != null) {
-      myInputSource = samplerCache.getAsInputSource(samplerConfig.getCacheKey());
+      myFirehoseFactory = samplerCache.getAsFirehoseFactory(samplerConfig.getCacheKey(), parser);
     }
-    if (myInputSource == null) {
-      myInputSource = inputSource;
+    if (myFirehoseFactory == null) {
+      myFirehoseFactory = firehoseFactory;
       usingCachedData = false;
     }
 
@@ -169,19 +203,7 @@ public class FirehoseSampler
     }
 
     final File tempDir = Files.createTempDir();
-    final InputSourceSampler sampler;
-    try {
-      sampler = myInputSource.sampler(
-          dataSchema.getNonNullTimestampSpec(),
-          dataSchema.getNonNullDimensionsSpec(),
-          nonNullInputFormat,
-          tempDir
-      );
-    }
-    catch (IOException e) {
-      throw new SamplerException(e, "Failed to sample data: %s", e.getMessage());
-    }
-    try (final CloseableIterator<InputRowPlusRaw> rowIterator = sampler.sample();
+    try (final Firehose firehose = myFirehoseFactory.connectForSampler(parser, tempDir);
          final IncrementalIndex index = new IncrementalIndex.Builder().setIndexSchema(indexSchema)
                                                                       .setMaxRowCount(samplerConfig.getNumRows())
                                                                       .buildOnheap()) {
@@ -190,10 +212,10 @@ public class FirehoseSampler
       SamplerResponse.SamplerResponseRow responseRows[] = new SamplerResponse.SamplerResponseRow[samplerConfig.getNumRows()];
       int counter = 0, numRowsIndexed = 0;
 
-      while (counter < responseRows.length && rowIterator.hasNext()) {
+      while (counter < responseRows.length && firehose.hasMore()) {
         String raw = null;
         try {
-          final InputRowPlusRaw row = rowIterator.next();
+          final InputRowPlusRaw row = firehose.nextRowWithRaw();
 
           if (row == null || row.isEmpty()) {
             continue;

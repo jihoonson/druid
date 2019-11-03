@@ -95,14 +95,12 @@ public class CSVInputFormat implements InputFormat
   @Override
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
-    return new CSVReader(timestampSpec, listDelimiter, columns, hasHeaderRow, skipHeaderRows);
+    return new CSVReader(timestampSpec, dimensionsSpec, listDelimiter, columns, hasHeaderRow, skipHeaderRows);
   }
 
   @Override
-  public SplitSampler createSampler(
-      TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec
-  )
+  public SplitSampler createSampler(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
-    return new CSVReader(timestampSpec, listDelimiter, columns, hasHeaderRow, skipHeaderRows);
+    return new CSVReader(timestampSpec, dimensionsSpec, listDelimiter, columns, hasHeaderRow, skipHeaderRows);
   }
 }

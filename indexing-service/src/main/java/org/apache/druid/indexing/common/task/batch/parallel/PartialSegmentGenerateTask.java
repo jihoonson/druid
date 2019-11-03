@@ -207,7 +207,7 @@ public class PartialSegmentGenerateTask extends AbstractBatchIndexTask
   public TaskStatus runTask(TaskToolbox toolbox) throws Exception
   {
     final InputSource inputSource = ingestionSchema.getIOConfig().getNonNullInputSource(
-        ingestionSchema.getDataSchema().getInputRowParser()
+        ingestionSchema.getDataSchema().getParser()
     );
 
     final File tmpDir = toolbox.getIndexingTmpDir();

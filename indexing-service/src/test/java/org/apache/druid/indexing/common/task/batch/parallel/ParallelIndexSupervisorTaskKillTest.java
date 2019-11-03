@@ -167,13 +167,8 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     final ParallelIndexIngestionSpec ingestionSpec = new ParallelIndexIngestionSpec(
         new DataSchema(
             "dataSource",
-            getObjectMapper().convertValue(
-                new StringInputRowParser(
-                    DEFAULT_PARSE_SPEC,
-                    null
-                ),
-                Map.class
-            ),
+            DEFAULT_TIMESTAMP_SPEC,
+            DEFAULT_DIMENSIONS_SPEC,
             new AggregatorFactory[]{
                 new LongSumAggregatorFactory("val", "val")
             },
@@ -182,8 +177,7 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
                 Granularities.MINUTE,
                 interval == null ? null : Collections.singletonList(interval)
             ),
-            null,
-            getObjectMapper()
+            null
         ),
         ioConfig,
         new ParallelIndexTuningConfig(

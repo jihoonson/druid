@@ -266,7 +266,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
   public boolean requireLockExistingSegments()
   {
     return isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig)
-           || !ingestionSchema.ioConfig.appendToExisting();
+           || !ingestionSchema.ioConfig.isAppendToExisting();
   }
 
   @Override
@@ -470,7 +470,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
                                                          .isPresent();
 
       final InputSource inputSource = ingestionSchema.getIOConfig().getNonNullInputSource(
-          ingestionSchema.getDataSchema().getInputRowParser()
+          ingestionSchema.getDataSchema().getParser()
       );
 
       final File tmpDir = toolbox.getIndexingTmpDir();
@@ -802,14 +802,14 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec
   ) throws IOException
   {
-    if (ingestionSchema.ioConfig.appendToExisting() || isUseSegmentLock()) {
+    if (ingestionSchema.ioConfig.isAppendToExisting() || isUseSegmentLock()) {
       return new RemoteSegmentAllocator(
           toolbox,
           getId(),
           dataSchema,
           getSegmentLockHelper(),
           isUseSegmentLock() ? LockGranularity.SEGMENT : LockGranularity.TIME_CHUNK,
-          ingestionSchema.ioConfig.appendToExisting()
+          ingestionSchema.ioConfig.isAppendToExisting()
       );
     } else {
       // We use the timeChunk lock and don't have to ask the overlord to create segmentIds.
@@ -1016,8 +1016,9 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
 
   private static InputFormat getInputFormat(IndexIngestionSpec ingestionSchema)
   {
+    final InputRowParser parser = ingestionSchema.getDataSchema().getParser();
     return ingestionSchema.getIOConfig().getNonNullInputFormat(
-        ingestionSchema.getDataSchema().getInputRowParser().getParseSpec()
+        parser == null ? null : parser.getParseSpec()
     );
   }
 
@@ -1087,6 +1088,13 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       this.appendToExisting = appendToExisting == null ? DEFAULT_APPEND_TO_EXISTING : appendToExisting;
     }
 
+    // old constructor for backward compatibility
+    @Deprecated
+    public IndexIOConfig(FirehoseFactory firehoseFactory, @Nullable Boolean appendToExisting)
+    {
+      this(firehoseFactory, null, null, appendToExisting);
+    }
+
     @Nullable
     @JsonProperty("firehose")
     @JsonInclude(Include.NON_NULL)
@@ -1132,7 +1140,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
 
     @Override
     @JsonProperty
-    public boolean appendToExisting()
+    public boolean isAppendToExisting()
     {
       return appendToExisting;
     }

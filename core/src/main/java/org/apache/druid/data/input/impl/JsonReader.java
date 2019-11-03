@@ -22,17 +22,13 @@ package org.apache.druid.data.input.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.MapBasedInputRow;
 import org.apache.druid.data.input.TextReader;
 import org.apache.druid.java.util.common.parsers.JSONFlattenerMaker;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 import org.apache.druid.java.util.common.parsers.ObjectFlattener;
 import org.apache.druid.java.util.common.parsers.ObjectFlatteners;
-import org.apache.druid.java.util.common.parsers.ParseException;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Map;
 
 public class JsonReader extends TextReader
@@ -40,9 +36,14 @@ public class JsonReader extends TextReader
   private final ObjectFlattener<JsonNode> flattener;
   private final ObjectMapper mapper;
 
-  public JsonReader(TimestampSpec timestampSpec, JSONPathSpec flattenSpec, ObjectMapper mapper)
+  public JsonReader(
+      TimestampSpec timestampSpec,
+      DimensionsSpec dimensionsSpec,
+      JSONPathSpec flattenSpec,
+      ObjectMapper mapper
+  )
   {
-    super(timestampSpec);
+    super(timestampSpec, dimensionsSpec);
     this.flattener = ObjectFlatteners.create(flattenSpec, new JSONFlattenerMaker());
     this.mapper = mapper;
   }
@@ -52,11 +53,11 @@ public class JsonReader extends TextReader
   {
     final JsonNode document = mapper.readValue(line, JsonNode.class);
     final Map<String, Object> flattened = flattener.flatten(document);
-    final DateTime timestamp = getTimestampSpec().extractTimestamp(flattened);
-    if (timestamp == null) {
-      throw new ParseException("null timestamp");
-    }
-    return new MapBasedInputRow(timestamp, new ArrayList<>(flattened.keySet()), flattened);
+    return MapInputRowParser.parse(
+        getTimestampSpec(),
+        getDimensionsSpec(),
+        flattened
+    );
   }
 
   @Override
@@ -66,7 +67,7 @@ public class JsonReader extends TextReader
   }
 
   @Override
-  public void processHeaderLine(String line) throws IOException
+  public void processHeaderLine(String line)
   {
     // do nothing
   }

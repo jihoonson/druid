@@ -380,7 +380,7 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
   public static boolean isGuaranteedRollup(IndexIOConfig ioConfig, IndexTuningConfig tuningConfig)
   {
     Preconditions.checkState(
-        !tuningConfig.isForceGuaranteedRollup() || !ioConfig.appendToExisting(),
+        !tuningConfig.isForceGuaranteedRollup() || !ioConfig.isAppendToExisting(),
         "Perfect rollup cannot be guaranteed when appending to existing dataSources"
     );
     return tuningConfig.isForceGuaranteedRollup();

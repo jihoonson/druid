@@ -580,7 +580,7 @@ public class HadoopDruidIndexerConfig
   {
     Preconditions.checkNotNull(schema.getDataSchema().getDataSource(), "dataSource");
     Preconditions.checkNotNull(schema.getDataSchema().getParser().getParseSpec(), "parseSpec");
-    Preconditions.checkNotNull(schema.getDataSchema().getParser().getParseSpec().getTimestampSpec(), "timestampSpec");
+    Preconditions.checkNotNull(schema.getDataSchema().getNonNullTimestampSpec(), "timestampSpec");
     Preconditions.checkNotNull(schema.getDataSchema().getGranularitySpec(), "granularitySpec");
     Preconditions.checkNotNull(pathSpec, "inputSpec");
     Preconditions.checkNotNull(schema.getTuningConfig().getWorkingPath(), "workingPath");

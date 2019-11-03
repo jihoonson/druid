@@ -117,6 +117,32 @@ public class DataSchema
     }
   }
 
+  public DataSchema(
+      String dataSource,
+      TimestampSpec timestampSpec,
+      DimensionsSpec dimensionsSpec,
+      AggregatorFactory[] aggregators,
+      GranularitySpec granularitySpec,
+      TransformSpec transformSpec
+  )
+  {
+    this(dataSource, timestampSpec, dimensionsSpec, aggregators, granularitySpec, transformSpec, null, null);
+  }
+
+  // old constructor for backward compatibility
+  @Deprecated
+  public DataSchema(
+      String dataSource,
+      Map<String, Object> parserMap,
+      AggregatorFactory[] aggregators,
+      GranularitySpec granularitySpec,
+      TransformSpec transformSpec,
+      ObjectMapper objectMapper
+  )
+  {
+    this(dataSource, null, null, aggregators, granularitySpec, transformSpec, parserMap, objectMapper);
+  }
+
   private static void validateDatasourceName(String dataSource)
   {
     Preconditions.checkArgument(
@@ -178,7 +204,7 @@ public class DataSchema
   public TimestampSpec getNonNullTimestampSpec()
   {
     if (timestampSpec == null) {
-      timestampSpec = getInputRowParser().getParseSpec().getTimestampSpec();
+      timestampSpec = getParser().getParseSpec().getTimestampSpec();
     }
     return timestampSpec;
   }
@@ -195,7 +221,7 @@ public class DataSchema
     if (dimensionsSpec == null) {
       dimensionsSpec = computeDimensionsSpec(
           getNonNullTimestampSpec(),
-          getInputRowParser().getParseSpec().getDimensionsSpec(),
+          Preconditions.checkNotNull(getParser(), "inputRowParser").getParseSpec().getDimensionsSpec(),
           aggregators
       );
     }
@@ -230,13 +256,19 @@ public class DataSchema
   }
 
   @Nullable
-  public InputRowParser getInputRowParser()
+  public InputRowParser getParser()
   {
     if (inputRowParser == null) {
       if (parserMap == null) {
         return null;
       }
-      inputRowParser = objectMapper.convertValue(parserMap, InputRowParser.class);
+      //noinspection unchecked
+      inputRowParser = transformSpec.decorate(objectMapper.convertValue(this.parserMap, InputRowParser.class));
+      inputRowParser = inputRowParser.withParseSpec(
+          inputRowParser.getParseSpec()
+                        .withTimestampSpec(getNonNullTimestampSpec())
+                        .withDimensionsSpec(getNonNullDimensionsSpec())
+      );
     }
     return inputRowParser;
   }

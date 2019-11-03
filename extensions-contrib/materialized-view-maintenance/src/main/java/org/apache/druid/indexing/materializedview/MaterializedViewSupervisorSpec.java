@@ -207,9 +207,7 @@ public class MaterializedViewSupervisorSpec implements SupervisorSpec
         dimensionsSpec,
         aggregators,
         granularitySpec,
-        TransformSpec.NONE,
-        null,
-        null
+        TransformSpec.NONE
     );
 
     // generate DatasourceIngestionSpec

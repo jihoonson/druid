@@ -63,6 +63,15 @@ public class MapInputRowParser implements InputRowParser<Map<String, Object>>
 
   public static InputRow parse(
       TimestampSpec timestampSpec,
+      DimensionsSpec dimensionsSpec,
+      Map<String, Object> theMap
+  )
+  {
+    return parse(timestampSpec, dimensionsSpec.getDimensionNames(), dimensionsSpec.getDimensionExclusions(), theMap);
+  }
+
+  public static InputRow parse(
+      TimestampSpec timestampSpec,
       List<String> dimensions,
       Set<String> dimensionExclusions,
       Map<String, Object> theMap

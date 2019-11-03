@@ -59,7 +59,7 @@ class PartialSegmentGenerateParallelIndexTaskRunner
     );
     this.ingestionSchema = ingestionSchema;
     this.baseInputSource = (SplittableInputSource) ingestionSchema.getIOConfig().getNonNullInputSource(
-        ingestionSchema.getDataSchema().getInputRowParser()
+        ingestionSchema.getDataSchema().getParser()
     );
   }
 
@@ -107,7 +107,7 @@ class PartialSegmentGenerateParallelIndexTaskRunner
             null,
             baseInputSource.withSplit(split),
             ingestionSchema.getIOConfig().getInputFormat(),
-            ingestionSchema.getIOConfig().appendToExisting()
+            ingestionSchema.getIOConfig().isAppendToExisting()
         ),
         ingestionSchema.getTuningConfig()
     );

@@ -67,7 +67,7 @@ public class JsonInputFormat extends NestedInputFormat
   @Override
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
-    return new JsonReader(timestampSpec, getFlattenSpec(), objectMapper);
+    return new JsonReader(timestampSpec, dimensionsSpec, getFlattenSpec(), objectMapper);
   }
 
   @Override
@@ -75,6 +75,6 @@ public class JsonInputFormat extends NestedInputFormat
       TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec
   )
   {
-    return new JsonReader(timestampSpec, getFlattenSpec(), objectMapper);
+    return new JsonReader(timestampSpec, dimensionsSpec, getFlattenSpec(), objectMapper);
   }
 }

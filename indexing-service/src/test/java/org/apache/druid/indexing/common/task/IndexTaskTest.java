@@ -1165,7 +1165,7 @@ public class IndexTaskTest extends IngestionTestBase
             RowIngestionMeters.PROCESSED_WITH_ERROR, 0,
             RowIngestionMeters.PROCESSED, 1,
             RowIngestionMeters.UNPARSEABLE, 3,
-            RowIngestionMeters.THROWN_AWAY, 2
+            RowIngestionMeters.THROWN_AWAY, 1
         )
     );
 
@@ -1270,7 +1270,7 @@ public class IndexTaskTest extends IngestionTestBase
             RowIngestionMeters.PROCESSED_WITH_ERROR, 0,
             RowIngestionMeters.PROCESSED, 1,
             RowIngestionMeters.UNPARSEABLE, 3,
-            RowIngestionMeters.THROWN_AWAY, 2
+            RowIngestionMeters.THROWN_AWAY, 1
         ),
         RowIngestionMeters.BUILD_SEGMENTS,
         ImmutableMap.of(
@@ -1698,9 +1698,7 @@ public class IndexTaskTest extends IngestionTestBase
                 Granularities.MINUTE,
                 Collections.singletonList(Intervals.of("2014/2015"))
             ),
-            transformSpec,
-            null,
-            null
+            transformSpec
         ),
         new IndexTask.IndexIOConfig(
             null,

@@ -33,7 +33,9 @@ import java.util.stream.Stream;
 
 public class SplitIteratingReader<T> implements InputSourceReader
 {
-  private final SplitReader splitReader;
+  private final TimestampSpec timestampSpec;
+  private final DimensionsSpec dimensionsSpec;
+  private final InputFormat inputFormat;
   private final Iterator<SplitSource<T>> sourceIterator;
   private final File temporaryDirectory;
 
@@ -45,7 +47,9 @@ public class SplitIteratingReader<T> implements InputSourceReader
       File temporaryDirectory
   )
   {
-    this.splitReader = inputFormat.createReader(timestampSpec, dimensionsSpec);
+    this.timestampSpec = timestampSpec;
+    this.dimensionsSpec = dimensionsSpec;
+    this.inputFormat = inputFormat;
     this.sourceIterator = sourceStream.iterator();
     this.temporaryDirectory = temporaryDirectory;
   }
@@ -81,6 +85,8 @@ public class SplitIteratingReader<T> implements InputSourceReader
               rowIterator.close();
             }
             if (sourceIterator.hasNext()) {
+              // SplitReader is stateful and so a new one should be created per split.
+              final SplitReader splitReader = inputFormat.createReader(timestampSpec, dimensionsSpec);
               rowIterator = splitReader.read(sourceIterator.next(), temporaryDirectory);
             }
           }

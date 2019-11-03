@@ -31,6 +31,7 @@ import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.InputSource;
 import org.apache.druid.data.input.impl.InputFormat;
+import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
@@ -191,14 +192,14 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     }
 
     this.baseInputSource = ingestionSchema.getIOConfig().getNonNullInputSource(
-        ingestionSchema.getDataSchema().getInputRowParser()
+        ingestionSchema.getDataSchema().getParser()
     );
     this.indexingServiceClient = indexingServiceClient;
     this.chatHandlerProvider = chatHandlerProvider;
     this.authorizerMapper = authorizerMapper;
     this.rowIngestionMetersFactory = rowIngestionMetersFactory;
     this.appenderatorsManager = appenderatorsManager;
-    this.missingIntervalsInOverwriteMode = !ingestionSchema.getIOConfig().appendToExisting()
+    this.missingIntervalsInOverwriteMode = !ingestionSchema.getIOConfig().isAppendToExisting()
                                            && !ingestionSchema.getDataSchema()
                                                               .getGranularitySpec()
                                                               .bucketIntervals()
@@ -333,7 +334,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   @Override
   public boolean requireLockExistingSegments()
   {
-    return !ingestionSchema.getIOConfig().appendToExisting();
+    return !ingestionSchema.getIOConfig().isAppendToExisting();
   }
 
   @Override
@@ -778,8 +779,9 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   static InputFormat getInputFormat(ParallelIndexIngestionSpec ingestionSchema)
   {
+    final InputRowParser parser = ingestionSchema.getDataSchema().getParser();
     return ingestionSchema.getIOConfig().getNonNullInputFormat(
-        ingestionSchema.getDataSchema().getInputRowParser().getParseSpec()
+        parser == null ? null : parser.getParseSpec()
     );
   }
 
