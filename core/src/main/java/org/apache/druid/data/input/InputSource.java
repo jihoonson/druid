@@ -19,15 +19,19 @@
 
 package org.apache.druid.data.input;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.TimestampSpec;
+import org.apache.druid.guice.annotations.ExtensionPoint;
 import org.apache.druid.java.util.common.parsers.ParseException;
 
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 
+@ExtensionPoint
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 public interface InputSource
 {
   default boolean isSplittable()

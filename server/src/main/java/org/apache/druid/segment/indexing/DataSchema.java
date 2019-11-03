@@ -204,7 +204,7 @@ public class DataSchema
   public TimestampSpec getNonNullTimestampSpec()
   {
     if (timestampSpec == null) {
-      timestampSpec = getParser().getParseSpec().getTimestampSpec();
+      timestampSpec = Preconditions.checkNotNull(getParser(), "inputRowParser").getParseSpec().getTimestampSpec();
     }
     return timestampSpec;
   }

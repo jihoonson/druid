@@ -19,8 +19,6 @@
 
 package org.apache.druid.indexing.overlord;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.google.common.base.Function;
@@ -38,8 +36,18 @@ import org.apache.druid.client.cache.MapCache;
 import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputSource;
+import org.apache.druid.data.input.InputSourceReader;
+import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.MapBasedInputRow;
+import org.apache.druid.data.input.SplitReader;
+import org.apache.druid.data.input.SplitSampler;
+import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.InputRowParser;
+import org.apache.druid.data.input.impl.MapInputRowParser;
+import org.apache.druid.data.input.impl.TimeAndDimsParseSpec;
+import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.discovery.DataNodeService;
 import org.apache.druid.discovery.DruidNodeAnnouncer;
 import org.apache.druid.discovery.LookupNodeService;
@@ -79,6 +87,7 @@ import org.apache.druid.indexing.overlord.supervisor.SupervisorManager;
 import org.apache.druid.indexing.test.TestIndexerMetadataStorageCoordinator;
 import org.apache.druid.indexing.worker.config.WorkerConfig;
 import org.apache.druid.jackson.DefaultObjectMapper;
+import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
@@ -88,6 +97,8 @@ import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.guava.Comparators;
+import org.apache.druid.java.util.common.jackson.JacksonUtils;
+import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 import org.apache.druid.java.util.metrics.Monitor;
@@ -102,6 +113,7 @@ import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
 import org.apache.druid.segment.IndexIO;
 import org.apache.druid.segment.IndexMergerV9;
 import org.apache.druid.segment.IndexSpec;
+import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.indexing.RealtimeTuningConfig;
@@ -299,23 +311,65 @@ public class TaskLifecycleTest
     }
   }
 
-  private static class MockFirehoseFactory implements FirehoseFactory
+  private static class NoopInputFormat implements InputFormat
   {
-    @JsonProperty
-    private boolean usedByRealtimeIdxTask;
-
-    @JsonCreator
-    public MockFirehoseFactory(@JsonProperty("usedByRealtimeIdxTask") boolean usedByRealtimeIdxTask)
+    @Override
+    public boolean isSplittable()
     {
-      this.usedByRealtimeIdxTask = usedByRealtimeIdxTask;
+      return false;
     }
 
     @Override
+    public SplitReader createReader(
+        TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec
+    )
+    {
+      return null;
+    }
+
+    @Override
+    public SplitSampler createSampler(
+        TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec
+    )
+    {
+      return null;
+    }
+  }
+
+  private static class MockInputSource implements InputSource
+  {
+    @Override
+    public InputSourceReader reader(
+        TimestampSpec timestampSpec,
+        DimensionsSpec dimensionsSpec,
+        InputFormat inputFormat,
+        @Nullable File temporaryDirectory
+    ) throws ParseException
+    {
+      return () -> {
+        final Iterator<InputRow> inputRowIterator = IDX_TASK_INPUT_ROWS.iterator();
+        return CloseableIterators.withEmptyBaggage(inputRowIterator);
+      };
+    }
+
+    @Override
+    public InputSourceSampler sampler(
+        TimestampSpec timestampSpec,
+        DimensionsSpec dimensionsSpec,
+        InputFormat inputFormat,
+        @Nullable File temporaryDirectory
+    ) throws ParseException
+    {
+      throw new UnsupportedOperationException();
+    }
+  }
+
+  private static class MockFirehoseFactory implements FirehoseFactory
+  {
+    @Override
     public Firehose connect(InputRowParser parser, File temporaryDirectory)
     {
-      final Iterator<InputRow> inputRowIterator = usedByRealtimeIdxTask
-                                                  ? REALTIME_IDX_TASK_INPUT_ROWS.iterator()
-                                                  : IDX_TASK_INPUT_ROWS.iterator();
+      final Iterator<InputRow> inputRowIterator = REALTIME_IDX_TASK_INPUT_ROWS.iterator();
 
       return new Firehose()
       {
@@ -397,7 +451,9 @@ public class TaskLifecycleTest
         TestDerbyConnector testDerbyConnector = derbyConnectorRule.getConnector();
         mapper.registerSubtypes(
             new NamedType(MockExceptionalFirehoseFactory.class, "mockExcepFirehoseFactory"),
-            new NamedType(MockFirehoseFactory.class, "mockFirehoseFactory")
+            new NamedType(MockFirehoseFactory.class, "mockFirehoseFactory"),
+            new NamedType(MockInputSource.class, "mockInputSource"),
+            new NamedType(NoopInputFormat.class, "noopInputFormat")
         );
         testDerbyConnector.createTaskTables();
         testDerbyConnector.createSegmentTable();
@@ -667,17 +723,17 @@ public class TaskLifecycleTest
         new IndexIngestionSpec(
             new DataSchema(
                 "foo",
-                null,
+                new TimestampSpec(null, null, null),
+                DimensionsSpec.EMPTY,
                 new AggregatorFactory[]{new DoubleSumAggregatorFactory("met", "met")},
                 new UniformGranularitySpec(
                     Granularities.DAY,
                     null,
                     ImmutableList.of(Intervals.of("2010-01-01/P2D"))
                 ),
-                null,
-                mapper
+                null
             ),
-            new IndexIOConfig(new MockFirehoseFactory(false), false),
+            new IndexIOConfig(null, new MockInputSource(), new NoopInputFormat(), false),
             new IndexTuningConfig(
                 null,
                 10000,
@@ -1173,17 +1229,17 @@ public class TaskLifecycleTest
         new IndexIngestionSpec(
             new DataSchema(
                 "foo",
-                null,
+                new TimestampSpec(null, null, null),
+                DimensionsSpec.EMPTY,
                 new AggregatorFactory[]{new DoubleSumAggregatorFactory("met", "met")},
                 new UniformGranularitySpec(
                     Granularities.DAY,
                     null,
                     ImmutableList.of(Intervals.of("2010-01-01/P2D"))
                 ),
-                null,
-                mapper
+                null
             ),
-            new IndexIOConfig(new MockFirehoseFactory(false), false),
+            new IndexIOConfig(null, new MockInputSource(), new NoopInputFormat(), false),
             new IndexTuningConfig(
                 null,
                 10000,
@@ -1279,17 +1335,17 @@ public class TaskLifecycleTest
         new IndexIngestionSpec(
             new DataSchema(
                 "foo",
-                null,
+                new TimestampSpec(null, null, null),
+                DimensionsSpec.EMPTY,
                 new AggregatorFactory[]{new DoubleSumAggregatorFactory("met", "met")},
                 new UniformGranularitySpec(
                     Granularities.DAY,
                     null,
                     ImmutableList.of(Intervals.of("2010-01-01/P2D"))
                 ),
-                null,
-                mapper
+                null
             ),
-            new IndexIOConfig(new MockFirehoseFactory(false), false),
+            new IndexIOConfig(null, new MockInputSource(), new NoopInputFormat(), false),
             new IndexTuningConfig(
                 null,
                 10000,
@@ -1387,14 +1443,22 @@ public class TaskLifecycleTest
     String taskId = StringUtils.format("rt_task_%s", System.currentTimeMillis());
     DataSchema dataSchema = new DataSchema(
         "test_ds",
-        null,
+        TestHelper.makeJsonMapper().convertValue(
+            new MapInputRowParser(
+                new TimeAndDimsParseSpec(
+                    new TimestampSpec(null, null, null),
+                    DimensionsSpec.EMPTY
+                )
+            ),
+            JacksonUtils.TYPE_REFERENCE_MAP_STRING_OBJECT
+        ),
         new AggregatorFactory[]{new LongSumAggregatorFactory("count", "rows")},
         new UniformGranularitySpec(Granularities.DAY, Granularities.NONE, null),
         null,
         mapper
     );
     RealtimeIOConfig realtimeIOConfig = new RealtimeIOConfig(
-        new MockFirehoseFactory(true),
+        new MockFirehoseFactory(),
         null
         // PlumberSchool - Realtime Index Task always uses RealtimePlumber which is hardcoded in RealtimeIndexTask class
     );
