@@ -88,7 +88,7 @@ public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSourc
   public InputSourceReader reader(
       TimestampSpec timestampSpec,
       DimensionsSpec dimensionsSpec,
-      @Nullable InputFormat inputFormat, // inputFormat should be null
+      @Nullable InputFormat inputFormat, // inputFormat will be ignored
       @Nullable File temporaryDirectory
   ) throws IOException, ParseException
   {
@@ -99,10 +99,11 @@ public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSourc
   public InputSourceSampler sampler(
       TimestampSpec timestampSpec,
       DimensionsSpec dimensionsSpec,
-      @Nullable InputFormat inputFormat, // inputFormat should be null
+      @Nullable InputFormat inputFormat, // inputFormat will be ignored
       @Nullable File temporaryDirectory
   ) throws IOException, ParseException
   {
+    // FirehoseSampler still uses firehose and this is not being called anywhere yet.
     return new FirehoseToInputSourceSamplerAdaptor(
         firehoseFactory.connectForSampler(inputRowParser, temporaryDirectory)
     );

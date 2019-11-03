@@ -185,15 +185,14 @@ public class CompactionTaskParallelRunTest extends AbstractParallelIndexSupervis
         null,
         null,
         IndexTaskTest.createIngestionSpec(
+            getObjectMapper(),
             tmpDir,
-            CompactionTaskRunTest.DEFAULT_TIMESTAMP_SPEC,
-            CompactionTaskRunTest.DEFAULT_DIMENSIONS_SPEC,
+            CompactionTaskRunTest.DEFAULT_PARSE_SPEC,
             new UniformGranularitySpec(
                 Granularities.HOUR,
                 Granularities.MINUTE,
                 null
             ),
-            CompactionTaskRunTest.DEFAULT_INPUT_FORMAT,
             IndexTaskTest.createTuningConfig(2, 2, null, 2L, null, null, false, true),
             false
         ),
