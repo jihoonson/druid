@@ -26,6 +26,7 @@ import org.apache.druid.data.input.TextReader;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.collect.Utils;
 import org.apache.druid.java.util.common.parsers.ParserUtils;
+import org.apache.druid.java.util.common.parsers.Parsers;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -53,7 +54,7 @@ public class CSVReader extends TextReader
   )
   {
     super(timestampSpec, dimensionsSpec);
-    this.listDelimiter = listDelimiter;
+    this.listDelimiter = listDelimiter == null ? Parsers.DEFAULT_LIST_DELIMITER : listDelimiter;
     this.hasHeaderRow = hasHeaderRow;
     this.skipHeaderRows = skipHeaderRows;
     this.columns = hasHeaderRow ? null : columns; // columns will be overriden by header row
