@@ -73,7 +73,7 @@ public class OrcReader implements SplitReader
     final Path path = new Path(file.file().toURI());
     final Reader reader = closer.register(OrcFile.createReader(path, OrcFile.readerOptions(new Configuration())));
     // TODO: build schema from flattenSpec
-//    final RecordReader recordReader = reader.rows(reader.options().schema());
+    //       final RecordReader recordReader = reader.rows(reader.options().schema());
     final TypeDescription schema = reader.getSchema();
     final RecordReader batchReader = reader.rows(reader.options());
     final OrcMapredRecordReader<OrcStruct> recordReader = new OrcMapredRecordReader<>(batchReader, schema);

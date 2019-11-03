@@ -55,7 +55,6 @@ import org.junit.rules.ExpectedException;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -169,15 +168,9 @@ public class ParallelIndexSupervisorTaskSerdeTest
 
   private static class ParallelIndexIngestionSpecBuilder
   {
-    private static final TimestampSpec TIMESTAMP_SPEC = new TimestampSpec(
-        "ts",
-        "auto",
-        null
-    );
+    private static final TimestampSpec TIMESTAMP_SPEC = new TimestampSpec("ts", "auto", null);
     private static final DimensionsSpec DIMENSIONS_SPEC = new DimensionsSpec(
-        DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim")),
-        new ArrayList<>(),
-        new ArrayList<>()
+        DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim"))
     );
 
     private final ParallelIndexIOConfig ioConfig = new ParallelIndexIOConfig(

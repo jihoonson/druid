@@ -56,11 +56,6 @@ public class TimestampSpec
   // remember last value parsed
   private static final ThreadLocal<ParseCtx> PARSE_CTX = ThreadLocal.withInitial(ParseCtx::new);
 
-  public static TimestampSpec noop()
-  {
-    return new TimestampSpec();
-  }
-
   @JsonCreator
   public TimestampSpec(
       @JsonProperty("column") @Nullable String timestampColumn,
@@ -75,14 +70,6 @@ public class TimestampSpec
     this.missingValue = missingValue == null
                         ? DEFAULT_MISSING_VALUE
                         : missingValue;
-  }
-
-  private TimestampSpec()
-  {
-    this.timestampColumn = null;
-    this.timestampFormat = null;
-    this.timestampConverter = null;
-    this.missingValue = null;
   }
 
   @JsonProperty("column")

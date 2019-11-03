@@ -49,9 +49,7 @@ public class OrcInputFormat extends NestedInputFormat
   }
 
   @Override
-  public SplitSampler createSampler(
-      TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec
-  )
+  public SplitSampler createSampler(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
     // TODO
     throw new UnsupportedOperationException();

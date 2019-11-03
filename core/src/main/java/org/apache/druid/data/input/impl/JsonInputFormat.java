@@ -71,9 +71,7 @@ public class JsonInputFormat extends NestedInputFormat
   }
 
   @Override
-  public SplitSampler createSampler(
-      TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec
-  )
+  public SplitSampler createSampler(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
     return new JsonReader(timestampSpec, dimensionsSpec, getFlattenSpec(), objectMapper);
   }

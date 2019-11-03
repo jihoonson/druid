@@ -116,9 +116,7 @@ public class IndexTaskTest extends IngestionTestBase
 
   private static final TimestampSpec DEFAULT_TIMESTAMP_SPEC = new TimestampSpec("ts", "auto", null);
   private static final DimensionsSpec DEFAULT_DIMENSIONS_SPEC = new DimensionsSpec(
-      DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim")),
-      Collections.emptyList(),
-      Collections.emptyList()
+      DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim"))
   );
   private static final InputFormat DEFAULT_INPUT_FORMAT = new CSVInputFormat(
       Arrays.asList("ts", "dim", "val"),
@@ -594,16 +592,8 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         createIngestionSpec(
             tmpDir,
-            new TimestampSpec(
-                "time",
-                "auto",
-                null
-            ),
-            new DimensionsSpec(
-                null,
-                new ArrayList<>(),
-                new ArrayList<>()
-            ),
+            new TimestampSpec("time", "auto", null),
+            DimensionsSpec.EMPTY,
             null,
             new CSVInputFormat(null, null, true, 0),
             createTuningConfigWithMaxRowsPerSegment(2, true),
@@ -642,16 +632,8 @@ public class IndexTaskTest extends IngestionTestBase
         null,
         createIngestionSpec(
             tmpDir,
-            new TimestampSpec(
-                "time",
-                "auto",
-                null
-            ),
-            new DimensionsSpec(
-                null,
-                new ArrayList<>(),
-                new ArrayList<>()
-            ),
+            new TimestampSpec("time", "auto", null),
+            DimensionsSpec.EMPTY,
             null,
             new CSVInputFormat(Arrays.asList("time", "dim", "val"), null, true, 0),
             createTuningConfigWithMaxRowsPerSegment(2, true),
@@ -856,16 +838,8 @@ public class IndexTaskTest extends IngestionTestBase
     // IndexTask.determineShardSpecs() and IndexTask.generateAndPublishSegments()
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
         tmpDir,
-        new TimestampSpec(
-            "time",
-            "auto",
-            null
-        ),
-        new DimensionsSpec(
-            null,
-            new ArrayList<>(),
-            new ArrayList<>()
-        ),
+        new TimestampSpec("time", "auto", null),
+        DimensionsSpec.EMPTY,
         null,
         new CSVInputFormat(Arrays.asList("time", "dim", "val"), null, true, 0),
         createTuningConfig(2, null, null, null, null, null, false, false), // ignore parse exception,
@@ -905,16 +879,8 @@ public class IndexTaskTest extends IngestionTestBase
 
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
         tmpDir,
-        new TimestampSpec(
-            "time",
-            "auto",
-            null
-        ),
-        new DimensionsSpec(
-            null,
-            new ArrayList<>(),
-            new ArrayList<>()
-        ),
+        new TimestampSpec("time", "auto", null),
+        DimensionsSpec.EMPTY,
         null,
         new CSVInputFormat(Arrays.asList("time", "dim", "val"), null, true, 0),
         createTuningConfig(2, null, null, null, null, null, false, true), // report parse exception
@@ -994,19 +960,13 @@ public class IndexTaskTest extends IngestionTestBase
 
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
         tmpDir,
-        new TimestampSpec(
-            "time",
-            "auto",
-            null
-        ),
+        new TimestampSpec("time", "auto", null),
         new DimensionsSpec(
             Arrays.asList(
                 new StringDimensionSchema("dim"),
                 new LongDimensionSchema("dimLong"),
                 new FloatDimensionSchema("dimFloat")
-            ),
-            new ArrayList<>(),
-            new ArrayList<>()
+            )
         ),
         null,
         new JsonInputFormat(null, null),
@@ -1115,19 +1075,13 @@ public class IndexTaskTest extends IngestionTestBase
 
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
         tmpDir,
-        new TimestampSpec(
-            "time",
-            "auto",
-            null
-        ),
+        new TimestampSpec("time", "auto", null),
         new DimensionsSpec(
             Arrays.asList(
                 new StringDimensionSchema("dim"),
                 new LongDimensionSchema("dimLong"),
                 new FloatDimensionSchema("dimFloat")
-            ),
-            new ArrayList<>(),
-            new ArrayList<>()
+            )
         ),
         null,
         new CSVInputFormat(Arrays.asList("time", "dim", "dimLong", "dimFloat", "val"), null, true, 0),
@@ -1227,19 +1181,13 @@ public class IndexTaskTest extends IngestionTestBase
 
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
         tmpDir,
-        new TimestampSpec(
-            "time",
-            "auto",
-            null
-        ),
+        new TimestampSpec("time", "auto", null),
         new DimensionsSpec(
             Arrays.asList(
                 new StringDimensionSchema("dim"),
                 new LongDimensionSchema("dimLong"),
                 new FloatDimensionSchema("dimFloat")
-            ),
-            new ArrayList<>(),
-            new ArrayList<>()
+            )
         ),
         null,
         new CSVInputFormat(Arrays.asList("time", "dim", "dimLong", "dimFloat", "val"), null, true, 0),
@@ -1326,16 +1274,8 @@ public class IndexTaskTest extends IngestionTestBase
 
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
         tmpDir,
-        new TimestampSpec(
-            "time",
-            "auto",
-            null
-        ),
-        new DimensionsSpec(
-            null,
-            null,
-            null
-        ),
+        new TimestampSpec("time", "auto", null),
+        DimensionsSpec.EMPTY,
         null,
         new CSVInputFormat(null, null, true, 0),
         createTuningConfig(2, 1, null, null, null, null, true, true), // report parse exception
@@ -1392,16 +1332,8 @@ public class IndexTaskTest extends IngestionTestBase
 
     final IndexIngestionSpec parseExceptionIgnoreSpec = createIngestionSpec(
         tmpDir,
-        new TimestampSpec(
-            "time",
-            "auto",
-            null
-        ),
-        new DimensionsSpec(
-            null,
-            new ArrayList<>(),
-            new ArrayList<>()
-        ),
+        new TimestampSpec("time", "auto", null),
+        DimensionsSpec.EMPTY,
         null,
         new CSVInputFormat(Arrays.asList("time", "", ""), null, true, 0),
         createTuningConfig(2, null, null, null, null, null, false, true), // report parse exception

@@ -231,16 +231,8 @@ public class MultiPhaseParallelIndexingTest extends AbstractParallelIndexSupervi
     final ParallelIndexIngestionSpec ingestionSpec = new ParallelIndexIngestionSpec(
         new DataSchema(
             "dataSource",
-            new TimestampSpec(
-                "ts",
-                "auto",
-                null
-            ),
-            new DimensionsSpec(
-                DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim1", "dim2")),
-                new ArrayList<>(),
-                new ArrayList<>()
-            ),
+            new TimestampSpec("ts", "auto", null),
+            new DimensionsSpec(DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim1", "dim2"))),
             new AggregatorFactory[]{
                 new LongSumAggregatorFactory("val", "val")
             },

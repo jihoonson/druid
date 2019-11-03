@@ -102,9 +102,7 @@ public class CompactionTaskRunTest extends IngestionTestBase
 
   static final TimestampSpec DEFAULT_TIMESTAMP_SPEC = new TimestampSpec("ts", "auto", null);
   static final DimensionsSpec DEFAULT_DIMENSIONS_SPEC = new DimensionsSpec(
-      DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim")),
-      Collections.emptyList(),
-      Collections.emptyList()
+      DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim"))
   );
   static final InputFormat DEFAULT_INPUT_FORMAT = new CSVInputFormat(
       Arrays.asList("ts", "dim", "val"),
