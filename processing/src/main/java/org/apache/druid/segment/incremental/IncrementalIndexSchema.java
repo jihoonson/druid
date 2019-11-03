@@ -127,6 +127,18 @@ public class IncrementalIndexSchema
       return this;
     }
 
+    public Builder withTimestampSpec(InputRowParser parser)
+    {
+      if (parser != null
+          && parser.getParseSpec() != null
+          && parser.getParseSpec().getTimestampSpec() != null) {
+        this.timestampSpec = parser.getParseSpec().getTimestampSpec();
+      } else {
+        this.timestampSpec = new TimestampSpec(null, null, null);
+      }
+      return this;
+    }
+
     public Builder withQueryGranularity(Granularity gran)
     {
       this.gran = gran;

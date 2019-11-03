@@ -19,6 +19,8 @@
 
 package org.apache.druid.data.input.impl;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.data.input.SplitSampler;
@@ -26,6 +28,9 @@ import org.apache.druid.guice.annotations.ExtensionPoint;
 
 @ExtensionPoint
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
+@JsonSubTypes(value = {
+    @Type(name = "csv", value = CSVInputFormat.class)
+})
 public interface InputFormat
 {
   boolean isSplittable();

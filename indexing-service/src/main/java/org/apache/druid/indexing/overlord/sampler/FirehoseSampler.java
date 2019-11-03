@@ -178,9 +178,9 @@ public class FirehoseSampler
                                      : EMPTY_PARSER_SHIM);
 
     final IncrementalIndexSchema indexSchema = new IncrementalIndexSchema.Builder()
-        .withTimestampSpec(dataSchema.getNonNullTimestampSpec())
+        .withTimestampSpec(parser)
         .withQueryGranularity(dataSchema.getGranularitySpec().getQueryGranularity())
-        .withDimensionsSpec(dataSchema.getNonNullDimensionsSpec())
+        .withDimensionsSpec(parser)
         .withMetrics(ArrayUtils.addAll(dataSchema.getAggregators(), INTERNAL_ORDERING_AGGREGATOR))
         .withRollup(dataSchema.getGranularitySpec().isRollup())
         .build();
