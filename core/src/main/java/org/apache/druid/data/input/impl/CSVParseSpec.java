@@ -105,9 +105,7 @@ public class CSVParseSpec extends ParseSpec
   @Override
   public void verify(List<String> usedCols)
   {
-    for (String columnName : usedCols) {
-      Preconditions.checkArgument(columns.contains(columnName), "column[%s] not in columns.", columnName);
-    }
+    CSVReader.verify(columns, usedCols);
   }
 
   @Override

@@ -64,6 +64,19 @@ public class CSVReader extends TextReader
     final String finalListDelimeter = listDelimiter == null ? Parsers.DEFAULT_LIST_DELIMITER : listDelimiter;
     this.multiValueFunction = ParserUtils.getMultiValueFunction(finalListDelimeter, Splitter.on(finalListDelimeter));
     this.columns = hasHeaderRow ? null : columns; // columns will be overriden by header row
+
+    if (this.columns != null) {
+      for (String column : this.columns) {
+        Preconditions.checkArgument(!column.contains(","), "Column[%s] has a comma, it cannot", column);
+      }
+      verify(this.columns, dimensionsSpec.getDimensionNames());
+    } else {
+      Preconditions.checkArgument(
+          hasHeaderRow,
+          "If columns field is not set, the first row of your data must have your header"
+          + " and hasHeaderRow must be set to true."
+      );
+    }
   }
 
   @Override
@@ -91,6 +104,13 @@ public class CSVReader extends TextReader
     }
     if (columns == null || columns.isEmpty()) {
       throw new ISE("Empty columns");
+    }
+  }
+
+  public static void verify(List<String> columns, List<String> dimensionNames)
+  {
+    for (String columnName : dimensionNames) {
+      Preconditions.checkArgument(columns.contains(columnName), "column[%s] not in columns.", columnName);
     }
   }
 
