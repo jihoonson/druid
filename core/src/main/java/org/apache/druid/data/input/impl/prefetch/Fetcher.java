@@ -64,7 +64,7 @@ public abstract class Fetcher<T> implements Iterator<OpenObject<T>>
   // cached.
   private final AtomicLong fetchedBytes = new AtomicLong(0);
   private final Deque<Future<Void>> fetchFutures = new ArrayDeque<>();
-  private PrefetchConfig prefetchConfig;
+  private final FetchConfig fetchConfig;
 
   // nextFetchIndex indicates which object should be downloaded when fetch is triggered.
   // This variable is always read by the same thread regardless of prefetch is enabled or not.
@@ -77,15 +77,15 @@ public abstract class Fetcher<T> implements Iterator<OpenObject<T>>
       List<T> objects,
       ExecutorService fetchExecutor,
       @Nullable File temporaryDirectory,
-      PrefetchConfig prefetchConfig
+      FetchConfig fetchConfig
   )
   {
     this.cacheManager = cacheManager;
     this.objects = objects;
     this.fetchExecutor = fetchExecutor;
     this.temporaryDirectory = temporaryDirectory;
-    this.prefetchConfig = prefetchConfig;
-    this.prefetchEnabled = prefetchConfig.getMaxFetchCapacityBytes() > 0;
+    this.fetchConfig = fetchConfig;
+    this.prefetchEnabled = fetchConfig.getMaxFetchCapacityBytes() > 0;
     this.numRemainingObjects = objects.size();
 
     // (*) If cache is initialized, put all cached files to the queue.
@@ -105,7 +105,7 @@ public abstract class Fetcher<T> implements Iterator<OpenObject<T>>
   private void fetchIfNeeded(long remainingBytes)
   {
     if ((fetchFutures.isEmpty() || fetchFutures.peekLast().isDone())
-        && remainingBytes <= prefetchConfig.getPrefetchTriggerBytes()) {
+        && remainingBytes <= fetchConfig.getPrefetchTriggerBytes()) {
       Future<Void> fetchFuture = fetchExecutor.submit(() -> {
         fetch();
         return null;
@@ -115,9 +115,9 @@ public abstract class Fetcher<T> implements Iterator<OpenObject<T>>
   }
 
   /**
-   * Fetch objects to a local disk up to {@link PrefetchConfig#maxFetchCapacityBytes}.
+   * Fetch objects to a local disk up to {@link FetchConfig#maxFetchCapacityBytes}.
    * This method is not thread safe and must be called by a single thread.  Note that even
-   * {@link PrefetchConfig#maxFetchCapacityBytes} is 0, at least 1 file is always fetched.
+   * {@link FetchConfig#maxFetchCapacityBytes} is 0, at least 1 file is always fetched.
    * This is for simplifying design, and should be improved when our client implementations for cloud storages
    * like S3 support range scan.
    * <p>
@@ -127,7 +127,7 @@ public abstract class Fetcher<T> implements Iterator<OpenObject<T>>
   private void fetch() throws Exception
   {
     for (; nextFetchIndex < objects.size()
-           && fetchedBytes.get() <= prefetchConfig.getMaxFetchCapacityBytes(); nextFetchIndex++) {
+           && fetchedBytes.get() <= fetchConfig.getMaxFetchCapacityBytes(); nextFetchIndex++) {
       final T object = objects.get(nextFetchIndex);
       LOG.info("Fetching [%d]th object[%s], fetchedBytes[%d]", nextFetchIndex, object, fetchedBytes.get());
       final File outFile = File.createTempFile(FETCH_FILE_PREFIX, null, temporaryDirectory);
@@ -151,6 +151,10 @@ public abstract class Fetcher<T> implements Iterator<OpenObject<T>>
    */
   protected abstract OpenObject<T> generateOpenObject(T object) throws IOException;
 
+  protected FetchConfig getFetchConfig()
+  {
+    return fetchConfig;
+  }
 
   @Override
   public boolean hasNext()
@@ -184,7 +188,7 @@ public abstract class Fetcher<T> implements Iterator<OpenObject<T>>
     try {
       for (Future<Void> fetchFuture; (fetchFuture = fetchFutures.poll()) != null; ) {
         if (wait) {
-          fetchFuture.get(prefetchConfig.getFetchTimeout(), TimeUnit.MILLISECONDS);
+          fetchFuture.get(fetchConfig.getFetchTimeout(), TimeUnit.MILLISECONDS);
         } else {
           if (fetchFuture.isDone()) {
             fetchFuture.get();
@@ -199,7 +203,7 @@ public abstract class Fetcher<T> implements Iterator<OpenObject<T>>
       throw new RuntimeException(e);
     }
     catch (TimeoutException e) {
-      throw new ISE(e, "Failed to fetch, but cannot check the reason in [%d] ms", prefetchConfig.getFetchTimeout());
+      throw new ISE(e, "Failed to fetch, but cannot check the reason in [%d] ms", fetchConfig.getFetchTimeout());
     }
   }
 
@@ -214,7 +218,7 @@ public abstract class Fetcher<T> implements Iterator<OpenObject<T>>
       // Otherwise, wait for fetching
       try {
         fetchIfNeeded(fetchedBytes.get());
-        fetchedFile = fetchedFiles.poll(prefetchConfig.getFetchTimeout(), TimeUnit.MILLISECONDS);
+        fetchedFile = fetchedFiles.poll(fetchConfig.getFetchTimeout(), TimeUnit.MILLISECONDS);
         if (fetchedFile == null) {
           // Check the latest fetch is failed
           checkFetchException(true);
