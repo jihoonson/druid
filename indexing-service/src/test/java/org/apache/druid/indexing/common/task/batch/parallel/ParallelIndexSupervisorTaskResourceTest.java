@@ -483,7 +483,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     }
 
     @Override
-    public Stream<InputSplit<Integer>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
+    public Stream<InputSplit<Integer>> createSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
     {
       return ids.stream().map(InputSplit::new);
     }
@@ -627,7 +627,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
           new LocalParallelIndexTaskClientFactory(supervisorTask)
       );
       final TestInputSource inputSource = (TestInputSource) getIngestionSpec().getIOConfig().getInputSource();
-      final InputSplit<Integer> split = inputSource.getSplits(getIngestionSpec().getIOConfig().getInputFormat(), null)
+      final InputSplit<Integer> split = inputSource.createSplits(getIngestionSpec().getIOConfig().getInputFormat(), null)
                                                    .findFirst()
                                                    .orElse(null);
       if (split == null) {

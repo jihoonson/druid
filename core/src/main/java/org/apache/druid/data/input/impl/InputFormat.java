@@ -25,6 +25,13 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.guice.annotations.ExtensionPoint;
 
+/**
+ * InputFormat abstracts the file format of input data.
+ * It creates a {@link SplitReader} to read data and parse it into {@link org.apache.druid.data.input.InputRow}.
+ * The created SplitReader is used by {@link org.apache.druid.data.input.InputSourceReader}.
+ *
+ * @see NestedInputFormat for nested input formats such as JSON.
+ */
 @ExtensionPoint
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes(value = {
@@ -33,6 +40,12 @@ import org.apache.druid.guice.annotations.ExtensionPoint;
 })
 public interface InputFormat
 {
+  /**
+   * Trait to indicate that a file can be split into multiple {@link org.apache.druid.data.input.InputSplit}s.
+   *
+   * This method is not being used anywhere for now, but should be considered
+   * in {@link SplittableInputSource#createSplits}.
+   */
   boolean isSplittable();
 
   SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec);

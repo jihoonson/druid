@@ -25,10 +25,12 @@ import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import java.io.IOException;
 
 /**
+ * InputSourceReader reads data from {@link InputSource} and returns a {@link CloseableIterator} of
+ * {@link InputRow}. See {@link InputSource} for an example usage.
  *
- * @see InputSource
- * @see SplitSource
- * @see org.apache.druid.data.input.impl.SplitIteratingReader
+ * Implementations of this class can use {@link SplitSource} and {@link SplitReader}.
+ *
+ * See {@link org.apache.druid.data.input.impl.SplitIteratingReader} as an example.
  */
 @ExtensionPoint
 public interface InputSourceReader

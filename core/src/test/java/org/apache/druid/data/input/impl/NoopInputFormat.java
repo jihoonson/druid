@@ -32,6 +32,6 @@ public class NoopInputFormat implements InputFormat
   @Override
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
-    return null;
+    throw new UnsupportedOperationException();
   }
 }

@@ -50,7 +50,7 @@ public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSourc
   }
 
   @Override
-  public Stream<InputSplit> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
+  public Stream<InputSplit> createSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
       throws IOException
   {
     if (firehoseFactory.isSplittable()) {

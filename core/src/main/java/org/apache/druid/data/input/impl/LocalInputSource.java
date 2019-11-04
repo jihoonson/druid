@@ -32,15 +32,16 @@ import org.apache.druid.data.input.SplitHintSpec;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.util.Collection;
+import java.util.Iterator;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class LocalInputSource implements SplittableInputSource<File>
 {
   private final File baseDir;
   private final String filter;
-
-  private Collection<File> files;
 
   @JsonCreator
   public LocalInputSource(
@@ -65,34 +66,31 @@ public class LocalInputSource implements SplittableInputSource<File>
   }
 
   @Override
-  public boolean isSplittable()
+  public Stream<InputSplit<File>> createSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
-    return true;
-  }
-
-  @Override
-  public Stream<InputSplit<File>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
-  {
-    checkFilesInitialized();
-    return files.stream().map(InputSplit::new);
+    return StreamSupport.stream(Spliterators.spliteratorUnknownSize(getFileIterator(), Spliterator.DISTINCT), false)
+                        .map(InputSplit::new);
   }
 
   @Override
   public int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
-    checkFilesInitialized();
-    return files.size();
+    final Iterator<File> fileIterator = getFileIterator();
+    int num = 0;
+    while (fileIterator.hasNext()) {
+      fileIterator.next();
+      num++;
+    }
+    return num;
   }
 
-  private void checkFilesInitialized()
+  private Iterator<File> getFileIterator()
   {
-    if (files == null) {
-      files = FileUtils.listFiles(
-          Preconditions.checkNotNull(baseDir).getAbsoluteFile(),
-          new WildcardFileFilter(filter),
-          TrueFileFilter.INSTANCE
-      );
-    }
+    return FileUtils.iterateFiles(
+        Preconditions.checkNotNull(baseDir).getAbsoluteFile(),
+        new WildcardFileFilter(filter),
+        TrueFileFilter.INSTANCE
+    );
   }
 
   @Override
@@ -114,7 +112,7 @@ public class LocalInputSource implements SplittableInputSource<File>
         timestampSpec,
         dimensionsSpec,
         inputFormat,
-        getSplits(inputFormat, null).map(split -> {
+        createSplits(inputFormat, null).map(split -> {
           try {
             return new FileSource(split);
           }

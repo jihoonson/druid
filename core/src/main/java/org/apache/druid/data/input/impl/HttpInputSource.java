@@ -56,13 +56,7 @@ public class HttpInputSource implements SplittableInputSource<URI>
   }
 
   @Override
-  public boolean isSplittable()
-  {
-    return true;
-  }
-
-  @Override
-  public Stream<InputSplit<URI>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
+  public Stream<InputSplit<URI>> createSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
     return uris.stream().map(InputSplit::new);
   }
@@ -95,7 +89,7 @@ public class HttpInputSource implements SplittableInputSource<URI>
         timestampSpec,
         dimensionsSpec,
         inputFormat,
-        getSplits(inputFormat, null).map(split -> new HttpSource(
+        createSplits(inputFormat, null).map(split -> new HttpSource(
             split,
             httpAuthenticationUsername,
             httpAuthenticationPasswordProvider

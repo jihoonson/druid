@@ -87,16 +87,16 @@ public class CSVReader extends TextReader
   public void processHeaderLine(String line) throws IOException
   {
     if (hasHeaderRow && (columns == null || columns.isEmpty())) {
-      setColumns(Arrays.asList(parser.parseLine(line)));
+      columns = findOrCreateColumnNames(Arrays.asList(parser.parseLine(line)));
     }
     if (columns == null || columns.isEmpty()) {
       throw new ISE("Empty columns");
     }
   }
 
-  private void setColumns(List<String> parsedLine)
+  public static List<String> findOrCreateColumnNames(List<String> parsedLine)
   {
-    columns = new ArrayList<>(parsedLine.size());
+    final List<String> columns = new ArrayList<>(parsedLine.size());
     for (int i = 0; i < parsedLine.size(); i++) {
       if (Strings.isNullOrEmpty(parsedLine.get(i))) {
         columns.add(ParserUtils.getDefaultColumnName(i));
@@ -105,8 +105,10 @@ public class CSVReader extends TextReader
       }
     }
     if (columns.isEmpty()) {
-      columns = ParserUtils.generateFieldNames(parsedLine.size());
+      return ParserUtils.generateFieldNames(parsedLine.size());
+    } else {
+      ParserUtils.validateFields(columns);
+      return columns;
     }
-    ParserUtils.validateFields(columns);
   }
 }

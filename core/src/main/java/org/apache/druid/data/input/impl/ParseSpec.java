@@ -78,7 +78,8 @@ public abstract class ParseSpec
   }
 
   /**
-   * Return null if it's not implemented yet.
+   * Returns null if it's not implemented yet.
+   * This method (and maybe this class) will be removed in favor of {@link InputFormat} in the future.
    */
   @Nullable
   public InputFormat toInputFormat()

@@ -33,6 +33,9 @@ import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+/**
+ * InputSourceReader iterating multiple {@link SplitSource}s.
+ */
 public class SplitIteratingReader<T> implements InputSourceReader
 {
   private final TimestampSpec timestampSpec;

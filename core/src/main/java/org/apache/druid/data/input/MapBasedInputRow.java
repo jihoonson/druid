@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 
 /**
- *
  */
 @PublicApi
 public class MapBasedInputRow extends MapBasedRow implements InputRow

@@ -20,10 +20,13 @@
 package org.apache.druid.data.input.impl;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputSplit;
+import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -54,7 +57,7 @@ public class SplitIteratingReaderTest
       }
     }
     final SplitIteratingReader<File> firehose = new SplitIteratingReader<>(
-        new TimestampSpec("time", null, null),
+        new TimestampSpec("time", "yyyyMMdd", null),
         new DimensionsSpec(
             DimensionsSpec.getDefaultSchemas(ImmutableList.of("time", "name", "score"))
         ),
@@ -76,8 +79,19 @@ public class SplitIteratingReaderTest
     );
 
     try (CloseableIterator<InputRow> iterator = firehose.read()) {
+      int i = 0;
       while (iterator.hasNext()) {
-        System.out.println(iterator.next());
+        InputRow row = iterator.next();
+        Assert.assertEquals(DateTimes.of(StringUtils.format("2019-01-%02d", i + 1)), row.getTimestamp());
+        Assert.assertEquals(StringUtils.format("name_%d", i), Iterables.getOnlyElement(row.getDimension("name")));
+        Assert.assertEquals(Integer.toString(i), Iterables.getOnlyElement(row.getDimension("score")));
+
+        Assert.assertTrue(iterator.hasNext());
+        row = iterator.next();
+        Assert.assertEquals(DateTimes.of(StringUtils.format("2019-01-%02d", i + 2)), row.getTimestamp());
+        Assert.assertEquals(StringUtils.format("name_%d", i + 1), Iterables.getOnlyElement(row.getDimension("name")));
+        Assert.assertEquals(Integer.toString(i + 1), Iterables.getOnlyElement(row.getDimension("score")));
+        i++;
       }
     }
   }

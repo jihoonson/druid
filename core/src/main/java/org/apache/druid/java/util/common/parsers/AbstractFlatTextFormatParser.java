@@ -21,14 +21,13 @@ package org.apache.druid.java.util.common.parsers;
 
 import com.google.common.base.Function;
 import com.google.common.base.Splitter;
-import com.google.common.base.Strings;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import org.apache.druid.data.input.impl.CSVReader;
 import org.apache.druid.java.util.common.collect.Utils;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -101,16 +100,7 @@ public abstract class AbstractFlatTextFormatParser implements Parser<String, Obj
   public void setFieldNames(final Iterable<String> fieldNames)
   {
     if (fieldNames != null) {
-      final List<String> fieldsList = Lists.newArrayList(fieldNames);
-      this.fieldNames = new ArrayList<>(fieldsList.size());
-      for (int i = 0; i < fieldsList.size(); i++) {
-        if (Strings.isNullOrEmpty(fieldsList.get(i))) {
-          this.fieldNames.add(ParserUtils.getDefaultColumnName(i));
-        } else {
-          this.fieldNames.add(fieldsList.get(i));
-        }
-      }
-      ParserUtils.validateFields(this.fieldNames);
+      this.fieldNames = CSVReader.findOrCreateColumnNames(Lists.newArrayList(fieldNames));
     }
   }
 

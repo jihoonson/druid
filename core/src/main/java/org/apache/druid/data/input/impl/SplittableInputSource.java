@@ -27,6 +27,9 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.stream.Stream;
 
+/**
+ * Splittable InputSource. ParallelIndexSupervisorTask can process {@link InputSplit}s in parallel.
+ */
 public interface SplittableInputSource<T> extends InputSource
 {
   @Override
@@ -35,9 +38,30 @@ public interface SplittableInputSource<T> extends InputSource
     return true;
   }
 
-  Stream<InputSplit<T>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException;
+  /**
+   * Creates a {@link Stream} of {@link InputSplit}s. The returned stream is supposed to be evaluated lazily to avoid
+   * consuming too much memory.
+   * Note that this interface also has {@link #getNumSplits} which is related to this method. The implementations
+   * should be careful to <i>NOT</i> cache the created splits in memory.
+   *
+   * Implementations can consider {@link InputFormat#isSplittable()} and {@link SplitHintSpec} to create splits
+   * in the same way with {@link #getNumSplits}.
+   */
+  Stream<InputSplit<T>> createSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException;
 
+  /**
+   * Returns the total number of splits to be created via {@link #createSplits}.
+   * This method can be expensive since it needs to iterate all directories or whatever substructure
+   * to find all input objects.
+   *
+   * Implementations can consider {@link InputFormat#isSplittable()} and {@link SplitHintSpec} to find splits
+   * in the same way with {@link #createSplits}.
+   */
   int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException;
 
+  /**
+   * Helper method for ParallelIndexSupervisorTask.
+   * Most of implementations can simply create a new instance with the given split.
+   */
   SplittableInputSource<T> withSplit(InputSplit<T> split);
 }

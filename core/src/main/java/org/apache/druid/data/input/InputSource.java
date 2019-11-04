@@ -35,7 +35,7 @@ import java.io.IOException;
 
 /**
  * InputSource abstracts the storage system where input data is stored.
- * It returns {@link InputSourceReader} to read data from the given input source.
+ * It creates an {@link InputSourceReader} to read data from the given input source.
  * The most common use case would be:
  *
  * <pre>{@code
@@ -43,6 +43,7 @@ import java.io.IOException;
  *   try (CloseableIterator<InputRow> iterator = reader.read()) {
  *     while (iterator.hasNext()) {
  *       InputRow row = iterator.next();
+ *       processRow(row);
  *     }
  *   }
  * }</pre>

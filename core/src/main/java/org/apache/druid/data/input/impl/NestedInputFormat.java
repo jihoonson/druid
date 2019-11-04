@@ -24,6 +24,10 @@ import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 
 import javax.annotation.Nullable;
 
+/**
+ * Abstract class for nested file formats such as JSON, ORC, etc.
+ * It has {@link JSONPathSpec}, which is internall called {@code flattenSpec}, to flatten the nested data structure.
+ */
 public abstract class NestedInputFormat implements InputFormat
 {
   private final JSONPathSpec flattenSpec;

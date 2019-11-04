@@ -23,7 +23,7 @@ import org.apache.druid.data.input.InputSource;
 import org.apache.druid.data.input.impl.InputFormat;
 
 /**
- * IOConfig for all batch tasks except compactionTask
+ * IOConfig for all batch tasks except compactionTask.
  */
 public interface BatchIOConfig extends IOConfig
 {

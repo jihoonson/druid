@@ -261,7 +261,7 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     }
 
     @Override
-    public Stream<InputSplit<TestInput>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
+    public Stream<InputSplit<TestInput>> createSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
     {
       return splits.stream();
     }

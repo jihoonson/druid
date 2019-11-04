@@ -30,6 +30,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
+/**
+ * Abstract {@link SplitReader} for text format readers such as CSV or JSON.
+ */
 public abstract class TextReader implements SplitReader
 {
   private final TimestampSpec timestampSpec;
@@ -113,9 +116,19 @@ public abstract class TextReader implements SplitReader
     };
   }
 
+  /**
+   * Parses the given line into {@link InputRow}.
+   */
   public abstract InputRow readLine(String line) throws IOException, ParseException;
 
+  /**
+   * Returns the number of header lines to skip.
+   * {@link #processHeaderLine} will be called as many times as the returned number.
+   */
   public abstract int getNumHeaderLines();
 
+  /**
+   * Processes a header line. This will be called as many times as {@link #getNumHeaderLines()}.
+   */
   public abstract void processHeaderLine(String line) throws IOException;
 }

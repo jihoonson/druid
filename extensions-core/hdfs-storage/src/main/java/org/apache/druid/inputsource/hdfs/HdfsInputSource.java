@@ -95,13 +95,13 @@ public class HdfsInputSource implements SplittableInputSource<Path>
         timestampSpec,
         dimensionsSpec,
         inputFormat,
-        getSplits(null, null).map(split -> new HdfsSource(conf, split)),
+        createSplits(null, null).map(split -> new HdfsSource(conf, split)),
         temporaryDirectory
     );
   }
 
   @Override
-  public Stream<InputSplit<Path>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
+  public Stream<InputSplit<Path>> createSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
       throws IOException
   {
     final FileSystem fs = new Path(paths.get(0)).getFileSystem(conf);
@@ -153,6 +153,7 @@ public class HdfsInputSource implements SplittableInputSource<Path>
     for (String path : paths) {
       final RemoteIterator<FileStatus> iterator = fs.listStatusIterator(new Path(path));
       while (iterator.hasNext()) {
+        iterator.next();
         numSplits++;
       }
     }

@@ -26,7 +26,10 @@ import java.io.File;
 import java.io.IOException;
 
 /**
- * stateful (header row, linesToSkip)
+ * SplitReader knows how to parse data into {@link InputRow}.
+ * This class is <i>stateful</i> and a new SplitReader should be created per {@link InputSplit}.
+ *
+ * @see TextReader for text format readers
  */
 @ExtensionPoint
 public interface SplitReader

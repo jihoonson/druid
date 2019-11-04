@@ -268,7 +268,7 @@ public abstract class ParallelIndexPhaseRunner<SubTaskType extends Task, SubTask
   {
     if (inputSource instanceof SplittableInputSource) {
       final SplittableInputSource<?> splittableInputSource = (SplittableInputSource) inputSource;
-      return splittableInputSource.getSplits(inputFormat, splitHintSpec).collect(Collectors.toList());
+      return splittableInputSource.createSplits(inputFormat, splitHintSpec).collect(Collectors.toList());
     } else {
       throw new ISE("inputSource[%s] is not splittable", inputSource.getClass().getSimpleName());
     }

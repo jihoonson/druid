@@ -81,7 +81,7 @@ class SinglePhaseParallelIndexTaskRunner
   @Override
   Iterator<SubTaskSpec<SinglePhaseSubTask>> subTaskSpecIterator() throws IOException
   {
-    return baseInputSource.getSplits(
+    return baseInputSource.createSplits(
         ingestionSchema.getIOConfig().getInputFormat(),
         getTuningConfig().getSplitHintSpec()
     ).map(this::newTaskSpec).iterator();
