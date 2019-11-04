@@ -24,13 +24,11 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.InputSourceReader;
-import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitHintSpec;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.SplitIteratingReader;
-import org.apache.druid.data.input.impl.SplitIteratingSampler;
 import org.apache.druid.data.input.impl.SplittableInputSource;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.IAE;
@@ -94,23 +92,6 @@ public class HdfsInputSource implements SplittableInputSource<Path>
   ) throws IOException
   {
     return new SplitIteratingReader<>(
-        timestampSpec,
-        dimensionsSpec,
-        inputFormat,
-        getSplits(null, null).map(split -> new HdfsSource(conf, split)),
-        temporaryDirectory
-    );
-  }
-
-  @Override
-  public InputSourceSampler sampler(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
-      @Nullable File temporaryDirectory
-  ) throws IOException
-  {
-    return new SplitIteratingSampler<>(
         timestampSpec,
         dimensionsSpec,
         inputFormat,

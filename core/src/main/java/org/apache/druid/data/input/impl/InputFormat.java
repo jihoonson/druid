@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.apache.druid.data.input.SplitReader;
-import org.apache.druid.data.input.SplitSampler;
 import org.apache.druid.guice.annotations.ExtensionPoint;
 
 @ExtensionPoint
@@ -37,6 +36,4 @@ public interface InputFormat
   boolean isSplittable();
 
   SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec);
-
-  SplitSampler createSampler(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec);
 }

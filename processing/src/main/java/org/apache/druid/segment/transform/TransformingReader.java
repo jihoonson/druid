@@ -20,6 +20,7 @@
 package org.apache.druid.segment.transform;
 
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputRowPlusRaw;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
@@ -40,5 +41,11 @@ public class TransformingReader implements InputSourceReader
   public CloseableIterator<InputRow> read() throws IOException
   {
     return delegate.read().map(transformer::transform);
+  }
+
+  @Override
+  public CloseableIterator<InputRowPlusRaw> sample() throws IOException
+  {
+    return delegate.sample().map(transformer::transform);
   }
 }

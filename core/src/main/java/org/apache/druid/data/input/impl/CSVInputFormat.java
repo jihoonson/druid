@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.SplitReader;
-import org.apache.druid.data.input.SplitSampler;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
@@ -94,12 +93,6 @@ public class CSVInputFormat implements InputFormat
 
   @Override
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
-  {
-    return new CSVReader(timestampSpec, dimensionsSpec, listDelimiter, columns, hasHeaderRow, skipHeaderRows);
-  }
-
-  @Override
-  public SplitSampler createSampler(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
     return new CSVReader(timestampSpec, dimensionsSpec, listDelimiter, columns, hasHeaderRow, skipHeaderRows);
   }

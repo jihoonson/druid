@@ -20,6 +20,7 @@
 package org.apache.druid.data.input.orc;
 
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputRowPlusRaw;
 import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.data.input.SplitSource.CleanableFile;
@@ -129,5 +130,11 @@ public class OrcReader implements SplitReader
         closer.close();
       }
     };
+  }
+
+  @Override
+  public CloseableIterator<InputRowPlusRaw> sample(SplitSource source, File temporaryDirectory)
+  {
+    throw new UnsupportedOperationException("Not implemented yet");
   }
 }

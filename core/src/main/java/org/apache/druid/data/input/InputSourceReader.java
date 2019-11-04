@@ -26,4 +26,6 @@ import java.io.IOException;
 public interface InputSourceReader
 {
   CloseableIterator<InputRow> read() throws IOException;
+
+  CloseableIterator<InputRowPlusRaw> sample() throws IOException;
 }

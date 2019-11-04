@@ -20,6 +20,7 @@
 package org.apache.druid.data.input.impl;
 
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputRowPlusRaw;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.data.input.SplitSource;
@@ -29,6 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class SplitIteratingReader<T> implements InputSourceReader
@@ -57,9 +59,34 @@ public class SplitIteratingReader<T> implements InputSourceReader
   @Override
   public CloseableIterator<InputRow> read()
   {
-    return new CloseableIterator<InputRow>()
+    return createIterator(reader -> {
+      try {
+        return reader.read(sourceIterator.next(), temporaryDirectory);
+      }
+      catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    });
+  }
+
+  @Override
+  public CloseableIterator<InputRowPlusRaw> sample()
+  {
+    return createIterator(reader -> {
+      try {
+        return reader.sample(sourceIterator.next(), temporaryDirectory);
+      }
+      catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    });
+  }
+
+  private <R> CloseableIterator<R> createIterator(Function<SplitReader, CloseableIterator<R>> rowPopulator)
+  {
+    return new CloseableIterator<R>()
     {
-      CloseableIterator<InputRow> rowIterator = null;
+      CloseableIterator<R> rowIterator = null;
 
       @Override
       public boolean hasNext()
@@ -69,7 +96,7 @@ public class SplitIteratingReader<T> implements InputSourceReader
       }
 
       @Override
-      public InputRow next()
+      public R next()
       {
         if (!hasNext()) {
           throw new NoSuchElementException();
@@ -84,14 +111,14 @@ public class SplitIteratingReader<T> implements InputSourceReader
             if (rowIterator != null) {
               rowIterator.close();
             }
-            if (sourceIterator.hasNext()) {
-              // SplitReader is stateful and so a new one should be created per split.
-              final SplitReader splitReader = inputFormat.createReader(timestampSpec, dimensionsSpec);
-              rowIterator = splitReader.read(sourceIterator.next(), temporaryDirectory);
-            }
           }
           catch (IOException e) {
             throw new RuntimeException(e);
+          }
+          if (sourceIterator.hasNext()) {
+            // SplitSampler is stateful and so a new one should be created per split.
+            final SplitReader splitReader = inputFormat.createReader(timestampSpec, dimensionsSpec);
+            rowIterator = rowPopulator.apply(splitReader);
           }
         }
       }

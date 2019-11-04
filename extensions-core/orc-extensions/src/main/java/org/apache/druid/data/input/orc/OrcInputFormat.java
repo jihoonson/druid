@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.druid.data.input.SplitReader;
-import org.apache.druid.data.input.SplitSampler;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.NestedInputFormat;
 import org.apache.druid.data.input.impl.TimestampSpec;
@@ -54,12 +53,5 @@ public class OrcInputFormat extends NestedInputFormat
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
     return new OrcReader(conf, timestampSpec, dimensionsSpec, getFlattenSpec());
-  }
-
-  @Override
-  public SplitSampler createSampler(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
-  {
-    // TODO
-    throw new UnsupportedOperationException();
   }
 }

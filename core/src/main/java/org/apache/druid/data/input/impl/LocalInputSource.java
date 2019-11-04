@@ -26,7 +26,6 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.druid.data.input.InputSourceReader;
-import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitHintSpec;
 
@@ -125,16 +124,5 @@ public class LocalInputSource implements SplittableInputSource<File>
         }),
         temporaryDirectory
     );
-  }
-
-  @Override
-  public InputSourceSampler sampler(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
-      @Nullable File temporaryDirectory
-  )
-  {
-    return null;
   }
 }

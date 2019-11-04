@@ -30,7 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-public abstract class TextReader implements SplitReader, SplitSampler
+public abstract class TextReader implements SplitReader
 {
   private final TimestampSpec timestampSpec;
   private final DimensionsSpec dimensionsSpec;

@@ -20,7 +20,6 @@
 package org.apache.druid.data.input.impl;
 
 import org.apache.druid.data.input.SplitReader;
-import org.apache.druid.data.input.SplitSampler;
 
 public class NoopInputFormat implements InputFormat
 {
@@ -32,12 +31,6 @@ public class NoopInputFormat implements InputFormat
 
   @Override
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
-  {
-    return null;
-  }
-
-  @Override
-  public SplitSampler createSampler(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
     return null;
   }

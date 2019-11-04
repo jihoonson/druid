@@ -20,6 +20,7 @@
 package org.apache.druid.segment.transform;
 
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputRowPlusRaw;
 import org.apache.druid.data.input.Row;
 import org.apache.druid.data.input.Rows;
 import org.apache.druid.java.util.common.DateTimes;
@@ -84,6 +85,31 @@ public class Transformer
 
     if (valueMatcher != null) {
       rowSupplierForValueMatcher.set(transformedRow);
+      if (!valueMatcher.matches()) {
+        return null;
+      }
+    }
+
+    return transformedRow;
+  }
+
+  @Nullable
+  public InputRowPlusRaw transform(@Nullable final InputRowPlusRaw row)
+  {
+    if (row == null) {
+      return null;
+    }
+
+    final InputRowPlusRaw transformedRow;
+
+    if (transforms.isEmpty()) {
+      transformedRow = row;
+    } else {
+      transformedRow = InputRowPlusRaw.of(new TransformedInputRow(row.getInputRow(), transforms), row.getRaw());
+    }
+
+    if (valueMatcher != null) {
+      rowSupplierForValueMatcher.set(transformedRow.getInputRow());
       if (!valueMatcher.matches()) {
         return null;
       }

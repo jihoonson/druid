@@ -23,7 +23,6 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.InputSourceReader;
-import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.MapBasedInputRow;
 import org.apache.druid.data.input.SplitHintSpec;
@@ -503,17 +502,6 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
 
     @Override
     public InputSourceReader reader(
-        TimestampSpec timestampSpec,
-        DimensionsSpec dimensionsSpec,
-        InputFormat inputFormat,
-        @Nullable File temporaryDirectory
-    )
-    {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public InputSourceSampler sampler(
         TimestampSpec timestampSpec,
         DimensionsSpec dimensionsSpec,
         InputFormat inputFormat,

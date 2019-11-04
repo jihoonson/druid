@@ -22,7 +22,6 @@ package org.apache.druid.data.input;
 import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.FirehoseToInputSourceReaderAdaptor;
-import org.apache.druid.data.input.impl.FirehoseToInputSourceSamplerAdaptor;
 import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.data.input.impl.SplittableInputSource;
@@ -93,26 +92,8 @@ public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSourc
   )
   {
     try {
+      // TODO: fix for sampler
       return new FirehoseToInputSourceReaderAdaptor(firehoseFactory.connect(inputRowParser, temporaryDirectory));
-    }
-    catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  @Override
-  public InputSourceSampler sampler(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      @Nullable InputFormat inputFormat, // inputFormat will be ignored
-      @Nullable File temporaryDirectory
-  )
-  {
-    // FirehoseSampler still uses firehose and this is not being called anywhere yet.
-    try {
-      return new FirehoseToInputSourceSamplerAdaptor(
-          firehoseFactory.connectForSampler(inputRowParser, temporaryDirectory)
-      );
     }
     catch (IOException e) {
       throw new RuntimeException(e);

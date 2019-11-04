@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.InputSourceReader;
-import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitHintSpec;
 import org.apache.druid.metadata.PasswordProvider;
@@ -93,27 +92,6 @@ public class HttpInputSource implements SplittableInputSource<URI>
   )
   {
     return new SplitIteratingReader<>(
-        timestampSpec,
-        dimensionsSpec,
-        inputFormat,
-        getSplits(inputFormat, null).map(split -> new HttpSource(
-            split,
-            httpAuthenticationUsername,
-            httpAuthenticationPasswordProvider
-        )),
-        temporaryDirectory
-    );
-  }
-
-  @Override
-  public InputSourceSampler sampler(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
-      @Nullable File temporaryDirectory
-  )
-  {
-    return new SplitIteratingSampler<>(
         timestampSpec,
         dimensionsSpec,
         inputFormat,

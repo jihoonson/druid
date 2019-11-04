@@ -36,9 +36,9 @@ import org.apache.druid.client.cache.MapCache;
 import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputRowPlusRaw;
 import org.apache.druid.data.input.InputSource;
 import org.apache.druid.data.input.InputSourceReader;
-import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.MapBasedInputRow;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.InputFormat;
@@ -97,6 +97,7 @@ import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.java.util.common.jackson.JacksonUtils;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 import org.apache.druid.java.util.metrics.Monitor;
@@ -319,21 +320,21 @@ public class TaskLifecycleTest
         @Nullable File temporaryDirectory
     )
     {
-      return () -> {
-        final Iterator<InputRow> inputRowIterator = IDX_TASK_INPUT_ROWS.iterator();
-        return CloseableIterators.withEmptyBaggage(inputRowIterator);
-      };
-    }
+      return new InputSourceReader()
+      {
+        @Override
+        public CloseableIterator<InputRow> read()
+        {
+          final Iterator<InputRow> inputRowIterator = IDX_TASK_INPUT_ROWS.iterator();
+          return CloseableIterators.withEmptyBaggage(inputRowIterator);
+        }
 
-    @Override
-    public InputSourceSampler sampler(
-        TimestampSpec timestampSpec,
-        DimensionsSpec dimensionsSpec,
-        InputFormat inputFormat,
-        @Nullable File temporaryDirectory
-    )
-    {
-      throw new UnsupportedOperationException();
+        @Override
+        public CloseableIterator<InputRowPlusRaw> sample()
+        {
+          throw new UnsupportedOperationException();
+        }
+      };
     }
   }
 

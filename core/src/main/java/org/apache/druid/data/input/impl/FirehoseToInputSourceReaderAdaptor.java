@@ -21,6 +21,7 @@ package org.apache.druid.data.input.impl;
 
 import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputRowPlusRaw;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
@@ -56,6 +57,41 @@ public class FirehoseToInputSourceReaderAdaptor implements InputSourceReader
       {
         try {
           return firehose.nextRow();
+        }
+        catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+      @Override
+      public void close() throws IOException
+      {
+        firehose.close();
+      }
+    };
+  }
+
+  @Override
+  public CloseableIterator<InputRowPlusRaw> sample()
+  {
+    return new CloseableIterator<InputRowPlusRaw>()
+    {
+      @Override
+      public boolean hasNext()
+      {
+        try {
+          return firehose.hasMore();
+        }
+        catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      }
+
+      @Override
+      public InputRowPlusRaw next()
+      {
+        try {
+          return firehose.nextRowWithRaw();
         }
         catch (IOException e) {
           throw new RuntimeException(e);

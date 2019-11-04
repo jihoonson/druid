@@ -22,7 +22,6 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 import com.google.common.collect.Iterables;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.InputSourceReader;
-import org.apache.druid.data.input.InputSourceSampler;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitHintSpec;
 import org.apache.druid.data.input.impl.DimensionsSpec;
@@ -281,17 +280,6 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
 
     @Override
     public InputSourceReader reader(
-        TimestampSpec timestampSpec,
-        DimensionsSpec dimensionsSpec,
-        InputFormat inputFormat,
-        @Nullable File temporaryDirectory
-    )
-    {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public InputSourceSampler sampler(
         TimestampSpec timestampSpec,
         DimensionsSpec dimensionsSpec,
         InputFormat inputFormat,

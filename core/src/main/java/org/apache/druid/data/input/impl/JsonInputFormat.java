@@ -24,7 +24,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.druid.data.input.SplitReader;
-import org.apache.druid.data.input.SplitSampler;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 
 import javax.annotation.Nullable;
@@ -66,12 +65,6 @@ public class JsonInputFormat extends NestedInputFormat
 
   @Override
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
-  {
-    return new JsonReader(timestampSpec, dimensionsSpec, getFlattenSpec(), objectMapper);
-  }
-
-  @Override
-  public SplitSampler createSampler(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
     return new JsonReader(timestampSpec, dimensionsSpec, getFlattenSpec(), objectMapper);
   }

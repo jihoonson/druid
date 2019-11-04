@@ -30,4 +30,6 @@ import java.io.IOException;
 public interface SplitReader
 {
   CloseableIterator<InputRow> read(SplitSource source, File temporaryDirectory) throws IOException;
+
+  CloseableIterator<InputRowPlusRaw> sample(SplitSource source, File temporaryDirectory) throws IOException;
 }

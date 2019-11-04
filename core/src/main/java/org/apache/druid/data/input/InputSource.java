@@ -52,12 +52,4 @@ public interface InputSource
       InputFormat inputFormat,
       @Nullable File temporaryDirectory
   ) throws IOException;
-
-  // TODO: maybe merge sampler and reader
-  InputSourceSampler sampler(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
-      @Nullable File temporaryDirectory
-  ) throws IOException;
 }
