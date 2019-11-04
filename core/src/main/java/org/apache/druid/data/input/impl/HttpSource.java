@@ -62,7 +62,11 @@ public class HttpSource implements SplitSource<URI>
   @Override
   public InputStream open() throws IOException
   {
-    return CompressionUtils.decompress(openURLConnection(split.get()).getInputStream(), split.get().toString());
+    return CompressionUtils.decompress(openURLConnection(
+        split.get(),
+        httpAuthenticationUsername,
+        httpAuthenticationPasswordProvider
+    ).getInputStream(), split.get().toString());
   }
 
   @Override
@@ -71,11 +75,12 @@ public class HttpSource implements SplitSource<URI>
     return t -> t instanceof IOException;
   }
 
-  private URLConnection openURLConnection(URI object) throws IOException
+  public static URLConnection openURLConnection(URI object, String userName, PasswordProvider passwordProvider)
+      throws IOException
   {
     URLConnection urlConnection = object.toURL().openConnection();
-    if (!Strings.isNullOrEmpty(httpAuthenticationUsername) && httpAuthenticationPasswordProvider != null) {
-      String userPass = httpAuthenticationUsername + ":" + httpAuthenticationPasswordProvider.getPassword();
+    if (!Strings.isNullOrEmpty(userName) && passwordProvider != null) {
+      String userPass = userName + ":" + passwordProvider.getPassword();
       String basicAuthString = "Basic " + Base64.getEncoder().encodeToString(StringUtils.toUtf8(userPass));
       urlConnection.setRequestProperty("Authorization", basicAuthString);
     }

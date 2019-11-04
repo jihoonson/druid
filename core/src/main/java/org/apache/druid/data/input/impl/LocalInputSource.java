@@ -22,7 +22,6 @@ package org.apache.druid.data.input.impl;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
@@ -34,7 +33,6 @@ import org.apache.druid.data.input.SplitHintSpec;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.Collection;
 import java.util.stream.Stream;
 
@@ -76,27 +74,20 @@ public class LocalInputSource implements SplittableInputSource<File>
   @Override
   public Stream<InputSplit<File>> getSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
-    checkFilesInitialized(inputFormat, splitHintSpec);
+    checkFilesInitialized();
     return files.stream().map(InputSplit::new);
   }
 
   @Override
-  public int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException
+  public int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
-    checkFilesInitialized(inputFormat, splitHintSpec);
+    checkFilesInitialized();
     return files.size();
   }
 
-  private void checkFilesInitialized(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
+  private void checkFilesInitialized()
   {
     if (files == null) {
-      // TODO: we can check the file format is splittable in the future such as
-      // if (inputFormat.isSplittable()) {
-      //   files = ...
-      // }
-      // else {
-      //   files = ...
-      // }
       files = FileUtils.listFiles(
           Preconditions.checkNotNull(baseDir).getAbsoluteFile(),
           new WildcardFileFilter(filter),
@@ -108,10 +99,8 @@ public class LocalInputSource implements SplittableInputSource<File>
   @Override
   public SplittableInputSource<File> withSplit(InputSplit<File> split)
   {
-    // TODO: fix this
-    final LocalInputSource newSource = new LocalInputSource(null, null);
-    newSource.files = ImmutableList.of(split.get());
-    return newSource;
+    final File file = split.get();
+    return new LocalInputSource(file.getParentFile(), file.getName());
   }
 
   @Override

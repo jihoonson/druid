@@ -50,7 +50,7 @@ public class HttpInputSource implements SplittableInputSource<URI>
       @JsonProperty("httpAuthenticationPassword") @Nullable PasswordProvider httpAuthenticationPasswordProvider
   )
   {
-    Preconditions.checkArgument(uris.size() > 0, "Empty URIs");
+    Preconditions.checkArgument(!uris.isEmpty(), "Empty URIs");
     this.uris = uris;
     this.httpAuthenticationUsername = httpAuthenticationUsername;
     this.httpAuthenticationPasswordProvider = httpAuthenticationPasswordProvider;

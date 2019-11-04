@@ -78,7 +78,7 @@ public abstract class ParseSpec
   }
 
   /**
-   * Return null if it's not supported.
+   * Return null if it's not implemented yet.
    */
   @Nullable
   public InputFormat toInputFormat()
