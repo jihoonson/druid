@@ -23,9 +23,11 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitSource;
+import org.apache.druid.utils.CompressionUtils;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.channels.Channels;
@@ -69,9 +71,9 @@ public class FileSource implements SplitSource<File>
   }
 
   @Override
-  public InputStream open() throws FileNotFoundException
+  public InputStream open() throws IOException
   {
-    return Channels.newInputStream(channel);
+    return CompressionUtils.decompress(Channels.newInputStream(channel), split.get().getName());
   }
 
   @Override

@@ -23,6 +23,7 @@ import com.google.common.base.Predicate;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.storage.hdfs.HdfsDataSegmentPuller;
+import org.apache.druid.utils.CompressionUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -51,7 +52,7 @@ public class HdfsSource implements SplitSource<Path>
   public InputStream open() throws IOException
   {
     final FileSystem fs = split.get().getFileSystem(conf);
-    return fs.open(split.get());
+    return CompressionUtils.decompress(fs.open(split.get()), split.get().getName());
   }
 
   @Override

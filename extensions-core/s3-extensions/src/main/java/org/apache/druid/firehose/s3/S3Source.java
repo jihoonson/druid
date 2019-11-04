@@ -21,13 +21,13 @@ package org.apache.druid.firehose.s3;
 
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.google.common.base.Predicate;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.storage.s3.S3Utils;
 import org.apache.druid.storage.s3.ServerSideEncryptingAmazonS3;
+import org.apache.druid.utils.CompressionUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,20 +36,18 @@ import java.net.URI;
 public class S3Source implements SplitSource
 {
   private final ServerSideEncryptingAmazonS3 s3Client;
-  private final InputSplit<URI> uri;
-  private final byte[] buf = new byte[256];
-  private S3ObjectInputStream inputStream;
+  private final InputSplit<URI> split;
 
-  public S3Source(ServerSideEncryptingAmazonS3 s3Client, URI uri)
+  public S3Source(ServerSideEncryptingAmazonS3 s3Client, InputSplit<URI> split)
   {
     this.s3Client = s3Client;
-    this.uri = new InputSplit<>(uri);
+    this.split = split;
   }
 
   @Override
   public InputSplit<URI> getSplit()
   {
-    return uri;
+    return split;
   }
 
   @Override
@@ -57,14 +55,14 @@ public class S3Source implements SplitSource
   {
     try {
       // Get data of the given object and open an input stream
-      final String bucket = uri.get().getAuthority();
-      final String key = S3Utils.extractS3Key(uri.get());
+      final String bucket = split.get().getAuthority();
+      final String key = S3Utils.extractS3Key(split.get());
 
       final S3Object s3Object = s3Client.getObject(bucket, key);
       if (s3Object == null) {
         throw new ISE("Failed to get an s3 object for bucket[%s] and key[%s]", bucket, key);
       }
-      return s3Object.getObjectContent();
+      return CompressionUtils.decompress(s3Object.getObjectContent(), split.get().toString());
     }
     catch (AmazonS3Exception e) {
       throw new IOException(e);

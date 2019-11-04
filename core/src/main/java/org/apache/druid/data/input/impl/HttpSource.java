@@ -25,6 +25,7 @@ import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitSource;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.metadata.PasswordProvider;
+import org.apache.druid.utils.CompressionUtils;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -61,7 +62,7 @@ public class HttpSource implements SplitSource<URI>
   @Override
   public InputStream open() throws IOException
   {
-    return openURLConnection(split.get()).getInputStream();
+    return CompressionUtils.decompress(openURLConnection(split.get()).getInputStream(), split.get().toString());
   }
 
   @Override
