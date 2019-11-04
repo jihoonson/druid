@@ -37,7 +37,7 @@ public class OrcInputFormat extends NestedInputFormat
   @JsonCreator
   public OrcInputFormat(
       @JsonProperty("flattenSpec") JSONPathSpec flattenSpec,
-      @JacksonInject Configuration conf
+      @JacksonInject Configuration conf // TODO:
   )
   {
     super(flattenSpec);
