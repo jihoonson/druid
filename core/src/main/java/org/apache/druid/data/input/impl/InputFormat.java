@@ -19,6 +19,7 @@
 
 package org.apache.druid.data.input.impl;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -46,6 +47,7 @@ public interface InputFormat
    * This method is not being used anywhere for now, but should be considered
    * in {@link SplittableInputSource#createSplits}.
    */
+  @JsonIgnore
   boolean isSplittable();
 
   SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec);

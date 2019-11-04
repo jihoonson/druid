@@ -27,6 +27,7 @@ import org.apache.druid.data.input.SplitReader;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class CSVInputFormat implements InputFormat
 {
@@ -95,5 +96,27 @@ public class CSVInputFormat implements InputFormat
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
     return new CSVReader(timestampSpec, dimensionsSpec, listDelimiter, columns, hasHeaderRow, skipHeaderRows);
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    CSVInputFormat format = (CSVInputFormat) o;
+    return hasHeaderRow == format.hasHeaderRow &&
+           skipHeaderRows == format.skipHeaderRows &&
+           Objects.equals(listDelimiter, format.listDelimiter) &&
+           Objects.equals(columns, format.columns);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(listDelimiter, columns, hasHeaderRow, skipHeaderRows);
   }
 }

@@ -19,10 +19,13 @@
 
 package org.apache.druid.data.input.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -30,6 +33,16 @@ public class CSVInputFormatTest
 {
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
+
+  @Test
+  public void testSerde() throws IOException
+  {
+    final ObjectMapper mapper = new ObjectMapper();
+    final CSVInputFormat format = new CSVInputFormat(Collections.singletonList("a"), "|", true, 10);
+    final byte[] bytes = mapper.writeValueAsBytes(format);
+    final CSVInputFormat fromJson = (CSVInputFormat) mapper.readValue(bytes, InputFormat.class);
+    Assert.assertEquals(format, fromJson);
+  }
 
   @Test
   public void testColumnMissing()
