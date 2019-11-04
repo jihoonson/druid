@@ -35,6 +35,17 @@ import java.io.IOException;
 
 /**
  * InputSource abstracts the storage system where input data is stored.
+ * It returns {@link InputSourceReader} to read data from the given input source.
+ * The most common use case would be:
+ *
+ * <pre>{@code
+ *   InputSourceReader reader = inputSource.reader();
+ *   try (CloseableIterator<InputRow> iterator = reader.read()) {
+ *     while (iterator.hasNext()) {
+ *       InputRow row = iterator.next();
+ *     }
+ *   }
+ * }</pre>
  */
 @ExtensionPoint
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
@@ -44,6 +55,9 @@ import java.io.IOException;
 })
 public interface InputSource
 {
+  /**
+   * Returns true if this inputSource can be processed in parallel using ParallelIndexSupervisorTask.
+   */
   default boolean isSplittable()
   {
     return false;

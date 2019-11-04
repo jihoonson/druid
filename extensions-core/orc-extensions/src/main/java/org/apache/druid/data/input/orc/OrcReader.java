@@ -81,7 +81,16 @@ public class OrcReader implements SplitReader
     Closer closer = Closer.create();
     final CleanableFile file = closer.register(source.fetch(temporaryDirectory, buffer));
     final Path path = new Path(file.file().toURI());
-    final Reader reader = closer.register(OrcFile.createReader(path, OrcFile.readerOptions(conf)));
+
+    final ClassLoader currentClassLoader = Thread.currentThread().getContextClassLoader();
+    final Reader reader;
+    try {
+      Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
+      reader = closer.register(OrcFile.createReader(path, OrcFile.readerOptions(conf)));
+    }
+    finally {
+      Thread.currentThread().setContextClassLoader(currentClassLoader);
+    }
     // TODO: build schema from flattenSpec
     //       final RecordReader recordReader = reader.rows(reader.options().schema());
     final TypeDescription schema = reader.getSchema();

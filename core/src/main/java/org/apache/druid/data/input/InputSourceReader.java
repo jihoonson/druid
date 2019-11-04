@@ -24,6 +24,12 @@ import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.IOException;
 
+/**
+ *
+ * @see InputSource
+ * @see SplitSource
+ * @see org.apache.druid.data.input.impl.SplitIteratingReader
+ */
 @ExtensionPoint
 public interface InputSourceReader
 {
