@@ -19,6 +19,7 @@
 
 package org.apache.druid.data.input;
 
+import org.apache.druid.guice.annotations.ExtensionPoint;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.File;
@@ -27,6 +28,7 @@ import java.io.IOException;
 /**
  * stateful (header row, linesToSkip)
  */
+@ExtensionPoint
 public interface SplitReader
 {
   CloseableIterator<InputRow> read(SplitSource source, File temporaryDirectory) throws IOException;

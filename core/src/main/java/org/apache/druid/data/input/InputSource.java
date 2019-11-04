@@ -33,6 +33,9 @@ import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 
+/**
+ * InputSource abstracts the storage system where input data is stored.
+ */
 @ExtensionPoint
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes(value = {

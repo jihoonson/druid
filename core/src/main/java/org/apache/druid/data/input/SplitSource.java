@@ -20,6 +20,7 @@
 package org.apache.druid.data.input;
 
 import com.google.common.base.Predicate;
+import org.apache.druid.guice.annotations.ExtensionPoint;
 import org.apache.druid.java.util.common.FileUtils;
 import org.apache.druid.java.util.common.logger.Logger;
 
@@ -28,6 +29,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 
+@ExtensionPoint
 public interface SplitSource<T>
 {
   Logger LOG = new Logger(SplitSource.class);

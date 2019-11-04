@@ -19,10 +19,12 @@
 
 package org.apache.druid.data.input;
 
+import org.apache.druid.guice.annotations.ExtensionPoint;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.IOException;
 
+@ExtensionPoint
 public interface InputSourceReader
 {
   CloseableIterator<InputRow> read() throws IOException;
