@@ -30,6 +30,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.InputRowParser;
+import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -264,11 +265,14 @@ public class DataSchema
       }
       //noinspection unchecked
       inputRowParser = transformSpec.decorate(objectMapper.convertValue(this.parserMap, InputRowParser.class));
-      inputRowParser = inputRowParser.withParseSpec(
-          inputRowParser.getParseSpec()
-                        .withTimestampSpec(getNonNullTimestampSpec())
-                        .withDimensionsSpec(getNonNullDimensionsSpec())
-      );
+      ParseSpec parseSpec = inputRowParser.getParseSpec();
+      if (timestampSpec != null) {
+        parseSpec = parseSpec.withTimestampSpec(timestampSpec);
+      }
+      if (dimensionsSpec != null) {
+        parseSpec = parseSpec.withDimensionsSpec(dimensionsSpec);
+      }
+      inputRowParser = inputRowParser.withParseSpec(parseSpec);
     }
     return inputRowParser;
   }

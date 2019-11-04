@@ -171,7 +171,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @RunWith(Parameterized.class)
-public class øTaskLifecycleTest
+public class TaskLifecycleTest
 {
   private static final ObjectMapper MAPPER;
   private static final IndexMergerV9 INDEX_MERGER_V9;

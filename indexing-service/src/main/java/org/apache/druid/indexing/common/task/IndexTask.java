@@ -60,6 +60,7 @@ import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.stats.TaskRealtimeMetricsMonitor;
+import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.JodaUtils;
@@ -1084,6 +1085,12 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         @JsonProperty("appendToExisting") @Nullable Boolean appendToExisting
     )
     {
+      if (firehoseFactory == null && inputSource == null) {
+        throw new IAE("InputSource is not defined");
+      }
+      if (firehoseFactory != null && inputSource != null) {
+        throw new IAE("firehose and inputSource cannot be used together");
+      }
       this.firehoseFactory = firehoseFactory;
       this.inputSource = inputSource;
       this.inputFormat = inputFormat;
