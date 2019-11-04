@@ -19,6 +19,7 @@
 
 package org.apache.druid.data.input.orc;
 
+import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.druid.data.input.SplitReader;
@@ -27,13 +28,20 @@ import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.NestedInputFormat;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
+import org.apache.hadoop.conf.Configuration;
 
 public class OrcInputFormat extends NestedInputFormat
 {
+  private final Configuration conf;
+
   @JsonCreator
-  public OrcInputFormat(@JsonProperty("flattenSpec") JSONPathSpec flattenSpec)
+  public OrcInputFormat(
+      @JsonProperty("flattenSpec") JSONPathSpec flattenSpec,
+      @JacksonInject Configuration conf
+  )
   {
     super(flattenSpec);
+    this.conf = conf;
   }
 
   @Override
@@ -45,7 +53,7 @@ public class OrcInputFormat extends NestedInputFormat
   @Override
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
-    return new OrcReader(timestampSpec, dimensionsSpec, getFlattenSpec());
+    return new OrcReader(conf, timestampSpec, dimensionsSpec, getFlattenSpec());
   }
 
   @Override

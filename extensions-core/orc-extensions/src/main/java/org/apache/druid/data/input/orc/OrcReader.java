@@ -51,17 +51,26 @@ import java.util.Set;
 
 public class OrcReader implements SplitReader
 {
+  private final Configuration conf;
   private final TimestampSpec timestampSpec;
   private final List<String> dimensions;
   private final Set<String> dimensionExclusions;
   private final ObjectFlattener<OrcStruct> orcStructFlattener;
   private final byte[] buffer = new byte[SplitSource.DEFAULT_FETCH_BUFFER_SIZE];
 
-  OrcReader(TimestampSpec timestampSpec, @Nullable DimensionsSpec dimensionsSpec, JSONPathSpec flattenSpec)
+  OrcReader(
+      Configuration conf,
+      TimestampSpec timestampSpec,
+      @Nullable DimensionsSpec dimensionsSpec,
+      JSONPathSpec flattenSpec
+  )
   {
+    this.conf = conf;
     this.timestampSpec = timestampSpec;
     this.dimensions = dimensionsSpec != null ? dimensionsSpec.getDimensionNames() : Collections.emptyList();
-    this.dimensionExclusions = dimensionsSpec != null ? dimensionsSpec.getDimensionExclusions() : Collections.emptySet();
+    this.dimensionExclusions = dimensionsSpec != null
+                               ? dimensionsSpec.getDimensionExclusions()
+                               : Collections.emptySet();
     this.orcStructFlattener = ObjectFlatteners.create(flattenSpec, new OrcStructFlattenerMaker(false));
   }
 
@@ -71,7 +80,7 @@ public class OrcReader implements SplitReader
     Closer closer = Closer.create();
     final CleanableFile file = closer.register(source.fetch(temporaryDirectory, buffer));
     final Path path = new Path(file.file().toURI());
-    final Reader reader = closer.register(OrcFile.createReader(path, OrcFile.readerOptions(new Configuration())));
+    final Reader reader = closer.register(OrcFile.createReader(path, OrcFile.readerOptions(conf)));
     // TODO: build schema from flattenSpec
     //       final RecordReader recordReader = reader.rows(reader.options().schema());
     final TypeDescription schema = reader.getSchema();

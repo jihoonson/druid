@@ -30,6 +30,14 @@ import java.util.List;
 
 public class OrcExtensionsModule implements DruidModule
 {
+  //  private Properties props = null;
+  //
+  //  @Inject
+  //  public void setProperties(Properties props)
+  //  {
+  //    this.props = props;
+  //  }
+
   @Override
   public List<? extends Module> getJacksonModules()
   {
@@ -46,5 +54,33 @@ public class OrcExtensionsModule implements DruidModule
   @Override
   public void configure(Binder binder)
   {
+  //    final Configuration conf = new Configuration();
+  //
+  //    // Set explicit CL. Otherwise it'll try to use thread context CL, which may not have all of our dependencies.
+  //    conf.setClassLoader(getClass().getClassLoader());
+  //
+  //    // Ensure that FileSystem class level initialization happens with correct CL
+  //    // See https://github.com/apache/incubator-druid/issues/1714
+  //    ClassLoader currCtxCl = Thread.currentThread().getContextClassLoader();
+  //    try {
+  //      Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
+  //      FileSystem.get(conf);
+  //    }
+  //    catch (IOException ex) {
+  //      throw new RuntimeException(ex);
+  //    }
+  //    finally {
+  //      Thread.currentThread().setContextClassLoader(currCtxCl);
+  //    }
+  //
+  //    if (props != null) {
+  //      for (String propName : props.stringPropertyNames()) {
+  //        if (propName.startsWith("hadoop.")) {
+  //          conf.set(propName.substring("hadoop.".length()), props.getProperty(propName));
+  //        }
+  //      }
+  //    }
+  //
+  //    binder.requestInjection(TypeLiteral.get(Configuration.class), conf);
   }
 }

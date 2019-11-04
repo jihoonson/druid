@@ -43,6 +43,7 @@ public interface SplitSource<T>
   default CleanableFile fetch(File temporaryDirectory, byte[] fetchBuffer) throws IOException
   {
     final File tempFile = File.createTempFile("druid-split", ".tmp", temporaryDirectory);
+    LOG.info("Fetching split into file[%s]", tempFile.getAbsolutePath());
     FileUtils.copyLarge(
         open(),
         tempFile,
