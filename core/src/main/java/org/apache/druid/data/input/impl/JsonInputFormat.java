@@ -30,6 +30,7 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 public class JsonInputFormat extends NestedInputFormat
 {
@@ -67,5 +68,27 @@ public class JsonInputFormat extends NestedInputFormat
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
     return new JsonReader(timestampSpec, dimensionsSpec, getFlattenSpec(), objectMapper);
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    if (!super.equals(o)) {
+      return false;
+    }
+    JsonInputFormat that = (JsonInputFormat) o;
+    return Objects.equals(featureSpec, that.featureSpec);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(super.hashCode(), featureSpec);
   }
 }

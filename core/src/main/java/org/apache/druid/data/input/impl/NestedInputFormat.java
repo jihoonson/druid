@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 
 import javax.annotation.Nullable;
+import java.util.Objects;
 
 /**
  * Abstract class for nested file formats such as JSON, ORC, etc.
@@ -41,5 +42,24 @@ public abstract class NestedInputFormat implements InputFormat
   public JSONPathSpec getFlattenSpec()
   {
     return flattenSpec;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    NestedInputFormat that = (NestedInputFormat) o;
+    return Objects.equals(flattenSpec, that.flattenSpec);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(flattenSpec);
   }
 }

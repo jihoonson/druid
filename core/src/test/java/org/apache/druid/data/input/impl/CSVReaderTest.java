@@ -21,24 +21,19 @@ package org.apache.druid.data.input.impl;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import com.google.common.io.Files;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
-import java.io.BufferedWriter;
-import java.io.File;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class CSVReaderTest
 {
@@ -47,13 +42,10 @@ public class CSVReaderTest
       DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "name"))
   );
 
-  @Rule
-  public TemporaryFolder temporaryFolder = new TemporaryFolder();
-
   @Test
   public void testWithoutHeaders() throws IOException
   {
-    final File file = writeData(
+    final ByteSource source = writeData(
         ImmutableList.of(
             "2019-01-01T00:00:10Z,name_1,5",
             "2019-01-01T00:00:20Z,name_2,10",
@@ -61,13 +53,13 @@ public class CSVReaderTest
         )
     );
     final CSVInputFormat format = new CSVInputFormat(ImmutableList.of("ts", "name", "score"), null, false, 0);
-    assertResult(file, format);
+    assertResult(source, format);
   }
 
   @Test
   public void testFindColumn() throws IOException
   {
-    final File file = writeData(
+    final ByteSource source = writeData(
         ImmutableList.of(
             "ts,name,score",
             "2019-01-01T00:00:10Z,name_1,5",
@@ -76,13 +68,13 @@ public class CSVReaderTest
         )
     );
     final CSVInputFormat format = new CSVInputFormat(ImmutableList.of(), null, true, 0);
-    assertResult(file, format);
+    assertResult(source, format);
   }
 
   @Test
   public void testSkipHeaders() throws IOException
   {
-    final File file = writeData(
+    final ByteSource source = writeData(
         ImmutableList.of(
             "this,is,a,row,to,skip",
             "2019-01-01T00:00:10Z,name_1,5",
@@ -91,13 +83,13 @@ public class CSVReaderTest
         )
     );
     final CSVInputFormat format = new CSVInputFormat(ImmutableList.of("ts", "name", "score"), null, false, 1);
-    assertResult(file, format);
+    assertResult(source, format);
   }
 
   @Test
   public void testFindColumnAndSkipHeaders() throws IOException
   {
-    final File file = writeData(
+    final ByteSource source = writeData(
         ImmutableList.of(
             "ts,name,score",
             "this,is,a,row,to,skip",
@@ -107,13 +99,13 @@ public class CSVReaderTest
         )
     );
     final CSVInputFormat format = new CSVInputFormat(ImmutableList.of(), null, true, 1);
-    assertResult(file, format);
+    assertResult(source, format);
   }
 
   @Test
   public void testMultiValues() throws IOException
   {
-    final File file = writeData(
+    final ByteSource source = writeData(
         ImmutableList.of(
             "ts,name,score",
             "2019-01-01T00:00:10Z,name_1,5|1",
@@ -124,7 +116,7 @@ public class CSVReaderTest
     final CSVInputFormat format = new CSVInputFormat(ImmutableList.of(), "|", true, 0);
     final SplitReader reader = format.createReader(TIMESTAMP_SPEC, DIMENSIONS_SPEC);
     int numResults = 0;
-    try (CloseableIterator<InputRow> iterator = reader.read(new FileSource(new InputSplit<>(file)), null)) {
+    try (CloseableIterator<InputRow> iterator = reader.read(source, null)) {
       while (iterator.hasNext()) {
         final InputRow row = iterator.next();
         Assert.assertEquals(
@@ -145,24 +137,25 @@ public class CSVReaderTest
     }
   }
 
-  private File writeData(List<String> lines) throws IOException
+  private ByteSource writeData(List<String> lines) throws IOException
   {
-    File tmpDir = temporaryFolder.newFolder();
-    File tmpFile = File.createTempFile("csv-reader-test", "csv", tmpDir);
-
-    try (BufferedWriter writer = Files.newWriter(tmpFile, StandardCharsets.UTF_8)) {
-      for (String line : lines) {
-        writer.write(line + "\n");
-      }
+    final List<byte[]> byteLines = lines.stream()
+                                        .map(line -> StringUtils.toUtf8(line + "\n"))
+                                        .collect(Collectors.toList());
+    final ByteArrayOutputStream outputStream = new ByteArrayOutputStream(
+        byteLines.stream().mapToInt(bytes -> bytes.length).sum()
+    );
+    for (byte[] bytes : byteLines) {
+      outputStream.write(bytes);
     }
-    return tmpFile;
+    return new ByteSource(outputStream.toByteArray());
   }
 
-  private void assertResult(File file, CSVInputFormat format) throws IOException
+  private void assertResult(ByteSource source, CSVInputFormat format) throws IOException
   {
     final SplitReader reader = format.createReader(TIMESTAMP_SPEC, DIMENSIONS_SPEC);
     int numResults = 0;
-    try (CloseableIterator<InputRow> iterator = reader.read(new FileSource(new InputSplit<>(file)), null)) {
+    try (CloseableIterator<InputRow> iterator = reader.read(source, null)) {
       while (iterator.hasNext()) {
         final InputRow row = iterator.next();
         Assert.assertEquals(
