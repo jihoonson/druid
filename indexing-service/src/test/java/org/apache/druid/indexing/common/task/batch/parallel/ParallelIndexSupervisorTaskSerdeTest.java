@@ -23,7 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.client.indexing.NoopIndexingServiceClient;
-import org.apache.druid.data.input.impl.CSVInputFormat;
+import org.apache.druid.data.input.impl.CsvInputFormat;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.LocalInputSource;
 import org.apache.druid.data.input.impl.TimestampSpec;
@@ -176,7 +176,7 @@ public class ParallelIndexSupervisorTaskSerdeTest
     private final ParallelIndexIOConfig ioConfig = new ParallelIndexIOConfig(
         null,
         new LocalInputSource(new File("tmp"), "test_*"),
-        new CSVInputFormat(Arrays.asList("ts", "dim", "val"), null, false, 0),
+        new CsvInputFormat(Arrays.asList("ts", "dim", "val"), null, false, 0),
         false
     );
 

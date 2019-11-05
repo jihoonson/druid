@@ -35,7 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class CSVReaderTest
+public class CsvReaderTest
 {
   private static final TimestampSpec TIMESTAMP_SPEC = new TimestampSpec("ts", "auto", null);
   private static final DimensionsSpec DIMENSIONS_SPEC = new DimensionsSpec(
@@ -52,7 +52,7 @@ public class CSVReaderTest
             "2019-01-01T00:00:30Z,name_3,15"
         )
     );
-    final CSVInputFormat format = new CSVInputFormat(ImmutableList.of("ts", "name", "score"), null, false, 0);
+    final CsvInputFormat format = new CsvInputFormat(ImmutableList.of("ts", "name", "score"), null, false, 0);
     assertResult(source, format);
   }
 
@@ -67,7 +67,7 @@ public class CSVReaderTest
             "2019-01-01T00:00:30Z,name_3,15"
         )
     );
-    final CSVInputFormat format = new CSVInputFormat(ImmutableList.of(), null, true, 0);
+    final CsvInputFormat format = new CsvInputFormat(ImmutableList.of(), null, true, 0);
     assertResult(source, format);
   }
 
@@ -82,7 +82,7 @@ public class CSVReaderTest
             "2019-01-01T00:00:30Z,name_3,15"
         )
     );
-    final CSVInputFormat format = new CSVInputFormat(ImmutableList.of("ts", "name", "score"), null, false, 1);
+    final CsvInputFormat format = new CsvInputFormat(ImmutableList.of("ts", "name", "score"), null, false, 1);
     assertResult(source, format);
   }
 
@@ -98,7 +98,7 @@ public class CSVReaderTest
             "2019-01-01T00:00:30Z,name_3,15"
         )
     );
-    final CSVInputFormat format = new CSVInputFormat(ImmutableList.of(), null, true, 1);
+    final CsvInputFormat format = new CsvInputFormat(ImmutableList.of(), null, true, 1);
     assertResult(source, format);
   }
 
@@ -113,7 +113,7 @@ public class CSVReaderTest
             "2019-01-01T00:00:30Z,name_3,15|3"
         )
     );
-    final CSVInputFormat format = new CSVInputFormat(ImmutableList.of(), "|", true, 0);
+    final CsvInputFormat format = new CsvInputFormat(ImmutableList.of(), "|", true, 0);
     final SplitReader reader = format.createReader(TIMESTAMP_SPEC, DIMENSIONS_SPEC);
     int numResults = 0;
     try (CloseableIterator<InputRow> iterator = reader.read(source, null)) {
@@ -151,7 +151,7 @@ public class CSVReaderTest
     return new ByteSource(outputStream.toByteArray());
   }
 
-  private void assertResult(ByteSource source, CSVInputFormat format) throws IOException
+  private void assertResult(ByteSource source, CsvInputFormat format) throws IOException
   {
     final SplitReader reader = format.createReader(TIMESTAMP_SPEC, DIMENSIONS_SPEC);
     int numResults = 0;

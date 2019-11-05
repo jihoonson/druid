@@ -61,7 +61,7 @@ public class SplitIteratingReaderTest
         new DimensionsSpec(
             DimensionsSpec.getDefaultSchemas(ImmutableList.of("time", "name", "score"))
         ),
-        new CSVInputFormat(
+        new CsvInputFormat(
             ImmutableList.of("time", "name", "score"),
             null,
             false,

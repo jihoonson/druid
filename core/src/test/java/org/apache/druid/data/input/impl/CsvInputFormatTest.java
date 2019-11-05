@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-public class CSVInputFormatTest
+public class CsvInputFormatTest
 {
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
@@ -38,16 +38,16 @@ public class CSVInputFormatTest
   public void testSerde() throws IOException
   {
     final ObjectMapper mapper = new ObjectMapper();
-    final CSVInputFormat format = new CSVInputFormat(Collections.singletonList("a"), "|", true, 10);
+    final CsvInputFormat format = new CsvInputFormat(Collections.singletonList("a"), "|", true, 10);
     final byte[] bytes = mapper.writeValueAsBytes(format);
-    final CSVInputFormat fromJson = (CSVInputFormat) mapper.readValue(bytes, InputFormat.class);
+    final CsvInputFormat fromJson = (CsvInputFormat) mapper.readValue(bytes, InputFormat.class);
     Assert.assertEquals(format, fromJson);
   }
 
   @Test
   public void testColumnMissing()
   {
-    final CSVInputFormat format = new CSVInputFormat(Collections.singletonList("a"), ",", false, 0);
+    final CsvInputFormat format = new CsvInputFormat(Collections.singletonList("a"), ",", false, 0);
     expectedException.expect(IllegalArgumentException.class);
     expectedException.expectMessage("column[b] not in columns");
     format.createReader(
@@ -59,7 +59,7 @@ public class CSVInputFormatTest
   @Test
   public void testComma()
   {
-    final CSVInputFormat format = new CSVInputFormat(Collections.singletonList("a"), ",", false, 0);
+    final CsvInputFormat format = new CsvInputFormat(Collections.singletonList("a"), ",", false, 0);
     expectedException.expect(IllegalArgumentException.class);
     expectedException.expectMessage("column[a,] not in columns");
     format.createReader(

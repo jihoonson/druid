@@ -33,7 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class CSVInputFormat implements InputFormat
+public class CsvInputFormat implements InputFormat
 {
   private final String listDelimiter;
   private final List<String> columns;
@@ -41,7 +41,7 @@ public class CSVInputFormat implements InputFormat
   private final int skipHeaderRows;
 
   @JsonCreator
-  public CSVInputFormat(
+  public CsvInputFormat(
       @JsonProperty("columns") @Nullable List<String> columns,
       @JsonProperty("listDelimiter") String listDelimiter,
       @Deprecated @JsonProperty("hasHeaderRow") @Nullable Boolean hasHeaderRow,
@@ -74,7 +74,7 @@ public class CSVInputFormat implements InputFormat
   }
 
   @VisibleForTesting
-  public CSVInputFormat(
+  public CsvInputFormat(
       List<String> columns,
       String listDelimiter,
       boolean findColumnsFromHeader,
@@ -117,7 +117,7 @@ public class CSVInputFormat implements InputFormat
   @Override
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
-    return new CSVReader(timestampSpec, dimensionsSpec, listDelimiter, columns, findColumnsFromHeader, skipHeaderRows);
+    return new CsvReader(timestampSpec, dimensionsSpec, listDelimiter, columns, findColumnsFromHeader, skipHeaderRows);
   }
 
   @Override
@@ -129,7 +129,7 @@ public class CSVInputFormat implements InputFormat
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    CSVInputFormat format = (CSVInputFormat) o;
+    CsvInputFormat format = (CsvInputFormat) o;
     return findColumnsFromHeader == format.findColumnsFromHeader &&
            skipHeaderRows == format.skipHeaderRows &&
            Objects.equals(listDelimiter, format.listDelimiter) &&

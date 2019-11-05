@@ -36,7 +36,7 @@ import org.apache.druid.guice.annotations.ExtensionPoint;
 @ExtensionPoint
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes(value = {
-    @Type(name = "csv", value = CSVInputFormat.class),
+    @Type(name = "csv", value = CsvInputFormat.class),
     @Type(name = "json", value = JsonInputFormat.class)
 })
 public interface InputFormat

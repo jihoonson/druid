@@ -105,7 +105,7 @@ public class CSVParseSpec extends ParseSpec
   @Override
   public void verify(List<String> usedCols)
   {
-    CSVReader.verify(columns, usedCols);
+    CsvReader.verify(columns, usedCols);
   }
 
   @Override
@@ -117,7 +117,7 @@ public class CSVParseSpec extends ParseSpec
   @Override
   public InputFormat toInputFormat()
   {
-    return new CSVInputFormat(columns, listDelimiter, hasHeaderRow, skipHeaderRows);
+    return new CsvInputFormat(columns, listDelimiter, hasHeaderRow, skipHeaderRows);
   }
 
   @Override

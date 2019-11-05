@@ -40,7 +40,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class CSVReader extends TextReader
+public class CsvReader extends TextReader
 {
   private final CSVParser parser = new CSVParser();
   private final boolean hasHeaderRow;
@@ -49,7 +49,7 @@ public class CSVReader extends TextReader
   @Nullable
   private List<String> columns;
 
-  CSVReader(
+  CsvReader(
       TimestampSpec timestampSpec,
       DimensionsSpec dimensionsSpec,
       String listDelimiter,
