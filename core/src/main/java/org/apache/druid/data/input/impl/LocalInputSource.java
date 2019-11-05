@@ -33,6 +33,7 @@ import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Stream;
@@ -125,5 +126,25 @@ public class LocalInputSource implements SplittableInputSource<File>
         }),
         temporaryDirectory
     );
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    LocalInputSource source = (LocalInputSource) o;
+    return Objects.equals(baseDir, source.baseDir) &&
+           Objects.equals(filter, source.filter);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(baseDir, filter);
   }
 }

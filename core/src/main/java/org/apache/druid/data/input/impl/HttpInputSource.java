@@ -32,6 +32,7 @@ import java.io.File;
 import java.net.URI;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 public class HttpInputSource implements SplittableInputSource<URI>
@@ -49,10 +50,30 @@ public class HttpInputSource implements SplittableInputSource<URI>
       @JsonProperty("httpAuthenticationPassword") @Nullable PasswordProvider httpAuthenticationPasswordProvider
   )
   {
-    Preconditions.checkArgument(!uris.isEmpty(), "Empty URIs");
+    Preconditions.checkArgument(uris != null && !uris.isEmpty(), "Empty URIs");
     this.uris = uris;
     this.httpAuthenticationUsername = httpAuthenticationUsername;
     this.httpAuthenticationPasswordProvider = httpAuthenticationPasswordProvider;
+  }
+
+  @JsonProperty
+  public List<URI> getUris()
+  {
+    return uris;
+  }
+
+  @Nullable
+  @JsonProperty
+  public String getHttpAuthenticationUsername()
+  {
+    return httpAuthenticationUsername;
+  }
+
+  @Nullable
+  @JsonProperty("httpAuthenticationPassword")
+  public PasswordProvider getHttpAuthenticationPasswordProvider()
+  {
+    return httpAuthenticationPasswordProvider;
   }
 
   @Override
@@ -96,5 +117,26 @@ public class HttpInputSource implements SplittableInputSource<URI>
         )),
         temporaryDirectory
     );
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    HttpInputSource source = (HttpInputSource) o;
+    return Objects.equals(uris, source.uris) &&
+           Objects.equals(httpAuthenticationUsername, source.httpAuthenticationUsername) &&
+           Objects.equals(httpAuthenticationPasswordProvider, source.httpAuthenticationPasswordProvider);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(uris, httpAuthenticationUsername, httpAuthenticationPasswordProvider);
   }
 }

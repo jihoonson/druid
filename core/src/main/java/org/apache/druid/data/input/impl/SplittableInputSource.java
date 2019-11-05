@@ -19,6 +19,7 @@
 
 package org.apache.druid.data.input.impl;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.apache.druid.data.input.InputSource;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitHintSpec;
@@ -32,6 +33,7 @@ import java.util.stream.Stream;
  */
 public interface SplittableInputSource<T> extends InputSource
 {
+  @JsonIgnore
   @Override
   default boolean isSplittable()
   {
