@@ -91,11 +91,6 @@ public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSourc
       @Nullable File temporaryDirectory
   )
   {
-    try {
-      return new FirehoseToInputSourceReaderAdaptor(firehoseFactory.connect(inputRowParser, temporaryDirectory));
-    }
-    catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    return new FirehoseToInputSourceReaderAdaptor(firehoseFactory, inputRowParser, temporaryDirectory);
   }
 }

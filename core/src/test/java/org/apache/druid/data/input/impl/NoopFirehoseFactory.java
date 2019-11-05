@@ -19,25 +19,13 @@
 
 package org.apache.druid.data.input.impl;
 
-import org.apache.druid.data.input.SplitReader;
+import org.apache.druid.data.input.FirehoseFactory;
 
-public class NoopInputFormat implements InputFormat
+public class NoopFirehoseFactory implements FirehoseFactory
 {
-  @Override
-  public boolean isSplittable()
-  {
-    return false;
-  }
-
-  @Override
-  public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
-  {
-    throw new UnsupportedOperationException();
-  }
-
   @Override
   public String toString()
   {
-    return "NoopInputFormat{}";
+    return "NoopFirehoseFactory{}";
   }
 }

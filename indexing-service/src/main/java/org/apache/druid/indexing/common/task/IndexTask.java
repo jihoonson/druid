@@ -63,6 +63,7 @@ import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.stats.TaskRealtimeMetricsMonitor;
+import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.JodaUtils;
@@ -1042,6 +1043,16 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     {
       super(dataSchema, ioConfig, tuningConfig);
 
+      Checks.checkOneNotNullOrEmpty(
+          ImmutableList.of(
+              new Property<>("parser", dataSchema.getParserMap()),
+              new Property<>("inputFormat", ioConfig.getInputFormat())
+          )
+      );
+      if (dataSchema.getParserMap() != null && ioConfig.getInputSource() != null) {
+        throw new IAE("Cannot use parser and inputSource together. Try use inputFormat instead of parser.");
+      }
+
       this.dataSchema = dataSchema;
       this.ioConfig = ioConfig;
       this.tuningConfig = tuningConfig == null ? new IndexTuningConfig() : tuningConfig;
@@ -1090,6 +1101,9 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       Checks.checkOneNotNullOrEmpty(
           ImmutableList.of(new Property<>("firehose", firehoseFactory), new Property<>("inputSource", inputSource))
       );
+      if (firehoseFactory != null && inputFormat != null) {
+        throw new IAE("Cannot use firehose and inputFormat together. Try use inputSource instead of firehose.");
+      }
       this.firehoseFactory = firehoseFactory;
       this.inputSource = inputSource;
       this.inputFormat = inputFormat;

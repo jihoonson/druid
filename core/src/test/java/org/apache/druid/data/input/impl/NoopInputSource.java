@@ -19,25 +19,28 @@
 
 package org.apache.druid.data.input.impl;
 
-import org.apache.druid.data.input.SplitReader;
+import org.apache.druid.data.input.InputSource;
+import org.apache.druid.data.input.InputSourceReader;
 
-public class NoopInputFormat implements InputFormat
+import javax.annotation.Nullable;
+import java.io.File;
+
+public class NoopInputSource implements InputSource
 {
   @Override
-  public boolean isSplittable()
+  public InputSourceReader reader(
+      TimestampSpec timestampSpec,
+      DimensionsSpec dimensionsSpec,
+      InputFormat inputFormat,
+      @Nullable File temporaryDirectory
+  )
   {
-    return false;
-  }
-
-  @Override
-  public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
-  {
-    throw new UnsupportedOperationException();
+    return null;
   }
 
   @Override
   public String toString()
   {
-    return "NoopInputFormat{}";
+    return "NoopInputSource{}";
   }
 }
