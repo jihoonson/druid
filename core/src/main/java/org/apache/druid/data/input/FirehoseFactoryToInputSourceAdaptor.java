@@ -92,7 +92,6 @@ public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSourc
   )
   {
     try {
-      // TODO: fix for sampler
       return new FirehoseToInputSourceReaderAdaptor(firehoseFactory.connect(inputRowParser, temporaryDirectory));
     }
     catch (IOException e) {

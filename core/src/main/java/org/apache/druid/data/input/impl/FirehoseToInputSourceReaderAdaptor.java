@@ -20,20 +20,30 @@
 package org.apache.druid.data.input.impl;
 
 import org.apache.druid.data.input.Firehose;
+import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowPlusRaw;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
+import java.io.File;
 import java.io.IOException;
 
 public class FirehoseToInputSourceReaderAdaptor implements InputSourceReader
 {
-  private final Firehose firehose;
+  private final FirehoseFactory firehoseFactory;
+  private final InputRowParser inputRowParser;
+  private final File temporaryDirectory;
 
-  public FirehoseToInputSourceReaderAdaptor(Firehose firehose)
+  public FirehoseToInputSourceReaderAdaptor(
+      FirehoseFactory firehoseFactory,
+      InputRowParser inputRowPlusRaw,
+      File temporaryDirectory
+  )
   {
-    this.firehose = firehose;
+    this.firehoseFactory = firehoseFactory;
+    this.inputRowParser = inputRowPlusRaw;
+    this.temporaryDirectory = temporaryDirectory;
   }
 
   @Override
@@ -41,6 +51,8 @@ public class FirehoseToInputSourceReaderAdaptor implements InputSourceReader
   {
     return new CloseableIterator<InputRow>()
     {
+      final Firehose firehose = firehoseFactory.connect(inputRowParser, temporaryDirectory);
+
       @Override
       public boolean hasNext()
       {
@@ -72,10 +84,12 @@ public class FirehoseToInputSourceReaderAdaptor implements InputSourceReader
   }
 
   @Override
-  public CloseableIterator<InputRowPlusRaw> sample()
+  public CloseableIterator<InputRowPlusRaw> sample() throws IOException
   {
     return new CloseableIterator<InputRowPlusRaw>()
     {
+      final Firehose firehose = firehoseFactory.connectForSampler(inputRowParser, temporaryDirectory);
+
       @Override
       public boolean hasNext()
       {
