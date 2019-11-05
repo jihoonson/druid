@@ -21,8 +21,12 @@ package org.apache.druid.data.input.impl;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import org.apache.druid.data.input.SplitReader;
+import org.apache.druid.indexer.Checks;
+import org.apache.druid.indexer.Property;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
@@ -33,20 +37,27 @@ public class CSVInputFormat implements InputFormat
 {
   private final String listDelimiter;
   private final List<String> columns;
-  private final boolean hasHeaderRow;
+  private final boolean findColumnsFromHeader;
   private final int skipHeaderRows;
 
   @JsonCreator
   public CSVInputFormat(
       @JsonProperty("columns") @Nullable List<String> columns,
       @JsonProperty("listDelimiter") String listDelimiter,
-      @JsonProperty("hasHeaderRow") boolean hasHeaderRow,
+      @Deprecated @JsonProperty("hasHeaderRow") @Nullable Boolean hasHeaderRow,
+      @JsonProperty("findColumnsFromHeader") @Nullable Boolean findColumnsFromHeader,
       @JsonProperty("skipHeaderRows") int skipHeaderRows
   )
   {
     this.listDelimiter = listDelimiter;
     this.columns = columns == null ? Collections.emptyList() : columns;
-    this.hasHeaderRow = hasHeaderRow;
+    //noinspection ConstantConditions
+    this.findColumnsFromHeader = Checks.checkOneNotNullOrEmpty(
+        ImmutableList.of(
+            new Property<>("hasHeaderRow", hasHeaderRow),
+            new Property<>("findColumnsFromHeader", findColumnsFromHeader)
+        )
+    ).getValue();
     this.skipHeaderRows = skipHeaderRows;
 
     if (!this.columns.isEmpty()) {
@@ -55,11 +66,22 @@ public class CSVInputFormat implements InputFormat
       }
     } else {
       Preconditions.checkArgument(
-          hasHeaderRow,
+          this.findColumnsFromHeader,
           "If columns field is not set, the first row of your data must have your header"
           + " and hasHeaderRow must be set to true."
       );
     }
+  }
+
+  @VisibleForTesting
+  public CSVInputFormat(
+      List<String> columns,
+      String listDelimiter,
+      boolean findColumnsFromHeader,
+      int skipHeaderRows
+  )
+  {
+    this(columns, listDelimiter, null, findColumnsFromHeader, skipHeaderRows);
   }
 
   @JsonProperty
@@ -75,9 +97,9 @@ public class CSVInputFormat implements InputFormat
   }
 
   @JsonProperty
-  public boolean isHasHeaderRow()
+  public boolean isFindColumnsFromHeader()
   {
-    return hasHeaderRow;
+    return findColumnsFromHeader;
   }
 
   @JsonProperty
@@ -95,7 +117,7 @@ public class CSVInputFormat implements InputFormat
   @Override
   public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
-    return new CSVReader(timestampSpec, dimensionsSpec, listDelimiter, columns, hasHeaderRow, skipHeaderRows);
+    return new CSVReader(timestampSpec, dimensionsSpec, listDelimiter, columns, findColumnsFromHeader, skipHeaderRows);
   }
 
   @Override
@@ -108,7 +130,7 @@ public class CSVInputFormat implements InputFormat
       return false;
     }
     CSVInputFormat format = (CSVInputFormat) o;
-    return hasHeaderRow == format.hasHeaderRow &&
+    return findColumnsFromHeader == format.findColumnsFromHeader &&
            skipHeaderRows == format.skipHeaderRows &&
            Objects.equals(listDelimiter, format.listDelimiter) &&
            Objects.equals(columns, format.columns);
@@ -117,6 +139,6 @@ public class CSVInputFormat implements InputFormat
   @Override
   public int hashCode()
   {
-    return Objects.hash(listDelimiter, columns, hasHeaderRow, skipHeaderRows);
+    return Objects.hash(listDelimiter, columns, findColumnsFromHeader, skipHeaderRows);
   }
 }

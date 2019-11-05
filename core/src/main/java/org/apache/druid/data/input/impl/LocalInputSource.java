@@ -112,6 +112,9 @@ public class LocalInputSource implements SplittableInputSource<File>
         timestampSpec,
         dimensionsSpec,
         inputFormat,
+        // reader() is supposed to be called in each task that creates segments.
+        // The task should already have only one split in parallel indexing,
+        // while there's no need to make splits using splitHintSpec in sequential indexing.
         createSplits(inputFormat, null).map(split -> {
           try {
             return new FileSource(split);

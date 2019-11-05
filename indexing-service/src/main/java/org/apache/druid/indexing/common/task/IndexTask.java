@@ -30,6 +30,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
@@ -44,7 +45,9 @@ import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.hll.HyperLogLogCollector;
+import org.apache.druid.indexer.Checks;
 import org.apache.druid.indexer.IngestionState;
+import org.apache.druid.indexer.Property;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
@@ -60,7 +63,6 @@ import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.stats.TaskRealtimeMetricsMonitor;
-import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.JodaUtils;
@@ -1085,12 +1087,9 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         @JsonProperty("appendToExisting") @Nullable Boolean appendToExisting
     )
     {
-      if (firehoseFactory == null && inputSource == null) {
-        throw new IAE("InputSource is not defined");
-      }
-      if (firehoseFactory != null && inputSource != null) {
-        throw new IAE("firehose and inputSource cannot be used together");
-      }
+      Checks.checkOneNotNullOrEmpty(
+          ImmutableList.of(new Property<>("firehose", firehoseFactory), new Property<>("inputSource", inputSource))
+      );
       this.firehoseFactory = firehoseFactory;
       this.inputSource = inputSource;
       this.inputFormat = inputFormat;
