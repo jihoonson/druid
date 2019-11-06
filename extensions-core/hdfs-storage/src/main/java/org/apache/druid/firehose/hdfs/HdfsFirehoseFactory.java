@@ -27,7 +27,7 @@ import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.impl.StringInputRowParser;
 import org.apache.druid.data.input.impl.prefetch.PrefetchableTextFilesFirehoseFactory;
-import org.apache.druid.java.util.common.IAE;
+import org.apache.druid.inputsource.hdfs.HdfsInputSource;
 import org.apache.druid.storage.hdfs.HdfsDataSegmentPuller;
 import org.apache.druid.utils.CompressionUtils;
 import org.apache.hadoop.conf.Configuration;
@@ -41,7 +41,6 @@ import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -63,15 +62,8 @@ public class HdfsFirehoseFactory extends PrefetchableTextFilesFirehoseFactory<Pa
   {
     super(maxCacheCapacityBytes, maxFetchCapacityBytes, prefetchTriggerBytes, fetchTimeout, maxFetchRetry);
     this.conf = conf;
-
     // Coerce 'inputPaths' to List<String>
-    if (inputPaths instanceof String) {
-      this.inputPaths = Collections.singletonList((String) inputPaths);
-    } else if (inputPaths instanceof List && ((List<?>) inputPaths).stream().allMatch(x -> x instanceof String)) {
-      this.inputPaths = ((List<?>) inputPaths).stream().map(x -> (String) x).collect(Collectors.toList());
-    } else {
-      throw new IAE("'inputPaths' must be a string or an array of strings");
-    }
+    this.inputPaths = HdfsInputSource.parseJsonStringOrList(inputPaths);
   }
 
   @JsonProperty("paths")

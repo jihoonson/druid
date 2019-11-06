@@ -34,6 +34,7 @@ import org.apache.druid.data.input.InputRowPlusRaw;
 import org.apache.druid.data.input.Row;
 import org.apache.druid.data.input.impl.AbstractTextFilesFirehoseFactory;
 import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.data.input.impl.StringInputRowParser;
@@ -99,6 +100,13 @@ public class FirehoseSampler
               return ImmutableList.of();
             }
           };
+        }
+
+        @Nullable
+        @Override
+        public InputFormat toInputFormat()
+        {
+          return null;
         }
       }, null);
 

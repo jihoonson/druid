@@ -22,59 +22,36 @@ package org.apache.druid.data.input.orc;
 import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.apache.druid.data.input.SplitReader;
 import org.apache.druid.data.input.impl.DimensionsSpec;
-import org.apache.druid.data.input.impl.InputFormat;
-import org.apache.druid.data.input.impl.NestedDataParseSpec;
-import org.apache.druid.data.input.impl.ParseSpec;
+import org.apache.druid.data.input.impl.NestedInputFormat;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 import org.apache.hadoop.conf.Configuration;
 
-public class OrcParseSpec extends NestedDataParseSpec<JSONPathSpec>
+public class OrcInputFormat extends NestedInputFormat
 {
   private final Configuration conf;
 
   @JsonCreator
-  public OrcParseSpec(
-      @JsonProperty("timestampSpec") TimestampSpec timestampSpec,
-      @JsonProperty("dimensionsSpec") DimensionsSpec dimensionsSpec,
+  public OrcInputFormat(
       @JsonProperty("flattenSpec") JSONPathSpec flattenSpec,
-      @JacksonInject Configuration conf
+      @JacksonInject Configuration conf // TODO:
   )
   {
-    super(
-        timestampSpec,
-        dimensionsSpec != null ? dimensionsSpec : DimensionsSpec.EMPTY,
-        flattenSpec != null ? flattenSpec : JSONPathSpec.DEFAULT
-    );
+    super(flattenSpec);
     this.conf = conf;
   }
 
   @Override
-  public InputFormat toInputFormat()
+  public boolean isSplittable()
   {
-    return new OrcInputFormat(getFlattenSpec(), conf);
+    return false;
   }
 
   @Override
-  public ParseSpec withTimestampSpec(TimestampSpec spec)
+  public SplitReader createReader(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
   {
-    return new OrcParseSpec(spec, getDimensionsSpec(), getFlattenSpec(), conf);
-  }
-
-  @Override
-  public ParseSpec withDimensionsSpec(DimensionsSpec spec)
-  {
-    return new OrcParseSpec(getTimestampSpec(), spec, getFlattenSpec(), conf);
-  }
-
-  @Override
-  public String toString()
-  {
-    return "OrcParseSpec{" +
-           "timestampSpec=" + getTimestampSpec() +
-           ", dimensionsSpec=" + getDimensionsSpec() +
-           ", flattenSpec=" + getFlattenSpec() +
-           "}";
+    return new OrcReader(conf, timestampSpec, dimensionsSpec, getFlattenSpec());
   }
 }
