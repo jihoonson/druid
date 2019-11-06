@@ -28,6 +28,7 @@ import com.google.inject.TypeLiteral;
 import org.apache.druid.initialization.DruidModule;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -71,6 +72,7 @@ public class OrcExtensionsModule implements DruidModule
     try {
       Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
       FileSystem.get(conf);
+      new Path("file:///").getFileSystem(conf);
     }
     catch (IOException ex) {
       throw new RuntimeException(ex);
