@@ -17,13 +17,25 @@
  * under the License.
  */
 
-package org.apache.druid.data.input.impl;
+package org.apache.druid.indexing.firehose;
 
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.ObjectReader;
+import org.apache.druid.data.input.impl.InputFormat;
+import org.apache.druid.query.filter.DimFilter;
+import org.apache.druid.segment.IndexIO;
 
-public class NoopInputFormat implements InputFormat
+public class DruidSegmentInputFormat implements InputFormat
 {
+  private final IndexIO indexIO;
+  private final DimFilter dimFilter;
+
+  public DruidSegmentInputFormat(IndexIO indexIO, DimFilter dimFilter)
+  {
+    this.indexIO = indexIO;
+    this.dimFilter = dimFilter;
+  }
+
   @Override
   public boolean isSplittable()
   {
@@ -33,12 +45,11 @@ public class NoopInputFormat implements InputFormat
   @Override
   public ObjectReader createReader(InputRowSchema inputRowSchema)
   {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public String toString()
-  {
-    return "NoopInputFormat{}";
+    return new DruidSegmentReader(
+        indexIO,
+        inputRowSchema.getDimensionsSpec().getDimensionNames(),
+        inputRowSchema.getMetricsNames(),
+        dimFilter
+    );
   }
 }

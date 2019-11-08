@@ -17,62 +17,75 @@
  * under the License.
  */
 
-package org.apache.druid.data.input.impl;
+package org.apache.druid.indexing.firehose;
 
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import org.apache.druid.data.input.ObjectSource;
-import org.apache.druid.utils.CompressionUtils;
+import org.apache.druid.segment.loading.SegmentLoader;
+import org.apache.druid.segment.loading.SegmentLoadingException;
+import org.apache.druid.timeline.DataSegment;
+import org.joda.time.Interval;
 
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.RandomAccessFile;
-import java.nio.channels.Channels;
-import java.nio.channels.FileChannel;
 
-public class FileSource implements ObjectSource<File>
+public class DruidSegmentSource implements ObjectSource<DataSegment>
 {
-  private final File file;
-  private final FileChannel channel;
+  private final SegmentLoader segmentLoader;
+  private final DataSegment segment;
+  private final Interval intervalFilter;
 
-  FileSource(File file) throws FileNotFoundException
+  public DruidSegmentSource(SegmentLoader segmentLoader, DataSegment segment, Interval intervalFilter)
   {
-    this.file = file;
-    final RandomAccessFile randomAccessFile = new RandomAccessFile(file, "r");
-    this.channel = randomAccessFile.getChannel();
+    this.segmentLoader = segmentLoader;
+    this.segment = segment;
+    this.intervalFilter = intervalFilter;
+  }
+
+  Interval getIntervalFilter()
+  {
+    return intervalFilter;
+  }
+
+  @Override
+  public DataSegment getObject()
+  {
+    return segment;
+  }
+
+  @Override
+  public InputStream open()
+  {
+    throw new UnsupportedOperationException("Don't call this");
   }
 
   @Override
   public CleanableFile fetch(File temporaryDirectory, byte[] fetchBuffer)
   {
+    final File segmentFile;
+    try {
+      segmentFile = segmentLoader.getSegmentFiles(segment);
+    }
+    catch (SegmentLoadingException e) {
+      throw new RuntimeException(e);
+    }
     return new CleanableFile()
     {
       @Override
       public File file()
       {
-        return file;
+        return segmentFile;
       }
 
       @Override
       public void close()
       {
-        // do nothing
+        if (!segmentFile.delete()) {
+          // log
+        }
       }
     };
-  }
-
-  @Override
-  public File getObject()
-  {
-    return file;
-  }
-
-  @Override
-  public InputStream open() throws IOException
-  {
-    return CompressionUtils.decompress(Channels.newInputStream(channel), file.getName());
   }
 
   @Override

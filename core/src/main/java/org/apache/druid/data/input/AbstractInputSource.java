@@ -17,35 +17,16 @@
  * under the License.
  */
 
-package org.apache.druid.data.input.impl;
+package org.apache.druid.data.input;
 
-import org.apache.druid.data.input.InputRowSchema;
-import org.apache.druid.data.input.InputSource;
-import org.apache.druid.data.input.InputSourceReader;
+import com.google.common.base.Preconditions;
+import org.apache.druid.data.input.impl.InputFormat;
 
 import javax.annotation.Nullable;
 import java.io.File;
 
-public class NoopInputSource implements InputSource
+public abstract class AbstractInputSource implements InputSource
 {
-  @Override
-  public String toString()
-  {
-    return "NoopInputSource{}";
-  }
-
-  @Override
-  public boolean isSplittable()
-  {
-    return false;
-  }
-
-  @Override
-  public boolean needsFormat()
-  {
-    return false;
-  }
-
   @Override
   public InputSourceReader reader(
       InputRowSchema inputRowSchema,
@@ -53,6 +34,28 @@ public class NoopInputSource implements InputSource
       @Nullable File temporaryDirectory
   )
   {
-    return null;
+    if (needsFormat()) {
+      return formattableReader(
+          inputRowSchema,
+          Preconditions.checkNotNull(inputFormat, "inputFormat"),
+          temporaryDirectory
+      );
+    } else {
+      return unformattableReader(inputRowSchema, temporaryDirectory);
+    }
+  }
+
+  protected InputSourceReader formattableReader(
+      InputRowSchema inputRowSchema,
+      @Nullable InputFormat inputFormat,
+      @Nullable File temporaryDirectory
+  )
+  {
+    throw new UnsupportedOperationException("Implement this method properly if needsFormat() = true");
+  }
+
+  protected InputSourceReader unformattableReader(InputRowSchema inputRowSchema, @Nullable File temporaryDirectory)
+  {
+    throw new UnsupportedOperationException("Implement this method properly if needsFormat() = false");
   }
 }
