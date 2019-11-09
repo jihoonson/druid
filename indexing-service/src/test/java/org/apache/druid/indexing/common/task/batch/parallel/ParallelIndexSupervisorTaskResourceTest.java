@@ -22,15 +22,13 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import org.apache.druid.client.indexing.IndexingServiceClient;
-import org.apache.druid.data.input.InputSourceReader;
+import org.apache.druid.data.input.AbstractInputSource;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.MapBasedInputRow;
 import org.apache.druid.data.input.SplitHintSpec;
-import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.NoopInputFormat;
 import org.apache.druid.data.input.impl.SplittableInputSource;
-import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.RunnerTaskState;
 import org.apache.druid.indexer.TaskLocation;
 import org.apache.druid.indexer.TaskState;
@@ -66,7 +64,6 @@ import org.junit.Test;
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.core.Response;
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -473,7 +470,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     );
   }
 
-  private static class TestInputSource implements SplittableInputSource<Integer>
+  private static class TestInputSource extends AbstractInputSource implements SplittableInputSource<Integer>
   {
     private final List<Integer> ids;
 
@@ -501,14 +498,9 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
     }
 
     @Override
-    public InputSourceReader reader(
-        TimestampSpec timestampSpec,
-        DimensionsSpec dimensionsSpec,
-        InputFormat inputFormat,
-        @Nullable File temporaryDirectory
-    )
+    public boolean needsFormat()
     {
-      throw new UnsupportedOperationException();
+      return false;
     }
   }
 

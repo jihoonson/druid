@@ -22,8 +22,7 @@ package org.apache.druid.firehose.s3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3Object;
 import com.google.common.base.Predicate;
-import org.apache.druid.data.input.InputSplit;
-import org.apache.druid.data.input.SplitSource;
+import org.apache.druid.data.input.ObjectSource;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.storage.s3.S3Utils;
 import org.apache.druid.storage.s3.ServerSideEncryptingAmazonS3;
@@ -33,21 +32,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 
-public class S3Source implements SplitSource
+public class S3Source implements ObjectSource<URI>
 {
   private final ServerSideEncryptingAmazonS3 s3Client;
-  private final InputSplit<URI> split;
+  private final URI uri;
 
-  public S3Source(ServerSideEncryptingAmazonS3 s3Client, InputSplit<URI> split)
+  public S3Source(ServerSideEncryptingAmazonS3 s3Client, URI uri)
   {
     this.s3Client = s3Client;
-    this.split = split;
+    this.uri = uri;
   }
 
   @Override
-  public InputSplit<URI> getSplit()
+  public URI getObject()
   {
-    return split;
+    return uri;
   }
 
   @Override
@@ -55,14 +54,14 @@ public class S3Source implements SplitSource
   {
     try {
       // Get data of the given object and open an input stream
-      final String bucket = split.get().getAuthority();
-      final String key = S3Utils.extractS3Key(split.get());
+      final String bucket = uri.getAuthority();
+      final String key = S3Utils.extractS3Key(uri);
 
       final S3Object s3Object = s3Client.getObject(bucket, key);
       if (s3Object == null) {
         throw new ISE("Failed to get an s3 object for bucket[%s] and key[%s]", bucket, key);
       }
-      return CompressionUtils.decompress(s3Object.getObjectContent(), split.get().toString());
+      return CompressionUtils.decompress(s3Object.getObjectContent(), uri.toString());
     }
     catch (AmazonS3Exception e) {
       throw new IOException(e);

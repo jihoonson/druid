@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
@@ -118,6 +119,7 @@ public class DataSchema
     }
   }
 
+  @VisibleForTesting
   public DataSchema(
       String dataSource,
       TimestampSpec timestampSpec,
@@ -196,13 +198,13 @@ public class DataSchema
   }
 
   @Nullable
-  @JsonProperty
-  public TimestampSpec getTimestampSpec()
+  @JsonProperty("timestampSpec")
+  private TimestampSpec getGivenTimestampSpec()
   {
     return timestampSpec;
   }
 
-  public TimestampSpec getNonNullTimestampSpec()
+  public TimestampSpec getTimestampSpec()
   {
     if (timestampSpec == null) {
       timestampSpec = Preconditions.checkNotNull(getParser(), "inputRowParser").getParseSpec().getTimestampSpec();
@@ -211,17 +213,17 @@ public class DataSchema
   }
 
   @Nullable
-  @JsonProperty
-  public DimensionsSpec getDimensionsSpec()
+  @JsonProperty("dimensionsSpec")
+  private DimensionsSpec getGivenDimensionsSpec()
   {
     return dimensionsSpec;
   }
 
-  public DimensionsSpec getNonNullDimensionsSpec()
+  public DimensionsSpec getDimensionsSpec()
   {
     if (dimensionsSpec == null) {
       dimensionsSpec = computeDimensionsSpec(
-          getNonNullTimestampSpec(),
+          getTimestampSpec(),
           Preconditions.checkNotNull(getParser(), "inputRowParser").getParseSpec().getDimensionsSpec(),
           aggregators
       );
@@ -266,6 +268,9 @@ public class DataSchema
       //noinspection unchecked
       inputRowParser = transformSpec.decorate(objectMapper.convertValue(this.parserMap, InputRowParser.class));
       ParseSpec parseSpec = inputRowParser.getParseSpec();
+      parseSpec = parseSpec.withDimensionsSpec(
+          computeDimensionsSpec(parseSpec.getTimestampSpec(), parseSpec.getDimensionsSpec(), aggregators)
+      );
       if (timestampSpec != null) {
         parseSpec = parseSpec.withTimestampSpec(timestampSpec);
       }
@@ -313,9 +318,10 @@ public class DataSchema
            ", aggregators=" + Arrays.toString(aggregators) +
            ", granularitySpec=" + granularitySpec +
            ", transformSpec=" + transformSpec +
-           (parserMap == null ? "" : ", parserMap=" + parserMap) +
+           ", parserMap=" + parserMap +
            ", timestampSpec=" + timestampSpec +
            ", dimensionsSpec=" + dimensionsSpec +
+           ", inputRowParser=" + inputRowParser +
            '}';
   }
 }

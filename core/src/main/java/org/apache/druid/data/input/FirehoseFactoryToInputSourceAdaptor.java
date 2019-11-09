@@ -20,27 +20,30 @@
 package org.apache.druid.data.input;
 
 import com.google.common.base.Preconditions;
-import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.FirehoseToInputSourceReaderAdaptor;
 import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.data.input.impl.SplittableInputSource;
-import org.apache.druid.data.input.impl.TimestampSpec;
 
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.util.stream.Stream;
 
-public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSource
+public class FirehoseFactoryToInputSourceAdaptor extends AbstractInputSource implements SplittableInputSource
 {
-  private final FirehoseFactory firehoseFactory;
+  private final FiniteFirehoseFactory firehoseFactory;
   private final InputRowParser inputRowParser;
 
-  public FirehoseFactoryToInputSourceAdaptor(FirehoseFactory firehoseFactory, InputRowParser inputRowParser)
+  public FirehoseFactoryToInputSourceAdaptor(FiniteFirehoseFactory firehoseFactory, InputRowParser inputRowParser)
   {
     this.firehoseFactory = firehoseFactory;
     this.inputRowParser = Preconditions.checkNotNull(inputRowParser, "inputRowParser");
+  }
+
+  public FiniteFirehoseFactory getFirehoseFactory()
+  {
+    return firehoseFactory;
   }
 
   @Override
@@ -54,7 +57,7 @@ public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSourc
       throws IOException
   {
     if (firehoseFactory.isSplittable()) {
-      return ((FiniteFirehoseFactory) firehoseFactory).getSplits(splitHintSpec);
+      return firehoseFactory.getSplits(splitHintSpec);
     } else {
       throw new UnsupportedOperationException();
     }
@@ -64,7 +67,7 @@ public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSourc
   public int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException
   {
     if (firehoseFactory.isSplittable()) {
-      return ((FiniteFirehoseFactory) firehoseFactory).getNumSplits(splitHintSpec);
+      return firehoseFactory.getNumSplits(splitHintSpec);
     } else {
       throw new UnsupportedOperationException();
     }
@@ -75,7 +78,7 @@ public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSourc
   {
     if (firehoseFactory.isSplittable()) {
       return new FirehoseFactoryToInputSourceAdaptor(
-          ((FiniteFirehoseFactory) firehoseFactory).withSplit(split),
+          firehoseFactory.withSplit(split),
           inputRowParser
       );
     } else {
@@ -84,12 +87,13 @@ public class FirehoseFactoryToInputSourceAdaptor implements SplittableInputSourc
   }
 
   @Override
-  public InputSourceReader reader(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      @Nullable InputFormat inputFormat, // inputFormat will be ignored
-      @Nullable File temporaryDirectory
-  )
+  public boolean needsFormat()
+  {
+    return false;
+  }
+
+  @Override
+  protected InputSourceReader unformattableReader(InputRowSchema inputRowSchema, @Nullable File temporaryDirectory)
   {
     return new FirehoseToInputSourceReaderAdaptor(firehoseFactory, inputRowParser, temporaryDirectory);
   }

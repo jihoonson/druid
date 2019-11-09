@@ -21,12 +21,11 @@ package org.apache.druid.data.input.orc;
 
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowPlusRaw;
-import org.apache.druid.data.input.SplitReader;
-import org.apache.druid.data.input.SplitSource;
-import org.apache.druid.data.input.SplitSource.CleanableFile;
-import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.InputRowSchema;
+import org.apache.druid.data.input.ObjectReader;
+import org.apache.druid.data.input.ObjectSource;
+import org.apache.druid.data.input.ObjectSource.CleanableFile;
 import org.apache.druid.data.input.impl.MapInputRowParser;
-import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
@@ -42,41 +41,26 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.mapred.OrcMapredRecordReader;
 import org.apache.orc.mapred.OrcStruct;
 
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Set;
 
-public class OrcReader implements SplitReader
+public class OrcReader implements ObjectReader
 {
   private final Configuration conf;
-  private final TimestampSpec timestampSpec;
-  private final List<String> dimensions;
-  private final Set<String> dimensionExclusions;
+  private final InputRowSchema inputRowSchema;
   private final ObjectFlattener<OrcStruct> orcStructFlattener;
-  private final byte[] buffer = new byte[SplitSource.DEFAULT_FETCH_BUFFER_SIZE];
+  private final byte[] buffer = new byte[ObjectSource.DEFAULT_FETCH_BUFFER_SIZE];
 
-  OrcReader(
-      Configuration conf,
-      TimestampSpec timestampSpec,
-      @Nullable DimensionsSpec dimensionsSpec,
-      JSONPathSpec flattenSpec
-  )
+  OrcReader(Configuration conf, InputRowSchema inputRowSchema, JSONPathSpec flattenSpec)
   {
     this.conf = conf;
-    this.timestampSpec = timestampSpec;
-    this.dimensions = dimensionsSpec != null ? dimensionsSpec.getDimensionNames() : Collections.emptyList();
-    this.dimensionExclusions = dimensionsSpec != null
-                               ? dimensionsSpec.getDimensionExclusions()
-                               : Collections.emptySet();
+    this.inputRowSchema = inputRowSchema;
     this.orcStructFlattener = ObjectFlatteners.create(flattenSpec, new OrcStructFlattenerMaker(false));
   }
 
   @Override
-  public CloseableIterator<InputRow> read(SplitSource source, File temporaryDirectory) throws IOException
+  public CloseableIterator<InputRow> read(ObjectSource source, File temporaryDirectory) throws IOException
   {
     Closer closer = Closer.create();
     final CleanableFile file = closer.register(source.fetch(temporaryDirectory, buffer));
@@ -126,9 +110,8 @@ public class OrcReader implements SplitReader
         }
         hasNext = null;
         return MapInputRowParser.parse(
-            timestampSpec,
-            dimensions,
-            dimensionExclusions,
+            inputRowSchema.getTimestampSpec(),
+            inputRowSchema.getDimensionsSpec(),
             orcStructFlattener.flatten(value)
         );
       }
@@ -142,7 +125,7 @@ public class OrcReader implements SplitReader
   }
 
   @Override
-  public CloseableIterator<InputRowPlusRaw> sample(SplitSource source, File temporaryDirectory)
+  public CloseableIterator<InputRowPlusRaw> sample(ObjectSource source, File temporaryDirectory)
   {
     throw new UnsupportedOperationException("Not implemented yet");
   }

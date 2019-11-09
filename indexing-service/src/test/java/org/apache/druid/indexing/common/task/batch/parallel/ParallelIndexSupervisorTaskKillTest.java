@@ -21,14 +21,12 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 
 import com.google.common.collect.Iterables;
 import org.apache.druid.client.indexing.IndexingServiceClient;
-import org.apache.druid.data.input.InputSourceReader;
+import org.apache.druid.data.input.AbstractInputSource;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitHintSpec;
-import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.NoopInputFormat;
 import org.apache.druid.data.input.impl.SplittableInputSource;
-import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.TaskStatusPlus;
@@ -55,7 +53,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import javax.annotation.Nullable;
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -239,7 +236,7 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     }
   }
 
-  private static class TestInputSource implements SplittableInputSource<TestInput>
+  private static class TestInputSource extends AbstractInputSource implements SplittableInputSource<TestInput>
   {
     private final List<InputSplit<TestInput>> splits;
 
@@ -279,14 +276,9 @@ public class ParallelIndexSupervisorTaskKillTest extends AbstractParallelIndexSu
     }
 
     @Override
-    public InputSourceReader reader(
-        TimestampSpec timestampSpec,
-        DimensionsSpec dimensionsSpec,
-        InputFormat inputFormat,
-        @Nullable File temporaryDirectory
-    )
+    public boolean needsFormat()
     {
-      throw new UnsupportedOperationException();
+      return false;
     }
   }
 

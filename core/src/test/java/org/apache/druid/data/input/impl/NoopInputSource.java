@@ -19,6 +19,7 @@
 
 package org.apache.druid.data.input.impl;
 
+import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.InputSource;
 import org.apache.druid.data.input.InputSourceReader;
 
@@ -28,19 +29,30 @@ import java.io.File;
 public class NoopInputSource implements InputSource
 {
   @Override
-  public InputSourceReader reader(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
-      @Nullable File temporaryDirectory
-  )
-  {
-    return null;
-  }
-
-  @Override
   public String toString()
   {
     return "NoopInputSource{}";
+  }
+
+  @Override
+  public boolean isSplittable()
+  {
+    return false;
+  }
+
+  @Override
+  public boolean needsFormat()
+  {
+    return false;
+  }
+
+  @Override
+  public InputSourceReader reader(
+      InputRowSchema inputRowSchema,
+      @Nullable InputFormat inputFormat,
+      @Nullable File temporaryDirectory
+  )
+  {
+    throw new UnsupportedOperationException();
   }
 }

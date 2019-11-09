@@ -22,11 +22,9 @@ package org.apache.druid.data.input;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.HttpInputSource;
 import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.LocalInputSource;
-import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.guice.annotations.ExtensionPoint;
 
 import javax.annotation.Nullable;
@@ -59,15 +57,23 @@ public interface InputSource
   /**
    * Returns true if this inputSource can be processed in parallel using ParallelIndexSupervisorTask.
    */
-  default boolean isSplittable()
-  {
-    return false;
-  }
+  boolean isSplittable();
 
+  /**
+   * Returns true if this inputSource supports different {@link InputFormat}s.
+   */
+  boolean needsFormat();
+
+  /**
+   * Create an {@link InputSourceReader}.
+   *
+   * @param inputRowSchema     for {@link InputRow}
+   * @param inputFormat        to parse data. It can be null if {@link #needsFormat()} = true
+   * @param temporaryDirectory to store temp data. It will be cleaned up automatically once the task is finished.
+   */
   InputSourceReader reader(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
+      InputRowSchema inputRowSchema,
+      @Nullable InputFormat inputFormat,
       @Nullable File temporaryDirectory
   ) throws IOException;
 }

@@ -17,38 +17,38 @@
  * under the License.
  */
 
-package org.apache.druid.data.input.impl;
+package org.apache.druid.data.input;
 
-import org.apache.druid.data.input.FiniteFirehoseFactory;
-import org.apache.druid.data.input.InputSplit;
-import org.apache.druid.data.input.SplitHintSpec;
+import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.impl.TimestampSpec;
 
-import javax.annotation.Nullable;
-import java.util.stream.Stream;
+import java.util.List;
 
-public class NoopFirehoseFactory implements FiniteFirehoseFactory
+public class InputRowSchema
 {
-  @Override
-  public String toString()
+  private final TimestampSpec timestampSpec;
+  private final DimensionsSpec dimensionsSpec;
+  private final List<String> metricNames;
+
+  public InputRowSchema(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec, List<String> metricNames)
   {
-    return "NoopFirehoseFactory{}";
+    this.timestampSpec = timestampSpec;
+    this.dimensionsSpec = dimensionsSpec;
+    this.metricNames = metricNames;
   }
 
-  @Override
-  public Stream<InputSplit> getSplits(@Nullable SplitHintSpec splitHintSpec)
+  public TimestampSpec getTimestampSpec()
   {
-    throw new UnsupportedOperationException();
+    return timestampSpec;
   }
 
-  @Override
-  public int getNumSplits(@Nullable SplitHintSpec splitHintSpec)
+  public DimensionsSpec getDimensionsSpec()
   {
-    throw new UnsupportedOperationException();
+    return dimensionsSpec;
   }
 
-  @Override
-  public FiniteFirehoseFactory withSplit(InputSplit split)
+  public List<String> getMetricNames()
   {
-    throw new UnsupportedOperationException();
+    return metricNames;
   }
 }

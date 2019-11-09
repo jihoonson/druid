@@ -22,7 +22,8 @@ package org.apache.druid.data.input.impl;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.SplitReader;
+import org.apache.druid.data.input.InputRowSchema;
+import org.apache.druid.data.input.ObjectReader;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
@@ -59,11 +60,16 @@ public class JsonReaderTest
         StringUtils.toUtf8("{\"timestamp\":\"2019-01-01\",\"bar\":null,\"foo\":\"x\",\"baz\":4,\"o\":{\"mg\":1}}")
     );
 
-    final SplitReader reader = format.createReader(
-        new TimestampSpec("timestamp", "iso", null),
-        new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("bar", "foo")))
+    final ObjectReader reader = format.createReader(
+        new InputRowSchema(
+            new TimestampSpec("timestamp", "iso", null),
+            new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("bar", "foo"))),
+            Collections.emptyList()
+        )
     );
+    final int numExpectedIterations = 1;
     try (CloseableIterator<InputRow> iterator = reader.read(source, null)) {
+      int numActualIterations = 0;
       while (iterator.hasNext()) {
         final InputRow row = iterator.next();
         Assert.assertEquals(DateTimes.of("2019-01-01"), row.getTimestamp());
@@ -76,7 +82,9 @@ public class JsonReaderTest
         Assert.assertTrue(row.getDimension("root_baz2").isEmpty());
         Assert.assertTrue(row.getDimension("path_omg2").isEmpty());
         Assert.assertTrue(row.getDimension("jq_omg2").isEmpty());
+        numActualIterations++;
       }
+      Assert.assertEquals(numExpectedIterations, numActualIterations);
     }
   }
 
@@ -99,18 +107,25 @@ public class JsonReaderTest
         StringUtils.toUtf8("{\"timestamp\":\"2019-01-01\",\"something_else\": {\"foo\": \"test\"}}")
     );
 
-    final SplitReader reader = format.createReader(
-        new TimestampSpec("timestamp", "iso", null),
-        new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("foo")))
+    final ObjectReader reader = format.createReader(
+        new InputRowSchema(
+            new TimestampSpec("timestamp", "iso", null),
+            new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("foo"))),
+            Collections.emptyList()
+        )
     );
 
+    final int numExpectedIterations = 1;
     try (CloseableIterator<InputRow> iterator = reader.read(source, null)) {
+      int numActualIterations = 0;
       while (iterator.hasNext()) {
         final InputRow row = iterator.next();
         Assert.assertEquals("test", Iterables.getOnlyElement(row.getDimension("bar")));
         Assert.assertEquals(Collections.emptyList(), row.getDimension("foo"));
         Assert.assertTrue(row.getDimension("baz").isEmpty());
+        numActualIterations++;
       }
+      Assert.assertEquals(numExpectedIterations, numActualIterations);
     }
   }
 }

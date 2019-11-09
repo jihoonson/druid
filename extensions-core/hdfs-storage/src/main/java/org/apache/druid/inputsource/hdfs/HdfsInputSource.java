@@ -23,14 +23,14 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
+import org.apache.druid.data.input.AbstractInputSource;
+import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitHintSpec;
-import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.InputFormat;
-import org.apache.druid.data.input.impl.SplitIteratingReader;
+import org.apache.druid.data.input.impl.ObjectIteratingReader;
 import org.apache.druid.data.input.impl.SplittableInputSource;
-import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-public class HdfsInputSource implements SplittableInputSource<Path>
+public class HdfsInputSource extends AbstractInputSource implements SplittableInputSource<Path>
 {
   private final List<String> paths;
   private final Configuration conf;
@@ -84,18 +84,16 @@ public class HdfsInputSource implements SplittableInputSource<Path>
   }
 
   @Override
-  public InputSourceReader reader(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      InputFormat inputFormat,
+  protected InputSourceReader formattableReader(
+      InputRowSchema inputRowSchema,
+      @Nullable InputFormat inputFormat,
       @Nullable File temporaryDirectory
   ) throws IOException
   {
-    return new SplitIteratingReader<>(
-        timestampSpec,
-        dimensionsSpec,
+    return new ObjectIteratingReader<>(
+        inputRowSchema,
         inputFormat,
-        createSplits(null, null).map(split -> new HdfsSource(conf, split)),
+        createSplits(null, null).map(split -> new HdfsSource(conf, split.get())),
         temporaryDirectory
     );
   }
@@ -165,5 +163,11 @@ public class HdfsInputSource implements SplittableInputSource<Path>
   public SplittableInputSource<Path> withSplit(InputSplit<Path> split)
   {
     return new HdfsInputSource(split.get().toString(), conf);
+  }
+
+  @Override
+  public boolean needsFormat()
+  {
+    return true;
   }
 }

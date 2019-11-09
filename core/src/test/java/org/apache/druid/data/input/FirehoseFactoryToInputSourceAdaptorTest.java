@@ -37,8 +37,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class FirehoseFactoryToInputSourceAdaptorTest
 {
@@ -51,7 +53,7 @@ public class FirehoseFactoryToInputSourceAdaptorTest
     }
     final TestFirehoseFactory firehoseFactory = new TestFirehoseFactory(lines);
     final StringInputRowParser inputRowParser = new StringInputRowParser(
-        new TestCsvParseSpec(
+        new UnimplementedInputFormatCsvParseSpec(
             new TimestampSpec(null, "yyyyMMdd", null),
             new DimensionsSpec(DimensionsSpec.getDefaultSchemas(Arrays.asList("timestamp", "name", "score"))),
             ",",
@@ -66,8 +68,11 @@ public class FirehoseFactoryToInputSourceAdaptorTest
         inputRowParser
     );
     final InputSourceReader reader = inputSourceAdaptor.reader(
-        inputRowParser.getParseSpec().getTimestampSpec(),
-        inputRowParser.getParseSpec().getDimensionsSpec(),
+        new InputRowSchema(
+            inputRowParser.getParseSpec().getTimestampSpec(),
+            inputRowParser.getParseSpec().getDimensionsSpec(),
+            Collections.emptyList()
+        ),
         null,
         null
     );
@@ -91,9 +96,9 @@ public class FirehoseFactoryToInputSourceAdaptorTest
     }
   }
 
-  private static class TestCsvParseSpec extends CSVParseSpec
+  private static class UnimplementedInputFormatCsvParseSpec extends CSVParseSpec
   {
-    private TestCsvParseSpec(
+    private UnimplementedInputFormatCsvParseSpec(
         TimestampSpec timestampSpec,
         DimensionsSpec dimensionsSpec,
         String listDelimiter,
@@ -113,7 +118,7 @@ public class FirehoseFactoryToInputSourceAdaptorTest
     }
   }
 
-  private static class TestFirehoseFactory implements FirehoseFactory<StringInputRowParser>
+  private static class TestFirehoseFactory implements FiniteFirehoseFactory<StringInputRowParser, Object>
   {
     private final List<String> lines;
 
@@ -147,6 +152,30 @@ public class FirehoseFactoryToInputSourceAdaptorTest
           // do nothing
         }
       };
+    }
+
+    @Override
+    public boolean isSplittable()
+    {
+      return false;
+    }
+
+    @Override
+    public Stream<InputSplit<Object>> getSplits(@Nullable SplitHintSpec splitHintSpec)
+    {
+      return null;
+    }
+
+    @Override
+    public int getNumSplits(@Nullable SplitHintSpec splitHintSpec)
+    {
+      return 0;
+    }
+
+    @Override
+    public FiniteFirehoseFactory withSplit(InputSplit split)
+    {
+      return null;
     }
   }
 }

@@ -26,15 +26,15 @@ import java.io.File;
 import java.io.IOException;
 
 /**
- * SplitReader knows how to parse data into {@link InputRow}.
- * This class is <i>stateful</i> and a new SplitReader should be created per {@link InputSplit}.
+ * ObjectReader knows how to parse data into {@link InputRow}.
+ * This class is <i>stateful</i> and a new ObjectReader should be created per {@link ObjectSource}.
  *
  * @see TextReader for text format readers
  */
 @ExtensionPoint
-public interface SplitReader
+public interface ObjectReader
 {
-  CloseableIterator<InputRow> read(SplitSource source, File temporaryDirectory) throws IOException;
+  CloseableIterator<InputRow> read(ObjectSource<?> source, File temporaryDirectory) throws IOException;
 
-  CloseableIterator<InputRowPlusRaw> sample(SplitSource source, File temporaryDirectory) throws IOException;
+  CloseableIterator<InputRowPlusRaw> sample(ObjectSource<?> source, File temporaryDirectory) throws IOException;
 }
