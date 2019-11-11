@@ -114,8 +114,12 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
     }
 
     final BlockingQueue<ResultBatch<T>> outputQueue = new ArrayBlockingQueue<>(queueSize);
+    List<BatchedResultsCursor<T>> sequenceCursors = new ArrayList<>(baseSequences.size());
+    for (Sequence<T> s : baseSequences) {
+      sequenceCursors.add(new YielderBatchedResultsCursor<>(new SequenceBatcher<>(s, batchSize), orderingFn));
+    }
     MergeCombinePartitioningAction<T> finalMergeAction = new MergeCombinePartitioningAction<>(
-        baseSequences,
+        sequenceCursors,
         orderingFn,
         combineFn,
         outputQueue,
@@ -126,7 +130,9 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         targetTimeNanos,
         hasTimeout,
         timeoutAtNanos,
-        cancellationGizmo
+        cancellationGizmo,
+        false,
+        null
     );
     workerPool.execute(finalMergeAction);
     Sequence<T> finalOutSequence = makeOutputSequenceForQueue(outputQueue, hasTimeout, timeoutAtNanos, cancellationGizmo);
@@ -236,7 +242,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
    */
   private static class MergeCombinePartitioningAction<T> extends RecursiveAction
   {
-    private final List<Sequence<T>> sequences;
+    private final List<BatchedResultsCursor<T>> sequenceCursors;
     private final Ordering<T> orderingFn;
     private final BinaryOperator<T> combineFn;
     private final BlockingQueue<ResultBatch<T>> out;
@@ -248,9 +254,11 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
     private final boolean hasTimeout;
     private final long timeoutAt;
     private final CancellationGizmo cancellationGizmo;
+    private final boolean cursorInitialized;
+    private final T currentCombinedValue;
 
     private MergeCombinePartitioningAction(
-        List<Sequence<T>> sequences,
+        List<BatchedResultsCursor<T>> sequenceCursors,
         Ordering<T> orderingFn,
         BinaryOperator<T> combineFn,
         BlockingQueue<ResultBatch<T>> out,
@@ -261,10 +269,12 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         long targetTimeNanos,
         boolean hasTimeout,
         long timeoutAt,
-        CancellationGizmo cancellationGizmo
+        CancellationGizmo cancellationGizmo,
+        boolean cursorInitialized,
+        T currentCombinedValue
     )
     {
-      this.sequences = sequences;
+      this.sequenceCursors = sequenceCursors;
       this.combineFn = combineFn;
       this.orderingFn = orderingFn;
       this.out = out;
@@ -276,6 +286,8 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
       this.hasTimeout = hasTimeout;
       this.timeoutAt = timeoutAt;
       this.cancellationGizmo = cancellationGizmo;
+      this.cursorInitialized = cursorInitialized;
+      this.currentCombinedValue = currentCombinedValue;
     }
 
     @Override
@@ -290,17 +302,14 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
           LOG.debug(
               "Input sequence count (%s) or available parallel merge task count (%s) too small to perform parallel"
               + " merge-combine, performing serially with a single merge-combine task",
-              sequences.size(),
+              sequenceCursors.size(),
               parallelTaskCount
           );
 
           QueuePusher<ResultBatch<T>> resultsPusher = new QueuePusher<>(out, hasTimeout, timeoutAt);
 
-          List<BatchedResultsCursor<T>> sequenceCursors = new ArrayList<>(sequences.size());
-          for (Sequence<T> s : sequences) {
-            sequenceCursors.add(new YielderBatchedResultsCursor<>(new SequenceBatcher<>(s, batchSize), orderingFn));
-          }
           PrepareMergeCombineInputsAction<T> blockForInputsAction = new PrepareMergeCombineInputsAction<>(
+              new RootActionContext<>(sequenceCursors, queueSize, parallelism, hasTimeout, timeoutAt, cursorInitialized, currentCombinedValue),
               sequenceCursors,
               resultsPusher,
               orderingFn,
@@ -313,7 +322,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
           getPool().execute(blockForInputsAction);
         } else {
           // 2 layer parallel merge done in fjp
-          LOG.debug("Spawning %s parallel merge-combine tasks for %s sequences", parallelTaskCount, sequences.size());
+          LOG.debug("Spawning %s parallel merge-combine tasks for %s sequences", parallelTaskCount, sequenceCursors.size());
           spawnParallelTasks(parallelTaskCount);
         }
       }
@@ -328,19 +337,16 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
       List<RecursiveAction> tasks = new ArrayList<>();
       List<BlockingQueue<ResultBatch<T>>> intermediaryOutputs = new ArrayList<>(parallelMergeTasks);
 
-      List<? extends List<Sequence<T>>> partitions =
-          Lists.partition(sequences, sequences.size() / parallelMergeTasks);
+      List<? extends List<BatchedResultsCursor<T>>> partitions =
+          Lists.partition(sequenceCursors, sequenceCursors.size() / parallelMergeTasks);
 
-      for (List<Sequence<T>> partition : partitions) {
+      for (List<BatchedResultsCursor<T>> partitionCursors : partitions) {
         BlockingQueue<ResultBatch<T>> outputQueue = new ArrayBlockingQueue<>(queueSize);
         intermediaryOutputs.add(outputQueue);
         QueuePusher<ResultBatch<T>> pusher = new QueuePusher<>(outputQueue, hasTimeout, timeoutAt);
 
-        List<BatchedResultsCursor<T>> partitionCursors = new ArrayList<>(sequences.size());
-        for (Sequence<T> s : partition) {
-          partitionCursors.add(new YielderBatchedResultsCursor<>(new SequenceBatcher<>(s, batchSize), orderingFn));
-        }
         PrepareMergeCombineInputsAction<T> blockForInputsAction = new PrepareMergeCombineInputsAction<>(
+            null,
             partitionCursors,
             pusher,
             orderingFn,
@@ -365,6 +371,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         );
       }
       PrepareMergeCombineInputsAction<T> finalMergeAction = new PrepareMergeCombineInputsAction<>(
+          new RootActionContext<>(sequenceCursors, queueSize, parallelism, hasTimeout, timeoutAt, cursorInitialized, currentCombinedValue),
           intermediaryOutputsCursors,
           outputPusher,
           orderingFn,
@@ -402,7 +409,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
 
       // try to balance partition size with partition count so we don't end up with layer 2 'final merge' task that has
       // significantly more work to do than the layer 1 'parallel' tasks.
-      final int computedParallelismForSequences = (int) Math.floor(Math.sqrt(sequences.size()));
+      final int computedParallelismForSequences = (int) Math.floor(Math.sqrt(sequenceCursors.size()));
 
       // compute total number of layer 1 'parallel' tasks, for the utilzation parallelism, subtract 1 as the final merge
       // task will take the remaining slot
@@ -450,6 +457,8 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
    */
   private static class MergeCombineAction<T> extends RecursiveAction
   {
+    @Nullable
+    private final RootActionContext<T> rootActionContext;
     private final PriorityQueue<BatchedResultsCursor<T>> pQueue;
     private final Ordering<T> orderingFn;
     private final BinaryOperator<T> combineFn;
@@ -460,8 +469,10 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
     private final long targetTimeNanos;
     private final int recursionDepth;
     private final CancellationGizmo cancellationGizmo;
+    private final int numClones;
 
     private MergeCombineAction(
+        @Nullable RootActionContext<T> rootActionContext,
         PriorityQueue<BatchedResultsCursor<T>> pQueue,
         QueuePusher<ResultBatch<T>> outputQueue,
         Ordering<T> orderingFn,
@@ -471,9 +482,11 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         int batchSize,
         long targetTimeNanos,
         int recursionDepth,
-        CancellationGizmo cancellationGizmo
+        CancellationGizmo cancellationGizmo,
+        int numClones
     )
     {
+      this.rootActionContext = rootActionContext;
       this.pQueue = pQueue;
       this.orderingFn = orderingFn;
       this.combineFn = combineFn;
@@ -484,6 +497,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
       this.targetTimeNanos = targetTimeNanos;
       this.recursionDepth = recursionDepth;
       this.cancellationGizmo = cancellationGizmo;
+      this.numClones = numClones;
     }
 
     @Override
@@ -566,18 +580,42 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
               elapsedCpuNanos,
               adjustedNextYieldAfter
           );
-          getPool().execute(new MergeCombineAction<>(
-              pQueue,
-              outputQueue,
-              orderingFn,
-              combineFn,
-              currentCombinedValue,
-              adjustedNextYieldAfter,
-              batchSize,
-              targetTimeNanos,
-              recursionDepth + 1,
-              cancellationGizmo
-          ));
+          if (numClones > 0) {
+            getPool().execute(new MergeCombineAction<>(
+                rootActionContext,
+                pQueue,
+                outputQueue,
+                orderingFn,
+                combineFn,
+                currentCombinedValue,
+                adjustedNextYieldAfter,
+                batchSize,
+                targetTimeNanos,
+                recursionDepth + 1,
+                cancellationGizmo,
+                numClones - 1
+            ));
+          } else if (rootActionContext != null) {
+            LOG.debug("Wow! resetting!!!!!!!!!!!");
+            getPool().execute(
+                new MergeCombinePartitioningAction<>(
+                    rootActionContext.sequenceCursors,
+                    orderingFn,
+                    combineFn,
+                    outputQueue.queue,
+                    rootActionContext.queueSize,
+                    rootActionContext.parallelism,
+                    yieldAfter,
+                    batchSize,
+                    targetTimeNanos,
+                    rootActionContext.hasTimeout,
+                    rootActionContext.timeoutAt,
+                    cancellationGizmo,
+                    true,
+                    currentCombinedValue
+                )
+            );
+          }
         } else if (cancellationGizmo.isCancelled()) {
           // if we got the cancellation signal, go ahead and write terminal value into output queue to help gracefully
           // allow downstream stuff to stop
@@ -599,6 +637,36 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
     }
   }
 
+  private static class RootActionContext<T>
+  {
+    private final List<BatchedResultsCursor<T>> sequenceCursors;
+    private final int queueSize;
+    private final int parallelism;
+    private final boolean hasTimeout;
+    private final long timeoutAt;
+    private final boolean cursorInitialized;
+    @Nullable
+    private final T currentCombinedValue;
+
+    RootActionContext(
+        List<BatchedResultsCursor<T>> sequenceCursors,
+        int queueSize,
+        int parallelism,
+        boolean hasTimeout,
+        long timeoutAt,
+        boolean cursorInitialized,
+        @Nullable T currentCombinedValue
+    )
+    {
+      this.sequenceCursors = sequenceCursors;
+      this.queueSize = queueSize;
+      this.parallelism = parallelism;
+      this.hasTimeout = hasTimeout;
+      this.timeoutAt = timeoutAt;
+      this.cursorInitialized = cursorInitialized;
+      this.currentCombinedValue = currentCombinedValue;
+    }
+  }
 
   /**
    * This {@link RecursiveAction}, given a set of uninitialized {@link BatchedResultsCursor}, will initialize each of
@@ -616,6 +684,8 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
    */
   private static class PrepareMergeCombineInputsAction<T> extends RecursiveAction
   {
+    @Nullable
+    private final RootActionContext<T> rootActionContext;
     private final List<BatchedResultsCursor<T>> partition;
     private final Ordering<T> orderingFn;
     private final BinaryOperator<T> combineFn;
@@ -626,6 +696,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
     private final CancellationGizmo cancellationGizmo;
 
     private PrepareMergeCombineInputsAction(
+        @Nullable RootActionContext<T> rootActionContext,
         List<BatchedResultsCursor<T>> partition,
         QueuePusher<ResultBatch<T>> outputQueue,
         Ordering<T> orderingFn,
@@ -636,6 +707,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         CancellationGizmo cancellationGizmo
     )
     {
+      this.rootActionContext = rootActionContext;
       this.partition = partition;
       this.orderingFn = orderingFn;
       this.combineFn = combineFn;
@@ -652,8 +724,10 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
       try {
         PriorityQueue<BatchedResultsCursor<T>> cursors = new PriorityQueue<>(partition.size());
         for (BatchedResultsCursor<T> cursor : partition) {
-          // this is blocking
-          cursor.initialize();
+          if (rootActionContext == null || !rootActionContext.cursorInitialized) {
+            // this is blocking
+            cursor.initialize();
+          }
           if (!cursor.isDone()) {
             cursors.offer(cursor);
           }
@@ -661,16 +735,18 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
 
         if (cursors.size() > 0) {
           getPool().execute(new MergeCombineAction<T>(
+              rootActionContext,
               cursors,
               outputQueue,
               orderingFn,
               combineFn,
-              null,
+              rootActionContext == null ? null : rootActionContext.currentCombinedValue,
               yieldAfter,
               batchSize,
               targetTimeNanos,
               1,
-              cancellationGizmo
+              cancellationGizmo,
+              0
           ));
         } else {
           outputQueue.offer(ResultBatch.TERMINAL);

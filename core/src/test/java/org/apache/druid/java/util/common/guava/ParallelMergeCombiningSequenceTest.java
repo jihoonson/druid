@@ -500,7 +500,7 @@ public class ParallelMergeCombiningSequenceTest
         sequences,
         INT_PAIR_ORDERING,
         INT_PAIR_MERGE_FN,
-        true,
+        false,
         5000,
         0,
         (int) Math.ceil(Runtime.getRuntime().availableProcessors() * 0.5),
