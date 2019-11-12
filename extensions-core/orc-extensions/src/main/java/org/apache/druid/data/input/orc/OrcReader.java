@@ -36,6 +36,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
+import org.apache.orc.Reader.Options;
 import org.apache.orc.RecordReader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.mapred.OrcMapredRecordReader;
@@ -51,20 +52,27 @@ public class OrcReader implements ObjectReader
   private final InputRowSchema inputRowSchema;
   private final ObjectFlattener<OrcStruct> orcStructFlattener;
   private final byte[] buffer = new byte[ObjectSource.DEFAULT_FETCH_BUFFER_SIZE];
+  private final boolean fetch;
 
-  OrcReader(Configuration conf, InputRowSchema inputRowSchema, JSONPathSpec flattenSpec)
+  public OrcReader(Configuration conf, InputRowSchema inputRowSchema, JSONPathSpec flattenSpec, boolean fetch)
   {
     this.conf = conf;
     this.inputRowSchema = inputRowSchema;
     this.orcStructFlattener = ObjectFlatteners.create(flattenSpec, new OrcStructFlattenerMaker(false));
+    this.fetch = fetch;
   }
 
   @Override
   public CloseableIterator<InputRow> read(ObjectSource source, File temporaryDirectory) throws IOException
   {
-    Closer closer = Closer.create();
-    final CleanableFile file = closer.register(source.fetch(temporaryDirectory, buffer));
-    final Path path = new Path(file.file().toURI());
+    final Closer closer = Closer.create();
+    final Path path;
+    if (fetch) {
+      final CleanableFile file = closer.register(source.fetch(temporaryDirectory, buffer));
+      path = new Path(file.file().toURI());
+    } else {
+      path = new Path(source.getUri());
+    }
 
     final ClassLoader currentClassLoader = Thread.currentThread().getContextClassLoader();
     final Reader reader;
@@ -77,8 +85,13 @@ public class OrcReader implements ObjectReader
     }
     // TODO: build schema from flattenSpec
     //       final RecordReader recordReader = reader.rows(reader.options().schema());
+    Options options = reader.options();
+    if (source.start() >= 0 && source.length() >= 0) {
+      options = options.range(source.start(), source.length());
+    }
     final TypeDescription schema = reader.getSchema();
-    final RecordReader batchReader = reader.rows(reader.options());
+    options = options.schema(schema);
+    final RecordReader batchReader = reader.rows(options);
     final OrcMapredRecordReader<OrcStruct> recordReader = new OrcMapredRecordReader<>(batchReader, schema);
     closer.register(recordReader::close);
 

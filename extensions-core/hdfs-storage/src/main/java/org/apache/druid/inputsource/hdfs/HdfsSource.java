@@ -29,6 +29,7 @@ import org.apache.hadoop.fs.Path;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 
 public class HdfsSource implements ObjectSource<Path>
 {
@@ -39,6 +40,12 @@ public class HdfsSource implements ObjectSource<Path>
   {
     this.conf = conf;
     this.path = path;
+  }
+
+  @Override
+  public URI getUri()
+  {
+    return path.toUri();
   }
 
   @Override

@@ -29,6 +29,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 
 /**
  * ObjectSource abstracts an object and knows how to read bytes from the given object.
@@ -39,7 +40,7 @@ public interface ObjectSource<T>
   Logger LOG = new Logger(ObjectSource.class);
 
   int DEFAULT_FETCH_BUFFER_SIZE = 4 * 1024; // 4 KB
-  int DEFAULT_MAX_FETCH_RETRY = 2; // 3 tries including the initial try
+  int DEFAULT_MAX_FETCH_RETRY = 3; // 3 tries including the initial try
 
   /**
    * CleanableFile is the result type of {@link #fetch}.
@@ -49,6 +50,8 @@ public interface ObjectSource<T>
   {
     File file();
   }
+
+  URI getUri();
 
   T getObject();
 
@@ -113,4 +116,14 @@ public interface ObjectSource<T>
    * {@link #fetch} will retry during the fetch if it sees an exception mathing to the returned predicate.
    */
   Predicate<Throwable> getRetryCondition();
+
+  default long start()
+  {
+    return -1;
+  }
+
+  default long length()
+  {
+    return -1;
+  }
 }

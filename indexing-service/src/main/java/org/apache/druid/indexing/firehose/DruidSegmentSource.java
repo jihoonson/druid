@@ -22,6 +22,7 @@ package org.apache.druid.indexing.firehose;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import org.apache.druid.data.input.ObjectSource;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.segment.loading.SegmentLoader;
 import org.apache.druid.segment.loading.SegmentLoadingException;
 import org.apache.druid.timeline.DataSegment;
@@ -29,6 +30,7 @@ import org.joda.time.Interval;
 
 import java.io.File;
 import java.io.InputStream;
+import java.net.URI;
 
 public class DruidSegmentSource implements ObjectSource<DataSegment>
 {
@@ -46,6 +48,12 @@ public class DruidSegmentSource implements ObjectSource<DataSegment>
   Interval getIntervalFilter()
   {
     return intervalFilter;
+  }
+
+  @Override
+  public URI getUri()
+  {
+    return URI.create(StringUtils.format("druid://%s", segment.getId()));
   }
 
   @Override

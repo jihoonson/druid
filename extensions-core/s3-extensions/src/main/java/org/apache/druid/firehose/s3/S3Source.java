@@ -24,6 +24,7 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.google.common.base.Predicate;
 import org.apache.druid.data.input.ObjectSource;
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.storage.s3.S3Utils;
 import org.apache.druid.storage.s3.ServerSideEncryptingAmazonS3;
 import org.apache.druid.utils.CompressionUtils;
@@ -36,11 +37,31 @@ public class S3Source implements ObjectSource<URI>
 {
   private final ServerSideEncryptingAmazonS3 s3Client;
   private final URI uri;
+  private final long start;
+  private final long length;
 
   public S3Source(ServerSideEncryptingAmazonS3 s3Client, URI uri)
   {
+    this(s3Client, uri, -1, -1);
+  }
+
+  public S3Source(ServerSideEncryptingAmazonS3 s3Client, URI uri, long start, long length)
+  {
     this.s3Client = s3Client;
     this.uri = uri;
+    this.start = start;
+    this.length = length;
+  }
+
+  @Override
+  public URI getUri()
+  {
+    return uri;
+  }
+
+  public URI getHadoopyUri()
+  {
+    return URI.create("s3a" + uri.toString().substring(uri.toString().indexOf(':')));
   }
 
   @Override
@@ -72,5 +93,17 @@ public class S3Source implements ObjectSource<URI>
   public Predicate<Throwable> getRetryCondition()
   {
     return S3Utils.S3RETRY;
+  }
+
+  @Override
+  public long start()
+  {
+    return start;
+  }
+
+  @Override
+  public long length()
+  {
+    return length;
   }
 }

@@ -28,14 +28,24 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 
 public class FileSource implements ObjectSource<File>
 {
   private final File file;
+  private final long start;
+  private final long length;
 
-  FileSource(File file)
+  public FileSource(File file)
+  {
+    this(file, -1, -1);
+  }
+
+  public FileSource(File file, long start, long length)
   {
     this.file = file;
+    this.start = start;
+    this.length = length;
   }
 
   @Override
@@ -58,6 +68,12 @@ public class FileSource implements ObjectSource<File>
   }
 
   @Override
+  public URI getUri()
+  {
+    return file.toURI();
+  }
+
+  @Override
   public File getObject()
   {
     return file;
@@ -73,5 +89,17 @@ public class FileSource implements ObjectSource<File>
   public Predicate<Throwable> getRetryCondition()
   {
     return Predicates.alwaysFalse();
+  }
+
+  @Override
+  public long start()
+  {
+    return start;
+  }
+
+  @Override
+  public long length()
+  {
+    return length;
   }
 }

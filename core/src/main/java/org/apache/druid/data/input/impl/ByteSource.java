@@ -25,6 +25,7 @@ import org.apache.druid.data.input.ObjectSource;
 import org.apache.druid.io.ByteBufferInputStream;
 
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.ByteBuffer;
 
 public class ByteSource implements ObjectSource<ByteBuffer>
@@ -39,6 +40,12 @@ public class ByteSource implements ObjectSource<ByteBuffer>
   public ByteSource(byte[] bytes)
   {
     this(ByteBuffer.wrap(bytes));
+  }
+
+  @Override
+  public URI getUri()
+  {
+    return URI.create("byte://");
   }
 
   @Override

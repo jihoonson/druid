@@ -53,6 +53,12 @@ public class HttpSource implements ObjectSource<URI>
   }
 
   @Override
+  public URI getUri()
+  {
+    return split;
+  }
+
+  @Override
   public URI getObject()
   {
     return split;

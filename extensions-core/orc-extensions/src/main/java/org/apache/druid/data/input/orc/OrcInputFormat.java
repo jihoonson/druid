@@ -51,6 +51,6 @@ public class OrcInputFormat extends NestedInputFormat
   @Override
   public ObjectReader createReader(InputRowSchema inputRowSchema)
   {
-    return new OrcReader(conf, inputRowSchema, getFlattenSpec());
+    return new OrcReader(conf, inputRowSchema, getFlattenSpec(), true);
   }
 }
