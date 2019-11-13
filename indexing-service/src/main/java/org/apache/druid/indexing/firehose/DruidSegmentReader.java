@@ -21,12 +21,13 @@ package org.apache.druid.indexing.firehose;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Maps;
+import org.apache.druid.data.input.InputEntity;
+import org.apache.druid.data.input.InputEntity.CleanableFile;
+import org.apache.druid.data.input.InputEntityReader;
+import org.apache.druid.data.input.InputEntitySampler;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowPlusRaw;
+import org.apache.druid.data.input.InputRowListPlusJson;
 import org.apache.druid.data.input.MapBasedInputRow;
-import org.apache.druid.data.input.ObjectReader;
-import org.apache.druid.data.input.ObjectSource;
-import org.apache.druid.data.input.ObjectSource.CleanableFile;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.IAE;
@@ -59,7 +60,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class DruidSegmentReader implements ObjectReader
+public class DruidSegmentReader implements InputEntityReader, InputEntitySampler
 {
   private final IndexIO indexIO;
   private final List<String> dimensions;
@@ -80,7 +81,7 @@ public class DruidSegmentReader implements ObjectReader
   }
 
   @Override
-  public CloseableIterator<InputRow> read(ObjectSource<?> source, File temporaryDirectory) throws IOException
+  public CloseableIterator<InputRow> read(InputEntity<?> source, File temporaryDirectory) throws IOException
   {
     if (!(source instanceof DruidSegmentSource)) {
       throw new IAE("Cannot process [%s]", source.getClass().getName());
@@ -227,7 +228,8 @@ public class DruidSegmentReader implements ObjectReader
   }
 
   @Override
-  public CloseableIterator<InputRowPlusRaw> sample(ObjectSource<?> source, File temporaryDirectory)
+  public CloseableIterator<InputRowListPlusJson> sample(InputEntity<?> source, File temporaryDirectory)
+      throws IOException
   {
     return null;
   }

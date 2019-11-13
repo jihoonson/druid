@@ -19,9 +19,10 @@
 
 package org.apache.druid.indexing.firehose;
 
+import org.apache.druid.data.input.InputEntityReader;
+import org.apache.druid.data.input.InputEntitySampler;
+import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRowSchema;
-import org.apache.druid.data.input.ObjectReader;
-import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.query.filter.DimFilter;
 import org.apache.druid.segment.IndexIO;
 
@@ -43,7 +44,18 @@ public class DruidSegmentInputFormat implements InputFormat
   }
 
   @Override
-  public ObjectReader createReader(InputRowSchema inputRowSchema)
+  public InputEntityReader createReader(InputRowSchema inputRowSchema)
+  {
+    return new DruidSegmentReader(
+        indexIO,
+        inputRowSchema.getDimensionsSpec().getDimensionNames(),
+        inputRowSchema.getMetricNames(),
+        dimFilter
+    );
+  }
+
+  @Override
+  public InputEntitySampler createSampler(InputRowSchema inputRowSchema)
   {
     return new DruidSegmentReader(
         indexIO,

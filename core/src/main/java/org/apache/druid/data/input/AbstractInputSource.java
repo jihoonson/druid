@@ -20,7 +20,6 @@
 package org.apache.druid.data.input;
 
 import com.google.common.base.Preconditions;
-import org.apache.druid.data.input.impl.InputFormat;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -53,7 +52,7 @@ public abstract class AbstractInputSource implements InputSource
 
   protected InputSourceReader formattableReader(
       InputRowSchema inputRowSchema,
-      @Nullable InputFormat inputFormat,
+      InputFormat inputFormat,
       @Nullable File temporaryDirectory
   ) throws IOException
   {

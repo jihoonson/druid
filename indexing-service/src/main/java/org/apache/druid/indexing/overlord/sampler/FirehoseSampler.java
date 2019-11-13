@@ -29,12 +29,12 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.druid.common.utils.UUIDUtils;
 import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.FirehoseFactory;
+import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowPlusRaw;
+import org.apache.druid.data.input.InputRowListPlusJson;
 import org.apache.druid.data.input.Row;
 import org.apache.druid.data.input.impl.AbstractTextFilesFirehoseFactory;
 import org.apache.druid.data.input.impl.DimensionsSpec;
-import org.apache.druid.data.input.impl.InputFormat;
 import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.data.input.impl.StringInputRowParser;
@@ -215,7 +215,7 @@ public class FirehoseSampler
       while (counter < responseRows.length && firehose.hasMore()) {
         String raw = null;
         try {
-          final InputRowPlusRaw row = firehose.nextRowWithRaw();
+          final InputRowListPlusJson row = firehose.nextRowWithRaw();
 
           if (row == null || row.isEmpty()) {
             continue;

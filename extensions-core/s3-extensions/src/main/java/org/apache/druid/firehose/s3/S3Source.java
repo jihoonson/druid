@@ -22,7 +22,7 @@ package org.apache.druid.firehose.s3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.S3Object;
 import com.google.common.base.Predicate;
-import org.apache.druid.data.input.ObjectSource;
+import org.apache.druid.data.input.InputEntity;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.storage.s3.S3Utils;
 import org.apache.druid.storage.s3.ServerSideEncryptingAmazonS3;
@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 
-public class S3Source implements ObjectSource<URI>
+public class S3Source implements InputEntity<URI>
 {
   private final ServerSideEncryptingAmazonS3 s3Client;
   private final URI uri;
@@ -69,7 +69,7 @@ public class S3Source implements ObjectSource<URI>
   }
 
   @Override
-  public Predicate<Throwable> getRetryCondition()
+  public Predicate<Throwable> getFetchRetryCondition()
   {
     return S3Utils.S3RETRY;
   }

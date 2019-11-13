@@ -21,7 +21,7 @@ package org.apache.druid.indexing.firehose;
 
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
-import org.apache.druid.data.input.ObjectSource;
+import org.apache.druid.data.input.InputEntity;
 import org.apache.druid.segment.loading.SegmentLoader;
 import org.apache.druid.segment.loading.SegmentLoadingException;
 import org.apache.druid.timeline.DataSegment;
@@ -30,7 +30,7 @@ import org.joda.time.Interval;
 import java.io.File;
 import java.io.InputStream;
 
-public class DruidSegmentSource implements ObjectSource<DataSegment>
+public class DruidSegmentSource implements InputEntity<DataSegment>
 {
   private final SegmentLoader segmentLoader;
   private final DataSegment segment;
@@ -89,7 +89,7 @@ public class DruidSegmentSource implements ObjectSource<DataSegment>
   }
 
   @Override
-  public Predicate<Throwable> getRetryCondition()
+  public Predicate<Throwable> getFetchRetryCondition()
   {
     return Predicates.alwaysFalse();
   }

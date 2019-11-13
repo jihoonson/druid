@@ -19,18 +19,21 @@
 
 package org.apache.druid.data.input.orc;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.apache.druid.data.input.InputEntity;
+import org.apache.druid.data.input.InputEntity.CleanableFile;
+import org.apache.druid.data.input.InputEntityReader;
+import org.apache.druid.data.input.InputEntitySampler;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowPlusRaw;
+import org.apache.druid.data.input.InputRowListPlusJson;
 import org.apache.druid.data.input.InputRowSchema;
-import org.apache.druid.data.input.ObjectReader;
-import org.apache.druid.data.input.ObjectSource;
-import org.apache.druid.data.input.ObjectSource.CleanableFile;
 import org.apache.druid.data.input.impl.MapInputRowParser;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 import org.apache.druid.java.util.common.parsers.ObjectFlattener;
 import org.apache.druid.java.util.common.parsers.ObjectFlatteners;
+import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.NullWritable;
@@ -43,14 +46,16 @@ import org.apache.orc.mapred.OrcStruct;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
-public class OrcReader implements ObjectReader
+public class OrcReader implements InputEntityReader, InputEntitySampler
 {
   private final Configuration conf;
   private final InputRowSchema inputRowSchema;
   private final ObjectFlattener<OrcStruct> orcStructFlattener;
-  private final byte[] buffer = new byte[ObjectSource.DEFAULT_FETCH_BUFFER_SIZE];
+  private final byte[] buffer = new byte[InputEntity.DEFAULT_FETCH_BUFFER_SIZE];
 
   OrcReader(Configuration conf, InputRowSchema inputRowSchema, JSONPathSpec flattenSpec)
   {
@@ -59,8 +64,8 @@ public class OrcReader implements ObjectReader
     this.orcStructFlattener = ObjectFlatteners.create(flattenSpec, new OrcStructFlattenerMaker(false));
   }
 
-  @Override
-  public CloseableIterator<InputRow> read(ObjectSource source, File temporaryDirectory) throws IOException
+  private CloseableIterator<OrcStruct> createOrcStructIterator(InputEntity<?> source, File temporaryDirectory)
+      throws IOException
   {
     Closer closer = Closer.create();
     final CleanableFile file = closer.register(source.fetch(temporaryDirectory, buffer));
@@ -81,8 +86,7 @@ public class OrcReader implements ObjectReader
     final RecordReader batchReader = reader.rows(reader.options());
     final OrcMapredRecordReader<OrcStruct> recordReader = new OrcMapredRecordReader<>(batchReader, schema);
     closer.register(recordReader::close);
-
-    return new CloseableIterator<InputRow>()
+    return new CloseableIterator<OrcStruct>()
     {
       final NullWritable key = recordReader.createKey();
       final OrcStruct value = recordReader.createValue();
@@ -103,17 +107,13 @@ public class OrcReader implements ObjectReader
       }
 
       @Override
-      public InputRow next()
+      public OrcStruct next()
       {
         if (!hasNext) {
           throw new NoSuchElementException();
         }
         hasNext = null;
-        return MapInputRowParser.parse(
-            inputRowSchema.getTimestampSpec(),
-            inputRowSchema.getDimensionsSpec(),
-            orcStructFlattener.flatten(value)
-        );
+        return value;
       }
 
       @Override
@@ -125,8 +125,48 @@ public class OrcReader implements ObjectReader
   }
 
   @Override
-  public CloseableIterator<InputRowPlusRaw> sample(ObjectSource source, File temporaryDirectory)
+  public CloseableIterator<InputRow> read(InputEntity source, File temporaryDirectory) throws IOException
   {
-    throw new UnsupportedOperationException("Not implemented yet");
+    return createOrcStructIterator(source, temporaryDirectory).map(orcStruct -> MapInputRowParser.parse(
+        inputRowSchema.getTimestampSpec(),
+        inputRowSchema.getDimensionsSpec(),
+        orcStructFlattener.flatten(orcStruct)
+    ));
+  }
+
+  @Override
+  public CloseableIterator<InputRowListPlusJson> sample(InputEntity<?> source, File temporaryDirectory)
+      throws IOException
+  {
+    return createOrcStructIterator(source, temporaryDirectory).map(orcStruct -> {
+      String json;
+      try {
+        json = SAMPLER_JSON_WRITER.writeValueAsString(orcStruct2Map(orcStruct));
+      }
+      catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
+      try {
+        final InputRow inputRow = MapInputRowParser.parse(
+            inputRowSchema.getTimestampSpec(),
+            inputRowSchema.getDimensionsSpec(),
+            orcStructFlattener.flatten(orcStruct)
+        );
+        return InputRowListPlusJson.ofJson(inputRow, json);
+      }
+      catch (ParseException e) {
+        return InputRowListPlusJson.of(json, e);
+      }
+    });
+  }
+
+  private Map<String, Object> orcStruct2Map(OrcStruct orcStruct)
+  {
+    final OrcStructConverter converter = new OrcStructConverter(false);
+    final Map<String, Object> converted = new HashMap<>();
+    for (String fieldName : orcStruct.getSchema().getFieldNames()) {
+      converted.put(fieldName, converter.convertRootField(orcStruct, fieldName));
+    }
+    return converted;
   }
 }

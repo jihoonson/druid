@@ -24,12 +24,12 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.AbstractInputSource;
+import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitHintSpec;
-import org.apache.druid.data.input.impl.InputFormat;
-import org.apache.druid.data.input.impl.ObjectIteratingReader;
+import org.apache.druid.data.input.impl.InputEntityIteratingReader;
 import org.apache.druid.data.input.impl.SplittableInputSource;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.hadoop.conf.Configuration;
@@ -86,11 +86,11 @@ public class HdfsInputSource extends AbstractInputSource implements SplittableIn
   @Override
   protected InputSourceReader formattableReader(
       InputRowSchema inputRowSchema,
-      @Nullable InputFormat inputFormat,
+      InputFormat inputFormat,
       @Nullable File temporaryDirectory
   ) throws IOException
   {
-    return new ObjectIteratingReader<>(
+    return new InputEntityIteratingReader<>(
         inputRowSchema,
         inputFormat,
         createSplits(null, null).map(split -> new HdfsSource(conf, split.get())),

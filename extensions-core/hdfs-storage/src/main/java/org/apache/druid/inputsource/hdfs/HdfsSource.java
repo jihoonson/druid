@@ -20,7 +20,7 @@
 package org.apache.druid.inputsource.hdfs;
 
 import com.google.common.base.Predicate;
-import org.apache.druid.data.input.ObjectSource;
+import org.apache.druid.data.input.InputEntity;
 import org.apache.druid.storage.hdfs.HdfsDataSegmentPuller;
 import org.apache.druid.utils.CompressionUtils;
 import org.apache.hadoop.conf.Configuration;
@@ -30,7 +30,7 @@ import org.apache.hadoop.fs.Path;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class HdfsSource implements ObjectSource<Path>
+public class HdfsSource implements InputEntity<Path>
 {
   private final Configuration conf;
   private final Path path;
@@ -55,7 +55,7 @@ public class HdfsSource implements ObjectSource<Path>
   }
 
   @Override
-  public Predicate<Throwable> getRetryCondition()
+  public Predicate<Throwable> getFetchRetryCondition()
   {
     return HdfsDataSegmentPuller.RETRY_PREDICATE;
   }

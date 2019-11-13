@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.AbstractInputSource;
+import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.InputSplit;
@@ -103,11 +104,11 @@ public class HttpInputSource extends AbstractInputSource implements SplittableIn
   @Override
   protected InputSourceReader formattableReader(
       InputRowSchema inputRowSchema,
-      @Nullable InputFormat inputFormat,
+      InputFormat inputFormat,
       @Nullable File temporaryDirectory
   )
   {
-    return new ObjectIteratingReader<>(
+    return new InputEntityIteratingReader<>(
         inputRowSchema,
         inputFormat,
         createSplits(inputFormat, null).map(split -> new HttpSource(

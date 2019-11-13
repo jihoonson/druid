@@ -19,35 +19,38 @@
 
 package org.apache.druid.data.input.impl;
 
+import org.apache.druid.data.input.InputEntity;
+import org.apache.druid.data.input.InputEntityReader;
+import org.apache.druid.data.input.InputEntitySampler;
+import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowPlusRaw;
+import org.apache.druid.data.input.InputRowListPlusJson;
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.InputSourceReader;
-import org.apache.druid.data.input.ObjectReader;
-import org.apache.druid.data.input.ObjectSource;
+import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
- * InputSourceReader iterating multiple {@link ObjectSource}s.
+ * InputSourceReader iterating multiple {@link InputEntity}s. This class could be used for
+ * most of {@link org.apache.druid.data.input.InputSource}s.
  */
-public class ObjectIteratingReader<T> implements InputSourceReader
+public class InputEntityIteratingReader<T> implements InputSourceReader
 {
   private final InputRowSchema inputRowSchema;
   private final InputFormat inputFormat;
-  private final Iterator<ObjectSource<T>> sourceIterator;
+  private final Iterator<InputEntity<T>> sourceIterator;
   private final File temporaryDirectory;
 
-  public ObjectIteratingReader(
+  public InputEntityIteratingReader(
       InputRowSchema inputRowSchema,
       InputFormat inputFormat,
-      Stream<ObjectSource<T>> sourceStream,
+      Stream<InputEntity<T>> sourceStream,
       File temporaryDirectory
   )
   {
@@ -60,7 +63,9 @@ public class ObjectIteratingReader<T> implements InputSourceReader
   @Override
   public CloseableIterator<InputRow> read()
   {
-    return createIterator(reader -> {
+    return createIterator(entity -> {
+      // InputEntityReader is stateful and so a new one should be created per entity.
+      final InputEntityReader reader = inputFormat.createReader(inputRowSchema);
       try {
         return reader.read(sourceIterator.next(), temporaryDirectory);
       }
@@ -71,11 +76,13 @@ public class ObjectIteratingReader<T> implements InputSourceReader
   }
 
   @Override
-  public CloseableIterator<InputRowPlusRaw> sample()
+  public CloseableIterator<InputRowListPlusJson> sample()
   {
-    return createIterator(reader -> {
+    return createIterator(entity -> {
+      // InputEntitySampler is stateful and so a new one should be created per entity.
+      final InputEntitySampler sampler = inputFormat.createSampler(inputRowSchema);
       try {
-        return reader.sample(sourceIterator.next(), temporaryDirectory);
+        return sampler.sample(sourceIterator.next(), temporaryDirectory);
       }
       catch (IOException e) {
         throw new RuntimeException(e);
@@ -83,54 +90,8 @@ public class ObjectIteratingReader<T> implements InputSourceReader
     });
   }
 
-  private <R> CloseableIterator<R> createIterator(Function<ObjectReader, CloseableIterator<R>> rowPopulator)
+  private <R> CloseableIterator<R> createIterator(Function<InputEntity<T>, CloseableIterator<R>> rowPopulator)
   {
-    return new CloseableIterator<R>()
-    {
-      CloseableIterator<R> rowIterator = null;
-
-      @Override
-      public boolean hasNext()
-      {
-        updateRowIteratorIfNeeded();
-        return rowIterator != null && rowIterator.hasNext();
-      }
-
-      @Override
-      public R next()
-      {
-        if (!hasNext()) {
-          throw new NoSuchElementException();
-        }
-        return rowIterator.next();
-      }
-
-      private void updateRowIteratorIfNeeded()
-      {
-        if (rowIterator == null || !rowIterator.hasNext()) {
-          try {
-            if (rowIterator != null) {
-              rowIterator.close();
-            }
-          }
-          catch (IOException e) {
-            throw new RuntimeException(e);
-          }
-          if (sourceIterator.hasNext()) {
-            // SplitSampler is stateful and so a new one should be created per split.
-            final ObjectReader objectReader = inputFormat.createReader(inputRowSchema);
-            rowIterator = rowPopulator.apply(objectReader);
-          }
-        }
-      }
-
-      @Override
-      public void close() throws IOException
-      {
-        if (rowIterator != null) {
-          rowIterator.close();
-        }
-      }
-    };
+    return CloseableIterators.withEmptyBaggage(sourceIterator).flatMap(rowPopulator);
   }
 }

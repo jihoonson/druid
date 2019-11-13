@@ -22,6 +22,7 @@ package org.apache.druid.data.input.impl;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
+import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.java.util.common.parsers.CSVParser;
 import org.apache.druid.java.util.common.parsers.Parser;
 
@@ -65,17 +66,6 @@ public class CSVParseSpec extends ParseSpec
           + " and hasHeaderRow must be set to true."
       );
     }
-  }
-
-  @Deprecated
-  public CSVParseSpec(
-      TimestampSpec timestampSpec,
-      DimensionsSpec dimensionsSpec,
-      String listDelimiter,
-      List<String> columns
-  )
-  {
-    this(timestampSpec, dimensionsSpec, listDelimiter, columns, false, 0);
   }
 
   @JsonProperty
