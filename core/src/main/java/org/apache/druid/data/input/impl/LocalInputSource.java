@@ -111,13 +111,13 @@ public class LocalInputSource extends AbstractInputSource implements SplittableI
       @Nullable File temporaryDirectory
   )
   {
-    return new InputEntityIteratingReader<>(
+    return new InputEntityIteratingReader(
         inputRowSchema,
         inputFormat,
         // formattableReader() is supposed to be called in each task that actually creates segments.
         // The task should already have only one split in parallel indexing,
         // while there's no need to make splits using splitHintSpec in sequential indexing.
-        createSplits(inputFormat, null).map(split -> new FileSource(split.get())),
+        createSplits(inputFormat, null).map(split -> new FileEntity(split.get())),
         temporaryDirectory
     );
   }
