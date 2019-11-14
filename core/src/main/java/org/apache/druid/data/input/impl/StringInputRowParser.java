@@ -24,12 +24,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import org.apache.druid.data.input.ByteBufferInputRowParser;
+import org.apache.druid.data.input.InputEntityReader;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.java.util.common.collect.Utils;
 import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.java.util.common.parsers.Parser;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
@@ -153,6 +155,13 @@ public class StringInputRowParser implements ByteBufferInputRowParser
   {
     initializeParser();
     return parser.parseToMap(inputString);
+  }
+
+  @Nullable
+  public String toJson(@Nullable String input) throws IOException
+  {
+    final Map<String, Object> map = parseString(input);
+    return map == null ? null : InputEntityReader.DEFAULT_JSON_WRITER.writeValueAsString(map);
   }
 
   @Nullable

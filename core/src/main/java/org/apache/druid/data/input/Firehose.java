@@ -80,7 +80,7 @@ public interface Firehose extends Closeable
       return InputRowListPlusJson.of(nextRow(), null);
     }
     catch (ParseException e) {
-      return InputRowListPlusJson.of((byte[]) null, e);
+      return InputRowListPlusJson.of(null, e);
     }
   }
 

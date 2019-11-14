@@ -32,38 +32,33 @@ public class InputRowListPlusJson
   private final List<InputRow> inputRows;
 
   @Nullable
-  private final byte[] raw;
-
-  @Nullable
   private final String rawJson;
 
   @Nullable
   private final ParseException parseException;
 
-  public static InputRowListPlusJson of(@Nullable InputRow inputRow, @Nullable byte[] raw)
+  public static InputRowListPlusJson of(@Nullable InputRow inputRow, @Nullable String jsonRaw)
   {
-    return new InputRowListPlusJson(inputRow == null ? null : Collections.singletonList(inputRow), raw, null, null);
+    return of(Collections.singletonList(inputRow), jsonRaw);
   }
 
   public static InputRowListPlusJson of(@Nullable List<InputRow> inputRows, @Nullable String jsonRaw)
   {
-    return new InputRowListPlusJson(inputRows, null, jsonRaw, null);
-  }
-
-  public static InputRowListPlusJson of(@Nullable byte[] raw, @Nullable ParseException parseException)
-  {
-    return new InputRowListPlusJson(null, raw, null, parseException);
+    return new InputRowListPlusJson(inputRows, jsonRaw, null);
   }
 
   public static InputRowListPlusJson of(@Nullable String jsonRaw, @Nullable ParseException parseException)
   {
-    return new InputRowListPlusJson(null, null, jsonRaw, parseException);
+    return new InputRowListPlusJson(null, jsonRaw, parseException);
   }
 
-  private InputRowListPlusJson(@Nullable List<InputRow> inputRows, @Nullable byte[] raw, @Nullable String rawJson, @Nullable ParseException parseException)
+  private InputRowListPlusJson(
+      @Nullable List<InputRow> inputRows,
+      @Nullable String rawJson,
+      @Nullable ParseException parseException
+  )
   {
     this.inputRows = inputRows;
-    this.raw = raw;
     this.rawJson = rawJson;
     this.parseException = parseException;
   }
@@ -80,20 +75,6 @@ public class InputRowListPlusJson
     return inputRows;
   }
 
-  /**
-   * The raw, unparsed event (as opposed to an {@link InputRow} which is the output of a parser). The interface default
-   * for {@link Firehose#nextRowWithRaw()} sets this to null, so this will only be non-null if nextRowWithRaw() is
-   * overridden by an implementation, such as in
-   * {@link org.apache.druid.data.input.impl.FileIteratingFirehose#nextRowWithRaw()}. Note that returning the raw row
-   * does not make sense for some sources (e.g. non-row based types), so clients should be able to handle this field
-   * being unset.
-   */
-  @Nullable
-  public byte[] getRaw()
-  {
-    return raw;
-  }
-
   @Nullable
   public String getRawJson()
   {
@@ -108,6 +89,6 @@ public class InputRowListPlusJson
 
   public boolean isEmpty()
   {
-    return (inputRows == null || inputRows.isEmpty()) && raw == null && rawJson == null && parseException == null;
+    return (inputRows == null || inputRows.isEmpty()) && parseException == null;
   }
 }

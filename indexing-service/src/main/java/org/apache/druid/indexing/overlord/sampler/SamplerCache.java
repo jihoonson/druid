@@ -23,13 +23,17 @@ import org.apache.druid.client.cache.Cache;
 import org.apache.druid.data.input.ByteBufferInputRowParser;
 import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.FirehoseFactory;
+import org.apache.druid.data.input.InputEntity;
+import org.apache.druid.data.input.InputEntityReader;
+import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowListPlusJson;
 import org.apache.druid.data.input.impl.InputRowParser;
-import org.apache.druid.data.input.impl.StringInputRowParser;
+import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.StringUtils;
-import org.apache.druid.java.util.common.parsers.ParseException;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.emitter.EmittingLogger;
+import org.apache.druid.segment.indexing.DataSchema;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -39,13 +43,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
 
 public class SamplerCache
 {
@@ -61,7 +60,7 @@ public class SamplerCache
   }
 
   @Nullable
-  public String put(String key, Collection<byte[]> values)
+  public String put(String key, Collection<String> values)
   {
     if (values == null) {
       return null;
@@ -87,7 +86,7 @@ public class SamplerCache
       return null;
     }
 
-    Collection<byte[]> data = get(key);
+    Collection<String> data = get(key);
     if (data == null) {
       return null;
     }
@@ -103,7 +102,33 @@ public class SamplerCache
   }
 
   @Nullable
-  private Collection<byte[]> get(String key)
+  public InputEntityReader createCacheReader(String key, DataSchema dataSchema, InputFormat inputFormat)
+  {
+    Collection<String> data = get(key);
+    if (data == null) {
+      return null;
+    }
+
+    return new InputEntityReader()
+    {
+      @Override
+      public CloseableIterator<InputRow> read(InputEntity<?> source, File temporaryDirectory)
+      {
+        throw new UnsupportedOperationException();
+      }
+
+      @Override
+      public CloseableIterator<InputRowListPlusJson> sample(InputEntity<?> source, File temporaryDirectory)
+      {
+        return CloseableIterators.withEmptyBaggage(data.iterator()).map(json -> {
+
+        });
+      }
+    };
+  }
+
+  @Nullable
+  private Collection<String> get(String key)
   {
     byte[] data = cache.get(new Cache.NamedKey(NAMESPACE, StringUtils.toUtf8(key)));
     if (data == null) {
@@ -117,63 +142,6 @@ public class SamplerCache
     catch (Exception e) {
       log.warn(e, "Exception while deserializing from sampler cache");
       return null;
-    }
-  }
-
-  public static class SamplerCacheFirehose implements Firehose
-  {
-    private final ByteBufferInputRowParser parser;
-    private final Iterator<byte[]> it;
-
-    public SamplerCacheFirehose(ByteBufferInputRowParser parser, Collection<byte[]> data)
-    {
-      this.parser = parser;
-      this.it = data != null ? data.iterator() : Collections.emptyIterator();
-
-      if (parser instanceof StringInputRowParser) {
-        ((StringInputRowParser) parser).startFileFromBeginning();
-      }
-    }
-
-    @Override
-    public boolean hasMore()
-    {
-      return it.hasNext();
-    }
-
-    @Nullable
-    @Override
-    public InputRow nextRow()
-    {
-      if (!hasMore()) {
-        throw new NoSuchElementException();
-      }
-
-      List<InputRow> rows = parser.parseBatch(ByteBuffer.wrap(it.next()));
-      return rows.isEmpty() ? null : rows.get(0);
-    }
-
-    @Override
-    public InputRowListPlusJson nextRowWithRaw()
-    {
-      if (!hasMore()) {
-        throw new NoSuchElementException();
-      }
-
-      byte[] raw = it.next();
-
-      try {
-        List<InputRow> rows = parser.parseBatch(ByteBuffer.wrap(raw));
-        return InputRowListPlusJson.of(rows.isEmpty() ? null : rows.get(0), raw);
-      }
-      catch (ParseException e) {
-        return InputRowListPlusJson.of(raw, e);
-      }
-    }
-
-    @Override
-    public void close()
-    {
     }
   }
 }

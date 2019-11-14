@@ -105,7 +105,7 @@ public class Transformer
     if (transforms.isEmpty()) {
       transformedRow = row;
     } else {
-      transformedRow = InputRowListPlusJson.of(new TransformedInputRow(row.getInputRow(), transforms), row.getRaw());
+      transformedRow = InputRowListPlusJson.of(new TransformedInputRow(row.getInputRow(), transforms), row.getRawJson());
     }
 
     if (valueMatcher != null) {

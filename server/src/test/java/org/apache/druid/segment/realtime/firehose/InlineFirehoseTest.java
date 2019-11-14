@@ -105,14 +105,14 @@ public class InlineFirehoseTest
   }
 
   @Test(expected = NoSuchElementException.class)
-  public void testNextRowWithRawEmpty()
+  public void testNextRowWithRawEmpty() throws IOException
   {
     InlineFirehose target = create(EMPTY);
     target.nextRowWithRaw();
   }
 
   @Test
-  public void testNextRowWithRawParseable()
+  public void testNextRowWithRawParseable() throws IOException
   {
     final String data = PARSEABLE;
     InlineFirehose target = create(data);
@@ -121,14 +121,14 @@ public class InlineFirehoseTest
     InputRow row = rowPlusRaw.getInputRow();
     assertRowValue(VALUE_0, row);
 
-    byte[] raw = rowPlusRaw.getRaw();
-    assertRawValue(data, raw);
+    String raw = rowPlusRaw.getRawJson();
+    Assert.assertEquals(data, raw);
 
     Assert.assertNull(rowPlusRaw.getParseException());
   }
 
   @Test
-  public void testNextRowWithRawNotParseable()
+  public void testNextRowWithRawNotParseable() throws IOException
   {
     final String data = NOT_PARSEABLE;
     InlineFirehose target = create(data);
@@ -137,8 +137,8 @@ public class InlineFirehoseTest
     InputRow row = rowPlusRaw.getInputRow();
     Assert.assertNull(row);
 
-    byte[] raw = rowPlusRaw.getRaw();
-    assertRawValue(data, raw);
+    String raw = rowPlusRaw.getRawJson();
+    Assert.assertEquals(data, raw);
 
     Assert.assertNotNull(rowPlusRaw.getParseException());
   }
@@ -175,7 +175,7 @@ public class InlineFirehoseTest
   }
 
   @Test
-  public void testMultiline()
+  public void testMultiline() throws IOException
   {
     InlineFirehose target = create(MULTILINE);
 
@@ -187,7 +187,7 @@ public class InlineFirehoseTest
     // Second line
     InputRowListPlusJson rowPlusRaw = target.nextRowWithRaw();
     assertRowValue(VALUE_1, rowPlusRaw.getInputRow());
-    assertRawValue(LINE_1, rowPlusRaw.getRaw());
+    Assert.assertEquals(LINE_1, rowPlusRaw.getRawJson());
     Assert.assertNull(rowPlusRaw.getParseException());
 
     Assert.assertFalse(target.hasMore());
@@ -211,12 +211,5 @@ public class InlineFirehoseTest
     Assert.assertEquals(1, values.size());
     Assert.assertEquals(expected, values.get(0));
   }
-
-  private static void assertRawValue(String expected, byte[] raw)
-  {
-    Assert.assertNotNull(raw);
-    Assert.assertEquals(expected, new String(raw, CHARSET));
-  }
-
 }
 

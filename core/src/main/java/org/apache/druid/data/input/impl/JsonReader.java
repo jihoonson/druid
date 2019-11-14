@@ -54,7 +54,8 @@ public class JsonReader extends TextReader
     final Map<String, Object> flattened = flattener.flatten(document);
     return Collections.singletonList(
         MapInputRowParser.parse(
-            getInputRowSchema().getTimestampSpec(),
+            getInputRowSchema().getTimestampSpec
+                (),
             getInputRowSchema().getDimensionsSpec(),
             flattened
         )
