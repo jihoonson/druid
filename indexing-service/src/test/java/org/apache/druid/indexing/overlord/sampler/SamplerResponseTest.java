@@ -52,8 +52,8 @@ public class SamplerResponseTest
         new SamplerResponse.SamplerResponseRow("unparsed", null, true, "Could not parse")
     );
 
-    String out = MAPPER.writeValueAsString(new SamplerResponse("eaebbfd87ec34bc6a9f8c03ecee4dd7a", 1123, 1112, data));
-    String expected = "{\"cacheKey\":\"eaebbfd87ec34bc6a9f8c03ecee4dd7a\",\"numRowsRead\":1123,\"numRowsIndexed\":1112,\"data\":[{\"raw\":\"parsed1\",\"parsed\":{\"t\":123456,\"dim1\":\"foo\",\"met1\":6}},{\"raw\":\"parsed2\",\"parsed\":{\"t\":123457,\"dim1\":\"foo2\",\"met1\":7}},{\"raw\":\"unparsed\",\"unparseable\":true,\"error\":\"Could not parse\"}]}";
+    String out = MAPPER.writeValueAsString(new SamplerResponse(1123, 1112, data));
+    String expected = "{\"numRowsRead\":1123,\"numRowsIndexed\":1112,\"data\":[{\"raw\":\"parsed1\",\"parsed\":{\"t\":123456,\"dim1\":\"foo\",\"met1\":6}},{\"raw\":\"parsed2\",\"parsed\":{\"t\":123457,\"dim1\":\"foo2\",\"met1\":7}},{\"raw\":\"unparsed\",\"unparseable\":true,\"error\":\"Could not parse\"}]}";
 
     Assert.assertEquals(expected, out);
   }

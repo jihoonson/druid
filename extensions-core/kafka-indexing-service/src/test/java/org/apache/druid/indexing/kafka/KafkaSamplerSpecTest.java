@@ -23,7 +23,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.curator.test.TestingCluster;
-import org.apache.druid.client.cache.MapCache;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.FloatDimensionSchema;
 import org.apache.druid.data.input.impl.JSONParseSpec;
@@ -35,7 +34,6 @@ import org.apache.druid.indexing.kafka.supervisor.KafkaSupervisorIOConfig;
 import org.apache.druid.indexing.kafka.supervisor.KafkaSupervisorSpec;
 import org.apache.druid.indexing.kafka.test.TestBroker;
 import org.apache.druid.indexing.overlord.sampler.FirehoseSampler;
-import org.apache.druid.indexing.overlord.sampler.SamplerCache;
 import org.apache.druid.indexing.overlord.sampler.SamplerConfig;
 import org.apache.druid.indexing.overlord.sampler.SamplerResponse;
 import org.apache.druid.java.util.common.StringUtils;
@@ -167,16 +165,15 @@ public class KafkaSamplerSpecTest
 
     KafkaSamplerSpec samplerSpec = new KafkaSamplerSpec(
         supervisorSpec,
-        new SamplerConfig(5, null, null, null),
-        new FirehoseSampler(OBJECT_MAPPER, new SamplerCache(MapCache.create(100000))),
+        new SamplerConfig(5, null),
+        new FirehoseSampler(),
         OBJECT_MAPPER
     );
 
     SamplerResponse response = samplerSpec.sample();
 
-    Assert.assertNotNull(response.getCacheKey());
-    Assert.assertEquals(5, (int) response.getNumRowsRead());
-    Assert.assertEquals(3, (int) response.getNumRowsIndexed());
+    Assert.assertEquals(5, response.getNumRowsRead());
+    Assert.assertEquals(3, response.getNumRowsIndexed());
     Assert.assertEquals(5, response.getData().size());
 
     Iterator<SamplerResponse.SamplerResponseRow> it = response.getData().iterator();

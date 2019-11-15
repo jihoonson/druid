@@ -29,33 +29,25 @@ import java.util.Objects;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SamplerResponse
 {
-  private final String cacheKey;
-  private final Integer numRowsRead;
-  private final Integer numRowsIndexed;
+  private final int numRowsRead;
+  private final int numRowsIndexed;
   private final List<SamplerResponseRow> data;
 
-  public SamplerResponse(String cacheKey, Integer numRowsRead, Integer numRowsIndexed, List<SamplerResponseRow> data)
+  public SamplerResponse(int numRowsRead, int numRowsIndexed, List<SamplerResponseRow> data)
   {
-    this.cacheKey = cacheKey;
     this.numRowsRead = numRowsRead;
     this.numRowsIndexed = numRowsIndexed;
     this.data = data;
   }
 
   @JsonProperty
-  public String getCacheKey()
-  {
-    return cacheKey;
-  }
-
-  @JsonProperty
-  public Integer getNumRowsRead()
+  public int getNumRowsRead()
   {
     return numRowsRead;
   }
 
   @JsonProperty
-  public Integer getNumRowsIndexed()
+  public int getNumRowsIndexed()
   {
     return numRowsIndexed;
   }

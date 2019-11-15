@@ -19,31 +19,27 @@
 
 package org.apache.druid.indexing.overlord.sampler;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.apache.druid.client.cache.MapCache;
 import org.apache.druid.common.config.NullHandling;
-import org.apache.druid.data.input.FirehoseFactory;
-import org.apache.druid.data.input.impl.DelimitedParseSpec;
+import org.apache.druid.data.input.InputFormat;
+import org.apache.druid.data.input.InputSource;
+import org.apache.druid.data.input.impl.CsvInputFormat;
 import org.apache.druid.data.input.impl.DimensionsSpec;
-import org.apache.druid.data.input.impl.InputRowParser;
-import org.apache.druid.data.input.impl.JSONParseSpec;
-import org.apache.druid.data.input.impl.MapInputRowParser;
-import org.apache.druid.data.input.impl.ParseSpec;
+import org.apache.druid.data.input.impl.InlineInputSource;
+import org.apache.druid.data.input.impl.JsonInputFormat;
 import org.apache.druid.data.input.impl.StringDimensionSchema;
-import org.apache.druid.data.input.impl.StringInputRowParser;
 import org.apache.druid.data.input.impl.TimestampSpec;
-import org.apache.druid.indexing.common.TestFirehose;
 import org.apache.druid.indexing.overlord.sampler.SamplerResponse.SamplerResponseRow;
 import org.apache.druid.java.util.common.DateTimes;
+import org.apache.druid.java.util.common.IAE;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
 import org.apache.druid.query.expression.TestExprMacroTable;
 import org.apache.druid.query.filter.SelectorDimFilter;
-import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
@@ -58,9 +54,10 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import javax.annotation.Nullable;
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 @RunWith(Parameterized.class)
@@ -68,25 +65,15 @@ public class FirehoseSamplerTest
 {
   private enum ParserType
   {
-    MAP, STR_JSON, STR_CSV
+    STR_JSON, STR_CSV
   }
 
-  private static final ObjectMapper OBJECT_MAPPER = TestHelper.makeJsonMapper();
-  private static final boolean USE_DEFAULT_VALUE_FOR_NULL = Boolean.valueOf(System.getProperty(
-      NullHandling.NULL_HANDLING_CONFIG_STRING,
-      "true"
-  ));
-
-  private static final List<Object> MAP_ROWS = ImmutableList.of(
-      ImmutableMap.of("t", "2019-04-22T12:00", "dim1", "foo", "met1", "1"),
-      ImmutableMap.of("t", "2019-04-22T12:00", "dim1", "foo", "met1", "2"),
-      ImmutableMap.of("t", "2019-04-22T12:01", "dim1", "foo", "met1", "3"),
-      ImmutableMap.of("t", "2019-04-22T12:00", "dim1", "foo2", "met1", "4"),
-      ImmutableMap.of("t", "2019-04-22T12:00", "dim1", "foo", "dim2", "bar", "met1", "5"),
-      ImmutableMap.of("t", "bad_timestamp", "dim1", "foo", "met1", "6")
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+  private static final boolean USE_DEFAULT_VALUE_FOR_NULL = Boolean.parseBoolean(
+      System.getProperty(NullHandling.NULL_HANDLING_CONFIG_STRING, "true")
   );
 
-  private static final List<Object> STR_JSON_ROWS = ImmutableList.of(
+  private static final List<String> STR_JSON_ROWS = ImmutableList.of(
       "{ \"t\": \"2019-04-22T12:00\", \"dim1\": \"foo\", \"met1\": 1 }",
       "{ \"t\": \"2019-04-22T12:00\", \"dim1\": \"foo\", \"met1\": 2 }",
       "{ \"t\": \"2019-04-22T12:01\", \"dim1\": \"foo\", \"met1\": 3 }",
@@ -95,7 +82,7 @@ public class FirehoseSamplerTest
       "{ \"t\": \"bad_timestamp\", \"dim1\": \"foo\", \"met1\": 6 }"
   );
 
-  private static final List<Object> STR_CSV_ROWS = ImmutableList.of(
+  private static final List<String> STR_CSV_ROWS = ImmutableList.of(
       "2019-04-22T12:00,foo,,1",
       "2019-04-22T12:00,foo,,2",
       "2019-04-22T12:01,foo,,3",
@@ -104,7 +91,15 @@ public class FirehoseSamplerTest
       "bad_timestamp,foo,,6"
   );
 
-  private SamplerCache samplerCache;
+  private static final List<String> JSON_OF_CSV_ROWS = ImmutableList.of(
+      "{ \"t\": \"2019-04-22T12:00\", \"dim1\": \"foo\", \"dim2\": null, \"met1\": 1 }",
+      "{ \"t\": \"2019-04-22T12:00\", \"dim1\": \"foo\", \"dim2\": null, \"met1\": 2 }",
+      "{ \"t\": \"2019-04-22T12:01\", \"dim1\": \"foo\", \"dim2\": null, \"met1\": 3 }",
+      "{ \"t\": \"2019-04-22T12:00\", \"dim1\": \"foo2\", \"dim2\": null, \"met1\": 4 }",
+      "{ \"t\": \"2019-04-22T12:00\", \"dim1\": \"foo\", \"dim2\": \"bar\", \"met1\": 5 }",
+      "{ \"t\": \"bad_timestamp\", \"dim1\": \"foo\", \"dim2\": null, \"met1\": 6 }"
+  );
+
   private FirehoseSampler firehoseSampler;
   private ParserType parserType;
 
@@ -115,7 +110,6 @@ public class FirehoseSamplerTest
   public static Iterable<Object[]> constructorFeeder()
   {
     return ImmutableList.of(
-        new Object[]{ParserType.MAP},
         new Object[]{ParserType.STR_JSON},
         new Object[]{ParserType.STR_CSV}
     );
@@ -129,686 +123,810 @@ public class FirehoseSamplerTest
   @Before
   public void setupTest()
   {
-    samplerCache = new SamplerCache(MapCache.create(100000));
-    firehoseSampler = new FirehoseSampler(OBJECT_MAPPER, samplerCache);
+    firehoseSampler = new FirehoseSampler();
   }
 
   @Test
   public void testNoParams()
   {
     expectedException.expect(NullPointerException.class);
-    expectedException.expectMessage("firehoseFactory required");
+    expectedException.expectMessage("inputSource required");
 
-    firehoseSampler.sample(null, null, null);
+    firehoseSampler.sample(null, null, null, null);
   }
 
   @Test
-  public void testNoDataSchema()
+  public void testNoDataSchema() throws IOException
   {
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
+    final InputSource inputSource = createInputSource(getTestRows());
+    final SamplerResponse response = firehoseSampler.sample(inputSource, createInputFormat(), null, null);
 
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, null, null);
-
-    Assert.assertEquals(6, (int) response.getNumRowsRead());
-    Assert.assertEquals(0, (int) response.getNumRowsIndexed());
+    Assert.assertEquals(6, response.getNumRowsRead());
+    Assert.assertEquals(0, response.getNumRowsIndexed());
     Assert.assertEquals(6, response.getData().size());
 
     List<SamplerResponseRow> data = response.getData();
 
-    Assert.assertEquals(new SamplerResponseRow(getTestRows().get(0).toString(), null, true, null), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(getTestRows().get(1).toString(), null, true, null), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(getTestRows().get(2).toString(), null, true, null), data.get(2));
-    Assert.assertEquals(new SamplerResponseRow(getTestRows().get(3).toString(), null, true, null), data.get(3));
-    Assert.assertEquals(new SamplerResponseRow(getTestRows().get(4).toString(), null, true, null), data.get(4));
-    Assert.assertEquals(new SamplerResponseRow(getTestRows().get(5).toString(), null, true, null), data.get(5));
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(0),
+            null,
+            true,
+            unparseableTimestampErrorString(getRawJsons().get(0))
+        ),
+        data.get(0)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(1),
+            null,
+            true,
+            unparseableTimestampErrorString(getRawJsons().get(1))
+        ),
+        data.get(1)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(2),
+            null,
+            true,
+            unparseableTimestampErrorString(getRawJsons().get(2))
+        ),
+        data.get(2)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(3),
+            null,
+            true,
+            unparseableTimestampErrorString(getRawJsons().get(3))
+        ),
+        data.get(3)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(4),
+            null,
+            true,
+            unparseableTimestampErrorString(getRawJsons().get(4))
+        ),
+        data.get(4)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(5),
+            null,
+            true,
+            unparseableTimestampErrorString(getRawJsons().get(5))
+        ),
+        data.get(5)
+    );
   }
 
   @Test
-  public void testNoDataSchemaNumRows()
+  public void testNoDataSchemaNumRows() throws IOException
   {
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
+    final InputSource inputSource = createInputSource(getTestRows());
+    final SamplerResponse response = firehoseSampler.sample(
+        inputSource,
+        createInputFormat(),
+        null,
+        new SamplerConfig(3, null)
+    );
 
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, null, new SamplerConfig(3, null, true, null));
-
-    Assert.assertNull(response.getCacheKey());
-    Assert.assertEquals(3, (int) response.getNumRowsRead());
-    Assert.assertEquals(0, (int) response.getNumRowsIndexed());
+    Assert.assertEquals(3, response.getNumRowsRead());
+    Assert.assertEquals(0, response.getNumRowsIndexed());
     Assert.assertEquals(3, response.getData().size());
 
     List<SamplerResponseRow> data = response.getData();
 
-    Assert.assertEquals(new SamplerResponseRow(getTestRows().get(0).toString(), null, true, null), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(getTestRows().get(1).toString(), null, true, null), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(getTestRows().get(2).toString(), null, true, null), data.get(2));
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(0),
+            null,
+            true,
+            unparseableTimestampErrorString(getRawJsons().get(0))
+        ),
+        data.get(0)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(1),
+            null,
+            true,
+            unparseableTimestampErrorString(getRawJsons().get(1))
+        ),
+        data.get(1)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(2),
+            null,
+            true,
+            unparseableTimestampErrorString(getRawJsons().get(2))
+        ),
+        data.get(2)
+    );
   }
 
   @Test
-  public void testNoDataSchemaNumRowsCacheReplay()
+  public void testMissingValueTimestampSpec() throws IOException
   {
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
+    final InputSource inputSource = createInputSource(getTestRows());
+    final InputFormat inputFormat = createInputFormat();
+    final DataSchema dataSchema = new DataSchema(
+        "sampler",
+        new TimestampSpec(null, null, DateTimes.of("1970")),
+        new DimensionsSpec(null),
+        null,
+        null,
+        null
+    );
 
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, null, new SamplerConfig(3, null, false, null));
-    String cacheKey = response.getCacheKey();
+    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
 
-    Assert.assertNotNull(cacheKey);
-    Assert.assertEquals(3, (int) response.getNumRowsRead());
-    Assert.assertEquals(0, (int) response.getNumRowsIndexed());
-    Assert.assertEquals(3, response.getData().size());
-
-    List<SamplerResponseRow> data = response.getData();
-
-    Assert.assertEquals(new SamplerResponseRow(getTestRows().get(0).toString(), null, true, null), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(getTestRows().get(1).toString(), null, true, null), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(getTestRows().get(2).toString(), null, true, null), data.get(2));
-
-    response = firehoseSampler.sample(firehoseFactory, null, new SamplerConfig(3, cacheKey, false, null));
-
-    Assert.assertTrue(!isCacheable() || cacheKey.equals(response.getCacheKey()));
-    Assert.assertEquals(3, (int) response.getNumRowsRead());
-    Assert.assertEquals(0, (int) response.getNumRowsIndexed());
-    Assert.assertEquals(3, response.getData().size());
-    Assert.assertEquals(data, response.getData());
-  }
-
-  @Test
-  public void testMissingValueTimestampSpec()
-  {
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
-
-    ParseSpec parseSpec = getParseSpec(new TimestampSpec(null, null, DateTimes.of("1970")), new DimensionsSpec(null));
-    DataSchema dataSchema = new DataSchema("sampler", getParser(parseSpec), null, null, null, OBJECT_MAPPER);
-
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, dataSchema, null);
-
-    Assert.assertEquals(6, (int) response.getNumRowsRead());
-    Assert.assertEquals(6, (int) response.getNumRowsIndexed());
+    Assert.assertEquals(6, response.getNumRowsRead());
+    Assert.assertEquals(6, response.getNumRowsIndexed());
     Assert.assertEquals(6, response.getData().size());
 
     List<SamplerResponseRow> data = removeEmptyColumns(response.getData());
 
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(0).toString(),
-        ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:00", "dim1", "foo", "met1", "1"),
-        null,
-        null
-    ), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(1).toString(),
-        ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:00", "dim1", "foo", "met1", "2"),
-        null,
-        null
-    ), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(2).toString(),
-        ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:01", "dim1", "foo", "met1", "3"),
-        null,
-        null
-    ), data.get(2));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(3).toString(),
-        ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:00", "dim1", "foo2", "met1", "4"),
-        null,
-        null
-    ), data.get(3));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(4).toString(),
-        ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:00", "dim1", "foo", "dim2", "bar", "met1", "5"),
-        null,
-        null
-    ), data.get(4));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(5).toString(),
-        ImmutableMap.of("__time", 0L, "t", "bad_timestamp", "dim1", "foo", "met1", "6"),
-        null,
-        null
-    ), data.get(5));
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(0),
+            ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:00", "dim1", "foo", "met1", "1"),
+            null,
+            null
+        ),
+        data.get(0)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(1),
+            ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:00", "dim1", "foo", "met1", "2"),
+            null,
+            null
+        ),
+        data.get(1)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(2),
+            ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:01", "dim1", "foo", "met1", "3"),
+            null,
+            null
+        ),
+        data.get(2)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(3),
+            ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:00", "dim1", "foo2", "met1", "4"),
+            null,
+            null
+        ),
+        data.get(3)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(4),
+            ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:00", "dim1", "foo", "dim2", "bar", "met1", "5"),
+            null,
+            null
+        ),
+        data.get(4)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(5),
+            ImmutableMap.of("__time", 0L, "t", "bad_timestamp", "dim1", "foo", "met1", "6"),
+            null,
+            null
+        ),
+        data.get(5)
+    );
   }
 
   @Test
-  public void testWithTimestampSpec()
+  public void testWithTimestampSpec() throws IOException
   {
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
-
-    ParseSpec parseSpec = getParseSpec(new TimestampSpec("t", null, null), new DimensionsSpec(null));
-    DataSchema dataSchema = new DataSchema("sampler", getParser(parseSpec), null, null, null, OBJECT_MAPPER);
-
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, dataSchema, null);
-
-    Assert.assertEquals(6, (int) response.getNumRowsRead());
-    Assert.assertEquals(5, (int) response.getNumRowsIndexed());
-    Assert.assertEquals(6, response.getData().size());
-
-    List<SamplerResponseRow> data = removeEmptyColumns(response.getData());
-
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(0).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "1"),
-        null,
-        null
-    ), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(1).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "2"),
-        null,
-        null
-    ), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(2).toString(),
-        ImmutableMap.of("__time", 1555934460000L, "dim1", "foo", "met1", "3"),
-        null,
-        null
-    ), data.get(2));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(3).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", "4"),
-        null,
-        null
-    ), data.get(3));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(4).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", "5"),
-        null,
-        null
-    ), data.get(4));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(5).toString(),
-        null,
-        true,
-        getUnparseableTimestampString()
-    ), data.get(5));
-  }
-
-  @Test
-  public void testWithDimensionSpec()
-  {
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
-
-    ParseSpec parseSpec = getParseSpec(
+    final InputSource inputSource = createInputSource(getTestRows());
+    final InputFormat inputFormat = createInputFormat();
+    final DataSchema dataSchema = new DataSchema(
+        "sampler",
         new TimestampSpec("t", null, null),
-        new DimensionsSpec(ImmutableList.of(
-            StringDimensionSchema.create("dim1"),
-            StringDimensionSchema.create("met1")
-        ))
-    );
-    DataSchema dataSchema = new DataSchema("sampler", getParser(parseSpec), null, null, null, OBJECT_MAPPER);
-
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, dataSchema, null);
-
-    Assert.assertEquals(6, (int) response.getNumRowsRead());
-    Assert.assertEquals(5, (int) response.getNumRowsIndexed());
-    Assert.assertEquals(6, response.getData().size());
-
-    List<SamplerResponseRow> data = response.getData();
-
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(0).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "1"),
+        new DimensionsSpec(null),
+        null,
         null,
         null
-    ), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(1).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "2"),
-        null,
-        null
-    ), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(2).toString(),
-        ImmutableMap.of("__time", 1555934460000L, "dim1", "foo", "met1", "3"),
-        null,
-        null
-    ), data.get(2));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(3).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", "4"),
-        null,
-        null
-    ), data.get(3));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(4).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "5"),
-        null,
-        null
-    ), data.get(4));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(5).toString(),
-        null,
-        true,
-        getUnparseableTimestampString()
-    ), data.get(5));
-  }
-
-  @Test
-  public void testWithNoRollup()
-  {
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
-
-    ParseSpec parseSpec = getParseSpec(new TimestampSpec("t", null, null), new DimensionsSpec(null));
-    AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
-    GranularitySpec granularitySpec = new UniformGranularitySpec(Granularities.DAY, Granularities.HOUR, false, null);
-    DataSchema dataSchema = new DataSchema(
-        "sampler",
-        getParser(parseSpec),
-        aggregatorFactories,
-        granularitySpec,
-        null,
-        OBJECT_MAPPER
     );
 
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, dataSchema, null);
+    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
 
-    Assert.assertEquals(6, (int) response.getNumRowsRead());
-    Assert.assertEquals(5, (int) response.getNumRowsIndexed());
+    Assert.assertEquals(6, response.getNumRowsRead());
+    Assert.assertEquals(5, response.getNumRowsIndexed());
     Assert.assertEquals(6, response.getData().size());
 
     List<SamplerResponseRow> data = removeEmptyColumns(response.getData());
 
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(0).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 1L),
-        null,
-        null
-    ), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(1).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 2L),
-        null,
-        null
-    ), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(2).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 3L),
-        null,
-        null
-    ), data.get(2));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(3).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
-        null,
-        null
-    ), data.get(3));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(4).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", 5L),
-        null,
-        null
-    ), data.get(4));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(5).toString(),
-        null,
-        true,
-        getUnparseableTimestampString()
-    ), data.get(5));
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(0),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "1"),
+            null,
+            null
+        ),
+        data.get(0)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(1),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "2"),
+            null,
+            null
+        ),
+        data.get(1)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(2),
+            ImmutableMap.of("__time", 1555934460000L, "dim1", "foo", "met1", "3"),
+            null,
+            null
+        ),
+        data.get(2)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(3),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", "4"),
+            null,
+            null
+        ),
+        data.get(3)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(4),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", "5"),
+            null,
+            null
+        ),
+        data.get(4)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(5),
+            null,
+            true,
+            getUnparseableTimestampString()
+        ),
+        data.get(5)
+    );
   }
 
   @Test
-  public void testWithRollup()
+  public void testWithDimensionSpec() throws IOException
   {
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
-
-    ParseSpec parseSpec = getParseSpec(new TimestampSpec("t", null, null), new DimensionsSpec(null));
-    AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
-    GranularitySpec granularitySpec = new UniformGranularitySpec(Granularities.DAY, Granularities.HOUR, true, null);
-    DataSchema dataSchema = new DataSchema(
+    final InputSource inputSource = createInputSource(getTestRows());
+    final InputFormat inputFormat = createInputFormat();
+    final DataSchema dataSchema = new DataSchema(
         "sampler",
-        getParser(parseSpec),
-        aggregatorFactories,
-        granularitySpec,
+        new TimestampSpec("t", null, null),
+        new DimensionsSpec(
+            ImmutableList.of(StringDimensionSchema.create("dim1"), StringDimensionSchema.create("met1"))
+        ),
         null,
-        OBJECT_MAPPER
+        null,
+        null
     );
 
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, dataSchema, null);
+    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
 
-    Assert.assertEquals(6, (int) response.getNumRowsRead());
-    Assert.assertEquals(5, (int) response.getNumRowsIndexed());
+    Assert.assertEquals(6, response.getNumRowsRead());
+    Assert.assertEquals(5, response.getNumRowsIndexed());
+    Assert.assertEquals(6, response.getData().size());
+
+    List<SamplerResponseRow> data = response.getData();
+
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(0),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "1"),
+            null,
+            null
+        ),
+        data.get(0)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(1),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "2"),
+            null,
+            null
+        ),
+        data.get(1)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(2),
+            ImmutableMap.of("__time", 1555934460000L, "dim1", "foo", "met1", "3"),
+            null,
+            null
+        ),
+        data.get(2)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(3),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", "4"),
+            null,
+            null
+        ),
+        data.get(3)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(4),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "5"),
+            null,
+            null
+        ),
+        data.get(4)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(5),
+            null,
+            true,
+            getUnparseableTimestampString()
+        ),
+        data.get(5)
+    );
+  }
+
+  @Test
+  public void testWithNoRollup() throws IOException
+  {
+    final InputSource inputSource = createInputSource(getTestRows());
+    final InputFormat inputFormat = createInputFormat();
+    final AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
+    final GranularitySpec granularitySpec = new UniformGranularitySpec(
+        Granularities.DAY,
+        Granularities.HOUR,
+        false,
+        null
+    );
+    final DataSchema dataSchema = new DataSchema(
+        "sampler",
+        new TimestampSpec("t", null, null),
+        new DimensionsSpec(null),
+        aggregatorFactories,
+        granularitySpec,
+        null
+    );
+
+    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
+
+    Assert.assertEquals(6, response.getNumRowsRead());
+    Assert.assertEquals(5, response.getNumRowsIndexed());
+    Assert.assertEquals(6, response.getData().size());
+
+    List<SamplerResponseRow> data = removeEmptyColumns(response.getData());
+
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(0),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 1L),
+            null,
+            null
+        ),
+        data.get(0)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(1),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 2L),
+            null,
+            null
+        ),
+        data.get(1)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(2),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 3L),
+            null,
+            null
+        ),
+        data.get(2)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(3),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
+            null,
+            null
+        ),
+        data.get(3)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(4),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", 5L),
+            null,
+            null
+        ),
+        data.get(4)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(5),
+            null,
+            true,
+            getUnparseableTimestampString()
+        ),
+        data.get(5)
+    );
+  }
+
+  @Test
+  public void testWithRollup() throws IOException
+  {
+    final InputSource inputSource = createInputSource(getTestRows());
+    final InputFormat inputFormat = createInputFormat();
+    final AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
+    final GranularitySpec granularitySpec = new UniformGranularitySpec(
+        Granularities.DAY,
+        Granularities.HOUR,
+        true,
+        null
+    );
+    final DataSchema dataSchema = new DataSchema(
+        "sampler",
+        new TimestampSpec("t", null, null),
+        new DimensionsSpec(null),
+        aggregatorFactories,
+        granularitySpec,
+        null
+    );
+
+    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
+
+    Assert.assertEquals(6, response.getNumRowsRead());
+    Assert.assertEquals(5, response.getNumRowsIndexed());
     Assert.assertEquals(4, response.getData().size());
 
     List<SamplerResponseRow> data = removeEmptyColumns(response.getData());
 
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(0).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 6L),
-        null,
-        null
-    ), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(3).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
-        null,
-        null
-    ), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(4).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", 5L),
-        null,
-        null
-    ), data.get(2));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(5).toString(),
-        null,
-        true,
-        getUnparseableTimestampString()
-    ), data.get(3));
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(0),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 6L),
+            null,
+            null
+        ),
+        data.get(0)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(3),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
+            null,
+            null
+        ),
+        data.get(1)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(4),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", 5L),
+            null,
+            null
+        ),
+        data.get(2)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(5),
+            null,
+            true,
+            getUnparseableTimestampString()
+        ),
+        data.get(3)
+    );
   }
 
   @Test
-  public void testWithMoreRollup()
+  public void testWithMoreRollup() throws IOException
   {
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
-
-    ParseSpec parseSpec = getParseSpec(
-        new TimestampSpec("t", null, null),
-        new DimensionsSpec(ImmutableList.of(StringDimensionSchema.create("dim1")))
+    final InputSource inputSource = createInputSource(getTestRows());
+    final InputFormat inputFormat = createInputFormat();
+    final AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
+    final GranularitySpec granularitySpec = new UniformGranularitySpec(
+        Granularities.DAY,
+        Granularities.HOUR,
+        true,
+        null
     );
-    AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
-    GranularitySpec granularitySpec = new UniformGranularitySpec(Granularities.DAY, Granularities.HOUR, true, null);
-    DataSchema dataSchema = new DataSchema(
+    final DataSchema dataSchema = new DataSchema(
         "sampler",
-        getParser(parseSpec),
+        new TimestampSpec("t", null, null),
+        new DimensionsSpec(ImmutableList.of(StringDimensionSchema.create("dim1"))),
         aggregatorFactories,
         granularitySpec,
-        null,
-        OBJECT_MAPPER
+        null
     );
 
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, dataSchema, null);
+    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
 
-    Assert.assertEquals(6, (int) response.getNumRowsRead());
-    Assert.assertEquals(5, (int) response.getNumRowsIndexed());
+    Assert.assertEquals(6, response.getNumRowsRead());
+    Assert.assertEquals(5, response.getNumRowsIndexed());
     Assert.assertEquals(3, response.getData().size());
 
     List<SamplerResponseRow> data = response.getData();
 
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(0).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 11L),
-        null,
-        null
-    ), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(3).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
-        null,
-        null
-    ), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(5).toString(),
-        null,
-        true,
-        getUnparseableTimestampString()
-    ), data.get(2));
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(0),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 11L),
+            null,
+            null
+        ),
+        data.get(0)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(3),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
+            null,
+            null
+        ),
+        data.get(1)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(5),
+            null,
+            true,
+            getUnparseableTimestampString()
+        ),
+        data.get(2)
+    );
   }
 
   @Test
-  public void testWithMoreRollupCacheReplay()
+  public void testWithTransformsAutoDimensions() throws IOException
   {
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
-
-    ParseSpec parseSpec = getParseSpec(
-        new TimestampSpec("t", null, null),
-        new DimensionsSpec(ImmutableList.of(StringDimensionSchema.create("dim1")))
-    );
-    AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
-    GranularitySpec granularitySpec = new UniformGranularitySpec(Granularities.DAY, Granularities.HOUR, true, null);
-    DataSchema dataSchema = new DataSchema(
-        "sampler",
-        getParser(parseSpec),
-        aggregatorFactories,
-        granularitySpec,
-        null,
-        OBJECT_MAPPER
-    );
-
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, dataSchema, null);
-    String cacheKey = response.getCacheKey();
-
-    response = firehoseSampler.sample(firehoseFactory, dataSchema, new SamplerConfig(null, cacheKey, false, null));
-
-    Assert.assertTrue(!isCacheable() || cacheKey.equals(response.getCacheKey()));
-
-    Assert.assertEquals(6, (int) response.getNumRowsRead());
-    Assert.assertEquals(5, (int) response.getNumRowsIndexed());
-    Assert.assertEquals(3, response.getData().size());
-
-    List<SamplerResponseRow> data = response.getData();
-
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(0).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 11L),
-        null,
-        null
-    ), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(3).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
-        null,
-        null
-    ), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(5).toString(),
-        null,
+    final InputSource inputSource = createInputSource(getTestRows());
+    final InputFormat inputFormat = createInputFormat();
+    final AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
+    final GranularitySpec granularitySpec = new UniformGranularitySpec(
+        Granularities.DAY,
+        Granularities.HOUR,
         true,
-        getUnparseableTimestampString()
-    ), data.get(2));
-  }
-
-  @Test
-  public void testWithTransformsAutoDimensions()
-  {
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
-
-    ParseSpec parseSpec = getParseSpec(
-        new TimestampSpec("t", null, null),
-        new DimensionsSpec(null)
+        null
     );
-    AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
-    GranularitySpec granularitySpec = new UniformGranularitySpec(Granularities.DAY, Granularities.HOUR, true, null);
-    TransformSpec transformSpec = new TransformSpec(
+    final TransformSpec transformSpec = new TransformSpec(
         null,
         ImmutableList.of(new ExpressionTransform("dim1PlusBar", "concat(dim1, 'bar')", TestExprMacroTable.INSTANCE))
     );
-
-    DataSchema dataSchema = new DataSchema(
+    final DataSchema dataSchema = new DataSchema(
         "sampler",
-        getParser(parseSpec),
+        new TimestampSpec("t", null, null),
+        new DimensionsSpec(null),
         aggregatorFactories,
         granularitySpec,
-        transformSpec,
-        OBJECT_MAPPER
+        transformSpec
     );
 
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, dataSchema, null);
+    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
 
-    Assert.assertEquals(6, (int) response.getNumRowsRead());
-    Assert.assertEquals(5, (int) response.getNumRowsIndexed());
+    Assert.assertEquals(6, response.getNumRowsRead());
+    Assert.assertEquals(5, response.getNumRowsIndexed());
     Assert.assertEquals(4, response.getData().size());
 
     List<SamplerResponseRow> data = removeEmptyColumns(response.getData());
 
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(0).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 6L),
-        null,
-        null
-    ), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(3).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
-        null,
-        null
-    ), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(4).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", 5L),
-        null,
-        null
-    ), data.get(2));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(5).toString(),
-        null,
-        true,
-        getUnparseableTimestampString()
-    ), data.get(3));
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(0),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 6L),
+            null,
+            null
+        ),
+        data.get(0)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(3),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
+            null,
+            null
+        ),
+        data.get(1)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(4),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", 5L),
+            null,
+            null
+        ),
+        data.get(2)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(5),
+            null,
+            true,
+            getUnparseableTimestampString()
+        ),
+        data.get(3)
+    );
   }
 
   @Test
-  public void testWithTransformsDimensionsSpec()
+  public void testWithTransformsDimensionsSpec() throws IOException
   {
-    // There's a bug in the CSV parser that does not allow a column added by a transform to be put in the dimensions
-    // list if the 'columns' field is specified (it will complain that the dimensionName is not a valid column).
-    if (ParserType.STR_CSV.equals(parserType)) {
-      return;
-    }
-
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
-
-    ParseSpec parseSpec = getParseSpec(
-        new TimestampSpec("t", null, null),
-        new DimensionsSpec(ImmutableList.of(StringDimensionSchema.create("dim1PlusBar")))
+    final InputSource inputSource = createInputSource(getTestRows());
+    final InputFormat inputFormat = createInputFormat();
+    final AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
+    final GranularitySpec granularitySpec = new UniformGranularitySpec(
+        Granularities.DAY,
+        Granularities.HOUR,
+        true,
+        null
     );
-    AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
-    GranularitySpec granularitySpec = new UniformGranularitySpec(Granularities.DAY, Granularities.HOUR, true, null);
-    TransformSpec transformSpec = new TransformSpec(
+    final TransformSpec transformSpec = new TransformSpec(
         null,
         ImmutableList.of(new ExpressionTransform("dim1PlusBar", "concat(dim1 + 'bar')", TestExprMacroTable.INSTANCE))
     );
-
-    DataSchema dataSchema = new DataSchema(
+    final DataSchema dataSchema = new DataSchema(
         "sampler",
-        getParser(parseSpec),
+        new TimestampSpec("t", null, null),
+        new DimensionsSpec(ImmutableList.of(StringDimensionSchema.create("dim1PlusBar"))),
         aggregatorFactories,
         granularitySpec,
-        transformSpec,
-        OBJECT_MAPPER
+        transformSpec
     );
 
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, dataSchema, null);
+    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
 
-    Assert.assertEquals(6, (int) response.getNumRowsRead());
-    Assert.assertEquals(5, (int) response.getNumRowsIndexed());
+    Assert.assertEquals(6, response.getNumRowsRead());
+    Assert.assertEquals(5, response.getNumRowsIndexed());
     Assert.assertEquals(3, response.getData().size());
 
     List<SamplerResponseRow> data = response.getData();
 
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(0).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1PlusBar", "foobar", "met1", 11L),
-        null,
-        null
-    ), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(3).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1PlusBar", "foo2bar", "met1", 4L),
-        null,
-        null
-    ), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(5).toString(),
-        null,
-        true,
-        getUnparseableTimestampString()
-    ), data.get(2));
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(0),
+            ImmutableMap.of("__time", 1555934400000L, "dim1PlusBar", "foobar", "met1", 11L),
+            null,
+            null
+        ),
+        data.get(0)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(3),
+            ImmutableMap.of("__time", 1555934400000L, "dim1PlusBar", "foo2bar", "met1", 4L),
+            null,
+            null
+        ),
+        data.get(1)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(5),
+            null,
+            true,
+            getUnparseableTimestampString()
+        ),
+        data.get(2)
+    );
   }
 
   @Test
-  public void testWithFilter()
+  public void testWithFilter() throws IOException
   {
-    FirehoseFactory firehoseFactory = getFirehoseFactory(getTestRows());
-
-    ParseSpec parseSpec = getParseSpec(
-        new TimestampSpec("t", null, null),
-        new DimensionsSpec(null)
+    final InputSource inputSource = createInputSource(getTestRows());
+    final InputFormat inputFormat = createInputFormat();
+    final AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
+    final GranularitySpec granularitySpec = new UniformGranularitySpec(
+        Granularities.DAY,
+        Granularities.HOUR,
+        true,
+        null
     );
-    AggregatorFactory[] aggregatorFactories = {new LongSumAggregatorFactory("met1", "met1")};
-    GranularitySpec granularitySpec = new UniformGranularitySpec(Granularities.DAY, Granularities.HOUR, true, null);
-    TransformSpec transformSpec = new TransformSpec(new SelectorDimFilter("dim1", "foo", null), null);
-    DataSchema dataSchema = new DataSchema(
+    final TransformSpec transformSpec = new TransformSpec(new SelectorDimFilter("dim1", "foo", null), null);
+    final DataSchema dataSchema = new DataSchema(
         "sampler",
-        getParser(parseSpec),
+        new TimestampSpec("t", null, null),
+        new DimensionsSpec(null),
         aggregatorFactories,
         granularitySpec,
-        transformSpec,
-        OBJECT_MAPPER
+        transformSpec
     );
 
-    SamplerResponse response = firehoseSampler.sample(firehoseFactory, dataSchema, null);
+    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
 
-    Assert.assertEquals(5, (int) response.getNumRowsRead());
-    Assert.assertEquals(4, (int) response.getNumRowsIndexed());
+    Assert.assertEquals(5, response.getNumRowsRead());
+    Assert.assertEquals(4, response.getNumRowsIndexed());
     Assert.assertEquals(3, response.getData().size());
 
     List<SamplerResponseRow> data = removeEmptyColumns(response.getData());
 
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(0).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 6L),
-        null,
-        null
-    ), data.get(0));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(4).toString(),
-        ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", 5L),
-        null,
-        null
-    ), data.get(1));
-    Assert.assertEquals(new SamplerResponseRow(
-        getTestRows().get(5).toString(),
-        null,
-        true,
-        getUnparseableTimestampString()
-    ), data.get(2));
-  }
-
-  private Map<String, Object> getParser(ParseSpec parseSpec)
-  {
-    return OBJECT_MAPPER.convertValue(
-        ParserType.MAP.equals(parserType)
-        ? new MapInputRowParser(parseSpec)
-        : new StringInputRowParser(parseSpec, StandardCharsets.UTF_8.name()),
-        new TypeReference<Map<String, Object>>()
-        {
-        }
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            getRawJsons().get(0),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 6L),
+            null,
+            null
+        ),
+        data.get(0)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(4),
+            ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", 5L),
+            null,
+            null
+        ),
+        data.get(1)
+    );
+    assertEqualsSamplerResponseRow(
+        new SamplerResponseRow(
+            STR_JSON_ROWS.get(5),
+            null,
+            true,
+            getUnparseableTimestampString()
+        ),
+        data.get(2)
     );
   }
 
-  private List<Object> getTestRows()
+  private List<String> getTestRows()
   {
     switch (parserType) {
-      case MAP:
-        return MAP_ROWS;
       case STR_JSON:
         return STR_JSON_ROWS;
       case STR_CSV:
         return STR_CSV_ROWS;
       default:
-        throw new UnsupportedOperationException();
+        throw new IAE("Unknown parser type: %s", parserType);
     }
   }
 
-  private FirehoseFactory<? extends InputRowParser> getFirehoseFactory(List<Object> seedRows)
+  private List<String> getRawJsons()
   {
-    return ParserType.MAP.equals(parserType)
-           ? new TestFirehose.TestFirehoseFactory(false, seedRows)
-           : new TestFirehose.TestAbstractTextFilesFirehoseFactory(false, seedRows);
+    switch (parserType) {
+      case STR_JSON:
+        return STR_JSON_ROWS;
+      case STR_CSV:
+        return JSON_OF_CSV_ROWS;
+      default:
+        throw new IAE("Unknown parser type: %s", parserType);
+    }
   }
 
-  private boolean isCacheable()
+  private InputFormat createInputFormat()
   {
-    return !ParserType.MAP.equals(parserType);
+    switch (parserType) {
+      case STR_JSON:
+        return new JsonInputFormat(null, null);
+      case STR_CSV:
+        return new CsvInputFormat(ImmutableList.of("t", "dim1", "dim2", "met1"), null, false, 0);
+      default:
+        throw new IAE("Unknown parser type: %s", parserType);
+    }
   }
 
-  private ParseSpec getParseSpec(TimestampSpec timestampSpec, DimensionsSpec dimensionsSpec)
+  private InputSource createInputSource(List<String> rows)
   {
-    return ParserType.STR_CSV.equals(parserType) ? new DelimitedParseSpec(
-        timestampSpec,
-        dimensionsSpec,
-        ",",
-        null,
-        ImmutableList.of("t", "dim1", "dim2", "met1"),
-        false,
-        0
-    ) : new JSONParseSpec(timestampSpec, dimensionsSpec, null, null);
+    final String data = String.join("\n", rows);
+    return new InlineInputSource(data);
   }
 
   private String getUnparseableTimestampString()
@@ -818,6 +936,11 @@ public class FirehoseSamplerTest
               ? "Unparseable timestamp found! Event: {t=bad_timestamp, dim1=foo, dim2=null, met1=6}"
               : "Unparseable timestamp found! Event: {t=bad_timestamp, dim1=foo, dim2=, met1=6}")
            : "Unparseable timestamp found! Event: {t=bad_timestamp, dim1=foo, met1=6}";
+  }
+
+  private String unparseableTimestampErrorString(String json) throws IOException
+  {
+    return StringUtils.format("Unparseable timestamp found! Event: %s", OBJECT_MAPPER.readValue(json, Map.class));
   }
 
   private List<SamplerResponseRow> removeEmptyColumns(List<SamplerResponseRow> rows)
@@ -835,5 +958,46 @@ public class FirehoseSamplerTest
                         .stream()
                         .filter(x -> !(x.getValue() instanceof String) || !((String) x.getValue()).isEmpty())
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+  }
+
+  private static void assertEqualsSamplerResponseRow(SamplerResponseRow row1, SamplerResponseRow row2)
+      throws IOException
+  {
+    Assert.assertTrue(equalsJson(row1.getRaw(), row2.getRaw()));
+    Assert.assertEquals(row1.getParsed(), row2.getParsed());
+    Assert.assertEquals(row1.getError(), row2.getError());
+    Assert.assertEquals(row1.isUnparseable(), row2.isUnparseable());
+  }
+
+  @SuppressWarnings("unchecked")
+  private static boolean equalsJson(String json1, String json2) throws IOException
+  {
+    final Map<String, Object> map1 = OBJECT_MAPPER.readValue(json1, Map.class);
+    final Map<String, Object> map2 = OBJECT_MAPPER.readValue(json2, Map.class);
+    for (Entry<String, Object> entry1 : map1.entrySet()) {
+      final Object val1 = entry1.getValue();
+      final Object val2 = map2.get(entry1.getKey());
+      if (!equalsStringOrInteger(val1, val2)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static boolean equalsStringOrInteger(Object val1, Object val2)
+  {
+    if (val1 == null || val2 == null) {
+      return val1 == val2;
+    } else if (val1.equals(val2)) {
+      return true;
+    } else if (val1 instanceof Integer) {
+      final int intVal2 = Integer.parseInt((String) val2);
+      return (Integer) val1 == intVal2;
+    } else if (val2 instanceof Integer) {
+      final int intVal1 = Integer.parseInt((String) val1);
+      return intVal1 == (Integer) val2;
+    } else {
+      return false;
+    }
   }
 }

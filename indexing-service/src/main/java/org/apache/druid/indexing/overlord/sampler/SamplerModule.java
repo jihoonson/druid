@@ -53,6 +53,5 @@ public class SamplerModule implements DruidModule
 
     binder.bind(FirehoseSampler.class).in(Singleton.class);
     binder.bind(SamplerExceptionMapper.class).in(Singleton.class);
-    binder.bind(SamplerCache.class).in(Singleton.class);
   }
 }

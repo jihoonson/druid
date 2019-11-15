@@ -64,8 +64,8 @@ public abstract class IntermediateRowParsingReader<T> implements InputEntityRead
       try {
         json = toJson(row);
       }
-      catch (IOException e) {
-        throw new RuntimeException(e);
+      catch (Exception e) {
+        return InputRowListPlusJson.of(null, new ParseException(e, "Unable to parse row [%s] into JSON", row));
       }
       try {
         return InputRowListPlusJson.of(parseInputRows(row), json);
@@ -74,7 +74,7 @@ public abstract class IntermediateRowParsingReader<T> implements InputEntityRead
         return InputRowListPlusJson.of(json, e);
       }
       catch (IOException e) {
-        return InputRowListPlusJson.of(json, new ParseException(e, "Unable to parse row [%s]", row));
+        return InputRowListPlusJson.of(json, new ParseException(e, "Unable to parse row [%s] into inputRow", row));
       }
     });
   }

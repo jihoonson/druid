@@ -21,7 +21,6 @@ package org.apache.druid.indexing.seekablestream;
 
 import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.Firehose;
-import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowListPlusJson;
 import org.apache.druid.data.input.impl.InputRowParser;
@@ -37,14 +36,10 @@ import org.apache.druid.indexing.seekablestream.common.StreamPartition;
 import org.apache.druid.indexing.seekablestream.supervisor.SeekableStreamSupervisorIOConfig;
 import org.apache.druid.indexing.seekablestream.supervisor.SeekableStreamSupervisorSpec;
 import org.apache.druid.indexing.seekablestream.supervisor.SeekableStreamSupervisorTuningConfig;
-import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.segment.indexing.DataSchema;
 
 import javax.annotation.Nullable;
-import java.io.File;
-import java.nio.ByteBuffer;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -75,18 +70,19 @@ public abstract class SeekableStreamSamplerSpec<PartitionIdType, SequenceOffsetT
   @Override
   public SamplerResponse sample()
   {
-    return firehoseSampler.sample(
-        new FirehoseFactory()
-        {
-          @Override
-          public Firehose connect(InputRowParser parser, @Nullable File temporaryDirectory)
-          {
-            return getFirehose(parser);
-          }
-        },
-        dataSchema,
-        samplerConfig
-    );
+//    return firehoseSampler.sample(
+//        new FirehoseFactory()
+//        {
+//          @Override
+//          public Firehose connect(InputRowParser parser, @Nullable File temporaryDirectory)
+//          {
+//            return getFirehose(parser);
+//          }
+//        },
+//        dataSchema,
+//        samplerConfig
+//    );
+    return null;
   }
 
   protected abstract Firehose getFirehose(InputRowParser parser);
@@ -134,7 +130,8 @@ public abstract class SeekableStreamSamplerSpec<PartitionIdType, SequenceOffsetT
         throw row.getParseException();
       }
 
-      return row.getInputRow();
+//      return row.getInputRow();
+      return null;
     }
 
     @Override
@@ -158,13 +155,15 @@ public abstract class SeekableStreamSamplerSpec<PartitionIdType, SequenceOffsetT
 
       byte[] raw = recordDataIterator.next();
 
-      try {
-        List<InputRow> rows = parser.parseBatch(ByteBuffer.wrap(raw));
-        return InputRowListPlusJson.of(rows.isEmpty() ? null : rows.get(0), raw);
-      }
-      catch (ParseException e) {
-        return InputRowListPlusJson.of(raw, e);
-      }
+//      try {
+//        List<InputRow> rows = parser.parseBatch(ByteBuffer.wrap(raw));
+//        return InputRowListPlusJson.of(rows.isEmpty() ? null : rows.get(0), raw);
+//      }
+//      catch (ParseException e) {
+//        return InputRowListPlusJson.of(raw, e);
+//      }
+
+      return null;
     }
 
     @Override

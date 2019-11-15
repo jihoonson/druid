@@ -19,6 +19,7 @@
 
 package org.apache.druid.segment.realtime.firehose;
 
+import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowListPlusJson;
 import org.apache.druid.data.input.impl.CSVParseSpec;
@@ -118,7 +119,7 @@ public class InlineFirehoseTest
     InlineFirehose target = create(data);
     InputRowListPlusJson rowPlusRaw = target.nextRowWithRaw();
 
-    InputRow row = rowPlusRaw.getInputRow();
+    InputRow row = Iterables.getOnlyElement(rowPlusRaw.getInputRows());
     assertRowValue(VALUE_0, row);
 
     String raw = rowPlusRaw.getRawJson();
@@ -134,7 +135,7 @@ public class InlineFirehoseTest
     InlineFirehose target = create(data);
     InputRowListPlusJson rowPlusRaw = target.nextRowWithRaw();
 
-    InputRow row = rowPlusRaw.getInputRow();
+    InputRow row = Iterables.getOnlyElement(rowPlusRaw.getInputRows());
     Assert.assertNull(row);
 
     String raw = rowPlusRaw.getRawJson();
@@ -186,7 +187,7 @@ public class InlineFirehoseTest
 
     // Second line
     InputRowListPlusJson rowPlusRaw = target.nextRowWithRaw();
-    assertRowValue(VALUE_1, rowPlusRaw.getInputRow());
+    assertRowValue(VALUE_1, Iterables.getOnlyElement(rowPlusRaw.getInputRows()));
     Assert.assertEquals(LINE_1, rowPlusRaw.getRawJson());
     Assert.assertNull(rowPlusRaw.getParseException());
 

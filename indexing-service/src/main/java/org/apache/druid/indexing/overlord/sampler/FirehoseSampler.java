@@ -19,31 +19,25 @@
 
 package org.apache.druid.indexing.overlord.sampler;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import com.google.common.io.Files;
-import com.google.inject.Inject;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.druid.common.utils.UUIDUtils;
-import org.apache.druid.data.input.Firehose;
-import org.apache.druid.data.input.FirehoseFactory;
+import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowListPlusJson;
+import org.apache.druid.data.input.InputRowSchema;
+import org.apache.druid.data.input.InputSource;
+import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.Row;
-import org.apache.druid.data.input.impl.AbstractTextFilesFirehoseFactory;
 import org.apache.druid.data.input.impl.DimensionsSpec;
-import org.apache.druid.data.input.impl.InputRowParser;
-import org.apache.druid.data.input.impl.ParseSpec;
-import org.apache.druid.data.input.impl.StringInputRowParser;
 import org.apache.druid.data.input.impl.TimestampSpec;
-import org.apache.druid.java.util.common.DateTimes;
+import org.apache.druid.indexing.overlord.sampler.SamplerResponse.SamplerResponseRow;
 import org.apache.druid.java.util.common.Intervals;
-import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.io.Closer;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.ParseException;
-import org.apache.druid.java.util.common.parsers.Parser;
-import org.apache.druid.java.util.emitter.EmittingLogger;
+import org.apache.druid.query.aggregation.Aggregator;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.LongMinAggregatorFactory;
 import org.apache.druid.segment.column.ColumnHolder;
@@ -51,12 +45,9 @@ import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexAddResult;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
 import org.apache.druid.segment.indexing.DataSchema;
-import org.apache.druid.segment.realtime.firehose.TimedShutoffFirehoseFactory;
 
 import javax.annotation.Nullable;
 import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -66,69 +57,16 @@ import java.util.stream.Collectors;
 
 public class FirehoseSampler
 {
-  private static final EmittingLogger log = new EmittingLogger(FirehoseSampler.class);
+  private static final String SAMPLER_DATA_SOURCE = "sampler";
 
-  // These are convenience shims to allow the data loader to not need to provide a dummy parseSpec during the early
-  // stages when the parameters for the parseSpec are still unknown and they are only interested in the unparsed rows.
-  // We need two of these because firehose factories based on AbstractTextFilesFirehoseFactory expect to be used with
-  // StringInputRowParser, while all the others expect InputRowParser.
-  // ---------------------------
-  private static final InputRowParser EMPTY_STRING_PARSER_SHIM = new StringInputRowParser(
-      new ParseSpec(new TimestampSpec(null, null, DateTimes.EPOCH), new DimensionsSpec(null))
-      {
-        @Override
-        public Parser<String, Object> makeParser()
-        {
-          return new Parser<String, Object>()
-          {
-            @Nullable
-            @Override
-            public Map<String, Object> parseToMap(String input)
-            {
-              throw new ParseException(null);
-            }
-
-            @Override
-            public void setFieldNames(Iterable<String> fieldNames)
-            {
-            }
-
-            @Override
-            public List<String> getFieldNames()
-            {
-              return ImmutableList.of();
-            }
-          };
-        }
-      }, null);
-
-  private static final InputRowParser EMPTY_PARSER_SHIM = new InputRowParser()
-  {
-    @Override
-    public ParseSpec getParseSpec()
-    {
-      return null;
-    }
-
-    @Override
-    public InputRowParser withParseSpec(ParseSpec parseSpec)
-    {
-      return null;
-    }
-
-    @Override
-    public List<InputRow> parseBatch(Object input)
-    {
-      throw new ParseException(null);
-    }
-
-    @Override
-    public InputRow parse(Object input)
-    {
-      throw new ParseException(null);
-    }
-  };
-  // ---------------------------
+  private static final DataSchema DEFAULT_DATA_SCHEMA = new DataSchema(
+      SAMPLER_DATA_SOURCE,
+      new TimestampSpec(null, null, null),
+      new DimensionsSpec(null),
+      null,
+      null,
+      null
+  );
 
   // We want to be able to sort the list of processed results back into the same order that we read them from the
   // firehose so that the rows in the data loader are not always changing. To do this, we add a temporary column to the
@@ -141,110 +79,74 @@ public class FirehoseSampler
       SamplerInputRow.SAMPLER_ORDERING_COLUMN
   );
 
-  private final ObjectMapper objectMapper;
-  private final SamplerCache samplerCache;
-
-  @Inject
-  public FirehoseSampler(ObjectMapper objectMapper, SamplerCache samplerCache)
+  public SamplerResponse sample(
+      final InputSource inputSource,
+      @Nullable final InputFormat inputFormat, // can be null only if inputSource.needsFormat() = false
+      @Nullable final DataSchema dataSchema,
+      @Nullable final SamplerConfig samplerConfig
+  )
   {
-    this.objectMapper = objectMapper;
-    this.samplerCache = samplerCache;
-  }
-
-  public SamplerResponse sample(FirehoseFactory firehoseFactory, DataSchema dataSchema, SamplerConfig samplerConfig)
-  {
-    Preconditions.checkNotNull(firehoseFactory, "firehoseFactory required");
-
-    if (dataSchema == null) {
-      dataSchema = new DataSchema("sampler", null, null, null, null, objectMapper);
+    Preconditions.checkNotNull(inputSource, "inputSource required");
+    if (inputSource.needsFormat()) {
+      Preconditions.checkNotNull(inputFormat, "inputFormat required");
     }
+    final DataSchema nonNullDataSchema = dataSchema == null
+                                         ? DEFAULT_DATA_SCHEMA
+                                         : dataSchema;
+    final SamplerConfig nonNullSamplerConfig = samplerConfig == null
+                                               ? SamplerConfig.empty()
+                                               : samplerConfig;
 
-    if (samplerConfig == null) {
-      samplerConfig = SamplerConfig.empty();
-    }
-
-    final InputRowParser parser = dataSchema.getParser() != null
-                                  ? dataSchema.getParser()
-                                  : (firehoseFactory instanceof AbstractTextFilesFirehoseFactory
-                                     ? EMPTY_STRING_PARSER_SHIM
-                                     : EMPTY_PARSER_SHIM);
-
-    final IncrementalIndexSchema indexSchema = new IncrementalIndexSchema.Builder()
-        .withTimestampSpec(parser)
-        .withQueryGranularity(dataSchema.getGranularitySpec().getQueryGranularity())
-        .withDimensionsSpec(parser)
-        .withMetrics(ArrayUtils.addAll(dataSchema.getAggregators(), INTERNAL_ORDERING_AGGREGATOR))
-        .withRollup(dataSchema.getGranularitySpec().isRollup())
-        .build();
-
-    FirehoseFactory myFirehoseFactory = null;
-    boolean usingCachedData = true;
-    if (!samplerConfig.isSkipCache() && samplerConfig.getCacheKey() != null) {
-      myFirehoseFactory = samplerCache.getAsFirehoseFactory(samplerConfig.getCacheKey(), parser);
-    }
-    if (myFirehoseFactory == null) {
-      myFirehoseFactory = firehoseFactory;
-      usingCachedData = false;
-    }
-
-    if (samplerConfig.getTimeoutMs() > 0) {
-      myFirehoseFactory = new TimedShutoffFirehoseFactory(
-          myFirehoseFactory,
-          DateTimes.nowUtc().plusMillis(samplerConfig.getTimeoutMs())
-      );
-    }
-
+    final Closer closer = Closer.create();
     final File tempDir = Files.createTempDir();
-    try (final Firehose firehose = myFirehoseFactory.connectForSampler(parser, tempDir);
-         final IncrementalIndex index = new IncrementalIndex.Builder().setIndexSchema(indexSchema)
-                                                                      .setMaxRowCount(samplerConfig.getNumRows())
-                                                                      .buildOnheap()) {
+    closer.register(() -> FileUtils.deleteDirectory(tempDir));
 
-      List<byte[]> dataToCache = new ArrayList<>();
-      SamplerResponse.SamplerResponseRow responseRows[] = new SamplerResponse.SamplerResponseRow[samplerConfig.getNumRows()];
+    final InputSourceReader reader = buildReader(
+        nonNullDataSchema,
+        inputSource,
+        inputFormat,
+        tempDir
+    );
+    try (final CloseableIterator<InputRowListPlusJson> iterator = reader.sample();
+         final IncrementalIndex<Aggregator> index = buildIncrementalIndex(nonNullSamplerConfig, nonNullDataSchema);
+         final Closer closer1 = closer) {
+      SamplerResponseRow[] responseRows = new SamplerResponseRow[nonNullSamplerConfig.getNumRows()];
       int counter = 0, numRowsIndexed = 0;
 
-      while (counter < responseRows.length && firehose.hasMore()) {
-        String raw = null;
+      while (counter < responseRows.length && iterator.hasNext()) {
+        String rawJson = null;
         try {
-          final InputRowListPlusJson row = firehose.nextRowWithRaw();
+          final InputRowListPlusJson inputRowListPlusJson = iterator.next();
 
-          if (row == null || row.isEmpty()) {
+          if (inputRowListPlusJson.getRawJson() != null) {
+            rawJson = inputRowListPlusJson.getRawJson();
+          }
+
+          if (inputRowListPlusJson.getParseException() != null) {
+            throw inputRowListPlusJson.getParseException();
+          }
+
+          if (inputRowListPlusJson.getInputRows() == null) {
             continue;
           }
 
-          if (row.getRaw() != null) {
-            raw = StringUtils.fromUtf8(row.getRaw());
-
-            if (!usingCachedData) {
-              dataToCache.add(row.getRaw());
+          for (InputRow row : inputRowListPlusJson.getInputRows()) {
+            if (!Intervals.ETERNITY.contains(row.getTimestamp())) {
+              throw new ParseException("Timestamp cannot be represented as a long: [%s]", row);
             }
-          }
-
-          if (row.getParseException() != null) {
-            throw row.getParseException();
-          }
-
-          if (row.getInputRow() == null) {
-            continue;
-          }
-
-          if (!Intervals.ETERNITY.contains(row.getInputRow().getTimestamp())) {
-            throw new ParseException("Timestamp cannot be represented as a long: [%s]", row.getInputRow());
-          }
-
-          IncrementalIndexAddResult result = index.add(new SamplerInputRow(row.getInputRow(), counter), true);
-          if (result.getParseException() != null) {
-            throw result.getParseException();
-          } else {
-            // store the raw value; will be merged with the data from the IncrementalIndex later
-            responseRows[counter] = new SamplerResponse.SamplerResponseRow(raw, null, null, null);
-            counter++;
-            numRowsIndexed++;
+            IncrementalIndexAddResult result = index.add(new SamplerInputRow(row, counter), true);
+            if (result.getParseException() != null) {
+              throw result.getParseException();
+            } else {
+              // store the raw value; will be merged with the data from the IncrementalIndex later
+              responseRows[counter] = new SamplerResponseRow(rawJson, null, null, null);
+              counter++;
+              numRowsIndexed++;
+            }
           }
         }
         catch (ParseException e) {
-          responseRows[counter] = new SamplerResponse.SamplerResponseRow(raw, null, true, e.getMessage());
+          responseRows[counter] = new SamplerResponseRow(rawJson, null, true, e.getMessage());
           counter++;
         }
       }
@@ -252,7 +154,7 @@ public class FirehoseSampler
       final List<String> columnNames = index.getColumnNames();
       columnNames.remove(SamplerInputRow.SAMPLER_ORDERING_COLUMN);
 
-      for (Row row : (Iterable<Row>) index) {
+      for (Row row : index) {
         Map<String, Object> parsed = new HashMap<>();
 
         columnNames.forEach(k -> {
@@ -268,16 +170,10 @@ public class FirehoseSampler
         }
       }
 
-      // cache raw data if available
-      String cacheKey = usingCachedData ? samplerConfig.getCacheKey() : null;
-      if (!samplerConfig.isSkipCache() && !dataToCache.isEmpty()) {
-        cacheKey = samplerCache.put(UUIDUtils.generateUuid(), dataToCache);
-      }
-
       return new SamplerResponse(
-          cacheKey,
           counter,
           numRowsIndexed,
+          // TODO: check whether this is correct
           Arrays.stream(responseRows)
                 .filter(Objects::nonNull)
                 .filter(x -> x.getParsed() != null || x.isUnparseable() != null)
@@ -287,13 +183,49 @@ public class FirehoseSampler
     catch (Exception e) {
       throw new SamplerException(e, "Failed to sample data: %s", e.getMessage());
     }
-    finally {
-      try {
-        FileUtils.deleteDirectory(tempDir);
-      }
-      catch (IOException e) {
-        log.warn(e, "Failed to cleanup temporary directory");
-      }
-    }
+  }
+
+  private InputSourceReader buildReader(
+      DataSchema dataSchema,
+      InputSource inputSource,
+      InputFormat inputFormat,
+      File tempDir
+  )
+  {
+    final List<String> metricsNames = Arrays.stream(dataSchema.getAggregators())
+                                            .map(AggregatorFactory::getName)
+                                            .collect(Collectors.toList());
+    final InputRowSchema inputRowSchema = new InputRowSchema(
+        dataSchema.getTimestampSpec(),
+        dataSchema.getDimensionsSpec(),
+        metricsNames
+    );
+
+    InputSourceReader reader = inputSource.reader(inputRowSchema, inputFormat, tempDir);
+
+    // TODO: timed shutoff
+//    if (nonNullSamplerConfig.getTimeoutMs() > 0) {
+//      myFirehoseFactory = new TimedShutoffFirehoseFactory(
+//          myFirehoseFactory,
+//          DateTimes.nowUtc().plusMillis(nonNullSamplerConfig.getTimeoutMs())
+//      );
+//    }
+
+    return dataSchema.getTransformSpec().decorate(reader);
+  }
+
+  private IncrementalIndex<Aggregator> buildIncrementalIndex(SamplerConfig samplerConfig, DataSchema dataSchema)
+  {
+    final IncrementalIndexSchema schema = new IncrementalIndexSchema.Builder()
+        .withTimestampSpec(dataSchema.getTimestampSpec())
+        .withQueryGranularity(dataSchema.getGranularitySpec().getQueryGranularity())
+        .withDimensionsSpec(dataSchema.getDimensionsSpec())
+        .withMetrics(ArrayUtils.addAll(dataSchema.getAggregators(), INTERNAL_ORDERING_AGGREGATOR))
+        .withRollup(dataSchema.getGranularitySpec().isRollup())
+        .build();
+
+    return new IncrementalIndex.Builder().setIndexSchema(schema)
+                                         .setMaxRowCount(samplerConfig.getNumRows())
+                                         .buildOnheap();
   }
 }

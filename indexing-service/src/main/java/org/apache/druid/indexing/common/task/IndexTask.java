@@ -1145,6 +1145,10 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       return inputSource;
     }
 
+    /**
+     * Returns {@link InputFormat}. Can be null if {@link DataSchema#parserMap} is specified.
+     * Also can be null in {@link org.apache.druid.indexing.overlord.sampler.FirehoseSampler}.
+     */
     @Nullable
     @Override
     @JsonProperty
