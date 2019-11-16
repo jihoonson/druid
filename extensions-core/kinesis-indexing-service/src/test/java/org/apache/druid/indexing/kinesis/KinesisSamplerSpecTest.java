@@ -24,14 +24,11 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.apache.druid.common.aws.AWSCredentialsConfig;
-import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.FloatDimensionSchema;
-import org.apache.druid.data.input.impl.InputRowParser;
-import org.apache.druid.data.input.impl.JSONParseSpec;
+import org.apache.druid.data.input.impl.JsonInputFormat;
 import org.apache.druid.data.input.impl.LongDimensionSchema;
 import org.apache.druid.data.input.impl.StringDimensionSchema;
-import org.apache.druid.data.input.impl.StringInputRowParser;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexing.kinesis.supervisor.KinesisSupervisorIOConfig;
 import org.apache.druid.indexing.kinesis.supervisor.KinesisSupervisorSpec;
@@ -39,7 +36,6 @@ import org.apache.druid.indexing.overlord.sampler.InputSourceSampler;
 import org.apache.druid.indexing.overlord.sampler.SamplerConfig;
 import org.apache.druid.indexing.overlord.sampler.SamplerResponse;
 import org.apache.druid.indexing.seekablestream.common.OrderedPartitionableRecord;
-import org.apache.druid.indexing.seekablestream.common.RecordSupplier;
 import org.apache.druid.indexing.seekablestream.common.StreamPartition;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.granularity.Granularities;
@@ -47,7 +43,6 @@ import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.CountAggregatorFactory;
 import org.apache.druid.query.aggregation.DoubleSumAggregatorFactory;
-import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.easymock.EasyMock;
@@ -55,49 +50,35 @@ import org.easymock.EasyMockSupport;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 public class KinesisSamplerSpecTest extends EasyMockSupport
 {
-  private static final ObjectMapper OBJECT_MAPPER = TestHelper.makeJsonMapper();
   private static final String STREAM = "sampling";
   private static final String SHARD_ID = "1";
   private static final DataSchema DATA_SCHEMA = new DataSchema(
       "test_ds",
-      OBJECT_MAPPER.convertValue(
-          new StringInputRowParser(
-              new JSONParseSpec(
-                  new TimestampSpec("timestamp", "iso", null),
-                  new DimensionsSpec(
-                      Arrays.asList(
-                          new StringDimensionSchema("dim1"),
-                          new StringDimensionSchema("dim1t"),
-                          new StringDimensionSchema("dim2"),
-                          new LongDimensionSchema("dimLong"),
-                          new FloatDimensionSchema("dimFloat")
-                      ),
-                      null,
-                      null
-                  ),
-                  new JSONPathSpec(true, ImmutableList.of()),
-                  ImmutableMap.of()
-              ),
-              StandardCharsets.UTF_8.name()
+      new TimestampSpec("timestamp", "iso", null),
+      new DimensionsSpec(
+          Arrays.asList(
+              new StringDimensionSchema("dim1"),
+              new StringDimensionSchema("dim1t"),
+              new StringDimensionSchema("dim2"),
+              new LongDimensionSchema("dimLong"),
+              new FloatDimensionSchema("dimFloat")
           ),
-          Map.class
+          null,
+          null
       ),
       new AggregatorFactory[]{
           new DoubleSumAggregatorFactory("met1sum", "met1"),
           new CountAggregatorFactory("rows")
       },
       new UniformGranularitySpec(Granularities.DAY, Granularities.NONE, null),
-      null,
-      OBJECT_MAPPER
+      null
   );
 
   private final KinesisRecordSupplier recordSupplier = mock(KinesisRecordSupplier.class);
@@ -147,6 +128,7 @@ public class KinesisSamplerSpecTest extends EasyMockSupport
         null,
         new KinesisSupervisorIOConfig(
             STREAM,
+            new JsonInputFormat(new JSONPathSpec(true, ImmutableList.of()), ImmutableMap.of()),
             null,
             null,
             null,
@@ -286,16 +268,9 @@ public class KinesisSamplerSpecTest extends EasyMockSupport
     }
 
     @Override
-    protected Firehose getFirehose(InputRowParser parser)
+    protected KinesisRecordSupplier createRecordSupplier()
     {
-      return new KinesisSamplerFirehose(parser)
-      {
-        @Override
-        protected RecordSupplier getRecordSupplier()
-        {
-          return recordSupplier;
-        }
-      };
+      return recordSupplier;
     }
   }
 }

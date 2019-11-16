@@ -19,9 +19,7 @@
 
 package org.apache.druid.segment.realtime.firehose;
 
-import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowListPlusJson;
 import org.apache.druid.data.input.impl.CSVParseSpec;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.StringInputRowParser;
@@ -105,45 +103,6 @@ public class InlineFirehoseTest
     assertRowValue(VALUE_0, row);
   }
 
-  @Test(expected = NoSuchElementException.class)
-  public void testNextRowWithRawEmpty() throws IOException
-  {
-    InlineFirehose target = create(EMPTY);
-    target.nextRowWithRaw();
-  }
-
-  @Test
-  public void testNextRowWithRawParseable() throws IOException
-  {
-    final String data = PARSEABLE;
-    InlineFirehose target = create(data);
-    InputRowListPlusJson rowPlusRaw = target.nextRowWithRaw();
-
-    InputRow row = Iterables.getOnlyElement(rowPlusRaw.getInputRows());
-    assertRowValue(VALUE_0, row);
-
-    String raw = rowPlusRaw.getRawJson();
-    Assert.assertEquals(data, raw);
-
-    Assert.assertNull(rowPlusRaw.getParseException());
-  }
-
-  @Test
-  public void testNextRowWithRawNotParseable() throws IOException
-  {
-    final String data = NOT_PARSEABLE;
-    InlineFirehose target = create(data);
-    InputRowListPlusJson rowPlusRaw = target.nextRowWithRaw();
-
-    InputRow row = Iterables.getOnlyElement(rowPlusRaw.getInputRows());
-    Assert.assertNull(row);
-
-    String raw = rowPlusRaw.getRawJson();
-    Assert.assertEquals(data, raw);
-
-    Assert.assertNotNull(rowPlusRaw.getParseException());
-  }
-
   @Test
   public void testCloseOpen() throws IOException
   {
@@ -173,25 +132,6 @@ public class InlineFirehoseTest
     catch (IOException e) {
       Assert.fail("Should be able to close a closed firehose");
     }
-  }
-
-  @Test
-  public void testMultiline() throws IOException
-  {
-    InlineFirehose target = create(MULTILINE);
-
-    // First line
-    Assert.assertTrue(target.hasMore());
-    InputRow row0 = target.nextRow();
-    assertRowValue(VALUE_0, row0);
-
-    // Second line
-    InputRowListPlusJson rowPlusRaw = target.nextRowWithRaw();
-    assertRowValue(VALUE_1, Iterables.getOnlyElement(rowPlusRaw.getInputRows()));
-    Assert.assertEquals(LINE_1, rowPlusRaw.getRawJson());
-    Assert.assertNull(rowPlusRaw.getParseException());
-
-    Assert.assertFalse(target.hasMore());
   }
 
   private static InlineFirehose create(String data)

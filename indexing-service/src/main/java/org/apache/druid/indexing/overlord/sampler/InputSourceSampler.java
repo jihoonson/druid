@@ -204,12 +204,12 @@ public class InputSourceSampler
     InputSourceReader reader = inputSource.reader(inputRowSchema, inputFormat, tempDir);
 
     // TODO: timed shutoff
-//    if (nonNullSamplerConfig.getTimeoutMs() > 0) {
-//      myFirehoseFactory = new TimedShutoffFirehoseFactory(
-//          myFirehoseFactory,
-//          DateTimes.nowUtc().plusMillis(nonNullSamplerConfig.getTimeoutMs())
-//      );
-//    }
+  //    if (nonNullSamplerConfig.getTimeoutMs() > 0) {
+  //      myFirehoseFactory = new TimedShutoffFirehoseFactory(
+  //          myFirehoseFactory,
+  //          DateTimes.nowUtc().plusMillis(nonNullSamplerConfig.getTimeoutMs())
+  //      );
+  //    }
 
     return dataSchema.getTransformSpec().decorate(reader);
   }

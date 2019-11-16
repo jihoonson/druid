@@ -78,6 +78,6 @@ public interface InputSource
   InputSourceReader reader(
       InputRowSchema inputRowSchema,
       @Nullable InputFormat inputFormat,
-      @Nullable File temporaryDirectory
+      File temporaryDirectory
   );
 }

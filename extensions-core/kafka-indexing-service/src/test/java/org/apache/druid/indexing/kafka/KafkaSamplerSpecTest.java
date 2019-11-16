@@ -25,10 +25,9 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.curator.test.TestingCluster;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.FloatDimensionSchema;
-import org.apache.druid.data.input.impl.JSONParseSpec;
+import org.apache.druid.data.input.impl.JsonInputFormat;
 import org.apache.druid.data.input.impl.LongDimensionSchema;
 import org.apache.druid.data.input.impl.StringDimensionSchema;
-import org.apache.druid.data.input.impl.StringInputRowParser;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexing.kafka.supervisor.KafkaSupervisorIOConfig;
 import org.apache.druid.indexing.kafka.supervisor.KafkaSupervisorSpec;
@@ -52,11 +51,9 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 public class KafkaSamplerSpecTest
 {
@@ -64,35 +61,24 @@ public class KafkaSamplerSpecTest
   private static final String TOPIC = "sampling";
   private static final DataSchema DATA_SCHEMA = new DataSchema(
       "test_ds",
-      OBJECT_MAPPER.convertValue(
-          new StringInputRowParser(
-              new JSONParseSpec(
-                  new TimestampSpec("timestamp", "iso", null),
-                  new DimensionsSpec(
-                      Arrays.asList(
-                          new StringDimensionSchema("dim1"),
-                          new StringDimensionSchema("dim1t"),
-                          new StringDimensionSchema("dim2"),
-                          new LongDimensionSchema("dimLong"),
-                          new FloatDimensionSchema("dimFloat")
-                      ),
-                      null,
-                      null
-                  ),
-                  new JSONPathSpec(true, ImmutableList.of()),
-                  ImmutableMap.of()
-              ),
-              StandardCharsets.UTF_8.name()
+      new TimestampSpec("timestamp", "iso", null),
+      new DimensionsSpec(
+          Arrays.asList(
+              new StringDimensionSchema("dim1"),
+              new StringDimensionSchema("dim1t"),
+              new StringDimensionSchema("dim2"),
+              new LongDimensionSchema("dimLong"),
+              new FloatDimensionSchema("dimFloat")
           ),
-          Map.class
+          null,
+          null
       ),
       new AggregatorFactory[]{
           new DoubleSumAggregatorFactory("met1sum", "met1"),
           new CountAggregatorFactory("rows")
       },
       new UniformGranularitySpec(Granularities.DAY, Granularities.NONE, null),
-      null,
-      OBJECT_MAPPER
+      null
   );
 
   private static TestingCluster zkServer;
@@ -137,6 +123,7 @@ public class KafkaSamplerSpecTest
         null,
         new KafkaSupervisorIOConfig(
             TOPIC,
+            new JsonInputFormat(new JSONPathSpec(true, ImmutableList.of()), ImmutableMap.of()),
             null,
             null,
             null,
