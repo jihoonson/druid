@@ -23,9 +23,10 @@ import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowListPlusJson;
+import org.apache.druid.data.input.InputSource;
 import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.data.input.impl.StringInputRowParser;
-import org.apache.druid.indexing.overlord.sampler.FirehoseSampler;
+import org.apache.druid.indexing.overlord.sampler.InputSourceSampler;
 import org.apache.druid.indexing.overlord.sampler.SamplerConfig;
 import org.apache.druid.indexing.overlord.sampler.SamplerException;
 import org.apache.druid.indexing.overlord.sampler.SamplerResponse;
@@ -36,10 +37,13 @@ import org.apache.druid.indexing.seekablestream.common.StreamPartition;
 import org.apache.druid.indexing.seekablestream.supervisor.SeekableStreamSupervisorIOConfig;
 import org.apache.druid.indexing.seekablestream.supervisor.SeekableStreamSupervisorSpec;
 import org.apache.druid.indexing.seekablestream.supervisor.SeekableStreamSupervisorTuningConfig;
+import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.segment.indexing.DataSchema;
 
 import javax.annotation.Nullable;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -48,7 +52,7 @@ public abstract class SeekableStreamSamplerSpec<PartitionIdType, SequenceOffsetT
   private static final int POLL_TIMEOUT_MS = 100;
 
   private final DataSchema dataSchema;
-  private final FirehoseSampler firehoseSampler;
+  private final InputSourceSampler inputSourceSampler;
 
   protected final SeekableStreamSupervisorIOConfig ioConfig;
   protected final SeekableStreamSupervisorTuningConfig tuningConfig;
@@ -57,14 +61,14 @@ public abstract class SeekableStreamSamplerSpec<PartitionIdType, SequenceOffsetT
   public SeekableStreamSamplerSpec(
       final SeekableStreamSupervisorSpec ingestionSpec,
       final SamplerConfig samplerConfig,
-      final FirehoseSampler firehoseSampler
+      final InputSourceSampler inputSourceSampler
   )
   {
     this.dataSchema = Preconditions.checkNotNull(ingestionSpec, "[spec] is required").getDataSchema();
     this.ioConfig = Preconditions.checkNotNull(ingestionSpec.getIoConfig(), "[spec.ioConfig] is required");
     this.tuningConfig = ingestionSpec.getTuningConfig();
     this.samplerConfig = samplerConfig;
-    this.firehoseSampler = firehoseSampler;
+    this.inputSourceSampler = inputSourceSampler;
   }
 
   @Override
@@ -84,6 +88,8 @@ public abstract class SeekableStreamSamplerSpec<PartitionIdType, SequenceOffsetT
 //    );
     return null;
   }
+
+  protected abstract InputSource createInputSource();
 
   protected abstract Firehose getFirehose(InputRowParser parser);
 
@@ -135,35 +141,33 @@ public abstract class SeekableStreamSamplerSpec<PartitionIdType, SequenceOffsetT
     }
 
     @Override
-    public InputRowListPlusJson nextRowWithRaw()
+    public InputRowPlusRaw nextRowWithRaw()
     {
       if (recordDataIterator == null || !recordDataIterator.hasNext()) {
         if (recordIterator == null || !recordIterator.hasNext()) {
           recordIterator = recordSupplier.poll(POLL_TIMEOUT_MS).iterator();
 
           if (!recordIterator.hasNext()) {
-            return InputRowListPlusJson.of((InputRow) null, null);
+            return InputRowPlusRaw.of((InputRow) null, null);
           }
         }
 
         recordDataIterator = recordIterator.next().getData().iterator();
 
         if (!recordDataIterator.hasNext()) {
-          return InputRowListPlusJson.of((InputRow) null, null);
+          return InputRowPlusRaw.of((InputRow) null, null);
         }
       }
 
       byte[] raw = recordDataIterator.next();
 
-//      try {
-//        List<InputRow> rows = parser.parseBatch(ByteBuffer.wrap(raw));
-//        return InputRowListPlusJson.of(rows.isEmpty() ? null : rows.get(0), raw);
-//      }
-//      catch (ParseException e) {
-//        return InputRowListPlusJson.of(raw, e);
-//      }
-
-      return null;
+      try {
+        List<InputRow> rows = parser.parseBatch(ByteBuffer.wrap(raw));
+        return InputRowPlusRaw.of(rows.isEmpty() ? null : rows.get(0), raw);
+      }
+      catch (ParseException e) {
+        return InputRowPlusRaw.of(raw, e);
+      }
     }
 
     @Override

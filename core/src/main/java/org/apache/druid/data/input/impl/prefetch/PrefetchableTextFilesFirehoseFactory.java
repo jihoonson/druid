@@ -91,9 +91,6 @@ public abstract class PrefetchableTextFilesFirehoseFactory<T>
 {
   private static final Logger LOG = new Logger(PrefetchableTextFilesFirehoseFactory.class);
 
-  private static final CacheManager DISABLED_CACHE_MANAGER = new CacheManager(0);
-  private static final FetchConfig DISABLED_PREFETCH_CONFIG = new FetchConfig(0L, 0L, 0L, 0L, 0);
-
   private final CacheManager<T> cacheManager;
   private final FetchConfig fetchConfig;
 
@@ -159,12 +156,6 @@ public abstract class PrefetchableTextFilesFirehoseFactory<T>
   public Firehose connect(StringInputRowParser firehoseParser, @Nullable File temporaryDirectory) throws IOException
   {
     return connectInternal(firehoseParser, temporaryDirectory, this.fetchConfig, this.cacheManager);
-  }
-
-  @Override
-  public Firehose connectForSampler(StringInputRowParser parser, @Nullable File temporaryDirectory) throws IOException
-  {
-    return connectInternal(parser, temporaryDirectory, DISABLED_PREFETCH_CONFIG, DISABLED_CACHE_MANAGER);
   }
 
   private Firehose connectInternal(

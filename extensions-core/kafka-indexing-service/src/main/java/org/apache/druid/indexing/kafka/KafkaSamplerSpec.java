@@ -27,7 +27,7 @@ import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.indexing.kafka.supervisor.KafkaSupervisorIOConfig;
 import org.apache.druid.indexing.kafka.supervisor.KafkaSupervisorSpec;
-import org.apache.druid.indexing.overlord.sampler.FirehoseSampler;
+import org.apache.druid.indexing.overlord.sampler.InputSourceSampler;
 import org.apache.druid.indexing.overlord.sampler.SamplerConfig;
 import org.apache.druid.indexing.seekablestream.SeekableStreamSamplerSpec;
 import org.apache.druid.indexing.seekablestream.common.RecordSupplier;
@@ -43,11 +43,11 @@ public class KafkaSamplerSpec extends SeekableStreamSamplerSpec
   public KafkaSamplerSpec(
       @JsonProperty("spec") final KafkaSupervisorSpec ingestionSpec,
       @JsonProperty("samplerConfig") final SamplerConfig samplerConfig,
-      @JacksonInject FirehoseSampler firehoseSampler,
+      @JacksonInject InputSourceSampler inputSourceSampler,
       @JacksonInject ObjectMapper objectMapper
   )
   {
-    super(ingestionSpec, samplerConfig, firehoseSampler);
+    super(ingestionSpec, samplerConfig, inputSourceSampler);
 
     this.objectMapper = objectMapper;
   }

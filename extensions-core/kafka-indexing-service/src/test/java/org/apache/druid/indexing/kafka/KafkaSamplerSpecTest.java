@@ -33,7 +33,7 @@ import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexing.kafka.supervisor.KafkaSupervisorIOConfig;
 import org.apache.druid.indexing.kafka.supervisor.KafkaSupervisorSpec;
 import org.apache.druid.indexing.kafka.test.TestBroker;
-import org.apache.druid.indexing.overlord.sampler.FirehoseSampler;
+import org.apache.druid.indexing.overlord.sampler.InputSourceSampler;
 import org.apache.druid.indexing.overlord.sampler.SamplerConfig;
 import org.apache.druid.indexing.overlord.sampler.SamplerResponse;
 import org.apache.druid.java.util.common.StringUtils;
@@ -166,7 +166,7 @@ public class KafkaSamplerSpecTest
     KafkaSamplerSpec samplerSpec = new KafkaSamplerSpec(
         supervisorSpec,
         new SamplerConfig(5, null),
-        new FirehoseSampler(),
+        new InputSourceSampler(),
         OBJECT_MAPPER
     );
 

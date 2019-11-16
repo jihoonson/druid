@@ -22,6 +22,7 @@ package org.apache.druid.data.input.impl;
 import com.google.common.base.Function;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Iterables;
+import org.apache.druid.data.input.InputEntity;
 import org.apache.druid.data.input.InputEntityReader;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowSchema;
@@ -32,6 +33,7 @@ import org.apache.druid.java.util.common.parsers.ParserUtils;
 import org.apache.druid.java.util.common.parsers.Parsers;
 
 import javax.annotation.Nullable;
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,12 +52,14 @@ public class RegexReader extends TextReader
 
   RegexReader(
       InputRowSchema inputRowSchema,
+      InputEntity source,
+      File temporaryDirectory,
       String pattern,
       @Nullable String listDelimiter,
       @Nullable List<String> columns
   )
   {
-    super(inputRowSchema);
+    super(inputRowSchema, source, temporaryDirectory);
     this.pattern = pattern;
     this.compiled = Pattern.compile(pattern);
     final String finalListDelimeter = listDelimiter == null ? Parsers.DEFAULT_LIST_DELIMITER : listDelimiter;

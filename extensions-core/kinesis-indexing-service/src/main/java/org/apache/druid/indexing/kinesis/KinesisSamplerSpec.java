@@ -29,7 +29,7 @@ import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.indexing.kinesis.supervisor.KinesisSupervisorIOConfig;
 import org.apache.druid.indexing.kinesis.supervisor.KinesisSupervisorSpec;
 import org.apache.druid.indexing.kinesis.supervisor.KinesisSupervisorTuningConfig;
-import org.apache.druid.indexing.overlord.sampler.FirehoseSampler;
+import org.apache.druid.indexing.overlord.sampler.InputSourceSampler;
 import org.apache.druid.indexing.overlord.sampler.SamplerConfig;
 import org.apache.druid.indexing.seekablestream.SeekableStreamSamplerSpec;
 import org.apache.druid.indexing.seekablestream.common.RecordSupplier;
@@ -42,11 +42,11 @@ public class KinesisSamplerSpec extends SeekableStreamSamplerSpec
   public KinesisSamplerSpec(
       @JsonProperty("spec") final KinesisSupervisorSpec ingestionSpec,
       @JsonProperty("samplerConfig") final SamplerConfig samplerConfig,
-      @JacksonInject FirehoseSampler firehoseSampler,
+      @JacksonInject InputSourceSampler inputSourceSampler,
       @JacksonInject @Named("kinesis") AWSCredentialsConfig awsCredentialsConfig
   )
   {
-    super(ingestionSpec, samplerConfig, firehoseSampler);
+    super(ingestionSpec, samplerConfig, inputSourceSampler);
 
     this.awsCredentialsConfig = awsCredentialsConfig;
   }

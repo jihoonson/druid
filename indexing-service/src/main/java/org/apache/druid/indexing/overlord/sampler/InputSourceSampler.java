@@ -55,7 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class FirehoseSampler
+public class InputSourceSampler
 {
   private static final String SAMPLER_DATA_SOURCE = "sampler";
 

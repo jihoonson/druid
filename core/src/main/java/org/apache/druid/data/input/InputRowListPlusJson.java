@@ -31,28 +31,25 @@ public class InputRowListPlusJson
   @Nullable
   private final List<InputRow> inputRows;
 
-  /**
-   * Can be null if it failed to parse to JSON.
-   */
   @Nullable
   private final String rawJson;
 
   @Nullable
   private final ParseException parseException;
 
-  public static InputRowListPlusJson of(@Nullable InputRow inputRow, @Nullable String rawJson)
+  public static InputRowListPlusJson of(@Nullable InputRow inputRow, String rawJson)
   {
-    return of(Collections.singletonList(inputRow), rawJson);
+    return of(inputRow == null ? null : Collections.singletonList(inputRow), rawJson);
   }
 
-  public static InputRowListPlusJson of(@Nullable List<InputRow> inputRows, @Nullable String rawJson)
+  public static InputRowListPlusJson of(@Nullable List<InputRow> inputRows, String rawJson)
   {
-    return new InputRowListPlusJson(inputRows, rawJson, null);
+    return new InputRowListPlusJson(inputRows, Preconditions.checkNotNull(rawJson, "rawJson"), null);
   }
 
-  public static InputRowListPlusJson of(@Nullable String rawJson, @Nullable ParseException parseException)
+  public static InputRowListPlusJson of(@Nullable String rawJson, ParseException parseException)
   {
-    return new InputRowListPlusJson(null, rawJson, parseException);
+    return new InputRowListPlusJson(null, rawJson, Preconditions.checkNotNull(parseException, "parseException"));
   }
 
   private InputRowListPlusJson(
@@ -61,10 +58,6 @@ public class InputRowListPlusJson
       @Nullable ParseException parseException
   )
   {
-    Preconditions.checkArgument(
-        (inputRows != null && !inputRows.isEmpty()) || rawJson != null || parseException != null,
-        "One of inputRows, rawJson, or parseException must not be null"
-    );
     this.inputRows = inputRows;
     this.rawJson = rawJson;
     this.parseException = parseException;

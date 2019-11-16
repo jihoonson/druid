@@ -42,13 +42,13 @@ public class IndexTaskSamplerSpec implements SamplerSpec
   private final InputFormat inputFormat;
   @Nullable
   private final SamplerConfig samplerConfig;
-  private final FirehoseSampler firehoseSampler;
+  private final InputSourceSampler inputSourceSampler;
 
   @JsonCreator
   public IndexTaskSamplerSpec(
       @JsonProperty("spec") final IndexTask.IndexIngestionSpec ingestionSpec,
       @JsonProperty("samplerConfig") @Nullable final SamplerConfig samplerConfig,
-      @JacksonInject FirehoseSampler firehoseSampler
+      @JacksonInject InputSourceSampler inputSourceSampler
   )
   {
     this.dataSchema = Preconditions.checkNotNull(ingestionSpec, "[spec] is required").getDataSchema();
@@ -68,12 +68,12 @@ public class IndexTaskSamplerSpec implements SamplerSpec
       this.inputFormat = null;
     }
     this.samplerConfig = samplerConfig;
-    this.firehoseSampler = firehoseSampler;
+    this.inputSourceSampler = inputSourceSampler;
   }
 
   @Override
   public SamplerResponse sample()
   {
-    return firehoseSampler.sample(inputSource, inputFormat, dataSchema, samplerConfig);
+    return inputSourceSampler.sample(inputSource, inputFormat, dataSchema, samplerConfig);
   }
 }

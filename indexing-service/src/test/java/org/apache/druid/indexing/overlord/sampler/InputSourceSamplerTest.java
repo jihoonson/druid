@@ -61,7 +61,7 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 @RunWith(Parameterized.class)
-public class FirehoseSamplerTest
+public class InputSourceSamplerTest
 {
   private enum ParserType
   {
@@ -100,7 +100,7 @@ public class FirehoseSamplerTest
       "{ \"t\": \"bad_timestamp\", \"dim1\": \"foo\", \"dim2\": null, \"met1\": 6 }"
   );
 
-  private FirehoseSampler firehoseSampler;
+  private InputSourceSampler inputSourceSampler;
   private ParserType parserType;
 
   @Rule
@@ -115,7 +115,7 @@ public class FirehoseSamplerTest
     );
   }
 
-  public FirehoseSamplerTest(ParserType parserType)
+  public InputSourceSamplerTest(ParserType parserType)
   {
     this.parserType = parserType;
   }
@@ -123,7 +123,7 @@ public class FirehoseSamplerTest
   @Before
   public void setupTest()
   {
-    firehoseSampler = new FirehoseSampler();
+    inputSourceSampler = new InputSourceSampler();
   }
 
   @Test
@@ -132,14 +132,14 @@ public class FirehoseSamplerTest
     expectedException.expect(NullPointerException.class);
     expectedException.expectMessage("inputSource required");
 
-    firehoseSampler.sample(null, null, null, null);
+    inputSourceSampler.sample(null, null, null, null);
   }
 
   @Test
   public void testNoDataSchema() throws IOException
   {
     final InputSource inputSource = createInputSource(getTestRows());
-    final SamplerResponse response = firehoseSampler.sample(inputSource, createInputFormat(), null, null);
+    final SamplerResponse response = inputSourceSampler.sample(inputSource, createInputFormat(), null, null);
 
     Assert.assertEquals(6, response.getNumRowsRead());
     Assert.assertEquals(0, response.getNumRowsIndexed());
@@ -207,7 +207,7 @@ public class FirehoseSamplerTest
   public void testNoDataSchemaNumRows() throws IOException
   {
     final InputSource inputSource = createInputSource(getTestRows());
-    final SamplerResponse response = firehoseSampler.sample(
+    final SamplerResponse response = inputSourceSampler.sample(
         inputSource,
         createInputFormat(),
         null,
@@ -263,7 +263,7 @@ public class FirehoseSamplerTest
         null
     );
 
-    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
+    SamplerResponse response = inputSourceSampler.sample(inputSource, inputFormat, dataSchema, null);
 
     Assert.assertEquals(6, response.getNumRowsRead());
     Assert.assertEquals(6, response.getNumRowsIndexed());
@@ -341,7 +341,7 @@ public class FirehoseSamplerTest
         null
     );
 
-    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
+    SamplerResponse response = inputSourceSampler.sample(inputSource, inputFormat, dataSchema, null);
 
     Assert.assertEquals(6, response.getNumRowsRead());
     Assert.assertEquals(5, response.getNumRowsIndexed());
@@ -421,7 +421,7 @@ public class FirehoseSamplerTest
         null
     );
 
-    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
+    SamplerResponse response = inputSourceSampler.sample(inputSource, inputFormat, dataSchema, null);
 
     Assert.assertEquals(6, response.getNumRowsRead());
     Assert.assertEquals(5, response.getNumRowsIndexed());
@@ -506,7 +506,7 @@ public class FirehoseSamplerTest
         null
     );
 
-    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
+    SamplerResponse response = inputSourceSampler.sample(inputSource, inputFormat, dataSchema, null);
 
     Assert.assertEquals(6, response.getNumRowsRead());
     Assert.assertEquals(5, response.getNumRowsIndexed());
@@ -591,7 +591,7 @@ public class FirehoseSamplerTest
         null
     );
 
-    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
+    SamplerResponse response = inputSourceSampler.sample(inputSource, inputFormat, dataSchema, null);
 
     Assert.assertEquals(6, response.getNumRowsRead());
     Assert.assertEquals(5, response.getNumRowsIndexed());
@@ -658,7 +658,7 @@ public class FirehoseSamplerTest
         null
     );
 
-    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
+    SamplerResponse response = inputSourceSampler.sample(inputSource, inputFormat, dataSchema, null);
 
     Assert.assertEquals(6, response.getNumRowsRead());
     Assert.assertEquals(5, response.getNumRowsIndexed());
@@ -720,7 +720,7 @@ public class FirehoseSamplerTest
         transformSpec
     );
 
-    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
+    SamplerResponse response = inputSourceSampler.sample(inputSource, inputFormat, dataSchema, null);
 
     Assert.assertEquals(6, response.getNumRowsRead());
     Assert.assertEquals(5, response.getNumRowsIndexed());
@@ -791,7 +791,7 @@ public class FirehoseSamplerTest
         transformSpec
     );
 
-    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
+    SamplerResponse response = inputSourceSampler.sample(inputSource, inputFormat, dataSchema, null);
 
     Assert.assertEquals(6, response.getNumRowsRead());
     Assert.assertEquals(5, response.getNumRowsIndexed());
@@ -850,7 +850,7 @@ public class FirehoseSamplerTest
         transformSpec
     );
 
-    SamplerResponse response = firehoseSampler.sample(inputSource, inputFormat, dataSchema, null);
+    SamplerResponse response = inputSourceSampler.sample(inputSource, inputFormat, dataSchema, null);
 
     Assert.assertEquals(5, response.getNumRowsRead());
     Assert.assertEquals(4, response.getNumRowsIndexed());

@@ -44,7 +44,7 @@ public class IndexTaskSamplerSpecTest extends EasyMockSupport
 {
   private static final ObjectMapper MAPPER = TestHelper.makeJsonMapper();
 
-  private final FirehoseSampler firehoseSampler = createMock(FirehoseSampler.class);
+  private final InputSourceSampler inputSourceSampler = createMock(InputSourceSampler.class);
 
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
@@ -53,7 +53,7 @@ public class IndexTaskSamplerSpecTest extends EasyMockSupport
   {
     MAPPER.setInjectableValues(
         new InjectableValues.Std()
-            .addValue(FirehoseSampler.class, firehoseSampler)
+            .addValue(InputSourceSampler.class, inputSourceSampler)
             .addValue(ObjectMapper.class, MAPPER)
     );
     MAPPER.registerModules((Iterable<Module>) new SamplerModule().getJacksonModules());
@@ -98,7 +98,7 @@ public class IndexTaskSamplerSpecTest extends EasyMockSupport
 
     IndexTaskSamplerSpec spec = MAPPER.readValue(json, IndexTaskSamplerSpec.class);
 
-    EasyMock.expect(firehoseSampler.sample(
+    EasyMock.expect(inputSourceSampler.sample(
         EasyMock.capture(capturedInputSource),
         EasyMock.capture(capturedInputFormat),
         EasyMock.capture(capturedDataSchema),

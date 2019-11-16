@@ -35,7 +35,7 @@ import org.apache.druid.data.input.impl.StringInputRowParser;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexing.kinesis.supervisor.KinesisSupervisorIOConfig;
 import org.apache.druid.indexing.kinesis.supervisor.KinesisSupervisorSpec;
-import org.apache.druid.indexing.overlord.sampler.FirehoseSampler;
+import org.apache.druid.indexing.overlord.sampler.InputSourceSampler;
 import org.apache.druid.indexing.overlord.sampler.SamplerConfig;
 import org.apache.druid.indexing.overlord.sampler.SamplerResponse;
 import org.apache.druid.indexing.seekablestream.common.OrderedPartitionableRecord;
@@ -182,7 +182,7 @@ public class KinesisSamplerSpecTest extends EasyMockSupport
     KinesisSamplerSpec samplerSpec = new TestableKinesisSamplerSpec(
         supervisorSpec,
         new SamplerConfig(5, null),
-        new FirehoseSampler(),
+        new InputSourceSampler(),
         null
     );
 
@@ -278,11 +278,11 @@ public class KinesisSamplerSpecTest extends EasyMockSupport
     private TestableKinesisSamplerSpec(
         KinesisSupervisorSpec ingestionSpec,
         SamplerConfig samplerConfig,
-        FirehoseSampler firehoseSampler,
+        InputSourceSampler inputSourceSampler,
         AWSCredentialsConfig awsCredentialsConfig
     )
     {
-      super(ingestionSpec, samplerConfig, firehoseSampler, awsCredentialsConfig);
+      super(ingestionSpec, samplerConfig, inputSourceSampler, awsCredentialsConfig);
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.apache.druid.java.util.common.parsers.ParseException;
 
 import java.io.File;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
@@ -37,13 +38,12 @@ public class TestFirehose implements Firehose
   public static class TestFirehoseFactory implements FirehoseFactory<InputRowParser>
   {
     private boolean waitForClose = true;
-    private List<Object> seedRows;
 
     @Override
     @SuppressWarnings("unchecked")
     public Firehose connect(InputRowParser parser, File temporaryDirectory) throws ParseException
     {
-      return new TestFirehose(parser, waitForClose, seedRows);
+      return new TestFirehose(parser, waitForClose, Collections.emptyList());
     }
   }
 

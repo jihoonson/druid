@@ -65,6 +65,7 @@ import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.stats.TaskRealtimeMetricsMonitor;
+import org.apache.druid.indexing.overlord.sampler.InputSourceSampler;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
@@ -1147,7 +1148,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
 
     /**
      * Returns {@link InputFormat}. Can be null if {@link DataSchema#parserMap} is specified.
-     * Also can be null in {@link org.apache.druid.indexing.overlord.sampler.FirehoseSampler}.
+     * Also can be null in {@link InputSourceSampler}.
      */
     @Nullable
     @Override

@@ -30,6 +30,8 @@ import org.apache.druid.data.input.impl.RegexInputFormat;
 import org.apache.druid.data.input.impl.SplittableInputSource;
 import org.apache.druid.guice.annotations.UnstableApi;
 
+import java.io.File;
+
 /**
  * InputFormat abstracts the file format of input data.
  * It creates a {@link InputEntityReader} to read data and parse it into {@link InputRow}.
@@ -55,5 +57,5 @@ public interface InputFormat
   @JsonIgnore
   boolean isSplittable();
 
-  InputEntityReader createReader(InputRowSchema inputRowSchema);
+  InputEntityReader createReader(InputRowSchema inputRowSchema, InputEntity source, File temporaryDirectory);
 }
