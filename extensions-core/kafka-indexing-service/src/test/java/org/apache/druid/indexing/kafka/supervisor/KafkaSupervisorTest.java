@@ -251,7 +251,8 @@ public class KafkaSupervisorTest extends EasyMockSupport
             null,
             null,
             null,
-            null
+            null,
+            INPUT_FORMAT
         ),
         new KafkaIndexTaskTuningConfig(
             null,
@@ -3601,7 +3602,8 @@ public class KafkaSupervisorTest extends EasyMockSupport
             KafkaSupervisorIOConfig.DEFAULT_POLL_TIMEOUT_MILLIS,
             true,
             minimumMessageTime,
-            maximumMessageTime
+            maximumMessageTime,
+            INPUT_FORMAT
         ),
         Collections.emptyMap(),
         null,

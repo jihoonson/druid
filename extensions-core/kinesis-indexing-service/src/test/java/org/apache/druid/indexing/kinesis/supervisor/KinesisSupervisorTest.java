@@ -5072,6 +5072,7 @@ public class KinesisSupervisorTest extends EasyMockSupport
             true,
             minimumMessageTime,
             maximumMessageTime,
+            INPUT_FORMAT,
             "awsEndpoint",
             null,
             null,

@@ -774,7 +774,10 @@ public class SeekableStreamSupervisorStateTest extends EasyMockSupport
           new SeekableStreamEndSequenceNumbers<>(STREAM, endPartitions),
           true,
           minimumMessageTime,
-          maximumMessageTime
+          maximumMessageTime,
+          ioConfig.getNonNullInputFormat(
+              getDataSchema().getParser() == null ? null : getDataSchema().getParser().getParseSpec()
+          )
       )
       {
       };

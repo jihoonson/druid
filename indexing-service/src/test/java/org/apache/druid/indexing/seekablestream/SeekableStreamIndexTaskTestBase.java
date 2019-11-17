@@ -29,9 +29,11 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Files;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
+import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.FloatDimensionSchema;
 import org.apache.druid.data.input.impl.JSONParseSpec;
+import org.apache.druid.data.input.impl.JsonInputFormat;
 import org.apache.druid.data.input.impl.LongDimensionSchema;
 import org.apache.druid.data.input.impl.StringDimensionSchema;
 import org.apache.druid.data.input.impl.StringInputRowParser;
@@ -98,7 +100,7 @@ import java.util.stream.Collectors;
 public class SeekableStreamIndexTaskTestBase extends EasyMockSupport
 {
   protected static final ObjectMapper OBJECT_MAPPER = new TestUtils().getTestObjectMapper();
-  protected static final DataSchema DATA_SCHEMA = new DataSchema(
+  protected static final DataSchema OLD_DATA_SCHEMA = new DataSchema(
       "test_ds",
       OBJECT_MAPPER.convertValue(
           new StringInputRowParser(
@@ -129,6 +131,31 @@ public class SeekableStreamIndexTaskTestBase extends EasyMockSupport
       new UniformGranularitySpec(Granularities.DAY, Granularities.NONE, null),
       null,
       OBJECT_MAPPER
+  );
+  protected static final DataSchema NEW_DATA_SCHEMA = new DataSchema(
+      "test_ds",
+      new TimestampSpec("timestamp", "iso", null),
+      new DimensionsSpec(
+          Arrays.asList(
+              new StringDimensionSchema("dim1"),
+              new StringDimensionSchema("dim1t"),
+              new StringDimensionSchema("dim2"),
+              new LongDimensionSchema("dimLong"),
+              new FloatDimensionSchema("dimFloat")
+          ),
+          null,
+          null
+      ),
+      new AggregatorFactory[]{
+          new DoubleSumAggregatorFactory("met1sum", "met1"),
+          new CountAggregatorFactory("rows")
+      },
+      new UniformGranularitySpec(Granularities.DAY, Granularities.NONE, null),
+      null
+  );
+  protected static final InputFormat INPUT_FORMAT = new JsonInputFormat(
+      new JSONPathSpec(true, ImmutableList.of()),
+      ImmutableMap.of()
   );
   protected static final Logger LOG = new Logger(SeekableStreamIndexTaskTestBase.class);
   protected static ListeningExecutorService taskExec;
@@ -198,7 +225,7 @@ public class SeekableStreamIndexTaskTestBase extends EasyMockSupport
         StringUtils.format(
             "%s/%s/%s_%s/%s/%d",
             getSegmentDirectory(),
-            DATA_SCHEMA.getDataSource(),
+            OLD_DATA_SCHEMA.getDataSource(),
             descriptor.getInterval().getStart(),
             descriptor.getInterval().getEnd(),
             descriptor.getVersion(),
@@ -340,7 +367,7 @@ public class SeekableStreamIndexTaskTestBase extends EasyMockSupport
   {
     // Do a query.
     TimeseriesQuery query = Druids.newTimeseriesQueryBuilder()
-                                  .dataSource(DATA_SCHEMA.getDataSource())
+                                  .dataSource(OLD_DATA_SCHEMA.getDataSource())
                                   .aggregators(
                                       ImmutableList.of(
                                           new LongSumAggregatorFactory("rows", "rows")
@@ -367,7 +394,7 @@ public class SeekableStreamIndexTaskTestBase extends EasyMockSupport
   protected List<SegmentDescriptor> publishedDescriptors()
   {
     return metadataStorageCoordinator
-        .getUsedSegmentsForInterval(DATA_SCHEMA.getDataSource(), Intervals.of("0000/3000"), Segments.ONLY_VISIBLE)
+        .getUsedSegmentsForInterval(OLD_DATA_SCHEMA.getDataSource(), Intervals.of("0000/3000"), Segments.ONLY_VISIBLE)
         .stream()
         .map(DataSegment::toDescriptor)
         .collect(Collectors.toList());

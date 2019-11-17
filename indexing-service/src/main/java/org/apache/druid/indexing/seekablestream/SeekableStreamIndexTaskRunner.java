@@ -37,7 +37,11 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import org.apache.druid.data.input.Committer;
+import org.apache.druid.data.input.InputEntityReader;
+import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputRowSchema;
+import org.apache.druid.data.input.impl.ByteEntity;
 import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.discovery.DiscoveryDruidNode;
 import org.apache.druid.discovery.LookupNodeService;
@@ -69,8 +73,10 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.collect.Utils;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.java.util.emitter.EmittingLogger;
+import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.realtime.FireDepartment;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
@@ -106,6 +112,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -196,7 +203,8 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
   private final SeekableStreamIndexTask<PartitionIdType, SequenceOffsetType> task;
   private final SeekableStreamIndexTaskIOConfig<PartitionIdType, SequenceOffsetType> ioConfig;
   private final SeekableStreamIndexTaskTuningConfig tuningConfig;
-  private final InputRowParser<ByteBuffer> parser;
+  private final InputRowSchema inputRowSchema;
+  private final InputFormat inputFormat;
   private final AuthorizerMapper authorizerMapper;
   private final Optional<ChatHandlerProvider> chatHandlerProvider;
   private final CircularBuffer<Throwable> savedParseExceptions;
@@ -226,7 +234,7 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
 
   public SeekableStreamIndexTaskRunner(
       final SeekableStreamIndexTask<PartitionIdType, SequenceOffsetType> task,
-      final InputRowParser<ByteBuffer> parser,
+      @Nullable final InputRowParser<ByteBuffer> parser,
       final AuthorizerMapper authorizerMapper,
       final Optional<ChatHandlerProvider> chatHandlerProvider,
       final CircularBuffer<Throwable> savedParseExceptions,
@@ -239,7 +247,14 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
     this.task = task;
     this.ioConfig = task.getIOConfig();
     this.tuningConfig = task.getTuningConfig();
-    this.parser = parser;
+    this.inputRowSchema = new InputRowSchema(
+        task.getDataSchema().getTimestampSpec(),
+        task.getDataSchema().getDimensionsSpec(),
+        Arrays.stream(task.getDataSchema().getAggregators())
+              .map(AggregatorFactory::getName)
+              .collect(Collectors.toList())
+    );
+    this.inputFormat = ioConfig.getInputFormat(Preconditions.checkNotNull(parser, "inputRowParser").getParseSpec());
     this.authorizerMapper = authorizerMapper;
     this.chatHandlerProvider = chatHandlerProvider;
     this.savedParseExceptions = savedParseExceptions;
@@ -602,7 +617,14 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
                 } else {
                   rows = new ArrayList<>();
                   for (byte[] valueBytes : valueBytess) {
-                    rows.addAll(parser.parseBatch(ByteBuffer.wrap(valueBytes)));
+                    final InputEntityReader reader = inputFormat.createReader(
+                        inputRowSchema,
+                        new ByteEntity(valueBytes),
+                        toolbox.getIndexingTmpDir()
+                    );
+                    try (CloseableIterator<InputRow> rowIterator = reader.read()) {
+                      rowIterator.forEachRemaining(rows::add);
+                    }
                   }
                 }
                 boolean isPersistRequired = false;
