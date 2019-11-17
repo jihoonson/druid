@@ -31,8 +31,10 @@ import org.apache.druid.data.input.InputSource;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.Row;
 import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.impl.TimedShutoffInputSourceReader;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexing.overlord.sampler.SamplerResponse.SamplerResponseRow;
+import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
@@ -102,6 +104,7 @@ public class InputSourceSampler
     closer.register(() -> FileUtils.deleteDirectory(tempDir));
 
     final InputSourceReader reader = buildReader(
+        nonNullSamplerConfig,
         nonNullDataSchema,
         inputSource,
         inputFormat,
@@ -186,6 +189,7 @@ public class InputSourceSampler
   }
 
   private InputSourceReader buildReader(
+      SamplerConfig samplerConfig,
       DataSchema dataSchema,
       InputSource inputSource,
       InputFormat inputFormat,
@@ -203,13 +207,9 @@ public class InputSourceSampler
 
     InputSourceReader reader = inputSource.reader(inputRowSchema, inputFormat, tempDir);
 
-    // TODO: timed shutoff
-  //    if (nonNullSamplerConfig.getTimeoutMs() > 0) {
-  //      myFirehoseFactory = new TimedShutoffFirehoseFactory(
-  //          myFirehoseFactory,
-  //          DateTimes.nowUtc().plusMillis(nonNullSamplerConfig.getTimeoutMs())
-  //      );
-  //    }
+    if (samplerConfig.getTimeoutMs() > 0) {
+      reader = new TimedShutoffInputSourceReader(reader, DateTimes.nowUtc().plusMillis(samplerConfig.getTimeoutMs()));
+    }
 
     return dataSchema.getTransformSpec().decorate(reader);
   }

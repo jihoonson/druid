@@ -30,6 +30,7 @@ import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -70,7 +71,32 @@ public class TimedShutoffInputSourceReader implements InputSourceReader
     final Closer closer = Closer.create();
     closer.register(delegateIterator);
     closer.register(exec::shutdownNow);
-    final CloseableIterator<T> wrappingIterator = CloseableIterators.wrap(delegateIterator, closer);
+    final CloseableIterator<T> wrappingIterator = new CloseableIterator<T>()
+    {
+      volatile boolean closed;
+
+      @Override
+      public boolean hasNext()
+      {
+        return !closed && delegateIterator.hasNext();
+      }
+
+      @Override
+      public T next()
+      {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+        return delegateIterator.next();
+      }
+
+      @Override
+      public void close() throws IOException
+      {
+        closed = true;
+        closer.close();
+      }
+    };
     exec.schedule(
         () -> {
           LOG.info("Closing delegate inputSource.");

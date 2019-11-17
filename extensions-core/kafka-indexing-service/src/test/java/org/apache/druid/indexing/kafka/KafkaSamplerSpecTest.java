@@ -113,7 +113,8 @@ public class KafkaSamplerSpecTest
     zkServer.stop();
   }
 
-  @Test(timeout = 30_000L)
+//  @Test(timeout = 30_000L)
+  @Test
   public void testSample()
   {
     insertData(generateRecords(TOPIC));
@@ -166,7 +167,14 @@ public class KafkaSamplerSpecTest
     Iterator<SamplerResponse.SamplerResponseRow> it = response.getData().iterator();
 
     Assert.assertEquals(new SamplerResponse.SamplerResponseRow(
-        "{\"timestamp\":\"2008\",\"dim1\":\"a\",\"dim2\":\"y\",\"dimLong\":\"10\",\"dimFloat\":\"20.0\",\"met1\":\"1.0\"}",
+        "{\n"
+        + "  \"timestamp\" : \"2008\",\n"
+        + "  \"dim1\" : \"a\",\n"
+        + "  \"dim2\" : \"y\",\n"
+        + "  \"dimLong\" : \"10\",\n"
+        + "  \"dimFloat\" : \"20.0\",\n"
+        + "  \"met1\" : \"1.0\"\n"
+        + "}",
         ImmutableMap.<String, Object>builder()
             .put("__time", 1199145600000L)
             .put("dim1", "a")
@@ -180,7 +188,14 @@ public class KafkaSamplerSpecTest
         null
     ), it.next());
     Assert.assertEquals(new SamplerResponse.SamplerResponseRow(
-        "{\"timestamp\":\"2009\",\"dim1\":\"b\",\"dim2\":\"y\",\"dimLong\":\"10\",\"dimFloat\":\"20.0\",\"met1\":\"1.0\"}",
+        "{\n"
+        + "  \"timestamp\" : \"2009\",\n"
+        + "  \"dim1\" : \"b\",\n"
+        + "  \"dim2\" : \"y\",\n"
+        + "  \"dimLong\" : \"10\",\n"
+        + "  \"dimFloat\" : \"20.0\",\n"
+        + "  \"met1\" : \"1.0\"\n"
+        + "}",
         ImmutableMap.<String, Object>builder()
             .put("__time", 1230768000000L)
             .put("dim1", "b")
@@ -194,7 +209,14 @@ public class KafkaSamplerSpecTest
         null
     ), it.next());
     Assert.assertEquals(new SamplerResponse.SamplerResponseRow(
-        "{\"timestamp\":\"2010\",\"dim1\":\"c\",\"dim2\":\"y\",\"dimLong\":\"10\",\"dimFloat\":\"20.0\",\"met1\":\"1.0\"}",
+        "{\n"
+        + "  \"timestamp\" : \"2010\",\n"
+        + "  \"dim1\" : \"c\",\n"
+        + "  \"dim2\" : \"y\",\n"
+        + "  \"dimLong\" : \"10\",\n"
+        + "  \"dimFloat\" : \"20.0\",\n"
+        + "  \"met1\" : \"1.0\"\n"
+        + "}",
         ImmutableMap.<String, Object>builder()
             .put("__time", 1262304000000L)
             .put("dim1", "c")
@@ -208,16 +230,23 @@ public class KafkaSamplerSpecTest
         null
     ), it.next());
     Assert.assertEquals(new SamplerResponse.SamplerResponseRow(
-        "{\"timestamp\":\"246140482-04-24T15:36:27.903Z\",\"dim1\":\"x\",\"dim2\":\"z\",\"dimLong\":\"10\",\"dimFloat\":\"20.0\",\"met1\":\"1.0\"}",
+        "{\n"
+        + "  \"timestamp\" : \"246140482-04-24T15:36:27.903Z\",\n"
+        + "  \"dim1\" : \"x\",\n"
+        + "  \"dim2\" : \"z\",\n"
+        + "  \"dimLong\" : \"10\",\n"
+        + "  \"dimFloat\" : \"20.0\",\n"
+        + "  \"met1\" : \"1.0\"\n"
+        + "}",
         null,
         true,
         "Timestamp cannot be represented as a long: [MapBasedInputRow{timestamp=246140482-04-24T15:36:27.903Z, event={timestamp=246140482-04-24T15:36:27.903Z, dim1=x, dim2=z, dimLong=10, dimFloat=20.0, met1=1.0}, dimensions=[dim1, dim1t, dim2, dimLong, dimFloat]}]"
     ), it.next());
     Assert.assertEquals(new SamplerResponse.SamplerResponseRow(
-        "unparseable",
+        null,
         null,
         true,
-        "Unable to parse row [unparseable]"
+        "Unable to parse row [unparseable] into JSON"
     ), it.next());
 
     Assert.assertFalse(it.hasNext());

@@ -114,38 +114,37 @@ public class RecordSupplierInputSource<PartitionIdType, SequenceOffsetType> exte
     {
       private Iterator<OrderedPartitionableRecord<PartitionIdType, SequenceOffsetType>> recordIterator;
       private Iterator<byte[]> bytesIterator;
-
-      {
-        waitNextIteratorIfNecessary();
-      }
+      private volatile boolean closed;
 
       private void waitNextIteratorIfNecessary()
       {
-        while (bytesIterator == null || !bytesIterator.hasNext()) {
-          while (recordIterator == null || !recordIterator.hasNext()) {
+        while (!closed && (bytesIterator == null || !bytesIterator.hasNext())) {
+          while (!closed && (recordIterator == null || !recordIterator.hasNext())) {
             recordIterator = recordSupplier.poll(POLL_TIMEOUT_MS).iterator();
           }
-          bytesIterator = recordIterator.next().getData().iterator();
+          if (!closed) {
+            bytesIterator = recordIterator.next().getData().iterator();
+          }
         }
       }
 
       @Override
       public boolean hasNext()
       {
-        return bytesIterator.hasNext();
+        waitNextIteratorIfNecessary();
+        return bytesIterator != null && bytesIterator.hasNext();
       }
 
       @Override
       public InputEntity next()
       {
-        final ByteEntity entity = new ByteEntity(bytesIterator.next());
-        waitNextIteratorIfNecessary();
-        return entity;
+        return new ByteEntity(bytesIterator.next());
       }
 
       @Override
       public void close()
       {
+        closed = true;
         recordSupplier.close();
       }
     };
