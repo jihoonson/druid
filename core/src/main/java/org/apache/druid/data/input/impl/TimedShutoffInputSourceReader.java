@@ -22,7 +22,6 @@ package org.apache.druid.data.input.impl;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowListPlusJson;
 import org.apache.druid.data.input.InputSourceReader;
-import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.logger.Logger;

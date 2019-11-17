@@ -254,7 +254,7 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
               .map(AggregatorFactory::getName)
               .collect(Collectors.toList())
     );
-    this.inputFormat = ioConfig.getInputFormat(Preconditions.checkNotNull(parser, "inputRowParser").getParseSpec());
+    this.inputFormat = ioConfig.getInputFormat(parser == null ? null : parser.getParseSpec());
     this.authorizerMapper = authorizerMapper;
     this.chatHandlerProvider = chatHandlerProvider;
     this.savedParseExceptions = savedParseExceptions;
@@ -617,10 +617,12 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
                 } else {
                   rows = new ArrayList<>();
                   for (byte[] valueBytes : valueBytess) {
-                    final InputEntityReader reader = inputFormat.createReader(
-                        inputRowSchema,
-                        new ByteEntity(valueBytes),
-                        toolbox.getIndexingTmpDir()
+                    final InputEntityReader reader = task.getDataSchema().getTransformSpec().decorate(
+                        inputFormat.createReader(
+                            inputRowSchema,
+                            new ByteEntity(valueBytes),
+                            toolbox.getIndexingTmpDir()
+                        )
                     );
                     try (CloseableIterator<InputRow> rowIterator = reader.read()) {
                       rowIterator.forEachRemaining(rows::add);

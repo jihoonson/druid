@@ -2449,11 +2449,11 @@ public class KafkaIndexTaskTest extends SeekableStreamIndexTaskTestBase
   {
     return new DataSchema(
         dataSchema.getDataSource(),
-        dataSchema.getParserMap(),
+        dataSchema.getTimestampSpec(),
+        dataSchema.getDimensionsSpec(),
         dataSchema.getAggregators(),
         dataSchema.getGranularitySpec(),
-        dataSchema.getTransformSpec(),
-        OBJECT_MAPPER
+        dataSchema.getTransformSpec()
     );
   }
 

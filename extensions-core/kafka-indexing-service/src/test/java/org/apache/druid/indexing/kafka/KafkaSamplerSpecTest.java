@@ -113,8 +113,7 @@ public class KafkaSamplerSpecTest
     zkServer.stop();
   }
 
-//  @Test(timeout = 30_000L)
-  @Test
+  @Test(timeout = 30_000L)
   public void testSample()
   {
     insertData(generateRecords(TOPIC));
