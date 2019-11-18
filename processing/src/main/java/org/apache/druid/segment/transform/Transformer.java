@@ -111,7 +111,7 @@ public class Transformer
       for (InputRow originalRow : originalRows) {
         transformedRows.add(new TransformedInputRow(originalRow, transforms));
       }
-      inputRowListPlusJson = InputRowListPlusJson.of(transformedRows, row.getRawJson());
+      inputRowListPlusJson = InputRowListPlusJson.of(transformedRows, row.getRawColumns());
     }
 
     if (valueMatcher != null) {
@@ -123,7 +123,7 @@ public class Transformer
             filteredRows.add(inputRow);
           }
         }
-        return InputRowListPlusJson.of(filteredRows, row.getRawJson());
+        return InputRowListPlusJson.of(filteredRows, row.getRawColumns());
       }
     }
 

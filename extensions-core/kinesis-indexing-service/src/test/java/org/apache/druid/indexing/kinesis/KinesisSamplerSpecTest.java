@@ -179,14 +179,14 @@ public class KinesisSamplerSpecTest extends EasyMockSupport
     Iterator<SamplerResponse.SamplerResponseRow> it = response.getData().iterator();
 
     Assert.assertEquals(new SamplerResponse.SamplerResponseRow(
-        "{\n"
-        + "  \"timestamp\" : \"2008\",\n"
-        + "  \"dim1\" : \"a\",\n"
-        + "  \"dim2\" : \"y\",\n"
-        + "  \"dimLong\" : \"10\",\n"
-        + "  \"dimFloat\" : \"20.0\",\n"
-        + "  \"met1\" : \"1.0\"\n"
-        + "}",
+        ImmutableMap.<String, Object>builder()
+            .put("timestamp", "2008")
+            .put("dim1", "a")
+            .put("dim2", "y")
+            .put("dimLong", "10")
+            .put("dimFloat", "20.0")
+            .put("met1", "1.0")
+            .build(),
         ImmutableMap.<String, Object>builder()
             .put("__time", 1199145600000L)
             .put("dim1", "a")
@@ -200,14 +200,14 @@ public class KinesisSamplerSpecTest extends EasyMockSupport
         null
     ), it.next());
     Assert.assertEquals(new SamplerResponse.SamplerResponseRow(
-        "{\n"
-        + "  \"timestamp\" : \"2009\",\n"
-        + "  \"dim1\" : \"b\",\n"
-        + "  \"dim2\" : \"y\",\n"
-        + "  \"dimLong\" : \"10\",\n"
-        + "  \"dimFloat\" : \"20.0\",\n"
-        + "  \"met1\" : \"1.0\"\n"
-        + "}",
+        ImmutableMap.<String, Object>builder()
+            .put("timestamp", "2009")
+            .put("dim1", "b")
+            .put("dim2", "y")
+            .put("dimLong", "10")
+            .put("dimFloat", "20.0")
+            .put("met1", "1.0")
+            .build(),
         ImmutableMap.<String, Object>builder()
             .put("__time", 1230768000000L)
             .put("dim1", "b")
@@ -221,14 +221,14 @@ public class KinesisSamplerSpecTest extends EasyMockSupport
         null
     ), it.next());
     Assert.assertEquals(new SamplerResponse.SamplerResponseRow(
-        "{\n"
-        + "  \"timestamp\" : \"2010\",\n"
-        + "  \"dim1\" : \"c\",\n"
-        + "  \"dim2\" : \"y\",\n"
-        + "  \"dimLong\" : \"10\",\n"
-        + "  \"dimFloat\" : \"20.0\",\n"
-        + "  \"met1\" : \"1.0\"\n"
-        + "}",
+        ImmutableMap.<String, Object>builder()
+            .put("timestamp", "2010")
+            .put("dim1", "c")
+            .put("dim2", "y")
+            .put("dimLong", "10")
+            .put("dimFloat", "20.0")
+            .put("met1", "1.0")
+            .build(),
         ImmutableMap.<String, Object>builder()
             .put("__time", 1262304000000L)
             .put("dim1", "c")
@@ -242,14 +242,14 @@ public class KinesisSamplerSpecTest extends EasyMockSupport
         null
     ), it.next());
     Assert.assertEquals(new SamplerResponse.SamplerResponseRow(
-        "{\n"
-        + "  \"timestamp\" : \"246140482-04-24T15:36:27.903Z\",\n"
-        + "  \"dim1\" : \"x\",\n"
-        + "  \"dim2\" : \"z\",\n"
-        + "  \"dimLong\" : \"10\",\n"
-        + "  \"dimFloat\" : \"20.0\",\n"
-        + "  \"met1\" : \"1.0\"\n"
-        + "}",
+        ImmutableMap.<String, Object>builder()
+            .put("timestamp", "246140482-04-24T15:36:27.903Z")
+            .put("dim1", "x")
+            .put("dim2", "z")
+            .put("dimLong", "10")
+            .put("dimFloat", "20.0")
+            .put("met1", "1.0")
+            .build(),
         null,
         true,
         "Timestamp cannot be represented as a long: [MapBasedInputRow{timestamp=246140482-04-24T15:36:27.903Z, event={timestamp=246140482-04-24T15:36:27.903Z, dim1=x, dim2=z, dimLong=10, dimFloat=20.0, met1=1.0}, dimensions=[dim1, dim1t, dim2, dimLong, dimFloat]}]"

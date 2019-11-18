@@ -89,10 +89,9 @@ public class CsvReader extends TextReader
   }
 
   @Override
-  public String toJson(String intermediateRow) throws IOException
+  public Map<String, Object> toMap(String intermediateRow) throws IOException
   {
-    final Map<String, Object> zipped = parseLine(intermediateRow);
-    return DEFAULT_JSON_WRITER.writeValueAsString(zipped);
+    return parseLine(intermediateRow);
   }
 
   private Map<String, Object> parseLine(String line) throws IOException

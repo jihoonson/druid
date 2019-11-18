@@ -25,6 +25,7 @@ import org.apache.druid.java.util.common.parsers.ParseException;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class InputRowListPlusJson
 {
@@ -32,34 +33,34 @@ public class InputRowListPlusJson
   private final List<InputRow> inputRows;
 
   @Nullable
-  private final String rawJson;
+  private final Map<String, Object> rawColumns;
 
   @Nullable
   private final ParseException parseException;
 
-  public static InputRowListPlusJson of(@Nullable InputRow inputRow, String rawJson)
+  public static InputRowListPlusJson of(@Nullable InputRow inputRow, Map<String, Object> rawColumns)
   {
-    return of(inputRow == null ? null : Collections.singletonList(inputRow), rawJson);
+    return of(inputRow == null ? null : Collections.singletonList(inputRow), rawColumns);
   }
 
-  public static InputRowListPlusJson of(@Nullable List<InputRow> inputRows, String rawJson)
+  public static InputRowListPlusJson of(@Nullable List<InputRow> inputRows, Map<String, Object> rawColumns)
   {
-    return new InputRowListPlusJson(inputRows, Preconditions.checkNotNull(rawJson, "rawJson"), null);
+    return new InputRowListPlusJson(inputRows, Preconditions.checkNotNull(rawColumns, "rawColumns"), null);
   }
 
-  public static InputRowListPlusJson of(@Nullable String rawJson, ParseException parseException)
+  public static InputRowListPlusJson of(@Nullable Map<String, Object> rawColumns, ParseException parseException)
   {
-    return new InputRowListPlusJson(null, rawJson, Preconditions.checkNotNull(parseException, "parseException"));
+    return new InputRowListPlusJson(null, rawColumns, Preconditions.checkNotNull(parseException, "parseException"));
   }
 
   private InputRowListPlusJson(
       @Nullable List<InputRow> inputRows,
-      @Nullable String rawJson,
+      @Nullable Map<String, Object> rawColumns,
       @Nullable ParseException parseException
   )
   {
     this.inputRows = inputRows;
-    this.rawJson = rawJson;
+    this.rawColumns = rawColumns;
     this.parseException = parseException;
   }
 
@@ -70,9 +71,9 @@ public class InputRowListPlusJson
   }
 
   @Nullable
-  public String getRawJson()
+  public Map<String, Object> getRawColumns()
   {
-    return rawJson;
+    return rawColumns;
   }
 
   @Nullable

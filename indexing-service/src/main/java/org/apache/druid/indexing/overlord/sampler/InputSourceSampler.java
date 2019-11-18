@@ -117,12 +117,12 @@ public class InputSourceSampler
       int counter = 0, numRowsIndexed = 0;
 
       while (counter < responseRows.length && iterator.hasNext()) {
-        String rawJson = null;
+        Map<String, Object> rawColumns = null;
         try {
           final InputRowListPlusJson inputRowListPlusJson = iterator.next();
 
-          if (inputRowListPlusJson.getRawJson() != null) {
-            rawJson = inputRowListPlusJson.getRawJson();
+          if (inputRowListPlusJson.getRawColumns() != null) {
+            rawColumns = inputRowListPlusJson.getRawColumns();
           }
 
           if (inputRowListPlusJson.getParseException() != null) {
@@ -142,14 +142,14 @@ public class InputSourceSampler
               throw result.getParseException();
             } else {
               // store the raw value; will be merged with the data from the IncrementalIndex later
-              responseRows[counter] = new SamplerResponseRow(rawJson, null, null, null);
+              responseRows[counter] = new SamplerResponseRow(rawColumns, null, null, null);
               counter++;
               numRowsIndexed++;
             }
           }
         }
         catch (ParseException e) {
-          responseRows[counter] = new SamplerResponseRow(rawJson, null, true, e.getMessage());
+          responseRows[counter] = new SamplerResponseRow(rawColumns, null, true, e.getMessage());
           counter++;
         }
       }

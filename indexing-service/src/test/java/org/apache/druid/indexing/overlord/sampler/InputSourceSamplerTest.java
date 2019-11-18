@@ -35,6 +35,7 @@ import org.apache.druid.indexing.overlord.sampler.SamplerResponse.SamplerRespons
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.collect.Utils;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
@@ -54,7 +55,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import javax.annotation.Nullable;
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -91,15 +92,8 @@ public class InputSourceSamplerTest
       "bad_timestamp,foo,,6"
   );
 
-  private static final List<String> JSON_OF_CSV_ROWS = ImmutableList.of(
-      "{ \"t\": \"2019-04-22T12:00\", \"dim1\": \"foo\", \"dim2\": null, \"met1\": 1 }",
-      "{ \"t\": \"2019-04-22T12:00\", \"dim1\": \"foo\", \"dim2\": null, \"met1\": 2 }",
-      "{ \"t\": \"2019-04-22T12:01\", \"dim1\": \"foo\", \"dim2\": null, \"met1\": 3 }",
-      "{ \"t\": \"2019-04-22T12:00\", \"dim1\": \"foo2\", \"dim2\": null, \"met1\": 4 }",
-      "{ \"t\": \"2019-04-22T12:00\", \"dim1\": \"foo\", \"dim2\": \"bar\", \"met1\": 5 }",
-      "{ \"t\": \"bad_timestamp\", \"dim1\": \"foo\", \"dim2\": null, \"met1\": 6 }"
-  );
 
+  private List<Map<String, Object>> mapOfRows;
   private InputSourceSampler inputSourceSampler;
   private ParserType parserType;
 
@@ -124,6 +118,21 @@ public class InputSourceSamplerTest
   public void setupTest()
   {
     inputSourceSampler = new InputSourceSampler();
+
+    mapOfRows = new ArrayList<>();
+    final List<String> columns = ImmutableList.of("t", "dim1", "dim2", "met1");
+    for (String row : STR_CSV_ROWS) {
+      final List<Object> values = new ArrayList<>();
+      final String[] tokens = row.split(",");
+      for (int i = 0; i < tokens.length; i++) {
+        if (i < tokens.length - 1) {
+          values.add("".equals(tokens[i]) ? null : tokens[i]);
+        } else {
+          values.add(Integer.parseInt(tokens[i]));
+        }
+      }
+      mapOfRows.add(Utils.zipMapPartial(columns, values));
+    }
   }
 
   @Test
@@ -136,7 +145,7 @@ public class InputSourceSamplerTest
   }
 
   @Test
-  public void testNoDataSchema() throws IOException
+  public void testNoDataSchema()
   {
     final InputSource inputSource = createInputSource(getTestRows());
     final SamplerResponse response = inputSourceSampler.sample(inputSource, createInputFormat(), null, null);
@@ -149,62 +158,62 @@ public class InputSourceSamplerTest
 
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(0),
+            getRawColumns().get(0),
             null,
             true,
-            unparseableTimestampErrorString(getRawJsons().get(0))
+            unparseableTimestampErrorString(data.get(0).getInput())
         ),
         data.get(0)
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(1),
+            getRawColumns().get(1),
             null,
             true,
-            unparseableTimestampErrorString(getRawJsons().get(1))
+            unparseableTimestampErrorString(data.get(1).getInput())
         ),
         data.get(1)
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(2),
+            getRawColumns().get(2),
             null,
             true,
-            unparseableTimestampErrorString(getRawJsons().get(2))
+            unparseableTimestampErrorString(data.get(2).getInput())
         ),
         data.get(2)
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(3),
+            getRawColumns().get(3),
             null,
             true,
-            unparseableTimestampErrorString(getRawJsons().get(3))
+            unparseableTimestampErrorString(data.get(3).getInput())
         ),
         data.get(3)
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(4),
+            getRawColumns().get(4),
             null,
             true,
-            unparseableTimestampErrorString(getRawJsons().get(4))
+            unparseableTimestampErrorString(data.get(4).getInput())
         ),
         data.get(4)
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(5),
+            getRawColumns().get(5),
             null,
             true,
-            unparseableTimestampErrorString(getRawJsons().get(5))
+            unparseableTimestampErrorString(data.get(5).getInput())
         ),
         data.get(5)
     );
   }
 
   @Test
-  public void testNoDataSchemaNumRows() throws IOException
+  public void testNoDataSchemaNumRows()
   {
     final InputSource inputSource = createInputSource(getTestRows());
     final SamplerResponse response = inputSourceSampler.sample(
@@ -222,35 +231,35 @@ public class InputSourceSamplerTest
 
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(0),
+            getRawColumns().get(0),
             null,
             true,
-            unparseableTimestampErrorString(getRawJsons().get(0))
+            unparseableTimestampErrorString(data.get(0).getInput())
         ),
         data.get(0)
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(1),
+            getRawColumns().get(1),
             null,
             true,
-            unparseableTimestampErrorString(getRawJsons().get(1))
+            unparseableTimestampErrorString(data.get(1).getInput())
         ),
         data.get(1)
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(2),
+            getRawColumns().get(2),
             null,
             true,
-            unparseableTimestampErrorString(getRawJsons().get(2))
+            unparseableTimestampErrorString(data.get(2).getInput())
         ),
         data.get(2)
     );
   }
 
   @Test
-  public void testMissingValueTimestampSpec() throws IOException
+  public void testMissingValueTimestampSpec()
   {
     final InputSource inputSource = createInputSource(getTestRows());
     final InputFormat inputFormat = createInputFormat();
@@ -273,7 +282,7 @@ public class InputSourceSamplerTest
 
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(0),
+            getRawColumns().get(0),
             ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:00", "dim1", "foo", "met1", "1"),
             null,
             null
@@ -282,7 +291,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(1),
+            getRawColumns().get(1),
             ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:00", "dim1", "foo", "met1", "2"),
             null,
             null
@@ -291,7 +300,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(2),
+            getRawColumns().get(2),
             ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:01", "dim1", "foo", "met1", "3"),
             null,
             null
@@ -300,7 +309,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(3),
+            getRawColumns().get(3),
             ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:00", "dim1", "foo2", "met1", "4"),
             null,
             null
@@ -309,7 +318,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(4),
+            getRawColumns().get(4),
             ImmutableMap.of("__time", 0L, "t", "2019-04-22T12:00", "dim1", "foo", "dim2", "bar", "met1", "5"),
             null,
             null
@@ -318,7 +327,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(5),
+            getRawColumns().get(5),
             ImmutableMap.of("__time", 0L, "t", "bad_timestamp", "dim1", "foo", "met1", "6"),
             null,
             null
@@ -328,7 +337,7 @@ public class InputSourceSamplerTest
   }
 
   @Test
-  public void testWithTimestampSpec() throws IOException
+  public void testWithTimestampSpec()
   {
     final InputSource inputSource = createInputSource(getTestRows());
     final InputFormat inputFormat = createInputFormat();
@@ -351,7 +360,7 @@ public class InputSourceSamplerTest
 
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(0),
+            getRawColumns().get(0),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "1"),
             null,
             null
@@ -360,7 +369,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(1),
+            getRawColumns().get(1),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "2"),
             null,
             null
@@ -369,7 +378,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(2),
+            getRawColumns().get(2),
             ImmutableMap.of("__time", 1555934460000L, "dim1", "foo", "met1", "3"),
             null,
             null
@@ -378,7 +387,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(3),
+            getRawColumns().get(3),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", "4"),
             null,
             null
@@ -387,7 +396,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(4),
+            getRawColumns().get(4),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", "5"),
             null,
             null
@@ -396,7 +405,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(5),
+            getRawColumns().get(5),
             null,
             true,
             getUnparseableTimestampString()
@@ -406,7 +415,7 @@ public class InputSourceSamplerTest
   }
 
   @Test
-  public void testWithDimensionSpec() throws IOException
+  public void testWithDimensionSpec()
   {
     final InputSource inputSource = createInputSource(getTestRows());
     final InputFormat inputFormat = createInputFormat();
@@ -431,7 +440,7 @@ public class InputSourceSamplerTest
 
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(0),
+            getRawColumns().get(0),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "1"),
             null,
             null
@@ -440,7 +449,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(1),
+            getRawColumns().get(1),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "2"),
             null,
             null
@@ -449,7 +458,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(2),
+            getRawColumns().get(2),
             ImmutableMap.of("__time", 1555934460000L, "dim1", "foo", "met1", "3"),
             null,
             null
@@ -458,7 +467,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(3),
+            getRawColumns().get(3),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", "4"),
             null,
             null
@@ -467,7 +476,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(4),
+            getRawColumns().get(4),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", "5"),
             null,
             null
@@ -476,7 +485,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(5),
+            getRawColumns().get(5),
             null,
             true,
             getUnparseableTimestampString()
@@ -486,7 +495,7 @@ public class InputSourceSamplerTest
   }
 
   @Test
-  public void testWithNoRollup() throws IOException
+  public void testWithNoRollup()
   {
     final InputSource inputSource = createInputSource(getTestRows());
     final InputFormat inputFormat = createInputFormat();
@@ -516,7 +525,7 @@ public class InputSourceSamplerTest
 
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(0),
+            getRawColumns().get(0),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 1L),
             null,
             null
@@ -525,7 +534,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(1),
+            getRawColumns().get(1),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 2L),
             null,
             null
@@ -534,7 +543,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(2),
+            getRawColumns().get(2),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 3L),
             null,
             null
@@ -543,7 +552,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(3),
+            getRawColumns().get(3),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
             null,
             null
@@ -552,7 +561,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(4),
+            getRawColumns().get(4),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", 5L),
             null,
             null
@@ -561,7 +570,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(5),
+            getRawColumns().get(5),
             null,
             true,
             getUnparseableTimestampString()
@@ -571,7 +580,7 @@ public class InputSourceSamplerTest
   }
 
   @Test
-  public void testWithRollup() throws IOException
+  public void testWithRollup()
   {
     final InputSource inputSource = createInputSource(getTestRows());
     final InputFormat inputFormat = createInputFormat();
@@ -601,7 +610,7 @@ public class InputSourceSamplerTest
 
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(0),
+            getRawColumns().get(0),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 6L),
             null,
             null
@@ -610,7 +619,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(3),
+            getRawColumns().get(3),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
             null,
             null
@@ -619,7 +628,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(4),
+            getRawColumns().get(4),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", 5L),
             null,
             null
@@ -628,7 +637,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(5),
+            getRawColumns().get(5),
             null,
             true,
             getUnparseableTimestampString()
@@ -638,7 +647,7 @@ public class InputSourceSamplerTest
   }
 
   @Test
-  public void testWithMoreRollup() throws IOException
+  public void testWithMoreRollup()
   {
     final InputSource inputSource = createInputSource(getTestRows());
     final InputFormat inputFormat = createInputFormat();
@@ -668,7 +677,7 @@ public class InputSourceSamplerTest
 
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(0),
+            getRawColumns().get(0),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 11L),
             null,
             null
@@ -677,7 +686,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(3),
+            getRawColumns().get(3),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
             null,
             null
@@ -686,7 +695,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(5),
+            getRawColumns().get(5),
             null,
             true,
             getUnparseableTimestampString()
@@ -696,7 +705,7 @@ public class InputSourceSamplerTest
   }
 
   @Test
-  public void testWithTransformsAutoDimensions() throws IOException
+  public void testWithTransformsAutoDimensions()
   {
     final InputSource inputSource = createInputSource(getTestRows());
     final InputFormat inputFormat = createInputFormat();
@@ -730,7 +739,7 @@ public class InputSourceSamplerTest
 
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(0),
+            getRawColumns().get(0),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 6L),
             null,
             null
@@ -739,7 +748,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(3),
+            getRawColumns().get(3),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo2", "met1", 4L),
             null,
             null
@@ -748,7 +757,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(4),
+            getRawColumns().get(4),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", 5L),
             null,
             null
@@ -757,7 +766,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(5),
+            getRawColumns().get(5),
             null,
             true,
             getUnparseableTimestampString()
@@ -767,7 +776,7 @@ public class InputSourceSamplerTest
   }
 
   @Test
-  public void testWithTransformsDimensionsSpec() throws IOException
+  public void testWithTransformsDimensionsSpec()
   {
     final InputSource inputSource = createInputSource(getTestRows());
     final InputFormat inputFormat = createInputFormat();
@@ -801,7 +810,7 @@ public class InputSourceSamplerTest
 
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(0),
+            getRawColumns().get(0),
             ImmutableMap.of("__time", 1555934400000L, "dim1PlusBar", "foobar", "met1", 11L),
             null,
             null
@@ -810,7 +819,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(3),
+            getRawColumns().get(3),
             ImmutableMap.of("__time", 1555934400000L, "dim1PlusBar", "foo2bar", "met1", 4L),
             null,
             null
@@ -819,7 +828,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(5),
+            getRawColumns().get(5),
             null,
             true,
             getUnparseableTimestampString()
@@ -829,7 +838,7 @@ public class InputSourceSamplerTest
   }
 
   @Test
-  public void testWithFilter() throws IOException
+  public void testWithFilter()
   {
     final InputSource inputSource = createInputSource(getTestRows());
     final InputFormat inputFormat = createInputFormat();
@@ -860,7 +869,7 @@ public class InputSourceSamplerTest
 
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            getRawJsons().get(0),
+            getRawColumns().get(0),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "met1", 6L),
             null,
             null
@@ -869,7 +878,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(4),
+            getRawColumns().get(4),
             ImmutableMap.of("__time", 1555934400000L, "dim1", "foo", "dim2", "bar", "met1", 5L),
             null,
             null
@@ -878,7 +887,7 @@ public class InputSourceSamplerTest
     );
     assertEqualsSamplerResponseRow(
         new SamplerResponseRow(
-            STR_JSON_ROWS.get(5),
+            getRawColumns().get(5),
             null,
             true,
             getUnparseableTimestampString()
@@ -899,13 +908,13 @@ public class InputSourceSamplerTest
     }
   }
 
-  private List<String> getRawJsons()
+  private List<Map<String, Object>> getRawColumns()
   {
     switch (parserType) {
       case STR_JSON:
-        return STR_JSON_ROWS;
+        return mapOfRows.stream().map(this::removeEmptyValues).collect(Collectors.toList());
       case STR_CSV:
-        return JSON_OF_CSV_ROWS;
+        return mapOfRows;
       default:
         throw new IAE("Unknown parser type: %s", parserType);
     }
@@ -938,9 +947,9 @@ public class InputSourceSamplerTest
            : "Unparseable timestamp found! Event: {t=bad_timestamp, dim1=foo, met1=6}";
   }
 
-  private String unparseableTimestampErrorString(String json) throws IOException
+  private String unparseableTimestampErrorString(Map<String, Object> rawColumns)
   {
-    return StringUtils.format("Unparseable timestamp found! Event: %s", OBJECT_MAPPER.readValue(json, Map.class));
+    return StringUtils.format("Unparseable timestamp found! Event: %s", rawColumns);
   }
 
   private List<SamplerResponseRow> removeEmptyColumns(List<SamplerResponseRow> rows)
@@ -956,24 +965,21 @@ public class InputSourceSamplerTest
     return data == null
            ? null : data.entrySet()
                         .stream()
+                        .filter(x -> x.getValue() != null)
                         .filter(x -> !(x.getValue() instanceof String) || !((String) x.getValue()).isEmpty())
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
   private static void assertEqualsSamplerResponseRow(SamplerResponseRow row1, SamplerResponseRow row2)
-      throws IOException
   {
-    Assert.assertTrue(equalsJson(row1.getRaw(), row2.getRaw()));
+    Assert.assertTrue(equalsIgnoringType(row1.getInput(), row2.getInput()));
     Assert.assertEquals(row1.getParsed(), row2.getParsed());
     Assert.assertEquals(row1.getError(), row2.getError());
     Assert.assertEquals(row1.isUnparseable(), row2.isUnparseable());
   }
 
-  @SuppressWarnings("unchecked")
-  private static boolean equalsJson(String json1, String json2) throws IOException
+  private static boolean equalsIgnoringType(Map<String, Object> map1, Map<String, Object> map2)
   {
-    final Map<String, Object> map1 = OBJECT_MAPPER.readValue(json1, Map.class);
-    final Map<String, Object> map2 = OBJECT_MAPPER.readValue(json2, Map.class);
     for (Entry<String, Object> entry1 : map1.entrySet()) {
       final Object val1 = entry1.getValue();
       final Object val2 = map2.get(entry1.getKey());

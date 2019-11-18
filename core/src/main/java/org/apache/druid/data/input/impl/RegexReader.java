@@ -23,7 +23,6 @@ import com.google.common.base.Function;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.InputEntity;
-import org.apache.druid.data.input.InputEntityReader;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.TextReader;
@@ -34,7 +33,6 @@ import org.apache.druid.java.util.common.parsers.Parsers;
 
 import javax.annotation.Nullable;
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -74,9 +72,9 @@ public class RegexReader extends TextReader
   }
 
   @Override
-  protected String toJson(String intermediateRow) throws IOException
+  protected Map<String, Object> toMap(String intermediateRow)
   {
-    return InputEntityReader.DEFAULT_JSON_WRITER.writeValueAsString(parseLine(intermediateRow));
+    return parseLine(intermediateRow);
   }
 
   private Map<String, Object> parseLine(String line)

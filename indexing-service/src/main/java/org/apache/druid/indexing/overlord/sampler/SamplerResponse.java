@@ -61,28 +61,28 @@ public class SamplerResponse
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public static class SamplerResponseRow
   {
-    private final String raw;
+    private final Map<String, Object> input;
     private final Map<String, Object> parsed;
     private final Boolean unparseable;
     private final String error;
 
     public SamplerResponseRow(
-        String raw,
+        Map<String, Object> input,
         Map<String, Object> parsed,
         Boolean unparseable,
         String error
     )
     {
-      this.raw = raw;
+      this.input = input;
       this.parsed = parsed;
       this.unparseable = unparseable;
       this.error = error;
     }
 
     @JsonProperty
-    public String getRaw()
+    public Map<String, Object> getInput()
     {
-      return raw;
+      return input;
     }
 
     @JsonProperty
@@ -105,7 +105,7 @@ public class SamplerResponse
 
     public SamplerResponseRow withParsed(Map<String, Object> parsed)
     {
-      return new SamplerResponseRow(raw, parsed, unparseable, error);
+      return new SamplerResponseRow(input, parsed, unparseable, error);
     }
 
     @Override
@@ -118,7 +118,7 @@ public class SamplerResponse
         return false;
       }
       SamplerResponseRow that = (SamplerResponseRow) o;
-      return Objects.equals(raw, that.raw) &&
+      return Objects.equals(input, that.input) &&
              Objects.equals(parsed, that.parsed) &&
              Objects.equals(unparseable, that.unparseable) &&
              Objects.equals(error, that.error);
@@ -127,14 +127,14 @@ public class SamplerResponse
     @Override
     public int hashCode()
     {
-      return Objects.hash(raw, parsed, unparseable, error);
+      return Objects.hash(input, parsed, unparseable, error);
     }
 
     @Override
     public String toString()
     {
       return "SamplerResponseRow{" +
-             "raw='" + raw + '\'' +
+             "rawInput=" + input +
              ", parsed=" + parsed +
              ", unparseable=" + unparseable +
              ", error='" + error + '\'' +
