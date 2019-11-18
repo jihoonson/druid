@@ -121,8 +121,8 @@ public class InputSourceSampler
         try {
           final InputRowListPlusJson inputRowListPlusJson = iterator.next();
 
-          if (inputRowListPlusJson.getRawColumns() != null) {
-            rawColumns = inputRowListPlusJson.getRawColumns();
+          if (inputRowListPlusJson.getRawValues() != null) {
+            rawColumns = inputRowListPlusJson.getRawValues();
           }
 
           if (inputRowListPlusJson.getParseException() != null) {
@@ -176,7 +176,6 @@ public class InputSourceSampler
       return new SamplerResponse(
           counter,
           numRowsIndexed,
-          // TODO: check whether this is correct
           Arrays.stream(responseRows)
                 .filter(Objects::nonNull)
                 .filter(x -> x.getParsed() != null || x.isUnparseable() != null)

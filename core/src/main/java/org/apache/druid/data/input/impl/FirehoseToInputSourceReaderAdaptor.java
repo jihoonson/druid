@@ -38,12 +38,12 @@ public class FirehoseToInputSourceReaderAdaptor implements InputSourceReader
 
   public FirehoseToInputSourceReaderAdaptor(
       FirehoseFactory firehoseFactory,
-      InputRowParser inputRowPlusRaw,
+      InputRowParser inputRowParser,
       File temporaryDirectory
   )
   {
     this.firehoseFactory = firehoseFactory;
-    this.inputRowParser = inputRowPlusRaw;
+    this.inputRowParser = inputRowParser;
     this.temporaryDirectory = temporaryDirectory;
   }
 
@@ -85,8 +85,39 @@ public class FirehoseToInputSourceReaderAdaptor implements InputSourceReader
   }
 
   @Override
-  public CloseableIterator<InputRowListPlusJson> sample()
+  public CloseableIterator<InputRowListPlusJson> sample() throws IOException
   {
-    throw new UnsupportedOperationException();
+    return new CloseableIterator<InputRowListPlusJson>()
+    {
+      final Firehose firehose = firehoseFactory.connectForSampler(inputRowParser, temporaryDirectory);
+
+      @Override
+      public boolean hasNext()
+      {
+        try {
+          return firehose.hasMore();
+        }
+        catch (IOException e) {
+          throw new UncheckedIOException(e);
+        }
+      }
+
+      @Override
+      public InputRowListPlusJson next()
+      {
+        try {
+          return firehose.nextRowWithRaw();
+        }
+        catch (IOException e) {
+          throw new UncheckedIOException(e);
+        }
+      }
+
+      @Override
+      public void close() throws IOException
+      {
+        firehose.close();
+      }
+    };
   }
 }

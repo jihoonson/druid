@@ -19,7 +19,9 @@
 
 package org.apache.druid.segment.realtime.firehose;
 
+import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputRowListPlusJson;
 import org.apache.druid.data.input.impl.CSVParseSpec;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.StringInputRowParser;
@@ -32,7 +34,9 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
 @SuppressWarnings("ConstantConditions")
@@ -103,6 +107,51 @@ public class InlineFirehoseTest
     assertRowValue(VALUE_0, row);
   }
 
+  @Test(expected = NoSuchElementException.class)
+  public void testNextRowWithRawEmpty()
+  {
+    InlineFirehose target = create(EMPTY);
+    target.nextRowWithRaw();
+  }
+
+  @Test
+  public void testNextRowWithRawParseable()
+  {
+    final String data = PARSEABLE;
+    InlineFirehose target = create(data);
+    InputRowListPlusJson rowPlusRaw = target.nextRowWithRaw();
+
+    InputRow row = Iterables.getOnlyElement(rowPlusRaw.getInputRows());
+    assertRowValue(VALUE_0, row);
+
+    Map<String, Object> raw = rowPlusRaw.getRawValues();
+    Map<String, Object> expected = new HashMap<>();
+    expected.put("timestamp", TIMESTAMP_0);
+    expected.put("value", VALUE_0);
+    Assert.assertEquals(expected, raw);
+
+    Assert.assertNull(rowPlusRaw.getParseException());
+  }
+
+  @Test
+  public void testNextRowWithRawNotParseable()
+  {
+    final String data = NOT_PARSEABLE;
+    InlineFirehose target = create(data);
+    InputRowListPlusJson rowPlusRaw = target.nextRowWithRaw();
+
+    Assert.assertNull(rowPlusRaw.getInputRows());
+
+    Map<String, Object> raw = rowPlusRaw.getRawValues();
+    Map<String, Object> expected = new HashMap<>();
+    expected.put("timestamp", VALUE_0);
+    expected.put("value", TIMESTAMP_0);
+    Assert.assertEquals(expected, raw);
+
+
+    Assert.assertNotNull(rowPlusRaw.getParseException());
+  }
+
   @Test
   public void testCloseOpen() throws IOException
   {
@@ -132,6 +181,29 @@ public class InlineFirehoseTest
     catch (IOException e) {
       Assert.fail("Should be able to close a closed firehose");
     }
+  }
+
+  @Test
+  public void testMultiline()
+  {
+    InlineFirehose target = create(MULTILINE);
+
+    // First line
+    Assert.assertTrue(target.hasMore());
+    InputRow row0 = target.nextRow();
+    assertRowValue(VALUE_0, row0);
+
+    // Second line
+    InputRowListPlusJson rowPlusRaw = target.nextRowWithRaw();
+    assertRowValue(VALUE_1, Iterables.getOnlyElement(rowPlusRaw.getInputRows()));
+    Map<String, Object> raw = rowPlusRaw.getRawValues();
+    Map<String, Object> expected = new HashMap<>();
+    expected.put("timestamp", TIMESTAMP_1);
+    expected.put("value", VALUE_1);
+    Assert.assertEquals(expected, raw);
+    Assert.assertNull(rowPlusRaw.getParseException());
+
+    Assert.assertFalse(target.hasMore());
   }
 
   private static InlineFirehose create(String data)

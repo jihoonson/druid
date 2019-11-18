@@ -40,8 +40,6 @@ import java.util.stream.Collectors;
 
 public class RecordSupplierInputSource<PartitionIdType, SequenceOffsetType> extends AbstractInputSource
 {
-  private static final long POLL_TIMEOUT_MS = 100;
-
   private final String topic;
   private final RecordSupplier<PartitionIdType, SequenceOffsetType> recordSupplier;
   private final boolean useEarliestOffset;
@@ -103,12 +101,12 @@ public class RecordSupplierInputSource<PartitionIdType, SequenceOffsetType> exte
     return new InputEntityIteratingReader(
         inputRowSchema,
         inputFormat,
-        createEntityStream(),
+        createEntityIterator(),
         temporaryDirectory
     );
   }
 
-  private CloseableIterator<InputEntity> createEntityStream()
+  CloseableIterator<InputEntity> createEntityIterator()
   {
     return new CloseableIterator<InputEntity>()
     {
@@ -120,7 +118,7 @@ public class RecordSupplierInputSource<PartitionIdType, SequenceOffsetType> exte
       {
         while (!closed && (bytesIterator == null || !bytesIterator.hasNext())) {
           while (!closed && (recordIterator == null || !recordIterator.hasNext())) {
-            recordIterator = recordSupplier.poll(POLL_TIMEOUT_MS).iterator();
+            recordIterator = recordSupplier.poll(SeekableStreamSamplerSpec.POLL_TIMEOUT_MS).iterator();
           }
           if (!closed) {
             bytesIterator = recordIterator.next().getData().iterator();

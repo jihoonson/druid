@@ -23,9 +23,13 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
+import org.apache.druid.data.input.FiniteFirehoseFactory;
+import org.apache.druid.data.input.FirehoseFactory;
+import org.apache.druid.data.input.FirehoseFactoryToInputSourceAdaptor;
 import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputSource;
 import org.apache.druid.indexing.common.task.IndexTask;
+import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.segment.indexing.DataSchema;
 
 import javax.annotation.Nullable;
@@ -55,18 +59,31 @@ public class IndexTaskSamplerSpec implements SamplerSpec
 
     Preconditions.checkNotNull(ingestionSpec.getIOConfig(), "[spec.ioConfig] is required");
 
-    this.inputSource = Preconditions.checkNotNull(
-        ingestionSpec.getIOConfig().getInputSource(),
-        "[spec.ioConfig.inputSource] is required"
-    );
-    if (inputSource.needsFormat()) {
-      this.inputFormat = Preconditions.checkNotNull(
-          ingestionSpec.getIOConfig().getInputFormat(),
-          "[spec.ioConfig.inputFormat] is required"
-      );
+    if (ingestionSpec.getIOConfig().getInputSource() != null) {
+      this.inputSource = ingestionSpec.getIOConfig().getInputSource();
+      if (ingestionSpec.getIOConfig().getInputSource().needsFormat()) {
+        this.inputFormat = Preconditions.checkNotNull(
+            ingestionSpec.getIOConfig().getInputFormat(),
+            "[spec.ioConfig.inputFormat] is required"
+        );
+      } else {
+        this.inputFormat = null;
+      }
     } else {
+      final FirehoseFactory firehoseFactory = Preconditions.checkNotNull(
+          ingestionSpec.getIOConfig().getFirehoseFactory(),
+          "[spec.ioConfig.firehose] is required"
+      );
+      if (!(firehoseFactory instanceof FiniteFirehoseFactory)) {
+        throw new IAE("firehose should be an instance of FiniteFirehoseFactory");
+      }
+      this.inputSource = new FirehoseFactoryToInputSourceAdaptor(
+          (FiniteFirehoseFactory) firehoseFactory,
+          ingestionSpec.getDataSchema().getParser()
+      );
       this.inputFormat = null;
     }
+
     this.samplerConfig = samplerConfig;
     this.inputSourceSampler = inputSourceSampler;
   }

@@ -20,6 +20,7 @@
 package org.apache.druid.data.input;
 
 import org.apache.druid.guice.annotations.ExtensionPoint;
+import org.apache.druid.java.util.common.parsers.ParseException;
 
 import javax.annotation.Nullable;
 import java.io.Closeable;
@@ -64,6 +65,26 @@ public interface Firehose extends Closeable
    */
   @Nullable
   InputRow nextRow() throws IOException;
+
+  /**
+   * Returns an {@link InputRowListPlusJson} object containing the InputRow plus the raw, unparsed data corresponding to
+   * the next row available. Used in the sampler to provide the caller with information to assist in configuring a parse
+   * spec. If a ParseException is thrown by the parser, it should be caught and returned in the InputRowListPlusJson so
+   * we will be able to provide information on the raw row which failed to be parsed. Should only be called if hasMore
+   * returns true.
+   *
+   * @return an InputRowListPlusJson which may contain any of: an InputRow, map of the raw data, or a ParseException
+   */
+  @Deprecated
+  default InputRowListPlusJson nextRowWithRaw() throws IOException
+  {
+    try {
+      return InputRowListPlusJson.of(nextRow(), null);
+    }
+    catch (ParseException e) {
+      return InputRowListPlusJson.of(null, e);
+    }
+  }
 
   /**
    * Closes the "ingestion side" of the Firehose, potentially concurrently with calls to {@link #hasMore()} and {@link

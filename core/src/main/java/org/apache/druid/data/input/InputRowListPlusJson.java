@@ -71,7 +71,7 @@ public class InputRowListPlusJson
   }
 
   @Nullable
-  public Map<String, Object> getRawColumns()
+  public Map<String, Object> getRawValues()
   {
     return rawColumns;
   }
