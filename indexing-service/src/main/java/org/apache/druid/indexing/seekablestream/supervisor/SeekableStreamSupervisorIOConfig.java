@@ -103,12 +103,13 @@ public abstract class SeekableStreamSupervisorIOConfig
 
   @Nullable
   @JsonProperty
-  public InputFormat getInputFormat()
+  private InputFormat getGivenInputFormat()
   {
     return inputFormat;
   }
 
-  public InputFormat getNonNullInputFormat(@Nullable ParseSpec parseSpec)
+  @Nullable
+  public InputFormat getInputFormat(@Nullable ParseSpec parseSpec)
   {
     if (inputFormat == null) {
       return Preconditions.checkNotNull(parseSpec, "parseSpec").toInputFormat();

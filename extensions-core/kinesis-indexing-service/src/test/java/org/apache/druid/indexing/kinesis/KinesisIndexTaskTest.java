@@ -380,6 +380,73 @@ public class KinesisIndexTaskTest extends SeekableStreamIndexTaskTestBase
   }
 
   @Test(timeout = 120_000L)
+  public void testRunAfterDataInsertedWithLegacyParser() throws Exception
+  {
+    recordSupplier.assign(EasyMock.anyObject());
+    EasyMock.expectLastCall().anyTimes();
+
+    EasyMock.expect(recordSupplier.getEarliestSequenceNumber(EasyMock.anyObject())).andReturn("0").anyTimes();
+
+    recordSupplier.seek(EasyMock.anyObject(), EasyMock.anyString());
+    EasyMock.expectLastCall().anyTimes();
+
+    EasyMock.expect(recordSupplier.poll(EasyMock.anyLong())).andReturn(records.subList(2, 5)).once();
+
+    recordSupplier.close();
+    EasyMock.expectLastCall().once();
+
+    replayAll();
+
+    final KinesisIndexTask task = createTask(
+        null,
+        OLD_DATA_SCHEMA,
+        new KinesisIndexTaskIOConfig(
+            0,
+            "sequence0",
+            new SeekableStreamStartSequenceNumbers<>(STREAM, ImmutableMap.of(SHARD_ID1, "2"), ImmutableSet.of()),
+            new SeekableStreamEndSequenceNumbers<>(STREAM, ImmutableMap.of(SHARD_ID1, "4")),
+            true,
+            null,
+            null,
+            null,
+            "awsEndpoint",
+            null,
+            null,
+            null,
+            null,
+            false
+        )
+    );
+
+    final ListenableFuture<TaskStatus> future = runTask(task);
+
+    // Wait for task to exit
+    Assert.assertEquals(TaskState.SUCCESS, future.get().getStatusCode());
+
+    verifyAll();
+
+    // Check metrics
+    Assert.assertEquals(3, task.getRunner().getRowIngestionMeters().getProcessed());
+    Assert.assertEquals(0, task.getRunner().getRowIngestionMeters().getUnparseable());
+    Assert.assertEquals(0, task.getRunner().getRowIngestionMeters().getThrownAway());
+
+    // Check published metadata and segments in deep storage
+    assertEqualsExceptVersion(
+        ImmutableList.of(
+            sdd("2010/P1D", 0, ImmutableList.of("c")),
+            sdd("2011/P1D", 0, ImmutableList.of("d", "e"))
+        ),
+        publishedDescriptors()
+    );
+    Assert.assertEquals(
+        new KinesisDataSourceMetadata(
+            new SeekableStreamEndSequenceNumbers<>(STREAM, ImmutableMap.of(SHARD_ID1, "4"))
+        ),
+        metadataStorageCoordinator.getDataSourceMetadata(NEW_DATA_SCHEMA.getDataSource())
+    );
+  }
+
+  @Test(timeout = 120_000L)
   public void testRunBeforeDataInserted() throws Exception
   {
 
@@ -2677,7 +2744,9 @@ public class KinesisIndexTaskTest extends SeekableStreamIndexTaskTestBase
         dataSchema.getDimensionsSpec(),
         dataSchema.getAggregators(),
         dataSchema.getGranularitySpec(),
-        dataSchema.getTransformSpec()
+        dataSchema.getTransformSpec(),
+        dataSchema.getParserMap(),
+        OBJECT_MAPPER
     );
   }
 

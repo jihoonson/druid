@@ -73,7 +73,7 @@ public abstract class SeekableStreamSamplerSpec<PartitionIdType, SequenceOffsetT
     } else {
       parseSpec = null;
     }
-    final InputFormat inputFormat = ioConfig.getNonNullInputFormat(parseSpec);
+    final InputFormat inputFormat = ioConfig.getInputFormat(parseSpec);
     return inputSourceSampler.sample(inputSource, inputFormat, dataSchema, samplerConfig);
   }
 

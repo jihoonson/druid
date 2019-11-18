@@ -146,7 +146,7 @@ public class KinesisSupervisor extends SeekableStreamSupervisor<String, String>
         true,
         minimumMessageTime,
         maximumMessageTime,
-        ioConfig.getNonNullInputFormat(
+        ioConfig.getInputFormat(
             spec.getDataSchema().getParser() == null ? null : spec.getDataSchema().getParser().getParseSpec()
         ),
         ioConfig.getEndpoint(),

@@ -223,7 +223,7 @@ public class KafkaSupervisor extends SeekableStreamSupervisor<Integer, Long>
         true,
         minimumMessageTime,
         maximumMessageTime,
-        ioConfig.getNonNullInputFormat(
+        ioConfig.getInputFormat(
             spec.getDataSchema().getParser() == null ? null : spec.getDataSchema().getParser().getParseSpec()
         )
     );

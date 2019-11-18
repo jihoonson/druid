@@ -371,6 +371,53 @@ public class KafkaIndexTaskTest extends SeekableStreamIndexTaskTestBase
   }
 
   @Test(timeout = 60_000L)
+  public void testRunAfterDataInsertedWithLegacyParser() throws Exception
+  {
+    // Insert data
+    insertData();
+
+    final KafkaIndexTask task = createTask(
+        null,
+        OLD_DATA_SCHEMA,
+        new KafkaIndexTaskIOConfig(
+            0,
+            "sequence0",
+            new SeekableStreamStartSequenceNumbers<>(topic, ImmutableMap.of(0, 2L), ImmutableSet.of()),
+            new SeekableStreamEndSequenceNumbers<>(topic, ImmutableMap.of(0, 5L)),
+            kafkaServer.consumerProperties(),
+            KafkaSupervisorIOConfig.DEFAULT_POLL_TIMEOUT_MILLIS,
+            true,
+            null,
+            null,
+            null
+        )
+    );
+
+    final ListenableFuture<TaskStatus> future = runTask(task);
+
+    // Wait for task to exit
+    Assert.assertEquals(TaskState.SUCCESS, future.get().getStatusCode());
+
+    // Check metrics
+    Assert.assertEquals(3, task.getRunner().getRowIngestionMeters().getProcessed());
+    Assert.assertEquals(0, task.getRunner().getRowIngestionMeters().getUnparseable());
+    Assert.assertEquals(0, task.getRunner().getRowIngestionMeters().getThrownAway());
+
+    // Check published metadata and segments in deep storage
+    assertEqualsExceptVersion(
+        ImmutableList.of(
+            sdd("2010/P1D", 0, ImmutableList.of("c")),
+            sdd("2011/P1D", 0, ImmutableList.of("d", "e"))
+        ),
+        publishedDescriptors()
+    );
+    Assert.assertEquals(
+        new KafkaDataSourceMetadata(new SeekableStreamEndSequenceNumbers<>(topic, ImmutableMap.of(0, 5L))),
+        metadataStorageCoordinator.getDataSourceMetadata(NEW_DATA_SCHEMA.getDataSource())
+    );
+  }
+
+  @Test(timeout = 60_000L)
   public void testRunBeforeDataInserted() throws Exception
   {
     final KafkaIndexTask task = createTask(
@@ -2453,7 +2500,9 @@ public class KafkaIndexTaskTest extends SeekableStreamIndexTaskTestBase
         dataSchema.getDimensionsSpec(),
         dataSchema.getAggregators(),
         dataSchema.getGranularitySpec(),
-        dataSchema.getTransformSpec()
+        dataSchema.getTransformSpec(),
+        dataSchema.getParserMap(),
+        OBJECT_MAPPER
     );
   }
 

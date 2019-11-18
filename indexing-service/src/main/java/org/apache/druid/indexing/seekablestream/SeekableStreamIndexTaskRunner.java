@@ -205,6 +205,7 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
   private final SeekableStreamIndexTaskTuningConfig tuningConfig;
   private final InputRowSchema inputRowSchema;
   private final InputFormat inputFormat;
+  private final InputRowParser<ByteBuffer> parser;
   private final AuthorizerMapper authorizerMapper;
   private final Optional<ChatHandlerProvider> chatHandlerProvider;
   private final CircularBuffer<Throwable> savedParseExceptions;
@@ -255,6 +256,7 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
               .collect(Collectors.toList())
     );
     this.inputFormat = ioConfig.getInputFormat(parser == null ? null : parser.getParseSpec());
+    this.parser = parser;
     this.authorizerMapper = authorizerMapper;
     this.chatHandlerProvider = chatHandlerProvider;
     this.savedParseExceptions = savedParseExceptions;
@@ -359,6 +361,42 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
     }
 
     log.info("Starting with sequences:  %s", sequences);
+  }
+
+  private List<InputRow> parseBytes(List<byte[]> valueBytess) throws IOException
+  {
+    if (parser != null) {
+      return parseWithParser(valueBytess);
+    } else {
+      return parseWithInputFormat(valueBytess);
+    }
+  }
+
+  private List<InputRow> parseWithParser(List<byte[]> valueBytess)
+  {
+    final List<InputRow> rows = new ArrayList<>();
+    for (byte[] valueBytes : valueBytess) {
+      rows.addAll(parser.parseBatch(ByteBuffer.wrap(valueBytes)));
+    }
+    return rows;
+  }
+
+  private List<InputRow> parseWithInputFormat(List<byte[]> valueBytess) throws IOException
+  {
+    final List<InputRow> rows = new ArrayList<>();
+    for (byte[] valueBytes : valueBytess) {
+      final InputEntityReader reader = task.getDataSchema().getTransformSpec().decorate(
+          Preconditions.checkNotNull(inputFormat, "inputFormat").createReader(
+              inputRowSchema,
+              new ByteEntity(valueBytes),
+              toolbox.getIndexingTmpDir()
+          )
+      );
+      try (CloseableIterator<InputRow> rowIterator = reader.read()) {
+        rowIterator.forEachRemaining(rows::add);
+      }
+    }
+    return rows;
   }
 
   private TaskStatus runInternal(TaskToolbox toolbox) throws Exception
@@ -615,19 +653,7 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
                 if (valueBytess == null || valueBytess.isEmpty()) {
                   rows = Utils.nullableListOf((InputRow) null);
                 } else {
-                  rows = new ArrayList<>();
-                  for (byte[] valueBytes : valueBytess) {
-                    final InputEntityReader reader = task.getDataSchema().getTransformSpec().decorate(
-                        inputFormat.createReader(
-                            inputRowSchema,
-                            new ByteEntity(valueBytes),
-                            toolbox.getIndexingTmpDir()
-                        )
-                    );
-                    try (CloseableIterator<InputRow> rowIterator = reader.read()) {
-                      rowIterator.forEachRemaining(rows::add);
-                    }
-                  }
+                  rows = parseBytes(valueBytess);
                 }
                 boolean isPersistRequired = false;
 
