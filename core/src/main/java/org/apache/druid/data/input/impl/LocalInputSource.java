@@ -22,7 +22,6 @@ package org.apache.druid.data.input.impl;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
@@ -35,7 +34,7 @@ import org.apache.druid.data.input.SplitHintSpec;
 
 import javax.annotation.Nullable;
 import java.io.File;
-import java.util.Iterator;
+import java.util.Collection;
 import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -46,6 +45,8 @@ public class LocalInputSource extends AbstractInputSource implements SplittableI
 {
   private final File baseDir;
   private final String filter;
+
+  private Collection<File> cachedFiles;
 
   @JsonCreator
   public LocalInputSource(
@@ -72,23 +73,32 @@ public class LocalInputSource extends AbstractInputSource implements SplittableI
   @Override
   public Stream<InputSplit<File>> createSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
-    return StreamSupport.stream(Spliterators.spliteratorUnknownSize(getFileIterator(), Spliterator.DISTINCT), false)
+    initializeCachedFilesIfNeeded();
+    return StreamSupport.stream(Spliterators.spliterator(cachedFiles, Spliterator.DISTINCT), false)
                         .map(InputSplit::new);
   }
 
   @Override
   public int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
-    return Iterators.size(getFileIterator());
+    initializeCachedFilesIfNeeded();
+    return cachedFiles.size();
   }
 
-  private Iterator<File> getFileIterator()
+  /**
+   * Even though the Javadoc of {@link SplittableInputSource#createSplits} says it's not recommended to cache files
+   * in memory, we ARE caching them in memory here because {@link #getNumSplits} and the number of splits returned
+   * from {@link #createSplits} must be same. This should be fixed later to not cache them in memory.
+   */
+  private void initializeCachedFilesIfNeeded()
   {
-    return FileUtils.iterateFiles(
-        Preconditions.checkNotNull(baseDir).getAbsoluteFile(),
-        new WildcardFileFilter(filter),
-        TrueFileFilter.INSTANCE
-    );
+    if (cachedFiles == null) {
+      cachedFiles = FileUtils.listFiles(
+          Preconditions.checkNotNull(baseDir).getAbsoluteFile(),
+          new WildcardFileFilter(filter),
+          TrueFileFilter.INSTANCE
+      );
+    }
   }
 
   @Override
