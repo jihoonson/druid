@@ -210,7 +210,6 @@ public class IndexTaskTest extends IngestionTestBase
             null,
             null,
             null,
-            null,
             createTuningConfigWithMaxRowsPerSegment(2, true),
             false
         ),
@@ -460,7 +459,6 @@ public class IndexTaskTest extends IngestionTestBase
             null,
             null,
             null,
-            null,
             createTuningConfigWithNumShards(1, null, true),
             false
         ),
@@ -500,7 +498,6 @@ public class IndexTaskTest extends IngestionTestBase
             useInputFormatApi,
             jsonMapper,
             tmpDir,
-            null,
             null,
             null,
             null,
@@ -579,7 +576,6 @@ public class IndexTaskTest extends IngestionTestBase
             useInputFormatApi,
             jsonMapper,
             tmpDir,
-            null,
             null,
             null,
             null,
