@@ -29,19 +29,24 @@ import org.apache.druid.data.input.impl.NestedInputFormat;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 import org.apache.hadoop.conf.Configuration;
 
+import javax.annotation.Nullable;
 import java.io.File;
+import java.util.Objects;
 
 public class OrcInputFormat extends NestedInputFormat
 {
+  private final boolean binaryAsString;
   private final Configuration conf;
 
   @JsonCreator
   public OrcInputFormat(
-      @JsonProperty("flattenSpec") JSONPathSpec flattenSpec,
+      @JsonProperty("flattenSpec") @Nullable JSONPathSpec flattenSpec,
+      @JsonProperty("binaryAsString") @Nullable Boolean binaryAsString,
       @JacksonInject Configuration conf
   )
   {
     super(flattenSpec);
+    this.binaryAsString = binaryAsString == null ? false : binaryAsString;
     this.conf = conf;
   }
 
@@ -54,6 +59,29 @@ public class OrcInputFormat extends NestedInputFormat
   @Override
   public InputEntityReader createReader(InputRowSchema inputRowSchema, InputEntity source, File temporaryDirectory)
   {
-    return new OrcReader(conf, inputRowSchema, source, temporaryDirectory, getFlattenSpec());
+    return new OrcReader(conf, inputRowSchema, source, temporaryDirectory, getFlattenSpec(), binaryAsString);
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    if (!super.equals(o)) {
+      return false;
+    }
+    OrcInputFormat that = (OrcInputFormat) o;
+    return binaryAsString == that.binaryAsString &&
+           Objects.equals(conf, that.conf);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(super.hashCode(), binaryAsString, conf);
   }
 }

@@ -61,6 +61,9 @@ public class OrcExtensionsModule implements DruidModule
   @Override
   public void configure(Binder binder)
   {
+    // this block of code is common among extensions that use Hadoop things but are not running in Hadoop, in order
+    // to properly initialize everything
+
     final Configuration conf = new Configuration();
 
     // Set explicit CL. Otherwise it'll try to use thread context CL, which may not have all of our dependencies.

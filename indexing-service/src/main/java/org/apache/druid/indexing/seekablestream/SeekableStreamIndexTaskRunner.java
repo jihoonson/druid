@@ -400,42 +400,6 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
     return rows;
   }
 
-  private List<InputRow> parseBytes(List<byte[]> valueBytess) throws IOException
-  {
-    if (parser != null) {
-      return parseWithParser(valueBytess);
-    } else {
-      return parseWithInputFormat(valueBytess);
-    }
-  }
-
-  private List<InputRow> parseWithParser(List<byte[]> valueBytess)
-  {
-    final List<InputRow> rows = new ArrayList<>();
-    for (byte[] valueBytes : valueBytess) {
-      rows.addAll(parser.parseBatch(ByteBuffer.wrap(valueBytes)));
-    }
-    return rows;
-  }
-
-  private List<InputRow> parseWithInputFormat(List<byte[]> valueBytess) throws IOException
-  {
-    final List<InputRow> rows = new ArrayList<>();
-    for (byte[] valueBytes : valueBytess) {
-      final InputEntityReader reader = task.getDataSchema().getTransformSpec().decorate(
-          Preconditions.checkNotNull(inputFormat, "inputFormat").createReader(
-              inputRowSchema,
-              new ByteEntity(valueBytes),
-              toolbox.getIndexingTmpDir()
-          )
-      );
-      try (CloseableIterator<InputRow> rowIterator = reader.read()) {
-        rowIterator.forEachRemaining(rows::add);
-      }
-    }
-    return rows;
-  }
-
   private TaskStatus runInternal(TaskToolbox toolbox) throws Exception
   {
     startTime = DateTimes.nowUtc();
