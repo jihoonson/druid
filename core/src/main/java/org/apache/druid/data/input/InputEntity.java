@@ -20,26 +20,29 @@
 package org.apache.druid.data.input;
 
 import com.google.common.base.Predicate;
-import org.apache.druid.guice.annotations.ExtensionPoint;
+import com.google.common.base.Predicates;
+import org.apache.druid.guice.annotations.UnstableApi;
 import org.apache.druid.java.util.common.FileUtils;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.logger.Logger;
 
+import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 
 /**
- * InputEntity abstracts an object and knows how to read bytes from the given object.
+ * InputEntity abstracts an input entity and knows how to read bytes from the given entity.
  */
-@ExtensionPoint
-public interface InputEntity<T>
+@UnstableApi
+public interface InputEntity
 {
   Logger LOG = new Logger(InputEntity.class);
 
   int DEFAULT_FETCH_BUFFER_SIZE = 4 * 1024; // 4 KB
-  int DEFAULT_MAX_FETCH_RETRY = 2; // 3 tries including the initial try
+  int DEFAULT_MAX_NUM_FETCH_TRIES = 3; // 3 tries including the initial try
 
   /**
    * CleanableFile is the result type of {@link #fetch}.
@@ -50,18 +53,23 @@ public interface InputEntity<T>
     File file();
   }
 
-  T getObject();
+  /**
+   * Returns an URI to identify the input entity. Implementations can return null if they don't have
+   * an unique URI.
+   */
+  @Nullable
+  URI getUri();
 
   /**
-   * Opens an {@link InputStream} on the object directly.
-   * This is the basic way to read the given object.
+   * Opens an {@link InputStream} on the input entity directly.
+   * This is the basic way to read the given entity.
    *
-   * @see #fetch as an alternative way to read data.
+   * @see #fetch
    */
   InputStream open() throws IOException;
 
   /**
-   * Fetches the object into the local storage.
+   * Fetches the input entity into the local storage.
    * This method might be preferred instead of {@link #open()}, for example
    *
    * - {@link InputFormat} requires expensive random access on remote storage.
@@ -69,21 +77,21 @@ public interface InputEntity<T>
    *
    * @param temporaryDirectory to store temp data. This directory will be removed automatically once
    *                           the task finishes.
-   * @param fetchBuffer        is used to fetch remote object into local storage.
+   * @param fetchBuffer        is used to fetch remote entity into local storage.
    *
    * @see FileUtils#copyLarge
    */
   default CleanableFile fetch(File temporaryDirectory, byte[] fetchBuffer) throws IOException
   {
-    final File tempFile = File.createTempFile("druid-object-source", ".tmp", temporaryDirectory);
-    LOG.debug("Fetching object into file[%s]", tempFile.getAbsolutePath());
+    final File tempFile = File.createTempFile("druid-input-entity", ".tmp", temporaryDirectory);
+    LOG.debug("Fetching entity into file[%s]", tempFile.getAbsolutePath());
     try (InputStream is = open()) {
       FileUtils.copyLarge(
           is,
           tempFile,
           fetchBuffer,
-          getFetchRetryCondition(),
-          DEFAULT_MAX_FETCH_RETRY,
+          getRetryCondition(),
+          DEFAULT_MAX_NUM_FETCH_TRIES,
           StringUtils.format("Failed to fetch into [%s]", tempFile.getAbsolutePath())
       );
     }
@@ -107,7 +115,12 @@ public interface InputEntity<T>
   }
 
   /**
-   * {@link #fetch} will retry during the fetch if it sees an exception matching to the returned predicate.
+   * Returns a retry condition that the caller should retry on.
+   * The returned condition should be used when reading data from this InputEntity such as in {@link #fetch}
+   * or {@link RetryingInputEntity}.
    */
-  Predicate<Throwable> getFetchRetryCondition();
+  default Predicate<Throwable> getRetryCondition()
+  {
+    return Predicates.alwaysFalse();
+  }
 }

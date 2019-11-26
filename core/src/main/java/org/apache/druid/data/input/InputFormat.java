@@ -26,21 +26,28 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.apache.druid.data.input.impl.CsvInputFormat;
 import org.apache.druid.data.input.impl.JsonInputFormat;
 import org.apache.druid.data.input.impl.NestedInputFormat;
+import org.apache.druid.data.input.impl.RegexInputFormat;
 import org.apache.druid.data.input.impl.SplittableInputSource;
-import org.apache.druid.guice.annotations.ExtensionPoint;
+import org.apache.druid.data.input.impl.TsvInputFormat;
+import org.apache.druid.guice.annotations.UnstableApi;
+
+import java.io.File;
+import java.io.IOException;
 
 /**
  * InputFormat abstracts the file format of input data.
  * It creates a {@link InputEntityReader} to read data and parse it into {@link InputRow}.
- * The created SplitReader is used by {@link InputSourceReader}.
+ * The created InputEntityReader is used by {@link InputSourceReader}.
  *
- * @see NestedInputFormat for nested input formats such as JSON.
+ * See {@link NestedInputFormat} for nested input formats such as JSON.
  */
-@ExtensionPoint
+@UnstableApi
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes(value = {
     @Type(name = "csv", value = CsvInputFormat.class),
-    @Type(name = "json", value = JsonInputFormat.class)
+    @Type(name = "json", value = JsonInputFormat.class),
+    @Type(name = "regex", value = RegexInputFormat.class),
+    @Type(name = "tsv", value = TsvInputFormat.class)
 })
 public interface InputFormat
 {
@@ -48,12 +55,14 @@ public interface InputFormat
    * Trait to indicate that a file can be split into multiple {@link InputSplit}s.
    *
    * This method is not being used anywhere for now, but should be considered
-   * in {@link SplittableInputSource#createSplits}.
+   * in {@link SplittableInputSource#createSplits} in the future.
    */
   @JsonIgnore
   boolean isSplittable();
 
-  InputEntityReader createReader(InputRowSchema inputRowSchema);
-
-  InputEntitySampler createSampler(InputRowSchema inputRowSchema);
+  InputEntityReader createReader(
+      InputRowSchema inputRowSchema,
+      InputEntity source,
+      File temporaryDirectory
+  ) throws IOException;
 }

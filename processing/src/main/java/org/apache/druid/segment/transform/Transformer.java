@@ -20,7 +20,7 @@
 package org.apache.druid.segment.transform;
 
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowListPlusJson;
+import org.apache.druid.data.input.InputRowListPlusRawValues;
 import org.apache.druid.data.input.Row;
 import org.apache.druid.data.input.Rows;
 import org.apache.druid.java.util.common.DateTimes;
@@ -30,6 +30,7 @@ import org.apache.druid.segment.column.ColumnHolder;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,28 +95,39 @@ public class Transformer
   }
 
   @Nullable
-  public InputRowListPlusJson transform(@Nullable final InputRowListPlusJson row)
+  public InputRowListPlusRawValues transform(@Nullable final InputRowListPlusRawValues row)
   {
     if (row == null) {
       return null;
     }
 
-    final InputRowListPlusJson transformedRow;
+    final InputRowListPlusRawValues inputRowListPlusRawValues;
 
-    if (transforms.isEmpty()) {
-      transformedRow = row;
+    if (transforms.isEmpty() || row.getInputRows() == null) {
+      inputRowListPlusRawValues = row;
     } else {
-      transformedRow = InputRowListPlusJson.of(new TransformedInputRow(row.getInputRow(), transforms), row.getRaw());
+      final List<InputRow> originalRows = row.getInputRows();
+      final List<InputRow> transformedRows = new ArrayList<>(originalRows.size());
+      for (InputRow originalRow : originalRows) {
+        transformedRows.add(new TransformedInputRow(originalRow, transforms));
+      }
+      inputRowListPlusRawValues = InputRowListPlusRawValues.of(transformedRows, row.getRawValues());
     }
 
     if (valueMatcher != null) {
-      rowSupplierForValueMatcher.set(transformedRow.getInputRow());
-      if (!valueMatcher.matches()) {
-        return null;
+      if (inputRowListPlusRawValues.getInputRows() != null) {
+        final List<InputRow> filteredRows = new ArrayList<>(inputRowListPlusRawValues.getInputRows().size());
+        for (InputRow inputRow : inputRowListPlusRawValues.getInputRows()) {
+          rowSupplierForValueMatcher.set(inputRow);
+          if (valueMatcher.matches()) {
+            filteredRows.add(inputRow);
+          }
+        }
+        return InputRowListPlusRawValues.of(filteredRows, row.getRawValues());
       }
     }
 
-    return transformedRow;
+    return inputRowListPlusRawValues;
   }
 
   public static class TransformedInputRow implements InputRow
@@ -214,6 +226,14 @@ public class Transformer
     public int compareTo(final Row o)
     {
       return row.compareTo(o);
+    }
+
+    @Override
+    public String toString()
+    {
+      return "TransformedInputRow{" +
+             "row=" + row +
+             '}';
     }
   }
 }

@@ -51,8 +51,7 @@ public class OrcExtensionsModule implements DruidModule
         new SimpleModule("OrcInputRowParserModule")
             .registerSubtypes(
                 new NamedType(OrcHadoopInputRowParser.class, "orc"),
-                new NamedType(OrcParseSpec.class, "orc"),
-                new NamedType(OrcInputFormat.class, "orc")
+                new NamedType(OrcParseSpec.class, "orc")
             )
     );
   }

@@ -45,6 +45,11 @@ public class FirehoseFactoryToInputSourceAdaptor extends AbstractInputSource imp
     return firehoseFactory;
   }
 
+  public InputRowParser getInputRowParser()
+  {
+    return inputRowParser;
+  }
+
   @Override
   public boolean isSplittable()
   {
@@ -63,7 +68,7 @@ public class FirehoseFactoryToInputSourceAdaptor extends AbstractInputSource imp
   }
 
   @Override
-  public int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException
+  public int estimateNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException
   {
     if (firehoseFactory.isSplittable()) {
       return firehoseFactory.getNumSplits(splitHintSpec);
@@ -92,7 +97,7 @@ public class FirehoseFactoryToInputSourceAdaptor extends AbstractInputSource imp
   }
 
   @Override
-  protected InputSourceReader unformattableReader(InputRowSchema inputRowSchema, @Nullable File temporaryDirectory)
+  protected InputSourceReader fixedFormatReader(InputRowSchema inputRowSchema, @Nullable File temporaryDirectory)
   {
     return new FirehoseToInputSourceReaderAdaptor(firehoseFactory, inputRowParser, temporaryDirectory);
   }

@@ -33,16 +33,11 @@ import org.apache.druid.utils.CompressionUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.FileSplit;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class HdfsFirehoseFactory extends PrefetchableTextFilesFirehoseFactory<Path>
 {
@@ -61,9 +56,8 @@ public class HdfsFirehoseFactory extends PrefetchableTextFilesFirehoseFactory<Pa
   )
   {
     super(maxCacheCapacityBytes, maxFetchCapacityBytes, prefetchTriggerBytes, fetchTimeout, maxFetchRetry);
+    this.inputPaths = HdfsInputSource.coerceInputPathsToList(inputPaths, "inputPaths");
     this.conf = conf;
-    // Coerce 'inputPaths' to List<String>
-    this.inputPaths = HdfsInputSource.parseJsonStringOrList(inputPaths);
   }
 
   @JsonProperty("paths")
@@ -75,23 +69,7 @@ public class HdfsFirehoseFactory extends PrefetchableTextFilesFirehoseFactory<Pa
   @Override
   protected Collection<Path> initObjects() throws IOException
   {
-    // Use TextInputFormat to read splits. To do this, we need to make a fake Job.
-    final Job job = Job.getInstance(conf);
-
-    // Add paths to the fake JobContext.
-    inputPaths.forEach(input -> {
-      try {
-        FileInputFormat.addInputPaths(job, input);
-      }
-      catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-    });
-
-    return new TextInputFormat().getSplits(job)
-                                .stream()
-                                .map(split -> ((FileSplit) split).getPath())
-                                .collect(Collectors.toSet());
+    return HdfsInputSource.getPaths(inputPaths, conf);
   }
 
   @Override

@@ -58,7 +58,6 @@ public class CSVParseSpec extends ParseSpec
       for (String column : columns) {
         Preconditions.checkArgument(!column.contains(","), "Column[%s] has a comma, it cannot", column);
       }
-      verify(dimensionsSpec.getDimensionNames());
     } else {
       Preconditions.checkArgument(
           hasHeaderRow,
@@ -93,12 +92,6 @@ public class CSVParseSpec extends ParseSpec
   }
 
   @Override
-  public void verify(List<String> usedCols)
-  {
-    CsvReader.verify(columns, usedCols);
-  }
-
-  @Override
   public Parser<String, Object> makeParser()
   {
     return new CSVParser(listDelimiter, columns, hasHeaderRow, skipHeaderRows);
@@ -107,7 +100,7 @@ public class CSVParseSpec extends ParseSpec
   @Override
   public InputFormat toInputFormat()
   {
-    return new CsvInputFormat(columns, listDelimiter, hasHeaderRow, skipHeaderRows);
+    return new CsvInputFormat(columns, listDelimiter, null, hasHeaderRow, skipHeaderRows);
   }
 
   @Override

@@ -25,11 +25,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.client.coordinator.CoordinatorClient;
 import org.apache.druid.data.input.AbstractInputSource;
+import org.apache.druid.data.input.InputEntity;
 import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.SplitHintSpec;
+import org.apache.druid.data.input.impl.InputEntityIteratingReader;
 import org.apache.druid.data.input.impl.SplittableInputSource;
 import org.apache.druid.indexing.common.RetryPolicyFactory;
 import org.apache.druid.indexing.common.SegmentLoaderFactory;
@@ -37,10 +39,11 @@ import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.query.filter.DimFilter;
 import org.apache.druid.segment.IndexIO;
+import org.apache.druid.segment.loading.SegmentLoader;
 import org.apache.druid.timeline.DataSegment;
-import org.apache.druid.timeline.SegmentId;
 import org.apache.druid.timeline.TimelineObjectHolder;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
+import org.apache.druid.timeline.partition.PartitionHolder;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -49,7 +52,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
-public class DruidInputSource extends AbstractInputSource implements SplittableInputSource<List<SegmentId>>
+public class DruidInputSource extends AbstractInputSource implements SplittableInputSource<List<WindowedSegmentId>>
 {
   private final String dataSource;
   // Exactly one of interval and segmentIds should be non-null. Typically 'interval' is specified directly
@@ -58,7 +61,7 @@ public class DruidInputSource extends AbstractInputSource implements SplittableI
   @Nullable
   private final Interval interval;
   @Nullable
-  private final List<SegmentId> segmentIds;
+  private final List<WindowedSegmentId> segmentIds;
   private final DimFilter dimFilter;
   private final List<String> dimensions;
   private final List<String> metrics;
@@ -76,7 +79,7 @@ public class DruidInputSource extends AbstractInputSource implements SplittableI
       @JsonProperty("interval") @Nullable Interval interval,
       // Specifying "segments" is intended only for when this FirehoseFactory has split itself,
       // not for direct end user use.
-      @JsonProperty("segments") @Nullable List<SegmentId> segmentIds,
+      @JsonProperty("segments") @Nullable List<WindowedSegmentId> segmentIds,
       @JsonProperty("filter") DimFilter dimFilter,
       @JsonProperty("dimensions") List<String> dimensions,
       @JsonProperty("metrics") List<String> metrics,
@@ -106,38 +109,37 @@ public class DruidInputSource extends AbstractInputSource implements SplittableI
   }
 
   @Override
-  protected InputSourceReader unformattableReader(InputRowSchema inputRowSchema, @Nullable File temporaryDirectory)
+  protected InputSourceReader fixedFormatReader(InputRowSchema inputRowSchema, @Nullable File temporaryDirectory)
   {
-  //    final SegmentLoader segmentLoader = segmentLoaderFactory.manufacturate(temporaryDirectory);
-  //    createSplits(inputFormat, null)
-  //        .map(split -> {
-  //          final List<TimelineObjectHolder<String, DataSegment>> holders = createTimeline(split);
-  //          for (TimelineObjectHolder<String, DataSegment> holder : holders) {
-  //            final PartitionHolder<DataSegment> partitionHolder = holder.getObject();
-  //            for (PartitionChunk<DataSegment> chunk : partitionHolder) {
-  //              final SplitReader reader = inputFormat.createReader(inputRowSchema);
-  //              reader.read(
-  //                  new DruidSegmentSource(
-  //                      segmentLoader,
-  //                      coordinatorClient,
-  //                      chunk.getObject(),
-  //                      holder.getInterval()
-  //                  ),
-  //                  temporaryDirectory
-  //              );
-  //            }
-  //          }
-  //        })
-    return null;
+    final SegmentLoader segmentLoader = segmentLoaderFactory.manufacturate(temporaryDirectory);
+    final Stream<InputEntity> entityStream = createSplits(inputFormat, null)
+        .flatMap(split -> {
+          final List<TimelineObjectHolder<String, DataSegment>> holders = createTimeline(split);
+          return holders
+              .stream()
+              .flatMap(holder -> {
+                final PartitionHolder<DataSegment> partitionHolder = holder.getObject();
+                return partitionHolder
+                    .stream()
+                    .map(chunk -> new DruidSegmentEntity(segmentLoader, chunk.getObject(), holder.getInterval()));
+              });
+        });
+
+    return new InputEntityIteratingReader(
+        inputRowSchema,
+        inputFormat,
+        entityStream,
+        temporaryDirectory
+    );
   }
 
-  private List<TimelineObjectHolder<String, DataSegment>> createTimeline(InputSplit<List<SegmentId>> split)
+  private List<TimelineObjectHolder<String, DataSegment>> createTimeline(InputSplit<List<WindowedSegmentId>> split)
   {
     final List<DataSegment> segments = new ArrayList<>();
-    for (SegmentId segmentId : Preconditions.checkNotNull(split.get())) {
+    for (WindowedSegmentId segmentId : Preconditions.checkNotNull(split.get())) {
       final DataSegment segment = coordinatorClient.getDatabaseSegmentDataSourceSegment(
-          segmentId.getDataSource(),
-          segmentId.toString()
+          dataSource,
+          segmentId.getSegmentId()
       );
       segments.add(segment);
     }
@@ -145,22 +147,23 @@ public class DruidInputSource extends AbstractInputSource implements SplittableI
   }
 
   @Override
-  public Stream<InputSplit<List<SegmentId>>> createSplits(
+  public Stream<InputSplit<List<WindowedSegmentId>>> createSplits(
       InputFormat inputFormat,
       @Nullable SplitHintSpec splitHintSpec
   )
   {
+    // See IngestSegmentFirehoseFactory.initializeSplitsIfNeeded
     return null;
   }
 
   @Override
-  public int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
+  public int estimateNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
   {
     return 0;
   }
 
   @Override
-  public SplittableInputSource<List<SegmentId>> withSplit(InputSplit<List<SegmentId>> split)
+  public SplittableInputSource<List<WindowedSegmentId>> withSplit(InputSplit<List<WindowedSegmentId>> split)
   {
     return new DruidInputSource(
         dataSource,

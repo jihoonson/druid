@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import org.apache.druid.data.input.AbstractInputSource;
 import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRowSchema;
@@ -33,54 +34,112 @@ import org.apache.druid.data.input.impl.InputEntityIteratingReader;
 import org.apache.druid.data.input.impl.SplittableInputSource;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.RemoteIterator;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public class HdfsInputSource extends AbstractInputSource implements SplittableInputSource<Path>
 {
-  private final List<String> paths;
-  private final Configuration conf;
+  private static final String PROP_PATHS = "paths";
+
+  private final List<String> inputPaths;
+  private final Configuration configuration;
+
+  // Although the javadocs for SplittableInputSource say to avoid caching splits to reduce memory, HdfsInputSource
+  // *does* cache the splits for the following reasons:
+  //
+  // 1) It will improve compatibility with the index_hadoop task, allowing people to easily migrate from Hadoop.
+  //    For example, input paths with globs will be supported (lazily expanding the wildcard glob is tricky).
+  //
+  // 2) The index_hadoop task allocates splits eagerly, so the memory usage should not be a problem for anyone
+  //    migrating from Hadoop.
+  private List<Path> cachedPaths;
 
   @JsonCreator
   public HdfsInputSource(
-      @JsonProperty("paths") Object paths,
-      @JacksonInject Configuration conf
+      @JsonProperty(PROP_PATHS) Object inputPaths,
+      @JacksonInject Configuration configuration
   )
   {
-    this.paths = parseJsonStringOrList(paths);
-    this.conf = conf;
-    Preconditions.checkArgument(!this.paths.isEmpty(), "Empty paths");
+    this.inputPaths = coerceInputPathsToList(inputPaths, PROP_PATHS);
+    this.configuration = configuration;
+    this.cachedPaths = null;
   }
 
-  public static List<String> parseJsonStringOrList(Object jsonObject)
+  public static List<String> coerceInputPathsToList(Object inputPaths, String propertyName)
   {
-    if (jsonObject instanceof String) {
-      return Collections.singletonList((String) jsonObject);
-    } else if (jsonObject instanceof List && ((List<?>) jsonObject).stream().allMatch(x -> x instanceof String)) {
-      return ((List<?>) jsonObject).stream().map(x -> (String) x).collect(Collectors.toList());
+    final List<String> paths;
+
+    if (inputPaths instanceof String) {
+      paths = Collections.singletonList((String) inputPaths);
+    } else if (inputPaths instanceof List && ((List<?>) inputPaths).stream().allMatch(x -> x instanceof String)) {
+      paths = ((List<?>) inputPaths).stream().map(x -> (String) x).collect(Collectors.toList());
     } else {
-      throw new IAE("'inputPaths' must be a string or an array of strings");
+      throw new IAE("'%s' must be a string or an array of strings", propertyName);
+    }
+
+    return paths;
+  }
+
+  public static Collection<Path> getPaths(List<String> inputPaths, Configuration configuration) throws IOException
+  {
+    if (inputPaths.isEmpty()) {
+      return Collections.emptySet();
+    }
+
+    // Use FileInputFormat to read splits. To do this, we need to make a fake Job.
+    Job job = Job.getInstance(configuration);
+
+    // Add paths to the fake JobContext.
+    for (String inputPath : inputPaths) {
+      FileInputFormat.addInputPaths(job, inputPath);
+    }
+
+    return new HdfsFileInputFormat().getSplits(job)
+                                    .stream()
+                                    .map(split -> ((FileSplit) split).getPath())
+                                    .collect(Collectors.toSet());
+  }
+
+  /**
+   * Helper for leveraging hadoop code to interpret HDFS paths with globs
+   */
+  private static class HdfsFileInputFormat extends FileInputFormat<Object, Object>
+  {
+    @Override
+    public RecordReader<Object, Object> createRecordReader(
+        org.apache.hadoop.mapreduce.InputSplit inputSplit,
+        TaskAttemptContext taskAttemptContext
+    )
+    {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected boolean isSplitable(JobContext context, Path filename)
+    {
+      return false;  // prevent generating extra paths
     }
   }
 
-  @JsonProperty
-  public List<String> getPaths()
+  @JsonProperty(PROP_PATHS)
+  private List<String> getInputPaths()
   {
-    return paths;
+    return inputPaths;
   }
 
   @Override
@@ -88,12 +147,20 @@ public class HdfsInputSource extends AbstractInputSource implements SplittableIn
       InputRowSchema inputRowSchema,
       InputFormat inputFormat,
       @Nullable File temporaryDirectory
-  ) throws IOException
+  )
   {
-    return new InputEntityIteratingReader<>(
+    final Stream<InputSplit<Path>> splits;
+    try {
+      splits = createSplits(inputFormat, null);
+    }
+    catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    return new InputEntityIteratingReader(
         inputRowSchema,
         inputFormat,
-        createSplits(null, null).map(split -> new HdfsSource(conf, split.get())),
+        splits.map(split -> new HdfsInputEntity(configuration, split.get())),
         temporaryDirectory
     );
   }
@@ -102,72 +169,65 @@ public class HdfsInputSource extends AbstractInputSource implements SplittableIn
   public Stream<InputSplit<Path>> createSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec)
       throws IOException
   {
-    final FileSystem fs = new Path(paths.get(0)).getFileSystem(conf);
-    return paths.stream()
-                .flatMap(path -> {
-                  try {
-                    final RemoteIterator<FileStatus> delegate = fs.listStatusIterator(fs.makeQualified(new Path(path)));
-                    final Iterator<FileStatus> fileIterator = new Iterator<FileStatus>()
-                    {
-                      @Override
-                      public boolean hasNext()
-                      {
-                        try {
-                          return delegate.hasNext();
-                        }
-                        catch (IOException e) {
-                          throw new RuntimeException(e);
-                        }
-                      }
-
-                      @Override
-                      public FileStatus next()
-                      {
-                        try {
-                          return delegate.next();
-                        }
-                        catch (IOException e) {
-                          throw new RuntimeException(e);
-                        }
-                      }
-                    };
-                    return StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(fileIterator, Spliterator.DISTINCT & Spliterator.NONNULL),
-                        false
-                    );
-                  }
-                  catch (IOException e) {
-                    throw new RuntimeException(e);
-                  }
-                })
-                .map(fileStatus -> new InputSplit<>(fileStatus.getPath()));
+    cachePathsIfNeeded();
+    return cachedPaths.stream().map(InputSplit::new);
   }
 
   @Override
-  public int getNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException
+  public int estimateNumSplits(InputFormat inputFormat, @Nullable SplitHintSpec splitHintSpec) throws IOException
   {
-    final FileSystem fs = new Path(paths.get(0)).getFileSystem(conf);
-    int numSplits = 0;
-    for (String path : paths) {
-      final RemoteIterator<FileStatus> iterator = fs.listStatusIterator(new Path(path));
-      while (iterator.hasNext()) {
-        iterator.next();
-        numSplits++;
-      }
-    }
-
-    return numSplits;
+    cachePathsIfNeeded();
+    return cachedPaths.size();
   }
 
   @Override
   public SplittableInputSource<Path> withSplit(InputSplit<Path> split)
   {
-    return new HdfsInputSource(split.get().toString(), conf);
+    return new HdfsInputSource(split.get().toString(), configuration);
   }
 
   @Override
   public boolean needsFormat()
   {
     return true;
+  }
+
+  private void cachePathsIfNeeded() throws IOException
+  {
+    if (cachedPaths == null) {
+      cachedPaths = ImmutableList.copyOf(Preconditions.checkNotNull(getPaths(inputPaths, configuration), "paths"));
+    }
+  }
+
+  static Builder builder()
+  {
+    return new Builder();
+  }
+
+  static final class Builder
+  {
+    private Object paths;
+    private Configuration configuration;
+
+    private Builder()
+    {
+    }
+
+    Builder paths(Object paths)
+    {
+      this.paths = paths;
+      return this;
+    }
+
+    Builder configuration(Configuration configuration)
+    {
+      this.configuration = configuration;
+      return this;
+    }
+
+    HdfsInputSource build()
+    {
+      return new HdfsInputSource(paths, configuration);
+    }
   }
 }

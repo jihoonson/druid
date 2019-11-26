@@ -21,10 +21,9 @@ package org.apache.druid.data.input.impl;
 
 import org.apache.druid.data.input.InputEntity;
 import org.apache.druid.data.input.InputEntityReader;
-import org.apache.druid.data.input.InputEntitySampler;
 import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowListPlusJson;
+import org.apache.druid.data.input.InputRowListPlusRawValues;
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.java.util.common.CloseableIterators;
@@ -32,7 +31,6 @@ import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -40,23 +38,33 @@ import java.util.stream.Stream;
  * InputSourceReader iterating multiple {@link InputEntity}s. This class could be used for
  * most of {@link org.apache.druid.data.input.InputSource}s.
  */
-public class InputEntityIteratingReader<T> implements InputSourceReader
+public class InputEntityIteratingReader implements InputSourceReader
 {
   private final InputRowSchema inputRowSchema;
   private final InputFormat inputFormat;
-  private final Iterator<InputEntity<T>> sourceIterator;
+  private final CloseableIterator<InputEntity> sourceIterator;
   private final File temporaryDirectory;
 
   public InputEntityIteratingReader(
       InputRowSchema inputRowSchema,
       InputFormat inputFormat,
-      Stream<InputEntity<T>> sourceStream,
+      Stream<InputEntity> sourceStream,
+      File temporaryDirectory
+  )
+  {
+    this(inputRowSchema, inputFormat, CloseableIterators.withEmptyBaggage(sourceStream.iterator()), temporaryDirectory);
+  }
+
+  public InputEntityIteratingReader(
+      InputRowSchema inputRowSchema,
+      InputFormat inputFormat,
+      CloseableIterator<InputEntity> sourceIterator,
       File temporaryDirectory
   )
   {
     this.inputRowSchema = inputRowSchema;
     this.inputFormat = inputFormat;
-    this.sourceIterator = sourceStream.iterator();
+    this.sourceIterator = sourceIterator;
     this.temporaryDirectory = temporaryDirectory;
   }
 
@@ -65,9 +73,9 @@ public class InputEntityIteratingReader<T> implements InputSourceReader
   {
     return createIterator(entity -> {
       // InputEntityReader is stateful and so a new one should be created per entity.
-      final InputEntityReader reader = inputFormat.createReader(inputRowSchema);
       try {
-        return reader.read(sourceIterator.next(), temporaryDirectory);
+        final InputEntityReader reader = inputFormat.createReader(inputRowSchema, entity, temporaryDirectory);
+        return reader.read();
       }
       catch (IOException e) {
         throw new RuntimeException(e);
@@ -76,13 +84,13 @@ public class InputEntityIteratingReader<T> implements InputSourceReader
   }
 
   @Override
-  public CloseableIterator<InputRowListPlusJson> sample()
+  public CloseableIterator<InputRowListPlusRawValues> sample()
   {
     return createIterator(entity -> {
-      // InputEntitySampler is stateful and so a new one should be created per entity.
-      final InputEntitySampler sampler = inputFormat.createSampler(inputRowSchema);
+      // InputEntityReader is stateful and so a new one should be created per entity.
       try {
-        return sampler.sample(sourceIterator.next(), temporaryDirectory);
+        final InputEntityReader reader = inputFormat.createReader(inputRowSchema, entity, temporaryDirectory);
+        return reader.sample();
       }
       catch (IOException e) {
         throw new RuntimeException(e);
@@ -90,8 +98,8 @@ public class InputEntityIteratingReader<T> implements InputSourceReader
     });
   }
 
-  private <R> CloseableIterator<R> createIterator(Function<InputEntity<T>, CloseableIterator<R>> rowPopulator)
+  private <R> CloseableIterator<R> createIterator(Function<InputEntity, CloseableIterator<R>> rowPopulator)
   {
-    return CloseableIterators.withEmptyBaggage(sourceIterator).flatMap(rowPopulator);
+    return sourceIterator.flatMap(rowPopulator);
   }
 }

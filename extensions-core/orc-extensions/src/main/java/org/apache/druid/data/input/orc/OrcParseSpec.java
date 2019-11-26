@@ -53,7 +53,7 @@ public class OrcParseSpec extends NestedDataParseSpec<JSONPathSpec>
   @Override
   public InputFormat toInputFormat()
   {
-    return new OrcInputFormat(getFlattenSpec(), conf);
+    return null;
   }
 
   @Override

@@ -37,7 +37,7 @@ import org.apache.druid.data.input.AbstractInputSource;
 import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowListPlusJson;
+import org.apache.druid.data.input.InputRowListPlusRawValues;
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.MapBasedInputRow;
@@ -284,7 +284,7 @@ public class TaskLifecycleTest
   private static class MockExceptionInputSource extends AbstractInputSource
   {
     @Override
-    protected InputSourceReader unformattableReader(InputRowSchema inputRowSchema, @Nullable File temporaryDirectory)
+    protected InputSourceReader fixedFormatReader(InputRowSchema inputRowSchema, @Nullable File temporaryDirectory)
     {
       return new InputSourceReader()
       {
@@ -313,7 +313,7 @@ public class TaskLifecycleTest
         }
 
         @Override
-        public CloseableIterator<InputRowListPlusJson> sample()
+        public CloseableIterator<InputRowListPlusRawValues> sample()
         {
           throw new UnsupportedOperationException();
         }
@@ -336,7 +336,7 @@ public class TaskLifecycleTest
   private static class MockInputSource extends AbstractInputSource
   {
     @Override
-    protected InputSourceReader unformattableReader(InputRowSchema inputRowSchema, @Nullable File temporaryDirectory)
+    protected InputSourceReader fixedFormatReader(InputRowSchema inputRowSchema, @Nullable File temporaryDirectory)
     {
       return new InputSourceReader()
       {
@@ -348,7 +348,7 @@ public class TaskLifecycleTest
         }
 
         @Override
-        public CloseableIterator<InputRowListPlusJson> sample()
+        public CloseableIterator<InputRowListPlusRawValues> sample()
         {
           throw new UnsupportedOperationException();
         }

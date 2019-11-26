@@ -20,24 +20,24 @@
 package org.apache.druid.data.input;
 
 import org.apache.druid.data.input.impl.InputEntityIteratingReader;
-import org.apache.druid.guice.annotations.ExtensionPoint;
+import org.apache.druid.guice.annotations.UnstableApi;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.IOException;
 
 /**
  * InputSourceReader reads data from {@link InputSource} and returns a {@link CloseableIterator} of
- * {@link InputRow}. See {@link InputSource} for an example usage.
+ * {@link InputRow}s. See {@link InputSource} for an example usage.
  *
  * Implementations of this class can use {@link InputEntity} and {@link InputEntityReader}. {@link InputFormat}
  * can be useful to understand how to create an InputEntityReader.
  *
  * See {@link InputEntityIteratingReader} as an example.
  */
-@ExtensionPoint
+@UnstableApi
 public interface InputSourceReader
 {
   CloseableIterator<InputRow> read() throws IOException;
 
-  CloseableIterator<InputRowListPlusJson> sample() throws IOException;
+  CloseableIterator<InputRowListPlusRawValues> sample() throws IOException;
 }

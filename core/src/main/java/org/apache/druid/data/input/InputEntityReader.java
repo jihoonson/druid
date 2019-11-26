@@ -19,20 +19,22 @@
 
 package org.apache.druid.data.input;
 
-import org.apache.druid.guice.annotations.ExtensionPoint;
+import org.apache.druid.guice.annotations.UnstableApi;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
-import java.io.File;
 import java.io.IOException;
 
 /**
  * InputEntityReader knows how to parse data into {@link InputRow}.
  * This class is <i>stateful</i> and a new InputEntityReader should be created per {@link InputEntity}.
  *
- * @see TextReader for text format readers
+ * @see IntermediateRowParsingReader
+ * @see TextReader
  */
-@ExtensionPoint
+@UnstableApi
 public interface InputEntityReader
 {
-  CloseableIterator<InputRow> read(InputEntity<?> source, File temporaryDirectory) throws IOException;
+  CloseableIterator<InputRow> read() throws IOException;
+
+  CloseableIterator<InputRowListPlusRawValues> sample() throws IOException;
 }

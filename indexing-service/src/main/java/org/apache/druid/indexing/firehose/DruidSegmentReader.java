@@ -20,17 +20,16 @@
 package org.apache.druid.indexing.firehose;
 
 import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import org.apache.druid.data.input.InputEntity;
 import org.apache.druid.data.input.InputEntity.CleanableFile;
 import org.apache.druid.data.input.InputEntityReader;
-import org.apache.druid.data.input.InputEntitySampler;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowListPlusJson;
+import org.apache.druid.data.input.InputRowListPlusRawValues;
 import org.apache.druid.data.input.MapBasedInputRow;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.DateTimes;
-import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
@@ -60,32 +59,36 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class DruidSegmentReader implements InputEntityReader, InputEntitySampler
+public class DruidSegmentReader implements InputEntityReader
 {
+  private final DruidSegmentEntity source;
   private final IndexIO indexIO;
   private final List<String> dimensions;
   private final List<String> metrics;
   private final DimFilter dimFilter;
+  private final File temporaryDirectory;
 
-  public DruidSegmentReader(
+  DruidSegmentReader(
+      InputEntity source,
       IndexIO indexIO,
       List<String> dimensions,
       List<String> metrics,
-      DimFilter dimFilter
+      DimFilter dimFilter,
+      File temporaryDirectory
   )
   {
+    Preconditions.checkArgument(source instanceof DruidSegmentEntity);
+    this.source = (DruidSegmentEntity) source;
     this.indexIO = indexIO;
     this.dimensions = dimensions;
     this.metrics = metrics;
     this.dimFilter = dimFilter;
+    this.temporaryDirectory = temporaryDirectory;
   }
 
   @Override
-  public CloseableIterator<InputRow> read(InputEntity<?> source, File temporaryDirectory) throws IOException
+  public CloseableIterator<InputRow> read()
   {
-    if (!(source instanceof DruidSegmentSource)) {
-      throw new IAE("Cannot process [%s]", source.getClass().getName());
-    }
     final CleanableFile segmentFile = source.fetch(temporaryDirectory, null);
     final WindowedStorageAdapter storageAdapter;
     try {
@@ -93,7 +96,7 @@ public class DruidSegmentReader implements InputEntityReader, InputEntitySampler
           new QueryableIndexStorageAdapter(
               indexIO.loadIndex(segmentFile.file())
           ),
-          ((DruidSegmentSource) source).getIntervalFilter()
+          source.getIntervalFilter()
       );
     }
     catch (IOException e) {
@@ -228,8 +231,7 @@ public class DruidSegmentReader implements InputEntityReader, InputEntitySampler
   }
 
   @Override
-  public CloseableIterator<InputRowListPlusJson> sample(InputEntity<?> source, File temporaryDirectory)
-      throws IOException
+  public CloseableIterator<InputRowListPlusRawValues> sample()
   {
     return null;
   }

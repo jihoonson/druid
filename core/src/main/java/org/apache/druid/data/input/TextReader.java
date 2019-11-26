@@ -19,27 +19,33 @@
 
 package org.apache.druid.data.input;
 
+import com.google.common.base.Strings;
 import org.apache.commons.io.LineIterator;
-import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.ParseException;
+import org.apache.druid.java.util.common.parsers.ParserUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Abstract {@link InputEntityReader} for text format readers such as CSV or JSON.
  */
-public abstract class TextReader implements InputEntityReader, InputEntitySampler
+public abstract class TextReader extends IntermediateRowParsingReader<String>
 {
   private final InputRowSchema inputRowSchema;
+  final InputEntity source;
+  final File temporaryDirectory;
 
-  public TextReader(InputRowSchema inputRowSchema)
+  public TextReader(InputRowSchema inputRowSchema, InputEntity source, File temporaryDirectory)
   {
     this.inputRowSchema = inputRowSchema;
+    this.source = source;
+    this.temporaryDirectory = temporaryDirectory;
   }
 
   public InputRowSchema getInputRowSchema()
@@ -48,39 +54,8 @@ public abstract class TextReader implements InputEntityReader, InputEntitySample
   }
 
   @Override
-  public CloseableIterator<InputRow> read(InputEntity source, File temporaryDirectory) throws IOException
-  {
-    return lineIterator(source).flatMap(line -> {
-      try {
-        // since readLine() returns a list, the below line always iterates over the list,
-        // which means it calls Iterator.hasNext() and Iterator.next() at least once per line.
-        // This could be unnecessary if the line wouldn't be exploded into multiple rows.
-        // If this line turned out to be a performance bottleneck, perhaps readLine() interface might not be a good
-        // idea. Subclasses could implement read() with some duplicate codes to avoid unnecessary iteration on
-        // a singleton list.
-        return CloseableIterators.withEmptyBaggage(readLine(line).iterator());
-      }
-      catch (IOException e) {
-        throw new ParseException(e, "Unable to parse row [%s]", line);
-      }
-    });
-  }
-
-  @Override
-  public CloseableIterator<InputRowListPlusJson> sample(InputEntity<?> source, File temporaryDirectory)
+  public CloseableIterator<String> intermediateRowIterator()
       throws IOException
-  {
-    return lineIterator(source).map(line -> {
-      try {
-        return sampleLine(line);
-      }
-      catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-    });
-  }
-
-  private CloseableIterator<String> lineIterator(InputEntity source) throws IOException
   {
     final LineIterator delegate = new LineIterator(
         new InputStreamReader(source.open(), StringUtils.UTF8_STRING)
@@ -121,18 +96,8 @@ public abstract class TextReader implements InputEntityReader, InputEntitySample
    *
    * This method will be called after {@link #getNumHeaderLinesToSkip()} and {@link #processHeaderLine}.
    */
-  public abstract List<InputRow> readLine(String line) throws IOException, ParseException;
-
-  /**
-   * TODO
-   *
-   * Should handle {@link ParseException} properly.
-   *
-   * @param line
-   * @return
-   * @throws IOException
-   */
-  public abstract InputRowListPlusJson sampleLine(String line) throws IOException;
+  @Override
+  public abstract List<InputRow> parseInputRows(String intermediateRow) throws IOException, ParseException;
 
   /**
    * Returns the number of header lines to skip.
@@ -150,4 +115,22 @@ public abstract class TextReader implements InputEntityReader, InputEntitySample
    * Processes a header line. This will be called if {@link #needsToProcessHeaderLine()} = true.
    */
   public abstract void processHeaderLine(String line) throws IOException;
+
+  public static List<String> findOrCreateColumnNames(List<String> parsedLine)
+  {
+    final List<String> columns = new ArrayList<>(parsedLine.size());
+    for (int i = 0; i < parsedLine.size(); i++) {
+      if (Strings.isNullOrEmpty(parsedLine.get(i))) {
+        columns.add(ParserUtils.getDefaultColumnName(i));
+      } else {
+        columns.add(parsedLine.get(i));
+      }
+    }
+    if (columns.isEmpty()) {
+      return ParserUtils.generateFieldNames(parsedLine.size());
+    } else {
+      ParserUtils.validateFields(columns);
+      return columns;
+    }
+  }
 }

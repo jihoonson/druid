@@ -49,7 +49,7 @@ import java.util.Properties;
  */
 public class HdfsStorageDruidModule implements DruidModule
 {
-  public static final String SCHEME = "hdfs";
+  static final String SCHEME = "hdfs";
   private Properties props = null;
 
   @Inject

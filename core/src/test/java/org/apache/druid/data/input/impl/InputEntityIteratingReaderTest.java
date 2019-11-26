@@ -58,7 +58,7 @@ public class InputEntityIteratingReaderTest
         writer.write(StringUtils.format("%d,%s,%d", 20190102 + i, "name_" + (i + 1), i + 1));
       }
     }
-    final InputEntityIteratingReader<File> firehose = new InputEntityIteratingReader<>(
+    final InputEntityIteratingReader firehose = new InputEntityIteratingReader(
         new InputRowSchema(
             new TimestampSpec("time", "yyyyMMdd", null),
             new DimensionsSpec(
@@ -69,10 +69,11 @@ public class InputEntityIteratingReaderTest
         new CsvInputFormat(
             ImmutableList.of("time", "name", "score"),
             null,
+            null,
             false,
             0
         ),
-        files.stream().flatMap(file -> ImmutableList.of(new FileSource(file)).stream()),
+        files.stream().flatMap(file -> ImmutableList.of(new FileEntity(file)).stream()),
         temporaryFolder.newFolder()
     );
 

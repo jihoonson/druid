@@ -19,12 +19,14 @@
 
 package org.apache.druid.indexing.firehose;
 
+import org.apache.druid.data.input.InputEntity;
 import org.apache.druid.data.input.InputEntityReader;
-import org.apache.druid.data.input.InputEntitySampler;
 import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.query.filter.DimFilter;
 import org.apache.druid.segment.IndexIO;
+
+import java.io.File;
 
 public class DruidSegmentInputFormat implements InputFormat
 {
@@ -44,24 +46,19 @@ public class DruidSegmentInputFormat implements InputFormat
   }
 
   @Override
-  public InputEntityReader createReader(InputRowSchema inputRowSchema)
+  public InputEntityReader createReader(
+      InputRowSchema inputRowSchema,
+      InputEntity source,
+      File temporaryDirectory
+  )
   {
     return new DruidSegmentReader(
+        source,
         indexIO,
         inputRowSchema.getDimensionsSpec().getDimensionNames(),
         inputRowSchema.getMetricNames(),
-        dimFilter
-    );
-  }
-
-  @Override
-  public InputEntitySampler createSampler(InputRowSchema inputRowSchema)
-  {
-    return new DruidSegmentReader(
-        indexIO,
-        inputRowSchema.getDimensionsSpec().getDimensionNames(),
-        inputRowSchema.getMetricNames(),
-        dimFilter
+        dimFilter,
+        temporaryDirectory
     );
   }
 }

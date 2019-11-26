@@ -23,12 +23,12 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import org.apache.druid.data.input.impl.HttpInputSource;
+import org.apache.druid.data.input.impl.InlineInputSource;
 import org.apache.druid.data.input.impl.LocalInputSource;
-import org.apache.druid.guice.annotations.ExtensionPoint;
+import org.apache.druid.guice.annotations.UnstableApi;
 
 import javax.annotation.Nullable;
 import java.io.File;
-import java.io.IOException;
 
 /**
  * InputSource abstracts the storage system where input data is stored. It creates an {@link InputSourceReader}
@@ -45,11 +45,12 @@ import java.io.IOException;
  *   }
  * }</pre>
  */
-@ExtensionPoint
+@UnstableApi
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes(value = {
     @Type(name = "local", value = LocalInputSource.class),
-    @Type(name = "http", value = HttpInputSource.class)
+    @Type(name = "http", value = HttpInputSource.class),
+    @Type(name = "inline", value = InlineInputSource.class)
 })
 public interface InputSource
 {
@@ -68,15 +69,11 @@ public interface InputSource
   boolean needsFormat();
 
   /**
-   * Create an {@link InputSourceReader}.
+   * Creates an {@link InputSourceReader}.
    *
    * @param inputRowSchema     for {@link InputRow}
    * @param inputFormat        to parse data. It can be null if {@link #needsFormat()} = true
    * @param temporaryDirectory to store temp data. It will be cleaned up automatically once the task is finished.
    */
-  InputSourceReader reader(
-      InputRowSchema inputRowSchema,
-      @Nullable InputFormat inputFormat,
-      @Nullable File temporaryDirectory
-  ) throws IOException;
+  InputSourceReader reader(InputRowSchema inputRowSchema, @Nullable InputFormat inputFormat, File temporaryDirectory);
 }

@@ -23,11 +23,10 @@ import com.google.common.base.Preconditions;
 
 import javax.annotation.Nullable;
 import java.io.File;
-import java.io.IOException;
 
 /**
  * Abstract class for {@link InputSource}. This class provides a default implementation of {@link #reader} with
- * a sanity check. Child classes should implement one of {@link #formattableReader} or {@link #unformattableReader}
+ * a sanity check. Child classes should implement one of {@link #formattableReader} or {@link #fixedFormatReader}
  * depending on {@link #needsFormat()}.
  */
 public abstract class AbstractInputSource implements InputSource
@@ -36,8 +35,8 @@ public abstract class AbstractInputSource implements InputSource
   public InputSourceReader reader(
       InputRowSchema inputRowSchema,
       @Nullable InputFormat inputFormat,
-      @Nullable File temporaryDirectory
-  ) throws IOException
+      File temporaryDirectory
+  )
   {
     if (needsFormat()) {
       return formattableReader(
@@ -46,20 +45,20 @@ public abstract class AbstractInputSource implements InputSource
           temporaryDirectory
       );
     } else {
-      return unformattableReader(inputRowSchema, temporaryDirectory);
+      return fixedFormatReader(inputRowSchema, temporaryDirectory);
     }
   }
 
   protected InputSourceReader formattableReader(
       InputRowSchema inputRowSchema,
       InputFormat inputFormat,
-      @Nullable File temporaryDirectory
-  ) throws IOException
+      File temporaryDirectory
+  )
   {
     throw new UnsupportedOperationException("Implement this method properly if needsFormat() = true");
   }
 
-  protected InputSourceReader unformattableReader(InputRowSchema inputRowSchema, @Nullable File temporaryDirectory)
+  protected InputSourceReader fixedFormatReader(InputRowSchema inputRowSchema, File temporaryDirectory)
   {
     throw new UnsupportedOperationException("Implement this method properly if needsFormat() = false");
   }

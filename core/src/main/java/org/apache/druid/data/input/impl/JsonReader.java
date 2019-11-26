@@ -21,8 +21,8 @@ package org.apache.druid.data.input.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.druid.data.input.InputEntity;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowListPlusJson;
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.TextReader;
 import org.apache.druid.java.util.common.parsers.JSONFlattenerMaker;
@@ -31,6 +31,7 @@ import org.apache.druid.java.util.common.parsers.ObjectFlattener;
 import org.apache.druid.java.util.common.parsers.ObjectFlatteners;
 import org.apache.druid.java.util.common.parsers.ParseException;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -41,46 +42,32 @@ public class JsonReader extends TextReader
   private final ObjectFlattener<JsonNode> flattener;
   private final ObjectMapper mapper;
 
-  JsonReader(InputRowSchema inputRowSchema, JSONPathSpec flattenSpec, ObjectMapper mapper)
+  JsonReader(
+      InputRowSchema inputRowSchema,
+      InputEntity source,
+      File temporaryDirectory,
+      JSONPathSpec flattenSpec,
+      ObjectMapper mapper
+  )
   {
-    super(inputRowSchema);
+    super(inputRowSchema, source, temporaryDirectory);
     this.flattener = ObjectFlatteners.create(flattenSpec, new JSONFlattenerMaker());
     this.mapper = mapper;
   }
 
   @Override
-  public List<InputRow> readLine(String line) throws IOException, ParseException
+  public List<InputRow> parseInputRows(String line) throws IOException, ParseException
   {
     final JsonNode document = mapper.readValue(line, JsonNode.class);
     final Map<String, Object> flattened = flattener.flatten(document);
-    return Collections.singletonList(
-        MapInputRowParser.parse(
-            getInputRowSchema().getTimestampSpec(),
-            getInputRowSchema().getDimensionsSpec(),
-            flattened
-        )
-    );
+    return Collections.singletonList(MapInputRowParser.parse(getInputRowSchema(), flattened));
   }
 
   @Override
-  public InputRowListPlusJson sampleLine(String line) throws IOException
+  public Map<String, Object> toMap(String intermediateRow) throws IOException
   {
-    final JsonNode document = mapper.readValue(line, JsonNode.class);
-    final String rawJson = SAMPLER_JSON_WRITER.writeValueAsString(document);
-    final Map<String, Object> flattened = flattener.flatten(document);
-    try {
-      return InputRowListPlusJson.ofJson(
-          MapInputRowParser.parse(
-              getInputRowSchema().getTimestampSpec(),
-              getInputRowSchema().getDimensionsSpec(),
-              flattened
-          ),
-          rawJson
-      );
-    }
-    catch (ParseException e) {
-      return InputRowListPlusJson.of(rawJson, e);
-    }
+    //noinspection unchecked
+    return mapper.readValue(intermediateRow, Map.class);
   }
 
   @Override

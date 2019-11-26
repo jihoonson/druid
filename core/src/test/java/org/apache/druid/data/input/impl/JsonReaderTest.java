@@ -56,7 +56,7 @@ public class JsonReaderTest
         null
     );
 
-    final ByteSource source = new ByteSource(
+    final ByteEntity source = new ByteEntity(
         StringUtils.toUtf8("{\"timestamp\":\"2019-01-01\",\"bar\":null,\"foo\":\"x\",\"baz\":4,\"o\":{\"mg\":1}}")
     );
 
@@ -65,10 +65,12 @@ public class JsonReaderTest
             new TimestampSpec("timestamp", "iso", null),
             new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("bar", "foo"))),
             Collections.emptyList()
-        )
+        ),
+        source,
+        null
     );
     final int numExpectedIterations = 1;
-    try (CloseableIterator<InputRow> iterator = reader.read(source, null)) {
+    try (CloseableIterator<InputRow> iterator = reader.read()) {
       int numActualIterations = 0;
       while (iterator.hasNext()) {
         final InputRow row = iterator.next();
@@ -103,7 +105,7 @@ public class JsonReaderTest
         null
     );
 
-    final ByteSource source = new ByteSource(
+    final ByteEntity source = new ByteEntity(
         StringUtils.toUtf8("{\"timestamp\":\"2019-01-01\",\"something_else\": {\"foo\": \"test\"}}")
     );
 
@@ -112,11 +114,13 @@ public class JsonReaderTest
             new TimestampSpec("timestamp", "iso", null),
             new DimensionsSpec(DimensionsSpec.getDefaultSchemas(ImmutableList.of("foo"))),
             Collections.emptyList()
-        )
+        ),
+        source,
+        null
     );
 
     final int numExpectedIterations = 1;
-    try (CloseableIterator<InputRow> iterator = reader.read(source, null)) {
+    try (CloseableIterator<InputRow> iterator = reader.read()) {
       int numActualIterations = 0;
       while (iterator.hasNext()) {
         final InputRow row = iterator.next();
