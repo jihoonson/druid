@@ -42,7 +42,6 @@ import org.apache.druid.indexing.common.SegmentLoaderFactory;
 import org.apache.druid.indexing.firehose.WindowedSegmentId;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
-import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.query.filter.DimFilter;
@@ -191,19 +190,6 @@ public class DruidInputSource extends AbstractInputSource implements SplittableI
     } else {
       return getTimelineForInterval(coordinatorClient, retryPolicyFactory, dataSource, interval);
     }
-  }
-
-  private List<TimelineObjectHolder<String, DataSegment>> createTimeline(InputSplit<List<WindowedSegmentId>> split)
-  {
-    final List<DataSegment> segments = new ArrayList<>();
-    for (WindowedSegmentId segmentId : Preconditions.checkNotNull(split.get())) {
-      final DataSegment segment = coordinatorClient.getDatabaseSegmentDataSourceSegment(
-          dataSource,
-          segmentId.getSegmentId()
-      );
-      segments.add(segment);
-    }
-    return VersionedIntervalTimeline.forSegments(segments).lookup(Intervals.ETERNITY);
   }
 
   @Override
