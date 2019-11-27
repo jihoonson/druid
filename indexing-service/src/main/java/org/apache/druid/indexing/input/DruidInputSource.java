@@ -21,6 +21,8 @@ package org.apache.druid.indexing.input;
 
 import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.client.coordinator.CoordinatorClient;
@@ -121,21 +123,57 @@ public class DruidInputSource extends AbstractInputSource implements SplittableI
     this.inputFormat = new DruidSegmentInputFormat(indexIO, dimFilter);
   }
 
+  @JsonProperty
+  public String getDataSource()
+  {
+    return dataSource;
+  }
+
+  @Nullable
+  @JsonProperty
+  public Interval getInterval()
+  {
+    return interval;
+  }
+
+  @Nullable
+  @JsonProperty("segments")
+  @JsonInclude(Include.NON_NULL)
+  public List<WindowedSegmentId> getSegmentIds()
+  {
+    return segmentIds;
+  }
+
+  @JsonProperty("filter")
+  public DimFilter getDimFilter()
+  {
+    return dimFilter;
+  }
+
+  @JsonProperty
+  public List<String> getDimensions()
+  {
+    return dimensions;
+  }
+
+  @JsonProperty
+  public List<String> getMetrics()
+  {
+    return metrics;
+  }
+
   @Override
   protected InputSourceReader fixedFormatReader(InputRowSchema inputRowSchema, @Nullable File temporaryDirectory)
   {
     final SegmentLoader segmentLoader = segmentLoaderFactory.manufacturate(temporaryDirectory);
-    final Stream<InputEntity> entityStream = createSplits(inputFormat, null)
-        .flatMap(split -> {
-          final List<TimelineObjectHolder<String, DataSegment>> holders = createTimeline(split);
-          return holders
+
+    final Stream<InputEntity> entityStream = createTimeline()
+        .stream()
+        .flatMap(holder -> {
+          final PartitionHolder<DataSegment> partitionHolder = holder.getObject();
+          return partitionHolder
               .stream()
-              .flatMap(holder -> {
-                final PartitionHolder<DataSegment> partitionHolder = holder.getObject();
-                return partitionHolder
-                    .stream()
-                    .map(chunk -> new DruidSegmentInputEntity(segmentLoader, chunk.getObject(), holder.getInterval()));
-              });
+              .map(chunk -> new DruidSegmentInputEntity(segmentLoader, chunk.getObject(), holder.getInterval()));
         });
 
     return new InputEntityIteratingReader(
@@ -144,6 +182,15 @@ public class DruidInputSource extends AbstractInputSource implements SplittableI
         entityStream,
         temporaryDirectory
     );
+  }
+
+  private List<TimelineObjectHolder<String, DataSegment>> createTimeline()
+  {
+    if (interval == null) {
+      return getTimelineForSegmentIds(coordinatorClient, dataSource, segmentIds);
+    } else {
+      return getTimelineForInterval(coordinatorClient, retryPolicyFactory, dataSource, interval);
+    }
   }
 
   private List<TimelineObjectHolder<String, DataSegment>> createTimeline(InputSplit<List<WindowedSegmentId>> split)

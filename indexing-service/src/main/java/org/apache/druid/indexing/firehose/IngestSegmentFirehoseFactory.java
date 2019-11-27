@@ -281,18 +281,9 @@ public class IngestSegmentFirehoseFactory implements FiniteFirehoseFactory<Input
   private List<TimelineObjectHolder<String, DataSegment>> getTimeline()
   {
     if (interval == null) {
-      return DruidInputSource.getTimelineForSegmentIds(
-          coordinatorClient,
-          dataSource,
-          segmentIds
-      );
+      return DruidInputSource.getTimelineForSegmentIds(coordinatorClient, dataSource, segmentIds);
     } else {
-      return DruidInputSource.getTimelineForInterval(
-          coordinatorClient,
-          retryPolicyFactory,
-          dataSource,
-          interval
-      );
+      return DruidInputSource.getTimelineForInterval(coordinatorClient, retryPolicyFactory, dataSource, interval);
     }
   }
 
