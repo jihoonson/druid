@@ -23,9 +23,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import org.apache.druid.data.input.InputEntity;
 import org.apache.druid.data.input.InputEntity.CleanableFile;
-import org.apache.druid.data.input.InputEntityReader;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowListPlusRawValues;
+import org.apache.druid.data.input.IntermediateRowParsingReader;
 import org.apache.druid.data.input.MapBasedInputRow;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.java.util.common.DateTimes;
@@ -35,6 +34,7 @@ import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.guava.Yielder;
 import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
+import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
 import org.apache.druid.query.filter.DimFilter;
 import org.apache.druid.segment.BaseLongColumnValueSelector;
@@ -47,17 +47,19 @@ import org.apache.druid.segment.column.ColumnHolder;
 import org.apache.druid.segment.data.IndexedInts;
 import org.apache.druid.segment.filter.Filters;
 import org.apache.druid.segment.realtime.firehose.WindowedStorageAdapter;
+import org.joda.time.DateTime;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-public class DruidSegmentReader implements InputEntityReader
+public class DruidSegmentReader extends IntermediateRowParsingReader<Map<String, Object>>
 {
   private final DruidSegmentInputEntity source;
   private final IndexIO indexIO;
@@ -85,22 +87,16 @@ public class DruidSegmentReader implements InputEntityReader
   }
 
   @Override
-  public CloseableIterator<InputRow> read()
+  protected CloseableIterator<Map<String, Object>> intermediateRowIterator() throws IOException
   {
     final CleanableFile segmentFile = source.fetch(temporaryDirectory, null);
-    final WindowedStorageAdapter storageAdapter;
-    try {
-      storageAdapter = new WindowedStorageAdapter(
-          new QueryableIndexStorageAdapter(
-              indexIO.loadIndex(segmentFile.file())
-          ),
-          source.getIntervalFilter()
-      );
-    }
-    catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-    final Sequence<InputRow> sequence = Sequences.concat(
+    final WindowedStorageAdapter storageAdapter = new WindowedStorageAdapter(
+        new QueryableIndexStorageAdapter(
+            indexIO.loadIndex(segmentFile.file())
+        ),
+        source.getIntervalFilter()
+    );
+    final Sequence<Map<String, Object>> sequence = Sequences.concat(
         Sequences.map(
             storageAdapter.getAdapter().makeCursors(
                 Filters.toFilter(dimFilter),
@@ -133,7 +129,7 @@ public class DruidSegmentReader implements InputEntityReader
               }
 
               return Sequences.simple(
-                  () -> new Iterator<InputRow>()
+                  () -> new Iterator<Map<String, Object>>()
                   {
                     @Override
                     public boolean hasNext()
@@ -142,14 +138,13 @@ public class DruidSegmentReader implements InputEntityReader
                     }
 
                     @Override
-                    public InputRow next()
+                    public Map<String, Object> next()
                     {
                       final Map<String, Object> theEvent = Maps.newLinkedHashMap();
                       final long timestamp = timestampColumnSelector.getLong();
                       theEvent.put(TimestampSpec.DEFAULT_COLUMN, DateTimes.utc(timestamp));
 
-                      for (Entry<String, DimensionSelector> dimSelector :
-                          dimSelectors.entrySet()) {
+                      for (Entry<String, DimensionSelector> dimSelector : dimSelectors.entrySet()) {
                         final String dim = dimSelector.getKey();
                         final DimensionSelector selector = dimSelector.getValue();
                         final IndexedInts vals = selector.getRow();
@@ -176,7 +171,7 @@ public class DruidSegmentReader implements InputEntityReader
                         }
                       }
                       cursor.advance();
-                      return new MapBasedInputRow(timestamp, dimensions, theEvent);
+                      return theEvent;
                     }
 
                     @Override
@@ -189,9 +184,9 @@ public class DruidSegmentReader implements InputEntityReader
             }
         )
     );
-    return new CloseableIterator<InputRow>()
+    return new CloseableIterator<Map<String, Object>>()
     {
-      Yielder<InputRow> rowYielder = Yielders.each(sequence);
+      Yielder<Map<String, Object>> rowYielder = Yielders.each(sequence);
 
       @Override
       public boolean hasNext()
@@ -200,11 +195,11 @@ public class DruidSegmentReader implements InputEntityReader
       }
 
       @Override
-      public InputRow next()
+      public Map<String, Object> next()
       {
-        final InputRow inputRow = rowYielder.get();
+        final Map<String, Object> row = rowYielder.get();
         rowYielder = rowYielder.next(null);
-        return inputRow;
+        return row;
       }
 
       @Override
@@ -216,8 +211,15 @@ public class DruidSegmentReader implements InputEntityReader
   }
 
   @Override
-  public CloseableIterator<InputRowListPlusRawValues> sample()
+  protected List<InputRow> parseInputRows(Map<String, Object> intermediateRow) throws ParseException
   {
-    return null;
+    final DateTime timestamp = (DateTime) intermediateRow.get(TimestampSpec.DEFAULT_COLUMN);
+    return Collections.singletonList(new MapBasedInputRow(timestamp.getMillis(), dimensions, intermediateRow));
+  }
+
+  @Override
+  protected Map<String, Object> toMap(Map<String, Object> intermediateRow)
+  {
+    return intermediateRow;
   }
 }
