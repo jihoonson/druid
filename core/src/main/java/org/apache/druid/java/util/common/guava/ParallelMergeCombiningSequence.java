@@ -623,6 +623,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
               adjustedNextYieldAfter
           );
           if (numClones > 0) {
+            LOG.debug("numClones: %d", numClones);
             getPool().execute(new MergeCombineAction<>(
                 rootActionContext,
                 pQueue,
@@ -668,8 +669,10 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
           // if priority queue is empty, push the final accumulated value into the output batch and push it out
           outputBatch.add(currentCombinedValue);
           metricsAccumulator.incrementOutputRows(batchCounter + 1L);
+          LOG.debug("offering outputQueue");
           outputQueue.offer(outputBatch);
           // ... and the terminal value to indicate the blocking queue holding the values is complete
+          LOG.debug("offering terminal");
           outputQueue.offer(ResultBatch.TERMINAL);
           LOG.debug("merge combine complete after %s tasks", metricsAccumulator.getTaskCount());
         }
@@ -796,7 +799,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
               targetTimeNanos,
               metricsAccumulator,
               cancellationGizmo,
-              0
+              1 // TODO: compute a good numClones
           ));
         } else {
           outputQueue.offer(ResultBatch.TERMINAL);

@@ -576,7 +576,8 @@ public class ParallelMergeCombiningSequenceTest
         yieldAfter,
         batchSize,
         ParallelMergeCombiningSequence.DEFAULT_TASK_TARGET_RUN_TIME_MILLIS,
-        reporter
+        null
+        // reporter
     );
 
     Yielder<IntPair> combiningYielder = Yielders.each(combiningSequence);
