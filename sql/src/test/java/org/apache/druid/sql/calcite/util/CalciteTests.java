@@ -44,7 +44,7 @@ import org.apache.druid.data.input.impl.TimeAndDimsParseSpec;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.discovery.DruidLeaderClient;
 import org.apache.druid.discovery.DruidNodeDiscoveryProvider;
-import org.apache.druid.discovery.NodeType;
+import org.apache.druid.discovery.NodeRole;
 import org.apache.druid.guice.ExpressionModule;
 import org.apache.druid.guice.annotations.Json;
 import org.apache.druid.java.util.common.Pair;
@@ -129,6 +129,7 @@ import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -779,7 +780,7 @@ public class CalciteTests
     final DruidLeaderClient druidLeaderClient = new DruidLeaderClient(
         EasyMock.createMock(HttpClient.class),
         EasyMock.createMock(DruidNodeDiscoveryProvider.class),
-        NodeType.COORDINATOR,
+        NodeRole.COORDINATOR,
         "/simple/leader",
         new ServerDiscoverySelector(EasyMock.createMock(ServiceProvider.class), "test")
     )
@@ -803,5 +804,20 @@ public class CalciteTests
         getJsonMapper()
     );
     return schema;
+  }
+
+  /**
+   * Some Calcite exceptions (such as that thrown by
+   * {@link org.apache.druid.sql.calcite.CalciteQueryTest#testCountStarWithTimeFilterUsingStringLiteralsInvalid)},
+   * are structured as a chain of RuntimeExceptions caused by InvocationTargetExceptions. To get the root exception
+   * it is necessary to make getTargetException calls on the InvocationTargetExceptions.
+   */
+  public static Throwable getRootCauseFromInvocationTargetExceptionChain(Throwable t)
+  {
+    Throwable curThrowable = t;
+    while (curThrowable.getCause() instanceof InvocationTargetException) {
+      curThrowable = ((InvocationTargetException) curThrowable.getCause()).getTargetException();
+    }
+    return curThrowable;
   }
 }

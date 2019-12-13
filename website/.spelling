@@ -69,6 +69,7 @@ Elasticsearch
 FirehoseFactory
 Float.NEGATIVE_INFINITY
 Float.POSITIVE_INFINITY
+ForwardedRequestCustomizer
 GC
 GPG
 GSSAPI
@@ -90,6 +91,7 @@ ISO8601
 IndexSpec
 IndexTask
 InfluxDB
+InputFormat
 Integer.MAX_VALUE
 JBOD
 JDBC
@@ -324,6 +326,7 @@ rsync
 runtime
 schemas
 searchable
+servlet
 sharded
 sharding
 smooshed
@@ -358,6 +361,7 @@ unmerged
 unparseable
 unparsed
 uptime
+uris
 v1
 v2
 vCPUs
@@ -668,6 +672,8 @@ taskDuration
 9.2dist
 KinesisSupervisorIOConfig
 KinesisSupervisorTuningConfig
+Resharding
+resharding
 LZ4LZFuncompressedLZ4LZ4LZFuncompressednoneLZ4autolongsautolongslongstypeconcisetyperoaringcompressRunOnSerializationtruetypestreamendpointreplicastaskCounttaskCount
 deaggregate
 druid-kinesis-indexing-service
@@ -936,6 +942,8 @@ forceGuaranteedRollup
 httpAuthenticationPassword
 httpAuthenticationUsername
 ingestSegment
+InputSource
+DruidInputSource
 maxInputSegmentBytesPerTask
 maxNumConcurrentSubTasks
 maxNumSegmentsToMerge

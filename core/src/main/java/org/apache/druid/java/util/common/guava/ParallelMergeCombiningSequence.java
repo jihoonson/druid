@@ -29,6 +29,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -43,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BinaryOperator;
+import java.util.function.Consumer;
 
 /**
  * Artisanal, locally-sourced, hand-crafted, gluten and GMO free, bespoke, free-range, organic, small-batch parallel
@@ -64,7 +66,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
   public static final int DEFAULT_TASK_SMALL_BATCH_NUM_ROWS = 4096;
 
   private final ForkJoinPool workerPool;
-  private final List<Sequence<T>> baseSequences;
+  private final List<Sequence<T>> inputSequences;
   private final Ordering<T> orderingFn;
   private final BinaryOperator<T> combineFn;
   private final int queueSize;
@@ -75,11 +77,12 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
   private final int batchSize;
   private final int parallelism;
   private final long targetTimeNanos;
+  private final Consumer<MergeCombineMetrics> metricsReporter;
   private final CancellationGizmo cancellationGizmo;
 
   public ParallelMergeCombiningSequence(
       ForkJoinPool workerPool,
-      List<Sequence<T>> baseSequences,
+      List<Sequence<T>> inputSequences,
       Ordering<T> orderingFn,
       BinaryOperator<T> combineFn,
       boolean hasTimeout,
@@ -88,11 +91,12 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
       int parallelism,
       int yieldAfter,
       int batchSize,
-      int targetTimeMillis
+      int targetTimeMillis,
+      Consumer<MergeCombineMetrics> reporter
   )
   {
     this.workerPool = workerPool;
-    this.baseSequences = baseSequences;
+    this.inputSequences = inputSequences;
     this.orderingFn = orderingFn;
     this.combineFn = combineFn;
     this.hasTimeout = hasTimeout;
@@ -103,22 +107,24 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
     this.batchSize = batchSize;
     this.targetTimeNanos = TimeUnit.NANOSECONDS.convert(targetTimeMillis, TimeUnit.MILLISECONDS);
     this.queueSize = 4 * (yieldAfter / batchSize);
+    this.metricsReporter = reporter;
     this.cancellationGizmo = new CancellationGizmo();
   }
 
   @Override
   public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
   {
-    if (baseSequences.isEmpty()) {
+    if (inputSequences.isEmpty()) {
       return Sequences.<T>empty().toYielder(initValue, accumulator);
     }
 
     final BlockingQueue<ResultBatch<T>> outputQueue = new ArrayBlockingQueue<>(queueSize);
-    List<BatchedResultsCursor<T>> sequenceCursors = new ArrayList<>(baseSequences.size());
-    for (Sequence<T> s : baseSequences) {
+    final MergeCombineMetricsAccumulator metricsAccumulator = new MergeCombineMetricsAccumulator(inputSequences.size());
+    List<BatchedResultsCursor<T>> sequenceCursors = new ArrayList<>(inputSequences.size());
+    for (Sequence<T> s : inputSequences) {
       sequenceCursors.add(new YielderBatchedResultsCursor<>(new SequenceBatcher<>(s, batchSize), orderingFn));
     }
-    MergeCombinePartitioningAction<T> finalMergeAction = new MergeCombinePartitioningAction<>(
+    MergeCombinePartitioningAction<T> mergeCombineAction = new MergeCombinePartitioningAction<>(
         sequenceCursors,
         orderingFn,
         combineFn,
@@ -130,12 +136,22 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         targetTimeNanos,
         hasTimeout,
         timeoutAtNanos,
+        metricsAccumulator,
         cancellationGizmo,
         false,
         null
     );
-    workerPool.execute(finalMergeAction);
-    Sequence<T> finalOutSequence = makeOutputSequenceForQueue(outputQueue, hasTimeout, timeoutAtNanos, cancellationGizmo);
+    workerPool.execute(mergeCombineAction);
+    Sequence<T> finalOutSequence = makeOutputSequenceForQueue(
+        outputQueue,
+        hasTimeout,
+        timeoutAtNanos,
+        cancellationGizmo
+    ).withBaggage(() -> {
+      if (metricsReporter != null) {
+        metricsReporter.accept(metricsAccumulator.build());
+      }
+    });
     return finalOutSequence.toYielder(initValue, accumulator);
   }
 
@@ -253,6 +269,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
     private final long targetTimeNanos;
     private final boolean hasTimeout;
     private final long timeoutAt;
+    private final MergeCombineMetricsAccumulator metricsAccumulator;
     private final CancellationGizmo cancellationGizmo;
     private final boolean cursorInitialized;
     private final T currentCombinedValue;
@@ -269,6 +286,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         long targetTimeNanos,
         boolean hasTimeout,
         long timeoutAt,
+        MergeCombineMetricsAccumulator metricsAccumulator,
         CancellationGizmo cancellationGizmo,
         boolean cursorInitialized,
         T currentCombinedValue
@@ -285,6 +303,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
       this.targetTimeNanos = targetTimeNanos;
       this.hasTimeout = hasTimeout;
       this.timeoutAt = timeoutAt;
+      this.metricsAccumulator = metricsAccumulator;
       this.cancellationGizmo = cancellationGizmo;
       this.cursorInitialized = cursorInitialized;
       this.currentCombinedValue = currentCombinedValue;
@@ -308,8 +327,11 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
 
           QueuePusher<ResultBatch<T>> resultsPusher = new QueuePusher<>(out, hasTimeout, timeoutAt);
 
+          MergeCombineActionMetricsAccumulator soloAccumulator = new MergeCombineActionMetricsAccumulator();
+          metricsAccumulator.setPartitions(Collections.emptyList());
+          metricsAccumulator.setMergeMetrics(soloAccumulator);
           PrepareMergeCombineInputsAction<T> blockForInputsAction = new PrepareMergeCombineInputsAction<>(
-              new RootActionContext<>(sequenceCursors, queueSize, parallelism, hasTimeout, timeoutAt, cursorInitialized, currentCombinedValue),
+              new RootActionContext<>(sequenceCursors, queueSize, parallelism, hasTimeout, timeoutAt, cursorInitialized, currentCombinedValue, metricsAccumulator),
               sequenceCursors,
               resultsPusher,
               orderingFn,
@@ -317,6 +339,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
               yieldAfter,
               batchSize,
               targetTimeNanos,
+              soloAccumulator,
               cancellationGizmo
           );
           getPool().execute(blockForInputsAction);
@@ -334,7 +357,9 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
 
     private void spawnParallelTasks(int parallelMergeTasks)
     {
-      List<RecursiveAction> tasks = new ArrayList<>();
+      List<RecursiveAction> tasks = new ArrayList<>(parallelMergeTasks);
+      List<MergeCombineActionMetricsAccumulator> taskMetrics = new ArrayList<>(parallelMergeTasks);
+
       List<BlockingQueue<ResultBatch<T>>> intermediaryOutputs = new ArrayList<>(parallelMergeTasks);
 
       List<? extends List<BatchedResultsCursor<T>>> partitions =
@@ -345,6 +370,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         intermediaryOutputs.add(outputQueue);
         QueuePusher<ResultBatch<T>> pusher = new QueuePusher<>(outputQueue, hasTimeout, timeoutAt);
 
+        MergeCombineActionMetricsAccumulator partitionAccumulator = new MergeCombineActionMetricsAccumulator();
         PrepareMergeCombineInputsAction<T> blockForInputsAction = new PrepareMergeCombineInputsAction<>(
             null,
             partitionCursors,
@@ -354,10 +380,14 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
             yieldAfter,
             batchSize,
             targetTimeNanos,
+            partitionAccumulator,
             cancellationGizmo
         );
         tasks.add(blockForInputsAction);
+        taskMetrics.add(partitionAccumulator);
       }
+
+      metricsAccumulator.setPartitions(taskMetrics);
 
       for (RecursiveAction task : tasks) {
         getPool().execute(task);
@@ -370,8 +400,11 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
             new BlockingQueueuBatchedResultsCursor<>(queue, orderingFn, hasTimeout, timeoutAt)
         );
       }
+      MergeCombineActionMetricsAccumulator finalMergeMetrics = new MergeCombineActionMetricsAccumulator();
+
+      metricsAccumulator.setMergeMetrics(finalMergeMetrics);
       PrepareMergeCombineInputsAction<T> finalMergeAction = new PrepareMergeCombineInputsAction<>(
-          new RootActionContext<>(sequenceCursors, queueSize, parallelism, hasTimeout, timeoutAt, cursorInitialized, currentCombinedValue),
+          new RootActionContext<>(sequenceCursors, queueSize, parallelism, hasTimeout, timeoutAt, cursorInitialized, currentCombinedValue, metricsAccumulator),
           intermediaryOutputsCursors,
           outputPusher,
           orderingFn,
@@ -379,6 +412,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
           yieldAfter,
           batchSize,
           targetTimeNanos,
+          finalMergeMetrics,
           cancellationGizmo
       );
 
@@ -451,9 +485,9 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
    * this task completes and executes a new task to continue where it left off. This value is initially set by the
    * {@link MergeCombinePartitioningAction} to a default value, but after that this process is timed to try and compute
    * an 'optimal' number of rows to yield to achieve a task runtime of ~10ms, on the assumption that the time to process
-   * n results will be approximately the same. {@link #recursionDepth} is used to track how many times a task has
-   * continued executing, and utilized to compute a cumulative moving average of task run time per amount yielded in
-   * order to 'smooth' out the continual adjustment.
+   * n results will be approximately the same. {@link MergeCombineActionMetricsAccumulator#taskCount} is used to track
+   * how many times a task has continued executing, and utilized to compute a cumulative moving average of task run time
+   * per amount yielded in order to 'smooth' out the continual adjustment.
    */
   private static class MergeCombineAction<T> extends RecursiveAction
   {
@@ -467,7 +501,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
     private final int yieldAfter;
     private final int batchSize;
     private final long targetTimeNanos;
-    private final int recursionDepth;
+    private final MergeCombineActionMetricsAccumulator metricsAccumulator;
     private final CancellationGizmo cancellationGizmo;
     private final int numClones;
 
@@ -481,7 +515,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         int yieldAfter,
         int batchSize,
         long targetTimeNanos,
-        int recursionDepth,
+        MergeCombineActionMetricsAccumulator metricsAccumulator,
         CancellationGizmo cancellationGizmo,
         int numClones
     )
@@ -495,7 +529,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
       this.yieldAfter = yieldAfter;
       this.batchSize = batchSize;
       this.targetTimeNanos = targetTimeNanos;
-      this.recursionDepth = recursionDepth;
+      this.metricsAccumulator = metricsAccumulator;
       this.cancellationGizmo = cancellationGizmo;
       this.numClones = numClones;
     }
@@ -512,7 +546,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         ResultBatch<T> outputBatch = new ResultBatch<>(batchSize);
 
         T currentCombinedValue = initialValue;
-        while (counter++ < yieldAfter && !pQueue.isEmpty()) {
+        while (counter < yieldAfter && !pQueue.isEmpty()) {
           BatchedResultsCursor<T> cursor = pQueue.poll();
 
           // push the queue along
@@ -526,6 +560,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
               cursor.close();
             }
 
+            counter++;
             // if current value is null, combine null with next value
             if (currentCombinedValue == null) {
               currentCombinedValue = combineFn.apply(null, nextValueToAccumulate);
@@ -544,6 +579,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
             if (batchCounter >= batchSize) {
               outputQueue.offer(outputBatch);
               outputBatch = new ResultBatch<>(batchSize);
+              metricsAccumulator.incrementOutputRows(batchCounter);
               batchCounter = 0;
             }
 
@@ -554,19 +590,25 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
           }
         }
 
+        final long elapsedCpuNanos = JvmUtils.safeGetThreadCpuTime() - startCpuNanos;
+        metricsAccumulator.incrementInputRows(counter);
+        metricsAccumulator.incrementCpuTimeNanos(elapsedCpuNanos);
+        metricsAccumulator.incrementTaskCount();
+
         if (!pQueue.isEmpty() && !cancellationGizmo.isCancelled()) {
           // if there is still work to be done, execute a new task with the current accumulated value to continue
           // combining where we left off
           if (!outputBatch.isDrained()) {
             outputQueue.offer(outputBatch);
+            metricsAccumulator.incrementOutputRows(batchCounter);
           }
 
           // measure the time it took to process 'yieldAfter' elements in order to project a next 'yieldAfter' value
           // which we want to target a 10ms task run time. smooth this value with a cumulative moving average in order
           // to prevent normal jitter in processing time from skewing the next yield value too far in any direction
           final long elapsedNanos = System.nanoTime() - start;
-          final long elapsedCpuNanos = JvmUtils.safeGetThreadCpuTime() - startCpuNanos;
           final double nextYieldAfter = Math.max((double) targetTimeNanos * ((double) yieldAfter / elapsedCpuNanos), 1.0);
+          final long recursionDepth = metricsAccumulator.getTaskCount();
           final double cumulativeMovingAverage =
               (nextYieldAfter + (recursionDepth * yieldAfter)) / (recursionDepth + 1);
           final int adjustedNextYieldAfter = (int) Math.ceil(cumulativeMovingAverage);
@@ -591,14 +633,14 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
                 adjustedNextYieldAfter,
                 batchSize,
                 targetTimeNanos,
-                recursionDepth + 1,
+                metricsAccumulator,
                 cancellationGizmo,
                 numClones - 1
             ));
           } else if (rootActionContext != null) {
             LOG.debug("Wow! resetting!!!!!!!!!!!");
             getPool().execute(
-                new MergeCombinePartitioningAction<>(
+                new MergeCombinePartitioningAction<T>(
                     rootActionContext.sequenceCursors,
                     orderingFn,
                     combineFn,
@@ -610,6 +652,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
                     targetTimeNanos,
                     rootActionContext.hasTimeout,
                     rootActionContext.timeoutAt,
+                    rootActionContext.mergeCombineMetricsAccumulator,
                     cancellationGizmo,
                     true,
                     currentCombinedValue
@@ -619,15 +662,16 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         } else if (cancellationGizmo.isCancelled()) {
           // if we got the cancellation signal, go ahead and write terminal value into output queue to help gracefully
           // allow downstream stuff to stop
-          LOG.debug("cancelled after %s tasks", recursionDepth);
+          LOG.debug("cancelled after %s tasks", metricsAccumulator.getTaskCount());
           outputQueue.offer(ResultBatch.TERMINAL);
         } else {
           // if priority queue is empty, push the final accumulated value into the output batch and push it out
           outputBatch.add(currentCombinedValue);
+          metricsAccumulator.incrementOutputRows(batchCounter + 1L);
           outputQueue.offer(outputBatch);
           // ... and the terminal value to indicate the blocking queue holding the values is complete
           outputQueue.offer(ResultBatch.TERMINAL);
-          LOG.debug("merge combine complete after %s tasks", recursionDepth);
+          LOG.debug("merge combine complete after %s tasks", metricsAccumulator.getTaskCount());
         }
       }
       catch (Exception ex) {
@@ -647,6 +691,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
     private final boolean cursorInitialized;
     @Nullable
     private final T currentCombinedValue;
+    private final MergeCombineMetricsAccumulator mergeCombineMetricsAccumulator;
 
     RootActionContext(
         List<BatchedResultsCursor<T>> sequenceCursors,
@@ -655,7 +700,8 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         boolean hasTimeout,
         long timeoutAt,
         boolean cursorInitialized,
-        @Nullable T currentCombinedValue
+        @Nullable T currentCombinedValue,
+        MergeCombineMetricsAccumulator mergeCombineMetricsAccumulator
     )
     {
       this.sequenceCursors = sequenceCursors;
@@ -665,6 +711,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
       this.timeoutAt = timeoutAt;
       this.cursorInitialized = cursorInitialized;
       this.currentCombinedValue = currentCombinedValue;
+      this.mergeCombineMetricsAccumulator = mergeCombineMetricsAccumulator;
     }
   }
 
@@ -693,6 +740,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
     private final int yieldAfter;
     private final int batchSize;
     private final long targetTimeNanos;
+    private final MergeCombineActionMetricsAccumulator metricsAccumulator;
     private final CancellationGizmo cancellationGizmo;
 
     private PrepareMergeCombineInputsAction(
@@ -704,6 +752,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         int yieldAfter,
         int batchSize,
         long targetTimeNanos,
+        MergeCombineActionMetricsAccumulator metricsAccumulator,
         CancellationGizmo cancellationGizmo
     )
     {
@@ -715,6 +764,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
       this.yieldAfter = yieldAfter;
       this.batchSize = batchSize;
       this.targetTimeNanos = targetTimeNanos;
+      this.metricsAccumulator = metricsAccumulator;
       this.cancellationGizmo = cancellationGizmo;
     }
 
@@ -744,7 +794,7 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
               yieldAfter,
               batchSize,
               targetTimeNanos,
-              1,
+              metricsAccumulator,
               cancellationGizmo,
               0
           ));
@@ -1184,6 +1234,200 @@ public class ParallelMergeCombiningSequence<T> extends YieldingSequenceBase<T>
         return (RuntimeException) ex;
       }
       return new RE(ex);
+    }
+  }
+
+  /**
+   * Metrics for the execution of a {@link ParallelMergeCombiningSequence} on the {@link ForkJoinPool}
+   */
+  public static class MergeCombineMetrics
+  {
+    private final int parallelism;
+    private final int inputSequences;
+    private final long inputRows;
+    private final long outputRows;
+    private final long taskCount;
+    private final long totalCpuTime;
+
+    MergeCombineMetrics(
+        int parallelism,
+        int inputSequences,
+        long inputRows,
+        long outputRows,
+        long taskCount,
+        long totalCpuTime
+    )
+    {
+      this.parallelism = parallelism;
+      this.inputSequences = inputSequences;
+      this.inputRows = inputRows;
+      this.outputRows = outputRows;
+      this.taskCount = taskCount;
+      this.totalCpuTime = totalCpuTime;
+    }
+
+    /**
+     * Total number of layer 1 parallel tasks (+ 1 for total number of concurrent tasks for this query)
+     */
+    public int getParallelism()
+    {
+      return parallelism;
+    }
+
+    /**
+     * Total number of input {@link Sequence} processed by {@link ParallelMergeCombiningSequence}
+     */
+    public long getInputSequences()
+    {
+      return inputSequences;
+    }
+
+    /**
+     * Total number of input 'rows' processed by the {@link ParallelMergeCombiningSequence}
+     */
+    public long getInputRows()
+    {
+      return inputRows;
+    }
+
+    /**
+     * Total number of output 'rows' produced by merging and combining the set of input {@link Sequence}s
+     */
+    public long getOutputRows()
+    {
+      return outputRows;
+    }
+
+    /**
+     * Total number of {@link ForkJoinPool} tasks involved in executing the {@link ParallelMergeCombiningSequence},
+     * including {@link MergeCombinePartitioningAction}, {@link PrepareMergeCombineInputsAction}, and
+     * {@link MergeCombineAction}.
+     */
+    public long getTaskCount()
+    {
+      return taskCount;
+    }
+
+    /**
+     * Total CPU time in nanoseconds during the 'hot loop' of doing actual merging and combining
+     * in {@link MergeCombineAction}
+     */
+    public long getTotalCpuTime()
+    {
+      return totalCpuTime;
+    }
+  }
+
+  /**
+   * Holder to accumlate metrics for all work done {@link ParallelMergeCombiningSequence}, containing layer 1 task
+   * metrics in {@link #partitionMetrics} and final merge task metrics in {@link #mergeMetrics}, in order to compute
+   * {@link MergeCombineMetrics} after the {@link ParallelMergeCombiningSequence} is completely consumed.
+   */
+  static class MergeCombineMetricsAccumulator
+  {
+    List<MergeCombineActionMetricsAccumulator> partitionMetrics;
+    MergeCombineActionMetricsAccumulator mergeMetrics;
+    private final int inputSequences;
+
+    MergeCombineMetricsAccumulator(int inputSequences)
+    {
+      this.inputSequences = inputSequences;
+    }
+
+    void setMergeMetrics(MergeCombineActionMetricsAccumulator mergeMetrics)
+    {
+      this.mergeMetrics = mergeMetrics;
+    }
+
+    void setPartitions(List<MergeCombineActionMetricsAccumulator> partitionMetrics)
+    {
+      this.partitionMetrics = partitionMetrics;
+    }
+
+    MergeCombineMetrics build()
+    {
+      long numInputRows = 0;
+      long cpuTimeNanos = 0;
+      // 1 partition task, 1 layer two prepare merge inputs task, 1 layer one prepare merge inputs task for each
+      // partition
+      long totalPoolTasks = 1 + 1 + partitionMetrics.size();
+
+      // accumulate input row count, cpu time, and total number of tasks from each partition
+      for (MergeCombineActionMetricsAccumulator partition : partitionMetrics) {
+        numInputRows += partition.getInputRows();
+        cpuTimeNanos += partition.getTotalCpuTimeNanos();
+        totalPoolTasks += partition.getTaskCount();
+      }
+      // if serial merge done, only mergeMetrics is populated, get input rows from there instead. otherwise, ignore the
+      // value as it is only the number of intermediary input rows to the layer 2 task
+      if (partitionMetrics.isEmpty()) {
+        numInputRows = mergeMetrics.getInputRows();
+      }
+      // number of fjp tasks and cpu time is interesting though
+      totalPoolTasks += mergeMetrics.getTaskCount();
+      cpuTimeNanos += mergeMetrics.getTotalCpuTimeNanos();
+
+      final long numOutputRows = mergeMetrics.getOutputRows();
+
+      return new MergeCombineMetrics(
+          Math.max(partitionMetrics.size(), 1),
+          inputSequences,
+          numInputRows,
+          numOutputRows,
+          totalPoolTasks,
+          cpuTimeNanos
+      );
+    }
+  }
+
+  /**
+   * Accumulate metrics about a single chain of{@link MergeCombineAction}
+   */
+  static class MergeCombineActionMetricsAccumulator
+  {
+    private long taskCount = 1;
+    private long inputRows = 0;
+    private long outputRows = 0;
+    private long totalCpuTimeNanos = 0;
+
+    void incrementTaskCount()
+    {
+      taskCount++;
+    }
+
+    void incrementInputRows(long numInputRows)
+    {
+      inputRows += numInputRows;
+    }
+
+    void incrementOutputRows(long numOutputRows)
+    {
+      outputRows += numOutputRows;
+    }
+
+    void incrementCpuTimeNanos(long nanos)
+    {
+      totalCpuTimeNanos += nanos;
+    }
+
+    long getTaskCount()
+    {
+      return taskCount;
+    }
+
+    long getInputRows()
+    {
+      return inputRows;
+    }
+
+    long getOutputRows()
+    {
+      return outputRows;
+    }
+
+    long getTotalCpuTimeNanos()
+    {
+      return totalCpuTimeNanos;
     }
   }
 }

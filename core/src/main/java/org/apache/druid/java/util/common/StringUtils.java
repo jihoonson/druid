@@ -112,7 +112,7 @@ public class StringUtils
 
   /**
    * Encodes "string" into the buffer "byteBuffer", using no more than the number of bytes remaining in the buffer.
-   * Will only encode whole characters. The byteBuffer's position and limit be changed during operation, but will
+   * Will only encode whole characters. The byteBuffer's position and limit may be changed during operation, but will
    * be reset before this method call ends.
    *
    * @return the number of bytes written, which may be shorter than the full encoded string length if there
@@ -235,6 +235,16 @@ public class StringUtils
     catch (UnsupportedEncodingException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  public static String maybeRemoveLeadingSlash(String s)
+  {
+    return s != null && s.startsWith("/") ? s.substring(1) : s;
+  }
+
+  public static String maybeRemoveTrailingSlash(String s)
+  {
+    return s != null && s.endsWith("/") ? s.substring(0, s.length() - 1) : s;
   }
 
   /**
