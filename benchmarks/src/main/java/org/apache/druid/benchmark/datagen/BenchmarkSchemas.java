@@ -294,4 +294,46 @@ public class BenchmarkSchemas
 
     SCHEMA_MAP.put("nulls-and-non-nulls", nullsSchema);
   }
+
+  static { // bug-bash schema
+    List<BenchmarkColumnSchema> basicSchemaColumns = ImmutableList.of(
+        // dims
+        BenchmarkColumnSchema.makeEnumerated(
+            "dimSingleValString",
+            ValueType.STRING,
+            false,
+            1,
+            0.1,
+            Arrays.asList("Hello", "World", "Foo", "Bar", "Baz"),
+            Arrays.asList(0.2, 0.25, 0.15, 0.10, 0.3)
+        ),
+        BenchmarkColumnSchema.makeEnumerated(
+            "dimMultiValString",
+            ValueType.STRING,
+            false,
+            3,
+            0.3,
+            Arrays.asList("Apple", "Orange", "Xylophone", "Corundum", null),
+            Arrays.asList(0.2, 0.25, 0.15, 0.10, 0.3)
+        ),
+        // metrics
+        BenchmarkColumnSchema.makeSequential("metLong", ValueType.LONG, true, 1, 0.2, 0, 10000),
+        BenchmarkColumnSchema.makeSequential("metFloat", ValueType.FLOAT, true, 1, 0.2, 0, 1000),
+        BenchmarkColumnSchema.makeSequential("metDouble", ValueType.DOUBLE, true, 1, 0.2, 0, 1000)
+    );
+
+    List<AggregatorFactory> basicSchemaIngestAggs = new ArrayList<>();
+    basicSchemaIngestAggs.add(new CountAggregatorFactory("rows"));
+
+    Interval basicSchemaDataInterval = Intervals.of("2000-01-01/P1D");
+
+    BenchmarkSchemaInfo basicSchema = new BenchmarkSchemaInfo(
+        basicSchemaColumns,
+        basicSchemaIngestAggs,
+        basicSchemaDataInterval,
+        true
+    );
+
+    SCHEMA_MAP.put("bug-bash", basicSchema);
+  }
 }
