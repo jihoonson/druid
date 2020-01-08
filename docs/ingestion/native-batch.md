@@ -232,7 +232,7 @@ Currently only one splitHintSpec, i.e., `segments`, is available.
 
 #### `SegmentsSplitHintSpec`
 
-`SegmentsSplitHintSpec` is used only for `IngestSegmentFirehose`.
+`SegmentsSplitHintSpec` is used only for `DruidInputSource` and `IngestSegmentFirehose`.
 
 |property|description|default|required?|
 |--------|-----------|-------|---------|
@@ -246,11 +246,30 @@ You should use different partitionsSpec depending on the [rollup mode](../ingest
 For perfect rollup, you should use either `hashed` (partitioning based on the hash of dimensions in each row) or
 `single_dim` (based on ranges of a single dimension). For best-effort rollup, you should use `dynamic`.
 
-The three `partitionsSpec` types have different pros and cons:
-- `dynamic`: Fastest ingestion speed. Guarantees a well-balanced distribution in segment size. Only best-effort rollup.
-- `hashed`: Moderate ingestion speed. Creates a well-balanced distribution in segment size. Allows perfect rollup. 
-- `single_dim`: Slowest ingestion speed. Segment sizes may be skewed depending on the partition key, but the broker can
-   use the partition information to efficiently prune segments early to speed up queries. Allows perfect rollup.
+The three `partitionsSpec` types have different characteristics.
+
+| PartitionsSpec | Ingestion speed | Partitioning method | Supported rollup mode | Segment pruning at query time |
+|----------------|-----------------|---------------------|-----------------------|-------------------------------|
+| `dynamic` | Fastest  | Partitioning based on number of rows in segment. | best-effort rollup | N/A |
+| `hashed`  | Moderate | Partitioning based on the hash value of partition dimensions. | perfect rollup| N/A |
+| `single_dim` | Slowest | Range partitioning based on the value of the partition dimension. Segment sizes may be skewed depending on the partition key distribution. | perfect rollup | The broker can use the partition information to prune segments early to speed up queries. |
+
+#### Dynamic partitioning
+
+|property|description|default|required?|
+|--------|-----------|-------|---------|
+|type|This should always be `dynamic`|none|yes|
+|maxRowsPerSegment|Used in sharding. Determines how many rows are in each segment.|5000000|no|
+|maxTotalRows|Total number of rows across all segments waiting for being pushed. Used in determining when intermediate segment push should occur.|20000000|no|
+
+With `dynamic` partitinosSpec, the parallel index task runs in a single phase:
+it will spawn multiple sub tasks each of which create segments.
+The sub tasks create segments as below:
+
+- The task creates a new segment whenever the number of rows in the current segment exceeds
+  `maxRowsPerSegment`. This rule is applied per time chunk.
+- Once the total number of rows in all segments across all time chunks reaches to `maxTotalRows`,
+  the task pushes all segments created so far to the deep storage and creates new ones.
 
 #### Hash-based partitioning
 
@@ -259,6 +278,17 @@ The three `partitionsSpec` types have different pros and cons:
 |type|This should always be `hashed`|none|yes|
 |numShards|Directly specify the number of shards to create. If this is specified and `intervals` is specified in the `granularitySpec`, the index task can skip the determine intervals/partitions pass through the data. `numShards` cannot be specified if `targetRowsPerSegment` is set.|null|yes|
 |partitionDimensions|The dimensions to partition on. Leave blank to select all dimensions.|null|no|
+
+With `hashed` partitioning, the parallel index task runs in 2 phases,
+i.e., `partial segment generation` and `partial segment merge`.
+In the `partial segment generation` phase, the parallel index task
+splits the input data (currently one split for each input file or based on `splitHintSpec` for `DruidInputSource`)
+and assigns each split to a sub task. Each sub task reads the assigned split
+and creates partial segments from it. In the `partial segment merge` phase,
+The partial segments created in the previous phase are shuffled based on
+the hash value of dimensions in `partitionDimensions`, so that the rows
+of the same hash value are sent to the same sub task. Each sub task merges
+partial segments into the final segments and push them to the deep storage.
 
 #### Single-dimension range partitioning
 
@@ -270,16 +300,24 @@ The three `partitionsSpec` types have different pros and cons:
 |type|This should always be `single_dim`|none|yes|
 |partitionDimension|The dimension to partition on. Only rows with a single dimension value are allowed.|none|yes|
 |targetRowsPerSegment|Target number of rows to include in a partition, should be a number that targets segments of 500MB\~1GB.|none|either this or `maxRowsPerSegment`|
-|maxRowsPerSegment|Maximum number of rows to include in a partition. Defaults to 50% larger than the `targetRowsPerSegment`.|none|either this or `targetRowsPerSegment`|
+|maxRowsPerSegment|Soft max for the number of rows to include in a partition. Defaults to 50% larger than the `targetRowsPerSegment`.|none|either this or `targetRowsPerSegment`|
 |assumeGrouped|Assume that input data has already been grouped on time and dimensions. Ingestion will run faster, but may choose sub-optimal partitions if this assumption is violated.|false|no|
 
-#### Dynamic partitioning
-
-|property|description|default|required?|
-|--------|-----------|-------|---------|
-|type|This should always be `dynamic`|none|yes|
-|maxRowsPerSegment|Used in sharding. Determines how many rows are in each segment.|5000000|no|
-|maxTotalRows|Total number of rows in segments waiting for being pushed. Used in determining when intermediate segment push should occur.|20000000|no|
+With `single-dim` partitioning, the parallel index task runs in 3 phases,
+i.e., `partial dimension distribution`, `partial segment generation`, and `partial segment merge`.
+In the `partial dimension distribution` phase, the parallel index task
+splits the input data and assigns them to sub tasks as in with hash-based partitioning.
+Each sub task reads the assigned split and builds a histogram for `partitionDimension`.
+The parallel index task collects those histograms and finds the best range-based partitioning
+based on `partitionDimension` to evenly distribute rows across partitions.
+Note that either `targetRowsPerSegment`
+or `maxRowsPerSegment` will be used to find the best partitioning.
+The remaining 2 phases are similar to those in the parallel index task with hash-based partitioning.
+The sub tasks will create partial segments in the `partial segment generation` phase
+which will be shuffled based on the value of `partitionDimension`, so that
+the rows falling in the same range partition are sent to the same sub task.
+Finally, each sub task merges partial segments into the final segments
+and push them to the deep storage.
 
 ### HTTP status endpoints
 
