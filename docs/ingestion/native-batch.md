@@ -264,7 +264,7 @@ The three `partitionsSpec` types have different characteristics.
 
 With `dynamic` partitinosSpec, the parallel index task runs in a single phase:
 it will spawn multiple sub tasks each of which create segments.
-The sub tasks create segments as below:
+How the sub task creates segments is:
 
 - The task creates a new segment whenever the number of rows in the current segment exceeds
   `maxRowsPerSegment`. This rule is applied per time chunk.
@@ -279,21 +279,22 @@ The sub tasks create segments as below:
 |numShards|Directly specify the number of shards to create. If this is specified and `intervals` is specified in the `granularitySpec`, the index task can skip the determine intervals/partitions pass through the data. `numShards` cannot be specified if `targetRowsPerSegment` is set.|null|yes|
 |partitionDimensions|The dimensions to partition on. Leave blank to select all dimensions.|null|no|
 
-With `hashed` partitioning, the parallel index task runs in 2 phases,
-i.e., `partial segment generation` and `partial segment merge`.
-In the `partial segment generation` phase, the parallel index task
-splits the input data (currently one split for each input file or based on `splitHintSpec` for `DruidInputSource`)
-and assigns each split to a sub task. Each sub task reads the assigned split
-and creates partial segments from it. In the `partial segment merge` phase,
-The partial segments created in the previous phase are shuffled based on
-the hash value of dimensions in `partitionDimensions`, so that the rows
-of the same hash value are sent to the same sub task. Each sub task merges
-partial segments into the final segments and push them to the deep storage.
+The parallel index task with hash-based partitioning is similar to [MapReduce](https://en.wikipedia.org/wiki/MapReduce).
+The task runs in 2 phases, i.e., `partial segment generation` and `partial segment merge`.
+- In the `partial segment generation` phase, just like the Map phase in MapReduce,
+the parallel index task splits the input data (currently one split for
+each input file or based on `splitHintSpec` for `DruidInputSource`)
+and assigns each split to a sub task. Each sub task reads the assigned split,
+partitions rows by the hash value of `partitionDimensions`, and creates partial segments from them.
+The created partial segments are stored in local storage of the middleManager or the indexer.
+- The `partial segment merge` phase is similar to the Reduce phase in MapReduce.
+The parallel index task spanws a new set of sub tasks to merge the partial
+segments created in the previous phase. Here, those partial segments are shuffled based on
+the hash value of `partitionDimensions` to be merged; each sub task reads the segments
+of the same hash value from multiple middleManagers/indexers and merges
+them to create the final segments. Finally, they push the final segments to the deep storage.
 
 #### Single-dimension range partitioning
-
-> Because single-range partitioning makes two passes over the input, the index task may fail if the input changes
-> in between the two passes. 
 
 |property|description|default|required?|
 |--------|-----------|-------|---------|
@@ -305,19 +306,30 @@ partial segments into the final segments and push them to the deep storage.
 
 With `single-dim` partitioning, the parallel index task runs in 3 phases,
 i.e., `partial dimension distribution`, `partial segment generation`, and `partial segment merge`.
-In the `partial dimension distribution` phase, the parallel index task
-splits the input data and assigns them to sub tasks as in with hash-based partitioning.
-Each sub task reads the assigned split and builds a histogram for `partitionDimension`.
-The parallel index task collects those histograms and finds the best range-based partitioning
-based on `partitionDimension` to evenly distribute rows across partitions.
-Note that either `targetRowsPerSegment`
+The first phase is to collect some statistics to find
+the best partitioning and the other 2 phases are to create partial segments
+and to merge them, respectively, as in hash-based partitioning.
+- In the `partial dimension distribution` phase, the parallel index task splits the input data and
+assigns them to sub tasks (currently one split for
+each input file or based on `splitHintSpec` for `DruidInputSource`). Each sub task reads
+the assigned split and builds a histogram for `partitionDimension`.
+The parallel index task collects those histograms from sub tasks and finds
+the best range-based partitioning based on `partitionDimension` to evenly
+distribute rows across partitions. Note that either `targetRowsPerSegment`
 or `maxRowsPerSegment` will be used to find the best partitioning.
-The remaining 2 phases are similar to those in the parallel index task with hash-based partitioning.
-The sub tasks will create partial segments in the `partial segment generation` phase
-which will be shuffled based on the value of `partitionDimension`, so that
-the rows falling in the same range partition are sent to the same sub task.
-Finally, each sub task merges partial segments into the final segments
-and push them to the deep storage.
+- In the `partial segment generation` phase, the parallel index task spawns new sub tasks
+to create partial segments. Eash sub task reads a split created as in the previous phase,
+partitions rows based on the partitioning found in the previous phase, and creates partial segments from them.
+The created partial segments are stored in local storage of the middleManager or the indexer.
+- In the `partial segment merge` phase, the parallel index task spawns a new set of sub tasks to merge the partial
+segments created in the previous phase. Here, those partial segments are shuffled based on
+the value of `partitionDimension`; each sub task reads the segments
+falling in the same partition of the same range from multiple middleManagers/indexers and merges
+them to create the final segments. Finally, they push the final segments to the deep storage.
+
+> Because the task with single-dimension range partitioning makes two passes over the input
+> in `partial dimension distribution` and `partial segment generation` phases,
+> the task may fail if the input changes in between the two passes. 
 
 ### HTTP status endpoints
 
