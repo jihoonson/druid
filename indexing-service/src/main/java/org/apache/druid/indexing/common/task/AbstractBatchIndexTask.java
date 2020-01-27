@@ -25,7 +25,9 @@ import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
+import org.apache.druid.indexer.partitions.PartitionAnalysis;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
+import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
@@ -40,7 +42,6 @@ import org.apache.druid.indexing.firehose.IngestSegmentFirehoseFactory;
 import org.apache.druid.indexing.firehose.WindowedSegmentId;
 import org.apache.druid.indexing.overlord.Segments;
 import org.apache.druid.java.util.common.JodaUtils;
-import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.granularity.GranularityType;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -48,7 +49,7 @@ import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.Partitions;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
-import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 import org.joda.time.Period;
@@ -60,7 +61,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -197,6 +197,11 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
   public boolean isUseSegmentLock()
   {
     return useSegmentLock;
+  }
+
+  public LockGranularity getLockGranularityToTry()
+  {
+    return isUseSegmentLock() ? LockGranularity.SEGMENT : LockGranularity.TIME_CHUNK;
   }
 
   public SegmentLockHelper getSegmentLockHelper()
@@ -377,7 +382,7 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
   /**
    * We currently don't support appending perfectly rolled up segments. This might be supported in the future if there
    * is a good use case. If we want to support appending perfectly rolled up segments, we need to fix some other places
-   * first. For example, {@link org.apache.druid.timeline.partition.HashBasedNumberedShardSpec#getLookup} assumes that
+   * first. For example, {@link HashBasedNumberedShardSpec#getLookup} assumes that
    * the start partition ID of the set of perfectly rolled up segments is 0. Instead it might need to store an ordinal
    * in addition to the partition ID which represents the ordinal in the perfectly rolled up segment set.
    */
@@ -388,14 +393,6 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
         "Perfect rollup cannot be guaranteed when appending to existing dataSources"
     );
     return tuningConfig.isForceGuaranteedRollup();
-  }
-
-  static Pair<ShardSpecFactory, Integer> createShardSpecFactoryForGuaranteedRollup(
-      int numShards,
-      @Nullable List<String> partitionDimensions
-  )
-  {
-    return Pair.of(new HashBasedNumberedShardSpecFactory(partitionDimensions, numShards), numShards);
   }
 
   @Nullable
@@ -422,36 +419,24 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
    * and filled only when {@link #isGuaranteedRollup} = true. Otherwise, the return value contains only the set of
    * intervals generated based on the segment granularity.
    */
-  protected static Map<Interval, Pair<ShardSpecFactory, Integer>> createShardSpecWithoutInputScan(
+  protected static PartitionAnalysis createShardSpecWithoutInputScan(
       GranularitySpec granularitySpec,
-      IndexIOConfig ioConfig,
-      IndexTuningConfig tuningConfig,
-      @Nonnull PartitionsSpec nonNullPartitionsSpec
+      @Nonnull PartitionsSpec partitionsSpec
   )
   {
-    final Map<Interval, Pair<ShardSpecFactory, Integer>> allocateSpec = new HashMap<>();
+    assert !(partitionsSpec instanceof SingleDimensionPartitionsSpec);
     final SortedSet<Interval> intervals = granularitySpec.bucketIntervals().get();
-
-    if (isGuaranteedRollup(ioConfig, tuningConfig)) {
-      // SingleDimensionPartitionsSpec or more partitionsSpec types will be supported in the future.
-      assert nonNullPartitionsSpec instanceof HashedPartitionsSpec;
-      // Overwrite mode, guaranteed rollup: shardSpecs must be known in advance.
-      final HashedPartitionsSpec partitionsSpec = (HashedPartitionsSpec) nonNullPartitionsSpec;
-      final int numShards = partitionsSpec.getNumShards() == null ? 1 : partitionsSpec.getNumShards();
-
-      for (Interval interval : intervals) {
-        allocateSpec.put(
-            interval,
-            createShardSpecFactoryForGuaranteedRollup(numShards, partitionsSpec.getPartitionDimensions())
-        );
-      }
+    final int numBucketsPerInterval;
+    if (partitionsSpec instanceof HashedPartitionsSpec) {
+      final HashedPartitionsSpec hashedPartitionsSpec = (HashedPartitionsSpec) partitionsSpec;
+      numBucketsPerInterval = hashedPartitionsSpec.getNumShards() == null ? 1 : hashedPartitionsSpec.getNumShards();
     } else {
-      for (Interval interval : intervals) {
-        allocateSpec.put(interval, null);
-      }
+      numBucketsPerInterval = 1;
     }
-
-    return allocateSpec;
+    //noinspection unchecked
+    final PartitionAnalysis<Integer> partitionAnalysis = partitionsSpec.createPartitionAnalysis();
+    intervals.forEach(interval -> partitionAnalysis.updateBucket(interval, numBucketsPerInterval));
+    return partitionAnalysis;
   }
 
   /**

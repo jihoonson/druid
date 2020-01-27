@@ -28,7 +28,7 @@ import java.util.Objects;
 /**
  * Dynamically determine partitions in the middle of indexing.
  */
-public class DynamicPartitionsSpec implements PartitionsSpec
+public class DynamicPartitionsSpec implements PartitionsSpec<Integer>
 {
   /**
    * Default maxTotalRows for most task types except compaction task.
@@ -85,6 +85,12 @@ public class DynamicPartitionsSpec implements PartitionsSpec
   public String getForceGuaranteedRollupIncompatiblityReason()
   {
     return NAME + " partitions unsupported";
+  }
+
+  @Override
+  public PartitionAnalysis<Integer> createPartitionAnalysis()
+  {
+    return new LinearPartitionAnalysis();
   }
 
   @Override

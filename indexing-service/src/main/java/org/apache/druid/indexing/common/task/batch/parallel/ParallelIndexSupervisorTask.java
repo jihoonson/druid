@@ -58,7 +58,7 @@ import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexTaskRunner.SubTaskSpecStatus;
-import org.apache.druid.indexing.common.task.batch.parallel.distribution.PartitionBoundaries;
+import org.apache.druid.indexer.partitions.PartitionBoundaries;
 import org.apache.druid.indexing.common.task.batch.parallel.distribution.StringDistribution;
 import org.apache.druid.indexing.common.task.batch.parallel.distribution.StringDistributionMerger;
 import org.apache.druid.indexing.common.task.batch.parallel.distribution.StringSketchMerger;

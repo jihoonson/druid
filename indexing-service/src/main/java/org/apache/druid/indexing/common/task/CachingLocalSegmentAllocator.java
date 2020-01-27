@@ -26,6 +26,7 @@ import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.SurrogateAction;
 import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
@@ -45,7 +46,7 @@ import java.util.stream.Collectors;
  * @see HashPartitionCachingLocalSegmentAllocator
  * @see RangePartitionCachingLocalSegmentAllocator
  */
-class CachingLocalSegmentAllocatorHelper implements IndexTaskSegmentAllocator
+public class CachingLocalSegmentAllocator implements SegmentAllocator
 {
   private final String taskId;
   private final Map<String, SegmentIdWithShardSpec> sequenceNameToSegmentId;
@@ -62,7 +63,7 @@ class CachingLocalSegmentAllocatorHelper implements IndexTaskSegmentAllocator
     Map<Interval, List<SegmentIdWithShardSpec>> create(Function<Interval, String> versionFinder);
   }
 
-  CachingLocalSegmentAllocatorHelper(
+  CachingLocalSegmentAllocator(
       TaskToolbox toolbox,
       String taskId,
       String supervisorTaskId,
@@ -118,13 +119,6 @@ class CachingLocalSegmentAllocatorHelper implements IndexTaskSegmentAllocator
     return sequenceNameToSegmentId.get(sequenceName);
   }
 
-  @Override
-  public String getSequenceName(Interval interval, InputRow inputRow)
-  {
-    // Sequence name is based solely on the shardSpec, and there will only be one segment per sequence.
-    return getSequenceName(interval, shardSpecs.getShardSpec(interval, inputRow));
-  }
-
   /**
    * Create a sequence name from the given shardSpec and interval.
    *
@@ -135,5 +129,10 @@ class CachingLocalSegmentAllocatorHelper implements IndexTaskSegmentAllocator
     // Note: We do not use String format here since this can be called in a tight loop
     // and it's faster to add strings together than it is to use String#format
     return taskId + "_" + interval + "_" + shardSpec.getPartitionNum();
+  }
+
+  public ShardSpecs getShardSpecs()
+  {
+    return shardSpecs;
   }
 }

@@ -20,6 +20,11 @@
 package org.apache.druid.indexing.common.task;
 
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
+import org.apache.druid.indexer.partitions.HashPartitionAnalysis;
+import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
+import org.apache.druid.indexer.partitions.PartitionAnalysis;
+import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskToolbox;
@@ -28,8 +33,10 @@ import org.apache.druid.indexing.common.task.SegmentLockHelper.OverwritingRootGe
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
+import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
-import org.apache.druid.timeline.partition.NumberedOverwritingShardSpecFactory;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
+import org.apache.druid.timeline.partition.NumberedOverwriteShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
@@ -39,21 +46,20 @@ import java.io.IOException;
 /**
  * Segment allocator which allocates new segments using the overlord per request.
  */
-public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
+public class RemoteSegmentAllocator implements SegmentAllocator
 {
-  private final String taskId;
   private final ActionBasedSegmentAllocator internalAllocator;
 
   RemoteSegmentAllocator(
       final TaskToolbox toolbox,
-      final String taskId,
       final DataSchema dataSchema,
       final SegmentLockHelper segmentLockHelper,
       final LockGranularity lockGranularity,
-      final boolean appendToExisting
+      final boolean appendToExisting,
+      PartitionsSpec partitionsSpec,
+      PartitionAnalysis partitionAnalysis
   )
   {
-    this.taskId = taskId;
     this.internalAllocator = new ActionBasedSegmentAllocator(
         toolbox.getTaskActionClient(),
         dataSchema,
@@ -62,46 +68,25 @@ public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
           final Interval interval = granularitySpec
               .bucketInterval(row.getTimestamp())
               .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()));
-          if (lockGranularity == LockGranularity.TIME_CHUNK) {
-            return new SegmentAllocateAction(
-                schema.getDataSource(),
-                row.getTimestamp(),
-                schema.getGranularitySpec().getQueryGranularity(),
-                schema.getGranularitySpec().getSegmentGranularity(),
-                sequenceName,
-                previousSegmentId,
-                skipSegmentLineageCheck,
-                NumberedShardSpecFactory.instance(),
-                lockGranularity
-            );
-          } else {
-            final ShardSpecFactory shardSpecFactory;
-            if (segmentLockHelper.hasLockedExistingSegments() && !appendToExisting) {
-              final OverwritingRootGenerationPartitions overwritingSegmentMeta = segmentLockHelper
-                  .getOverwritingRootGenerationPartition(interval);
-              if (overwritingSegmentMeta == null) {
-                throw new ISE("Can't find overwritingSegmentMeta for interval[%s]", interval);
-              }
-              shardSpecFactory = new NumberedOverwritingShardSpecFactory(
-                  overwritingSegmentMeta.getStartRootPartitionId(),
-                  overwritingSegmentMeta.getEndRootPartitionId(),
-                  overwritingSegmentMeta.getMinorVersionForNewSegments()
-              );
-            } else {
-              shardSpecFactory = NumberedShardSpecFactory.instance();
-            }
-            return new SegmentAllocateAction(
-                schema.getDataSource(),
-                row.getTimestamp(),
-                schema.getGranularitySpec().getQueryGranularity(),
-                schema.getGranularitySpec().getSegmentGranularity(),
-                sequenceName,
-                previousSegmentId,
-                skipSegmentLineageCheck,
-                shardSpecFactory,
-                lockGranularity
-            );
-          }
+          final ShardSpecFactory shardSpecFactory = createShardSpecFactory(
+              lockGranularity,
+              appendToExisting,
+              partitionsSpec,
+              partitionAnalysis,
+              segmentLockHelper,
+              interval
+          );
+          return new SegmentAllocateAction(
+              schema.getDataSource(),
+              row.getTimestamp(),
+              schema.getGranularitySpec().getQueryGranularity(),
+              schema.getGranularitySpec().getSegmentGranularity(),
+              sequenceName,
+              previousSegmentId,
+              skipSegmentLineageCheck,
+              shardSpecFactory,
+              lockGranularity
+          );
         }
     );
   }
@@ -117,11 +102,54 @@ public class RemoteSegmentAllocator implements IndexTaskSegmentAllocator
     return internalAllocator.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);
   }
 
-  @Override
-  public String getSequenceName(Interval interval, InputRow inputRow)
+  static ShardSpecFactory createShardSpecFactory(
+      LockGranularity lockGranularityToTry,
+      boolean appendToExisting,
+      PartitionsSpec partitionsSpec,
+      PartitionAnalysis partitionAnalysis,
+      SegmentLockHelper segmentLockHelper,
+      Interval interval
+  )
   {
-    // Segments are created as needed, using a single sequence name. They may be allocated from the overlord
-    // (in append mode) or may be created on our own authority (in overwrite mode).
-    return taskId;
+    if (partitionsSpec instanceof DynamicPartitionsSpec) {
+      if (lockGranularityToTry == LockGranularity.SEGMENT) {
+        if (segmentLockHelper.hasLockedExistingSegments() && !appendToExisting) {
+          final OverwritingRootGenerationPartitions overwritingRootGenerationPartitions = segmentLockHelper
+              .getOverwritingRootGenerationPartition(interval);
+          if (overwritingRootGenerationPartitions == null) {
+            throw new ISE("Can't find overwritingSegmentMeta for interval[%s]", interval);
+          }
+          return new NumberedOverwriteShardSpecFactory(
+              overwritingRootGenerationPartitions.getStartRootPartitionId(),
+              overwritingRootGenerationPartitions.getEndRootPartitionId(),
+              overwritingRootGenerationPartitions.getMinorVersionForNewSegments()
+          );
+        }
+      }
+      return NumberedShardSpecFactory.instance();
+    } else if (partitionsSpec instanceof HashedPartitionsSpec) {
+      final HashPartitionAnalysis hashPartitionAnalysis = (HashPartitionAnalysis) partitionAnalysis;
+      return new HashBasedNumberedShardSpecFactory(
+          ((HashedPartitionsSpec) partitionsSpec).getPartitionDimensions(),
+          hashPartitionAnalysis.getBucketAnalysis(interval)
+      );
+//    } else if (partitionsSpec instanceof SingleDimensionPartitionsSpec) {
+//      final RangePartitionAnalysis rangePartitionAnalysis = (RangePartitionAnalysis) partitionAnalysis;
+//      final PartitionBoundaries partitionBoundaries = rangePartitionAnalysis.getBucketAnalysis(interval);
+//      Preconditions.checkArgument(
+//          bucketId < partitionBoundaries.size() - 1,
+//          "Invalid bucketId[%s]. Size of partitionBoundaries: %s",
+//          bucketId,
+//          partitionBoundaries.size()
+//      );
+//      return new SingleDimensionShardSpecFactory(
+//          ((SingleDimensionPartitionsSpec) partitionsSpec).getPartitionDimension(),
+//          partitionBoundaries.size() - 1,
+//          partitionBoundaries.get(bucketId),
+//          partitionBoundaries.get(bucketId + 1)
+//      );
+    } else {
+      throw new ISE("TODO");
+    }
   }
 }

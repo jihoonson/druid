@@ -28,10 +28,12 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.stats.DropwizardRowIngestionMeters;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.task.BatchAppenderators;
+import org.apache.druid.indexing.common.task.CachingLocalSegmentAllocator;
 import org.apache.druid.indexing.common.task.ClientBasedTaskInfoProvider;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
-import org.apache.druid.indexing.common.task.IndexTaskSegmentAllocator;
 import org.apache.druid.indexing.common.task.InputSourceProcessor;
+import org.apache.druid.indexing.common.task.NonLinearlyPartitionedSequenceNameFunction;
+import org.apache.druid.indexing.common.task.SequenceNameFunction;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.IndexTaskInputRowIteratorBuilder;
@@ -45,7 +47,12 @@ import org.apache.druid.segment.realtime.RealtimeMetricsMonitor;
 import org.apache.druid.segment.realtime.appenderator.Appenderator;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
+<<<<<<< HEAD
 import org.apache.druid.segment.realtime.appenderator.SegmentsAndCommitMetadata;
+=======
+import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
+import org.apache.druid.segment.realtime.appenderator.SegmentsAndMetadata;
+>>>>>>> append-partitions
 import org.apache.druid.timeline.DataSegment;
 
 import java.io.File;
@@ -124,9 +131,9 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
   }
 
   /**
-   * @return {@link IndexTaskSegmentAllocator} suitable for the desired segment partitioning strategy.
+   * @return {@link SegmentAllocator} suitable for the desired segment partitioning strategy.
    */
-  abstract IndexTaskSegmentAllocator createSegmentAllocator(TaskToolbox toolbox) throws IOException;
+  abstract CachingLocalSegmentAllocator createSegmentAllocator(TaskToolbox toolbox) throws IOException;
 
   /**
    * @return {@link GeneratedPartitionsReport} suitable for the desired segment partitioning strategy.
@@ -164,7 +171,11 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
     final PartitionsSpec partitionsSpec = tuningConfig.getGivenOrDefaultPartitionsSpec();
     final long pushTimeout = tuningConfig.getPushTimeout();
 
-    final IndexTaskSegmentAllocator segmentAllocator = createSegmentAllocator(toolbox);
+    final CachingLocalSegmentAllocator segmentAllocator = createSegmentAllocator(toolbox);
+    final SequenceNameFunction sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(
+        getId(),
+        segmentAllocator.getShardSpecs()
+    );
 
     final Appenderator appenderator = BatchAppenderators.newAppenderator(
         getId(),
@@ -195,7 +206,7 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
           inputSource,
           inputSource.needsFormat() ? ParallelIndexSupervisorTask.getInputFormat(ingestionSchema) : null,
           tmpDir,
-          segmentAllocator
+          sequenceNameFunction
       );
 
       return pushed.getSegments();

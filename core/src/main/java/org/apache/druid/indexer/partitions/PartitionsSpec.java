@@ -35,7 +35,7 @@ import javax.annotation.Nullable;
     @JsonSubTypes.Type(name = HashedPartitionsSpec.NAME, value = HashedPartitionsSpec.class),
     @JsonSubTypes.Type(name = DynamicPartitionsSpec.NAME, value = DynamicPartitionsSpec.class)
 })
-public interface PartitionsSpec
+public interface PartitionsSpec<T>
 {
   int DEFAULT_MAX_ROWS_PER_SEGMENT = 5_000_000;
   String MAX_ROWS_PER_SEGMENT = "maxRowsPerSegment";
@@ -54,28 +54,6 @@ public interface PartitionsSpec
    * It should usually return true if perfect rollup is enforced but number of partitions is not specified.
    */
   boolean needsDeterminePartitions(boolean useForHadoopTask);
-
-  /**
-   * '-1' regarded as null for some historical reason.
-   */
-  static boolean isEffectivelyNull(@Nullable Integer val)
-  {
-    return val == null || val == HISTORICAL_NULL;
-  }
-
-  /**
-   * '-1' regarded as null for some historical reason.
-   */
-  static boolean isEffectivelyNull(@Nullable Long val)
-  {
-    return val == null || val == HISTORICAL_NULL;
-  }
-
-  @Nullable
-  static Integer resolveHistoricalNullIfNeeded(@Nullable Integer val)
-  {
-    return isEffectivelyNull(val) ? null : val;
-  }
 
   /**
    * @return True if this partitionSpec's type is compatible with forceGuaranteedRollup=true.
@@ -101,4 +79,28 @@ public interface PartitionsSpec
    */
   @JsonIgnore
   String getForceGuaranteedRollupIncompatiblityReason();
+
+  PartitionAnalysis<T> createPartitionAnalysis();
+
+  /**
+   * '-1' regarded as null for some historical reason.
+   */
+  static boolean isEffectivelyNull(@Nullable Integer val)
+  {
+    return val == null || val == HISTORICAL_NULL;
+  }
+
+  /**
+   * '-1' regarded as null for some historical reason.
+   */
+  static boolean isEffectivelyNull(@Nullable Long val)
+  {
+    return val == null || val == HISTORICAL_NULL;
+  }
+
+  @Nullable
+  static Integer resolveHistoricalNullIfNeeded(@Nullable Integer val)
+  {
+    return isEffectivelyNull(val) ? null : val;
+  }
 }

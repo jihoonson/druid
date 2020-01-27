@@ -19,22 +19,37 @@
 
 package org.apache.druid.indexer.partitions;
 
-import javax.annotation.Nullable;
-import java.util.List;
+import com.google.common.base.Preconditions;
+import org.apache.druid.java.util.common.ISE;
+import org.joda.time.Interval;
 
-/**
- * PartitionsSpec based on dimension values.
- */
-public interface DimensionBasedPartitionsSpec<T> extends PartitionsSpec<T>
+import java.util.HashSet;
+import java.util.Set;
+
+public class LinearPartitionAnalysis implements PartitionAnalysis<Integer>
 {
-  String TARGET_ROWS_PER_SEGMENT = "targetRowsPerSegment";
+  private final Set<Interval> intervals = new HashSet<>();
 
-  // Deprecated properties preserved for backward compatibility:
-  @Deprecated
-  String TARGET_PARTITION_SIZE = "targetPartitionSize";
+  @Override
+  public void updateBucket(Interval interval, Integer bucketAnalysis)
+  {
+    Preconditions.checkArgument(bucketAnalysis == 1, "There should be only one bucket with linear partitioining");
+    intervals.add(interval);
+  }
 
-  List<String> getPartitionDimensions();
+  @Override
+  public Integer getBucketAnalysis(Interval interval)
+  {
+    if (intervals.contains(interval)) {
+      return 1;
+    } else {
+      throw new ISE("Unknown interval[%s]", interval);
+    }
+  }
 
-  @Nullable
-  Integer getTargetRowsPerSegment();
+  @Override
+  public Set<Interval> getAllIntervalsToIndex()
+  {
+    return intervals;
+  }
 }

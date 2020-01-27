@@ -21,6 +21,7 @@ package org.apache.druid.timeline.partition;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.RangeSet;
 import org.apache.druid.data.input.InputRow;
 
@@ -45,6 +46,12 @@ public interface ShardSpec
   <T> PartitionChunk<T> createChunk(T obj);
 
   boolean isInChunk(long timestamp, InputRow inputRow);
+
+  /**
+   * Returns the bucket ID of this partition (segment). A bucket represents the secondary partition.
+   * This always returns 0 for the linear partitioning, i.e., {@link LinearShardSpec} or {@link NumberedShardSpec}.
+   */
+  short getBucketId();
 
   int getPartitionNum();
 
@@ -87,4 +94,14 @@ public interface ShardSpec
    * Returns true if two segments of this and other shardSpecs can exist in the same timeChunk.
    */
   boolean isCompatible(Class<? extends ShardSpec> other);
+
+  static short exactNumBuckets(int numBuckets)
+  {
+    Preconditions.checkArgument(
+        numBuckets > 0 && numBuckets < Short.MAX_VALUE,
+        "numBuckets[%s] should be a positive short",
+        numBuckets
+    );
+    return (short) numBuckets;
+  }
 }

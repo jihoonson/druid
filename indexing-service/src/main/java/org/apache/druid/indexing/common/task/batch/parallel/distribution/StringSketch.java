@@ -34,6 +34,7 @@ import com.google.common.base.Preconditions;
 import org.apache.datasketches.ArrayOfStringsSerDe;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.quantiles.ItemsSketch;
+import org.apache.druid.indexer.partitions.PartitionBoundaries;
 
 import java.io.IOException;
 import java.util.Comparator;

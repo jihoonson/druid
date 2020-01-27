@@ -666,7 +666,8 @@ public class DeterminePartitionsJob implements Jobby
               currentDimPartitions.dim,
               currentDimPartitionStart,
               dvc.value,
-              currentDimPartitions.partitions.size()
+              currentDimPartitions.partitions.size(),
+              (int) SingleDimensionShardSpec.UNKNOWN_NUM_BUCKETS
           );
 
           log.info(
@@ -706,7 +707,8 @@ public class DeterminePartitionsJob implements Jobby
                   currentDimPartitions.dim,
                   previousShardSpec.getStart(),
                   null,
-                  previousShardSpec.getPartitionNum()
+                  previousShardSpec.getPartitionNum(),
+                  (int) SingleDimensionShardSpec.UNKNOWN_NUM_BUCKETS
               );
 
               log.info("Removing possible shard: %s", previousShardSpec);
@@ -719,7 +721,8 @@ public class DeterminePartitionsJob implements Jobby
                   currentDimPartitions.dim,
                   currentDimPartitionStart,
                   null,
-                  currentDimPartitions.partitions.size()
+                  currentDimPartitions.partitions.size(),
+                  (int) SingleDimensionShardSpec.UNKNOWN_NUM_BUCKETS
               );
             }
 

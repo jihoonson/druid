@@ -108,6 +108,12 @@ public class NumberedShardSpec implements ShardSpec
   }
 
   @Override
+  public short getBucketId()
+  {
+    return 0;
+  }
+
+  @Override
   public String toString()
   {
     return "NumberedShardSpec{" +

@@ -73,7 +73,7 @@ import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentsAndCommitMetadata;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
-import org.apache.druid.timeline.partition.NumberedOverwritingShardSpecFactory;
+import org.apache.druid.timeline.partition.NumberedOverwriteShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
@@ -332,7 +332,7 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
                 if (overwritingSegmentMeta == null) {
                   throw new ISE("Can't find overwritingSegmentMeta for interval[%s]", interval);
                 }
-                shardSpecFactory = new NumberedOverwritingShardSpecFactory(
+                shardSpecFactory = new NumberedOverwriteShardSpecFactory(
                     overwritingSegmentMeta.getStartRootPartitionId(),
                     overwritingSegmentMeta.getEndRootPartitionId(),
                     overwritingSegmentMeta.getMinorVersionForNewSegments()

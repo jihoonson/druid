@@ -20,9 +20,10 @@
 package org.apache.druid.indexing.common.task;
 
 import com.google.common.collect.Maps;
-import org.apache.druid.data.input.InputRow;
+import org.apache.druid.indexer.partitions.PartitionBoundaries;
+import org.apache.druid.indexer.partitions.RangePartitionAnalysis;
+import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
-import org.apache.druid.indexing.common.task.batch.parallel.distribution.PartitionBoundaries;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
 import org.joda.time.Interval;
@@ -39,46 +40,49 @@ import java.util.stream.IntStream;
 /**
  * Allocates all necessary range-partitioned segments locally at the beginning and reuses them.
  *
- * @see CachingLocalSegmentAllocatorHelper
+ * @see CachingLocalSegmentAllocator
  */
-public class RangePartitionCachingLocalSegmentAllocator implements IndexTaskSegmentAllocator
+public class RangePartitionCachingLocalSegmentAllocator extends CachingLocalSegmentAllocator
 {
-  private final String dataSource;
-  private final String partitionDimension;
-  private final Map<Interval, PartitionBoundaries> intervalsToPartitions;
-  private final IndexTaskSegmentAllocator delegate;
-
   public RangePartitionCachingLocalSegmentAllocator(
       TaskToolbox toolbox,
       String taskId,
       String supervisorTaskId,
       String dataSource,
-      String partitionDimension,
-      Map<Interval, PartitionBoundaries> intervalsToPartitions
+      SingleDimensionPartitionsSpec partitionsSpec,
+      RangePartitionAnalysis partitionAnalysis
   ) throws IOException
   {
-    this.dataSource = dataSource;
-    this.partitionDimension = partitionDimension;
-    this.intervalsToPartitions = intervalsToPartitions;
-
-    this.delegate = new CachingLocalSegmentAllocatorHelper(
+    super(
         toolbox,
         taskId,
         supervisorTaskId,
-        this::getIntervalToSegmentIds
+        versionFinder -> getIntervalToSegmentIds(dataSource, partitionsSpec, partitionAnalysis, versionFinder)
     );
   }
 
-  private Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds(Function<Interval, String> versionFinder)
+  private static Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds(
+      String dataSource,
+      SingleDimensionPartitionsSpec partitionsSpec,
+      RangePartitionAnalysis partitionAnalysis,
+      Function<Interval, String> versionFinder
+  )
   {
-    Map<Interval, List<SegmentIdWithShardSpec>> intervalToSegmentIds =
-        Maps.newHashMapWithExpectedSize(intervalsToPartitions.size());
+    final String partitionDimension = partitionsSpec.getPartitionDimension();
+    final Map<Interval, List<SegmentIdWithShardSpec>> intervalToSegmentIds = Maps.newHashMapWithExpectedSize(
+        partitionAnalysis.size()
+    );
 
-    intervalsToPartitions.forEach(
-        (interval, partitionBoundaries) ->
+    partitionAnalysis.forEach((interval, partitionBoundaries) ->
             intervalToSegmentIds.put(
                 interval,
-                translatePartitionBoundaries(interval, partitionBoundaries, versionFinder)
+                translatePartitionBoundaries(
+                    dataSource,
+                    interval,
+                    partitionDimension,
+                    partitionBoundaries,
+                    versionFinder
+                )
             )
     );
 
@@ -87,10 +91,12 @@ public class RangePartitionCachingLocalSegmentAllocator implements IndexTaskSegm
 
   /**
    * Translate {@link PartitionBoundaries} into the corresponding
-   * {@link org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec} with segment id.
+   * {@link SingleDimensionPartitionsSpec} with segment id.
    */
-  private List<SegmentIdWithShardSpec> translatePartitionBoundaries(
+  private static List<SegmentIdWithShardSpec> translatePartitionBoundaries(
+      String dataSource,
       Interval interval,
+      String partitionDimension,
       PartitionBoundaries partitionBoundaries,
       Function<Interval, String> versionFinder
   )
@@ -101,21 +107,27 @@ public class RangePartitionCachingLocalSegmentAllocator implements IndexTaskSegm
 
     return IntStream.range(0, partitionBoundaries.size() - 1)
                     .mapToObj(i -> createSegmentIdWithShardSpec(
+                        dataSource,
                         interval,
+                        partitionDimension,
                         versionFinder.apply(interval),
                         partitionBoundaries.get(i),
                         partitionBoundaries.get(i + 1),
-                        i
+                        i,
+                        partitionBoundaries.size() - 1
                     ))
                     .collect(Collectors.toList());
   }
 
-  private SegmentIdWithShardSpec createSegmentIdWithShardSpec(
+  private static SegmentIdWithShardSpec createSegmentIdWithShardSpec(
+      String dataSource,
       Interval interval,
       String version,
+      String partitionDimension,
       String partitionStart,
       @Nullable String partitionEnd,
-      int partitionNum
+      int partitionNum,
+      int numBuckets
   )
   {
     // The shardSpec created here will be reused in PartialGenericSegmentMergeTask. This is ok because
@@ -128,25 +140,9 @@ public class RangePartitionCachingLocalSegmentAllocator implements IndexTaskSegm
             partitionDimension,
             partitionStart,
             partitionEnd,
-            partitionNum
+            partitionNum,
+            numBuckets
         )
     );
-  }
-
-  @Override
-  public String getSequenceName(Interval interval, InputRow inputRow)
-  {
-    return delegate.getSequenceName(interval, inputRow);
-  }
-
-  @Override
-  public SegmentIdWithShardSpec allocate(
-      InputRow row,
-      String sequenceName,
-      String previousSegmentId,
-      boolean skipSegmentLineageCheck
-  ) throws IOException
-  {
-    return delegate.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);
   }
 }

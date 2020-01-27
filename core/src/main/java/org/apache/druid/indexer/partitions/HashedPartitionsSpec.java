@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
+public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec<Integer>
 {
   static final String NAME = "hashed";
   @VisibleForTesting
@@ -155,6 +155,12 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
   public String getForceGuaranteedRollupIncompatiblityReason()
   {
     return getNumShards() == null ? NUM_SHARDS + " must be specified" : FORCE_GUARANTEED_ROLLUP_COMPATIBLE;
+  }
+
+  @Override
+  public PartitionAnalysis<Integer> createPartitionAnalysis()
+  {
+    return new HashPartitionAnalysis();
   }
 
   @Override

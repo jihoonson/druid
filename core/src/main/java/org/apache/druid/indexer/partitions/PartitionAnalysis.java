@@ -19,22 +19,15 @@
 
 package org.apache.druid.indexer.partitions;
 
-import javax.annotation.Nullable;
-import java.util.List;
+import org.joda.time.Interval;
 
-/**
- * PartitionsSpec based on dimension values.
- */
-public interface DimensionBasedPartitionsSpec<T> extends PartitionsSpec<T>
+import java.util.Set;
+
+public interface PartitionAnalysis<T>
 {
-  String TARGET_ROWS_PER_SEGMENT = "targetRowsPerSegment";
+  void updateBucket(Interval interval, T bucketAnalysis);
 
-  // Deprecated properties preserved for backward compatibility:
-  @Deprecated
-  String TARGET_PARTITION_SIZE = "targetPartitionSize";
+  T getBucketAnalysis(Interval interval);
 
-  List<String> getPartitionDimensions();
-
-  @Nullable
-  Integer getTargetRowsPerSegment();
+  Set<Interval> getAllIntervalsToIndex();
 }

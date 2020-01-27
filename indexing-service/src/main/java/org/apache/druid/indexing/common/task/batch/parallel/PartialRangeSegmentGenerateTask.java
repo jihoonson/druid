@@ -24,15 +24,16 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.client.indexing.IndexingServiceClient;
+import org.apache.druid.indexer.partitions.PartitionBoundaries;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
+import org.apache.druid.indexer.partitions.RangePartitionAnalysis;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
+import org.apache.druid.indexing.common.task.CachingLocalSegmentAllocator;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
-import org.apache.druid.indexing.common.task.IndexTaskSegmentAllocator;
 import org.apache.druid.indexing.common.task.RangePartitionCachingLocalSegmentAllocator;
 import org.apache.druid.indexing.common.task.TaskResource;
-import org.apache.druid.indexing.common.task.batch.parallel.distribution.PartitionBoundaries;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.RangePartitionIndexTaskInputRowIteratorBuilder;
 import org.apache.druid.indexing.worker.ShuffleDataSegmentPusher;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
@@ -149,15 +150,17 @@ public class PartialRangeSegmentGenerateTask extends PartialSegmentGenerateTask<
   }
 
   @Override
-  IndexTaskSegmentAllocator createSegmentAllocator(TaskToolbox toolbox) throws IOException
+  CachingLocalSegmentAllocator createSegmentAllocator(TaskToolbox toolbox) throws IOException
   {
+    final RangePartitionAnalysis partitionAnalysis = new RangePartitionAnalysis();
+    intervalToPartitions.forEach(partitionAnalysis::updateBucket);
     return new RangePartitionCachingLocalSegmentAllocator(
         toolbox,
         getId(),
         supervisorTaskId,
         getDataSource(),
-        getPartitionDimension(ingestionSchema),
-        intervalToPartitions
+        (SingleDimensionPartitionsSpec) ingestionSchema.getTuningConfig().getPartitionsSpec(),
+        partitionAnalysis
     );
   }
 

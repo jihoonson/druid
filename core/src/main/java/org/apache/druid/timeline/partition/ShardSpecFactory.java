@@ -20,6 +20,7 @@
 package org.apache.druid.timeline.partition;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -30,10 +31,12 @@ import javax.annotation.Nullable;
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
-    @JsonSubTypes.Type(name = "numbered", value = NumberedShardSpecFactory.class),
-    @JsonSubTypes.Type(name = "hashed", value = HashBasedNumberedShardSpecFactory.class),
-    @JsonSubTypes.Type(name = "numbered_overwrite", value = NumberedOverwritingShardSpecFactory.class),
+    @Type(name = "numbered", value = NumberedShardSpecFactory.class),
+    @Type(name = "hashed", value = HashBasedNumberedShardSpecFactory.class),
+    @Type(name = "single_dim", value = SingleDimensionShardSpecFactory.class),
+    @Type(name = "numbered_overwrite", value = NumberedOverwriteShardSpecFactory.class),
 })
+// TODO: it's not a factory..
 public interface ShardSpecFactory
 {
   /**

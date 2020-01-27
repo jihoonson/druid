@@ -17,24 +17,25 @@
  * under the License.
  */
 
-package org.apache.druid.indexer.partitions;
+package org.apache.druid.indexing.common.task;
 
-import javax.annotation.Nullable;
-import java.util.List;
+import org.apache.druid.data.input.InputRow;
+import org.joda.time.Interval;
 
-/**
- * PartitionsSpec based on dimension values.
- */
-public interface DimensionBasedPartitionsSpec<T> extends PartitionsSpec<T>
+public class LinearlyPartitionedSequenceNameFunction implements SequenceNameFunction
 {
-  String TARGET_ROWS_PER_SEGMENT = "targetRowsPerSegment";
+  private final String taskId;
 
-  // Deprecated properties preserved for backward compatibility:
-  @Deprecated
-  String TARGET_PARTITION_SIZE = "targetPartitionSize";
+  public LinearlyPartitionedSequenceNameFunction(String taskId)
+  {
+    this.taskId = taskId;
+  }
 
-  List<String> getPartitionDimensions();
-
-  @Nullable
-  Integer getTargetRowsPerSegment();
+  @Override
+  public String getSequenceName(Interval interval, InputRow inputRow)
+  {
+    // Segments are created as needed, using a single sequence name. They may be allocated from the overlord
+    // (in append mode) or may be created on our own authority (in overwrite mode).
+    return taskId;
+  }
 }

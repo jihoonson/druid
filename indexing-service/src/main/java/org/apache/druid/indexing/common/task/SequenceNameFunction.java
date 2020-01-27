@@ -23,10 +23,7 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.joda.time.Interval;
 
-/**
- * Segment allocator interface for {@link IndexTask}. It has 3 different modes for allocating segments.
- */
-public interface IndexTaskSegmentAllocator extends SegmentAllocator
+public interface SequenceNameFunction
 {
   /**
    * SequenceName is the key to create the segmentId. If previousSegmentId is given, {@link SegmentAllocator} allocates
