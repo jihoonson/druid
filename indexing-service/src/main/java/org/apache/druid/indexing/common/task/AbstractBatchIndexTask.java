@@ -24,10 +24,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.indexer.TaskStatus;
-import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
-import org.apache.druid.indexer.partitions.PartitionAnalysis;
-import org.apache.druid.indexer.partitions.PartitionsSpec;
-import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
@@ -50,11 +46,9 @@ import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.Partitions;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
-import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 import org.joda.time.Period;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
@@ -65,7 +59,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -410,33 +403,6 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
     } else {
       return null;
     }
-  }
-
-  /**
-   * Creates shard specs based on the given configurations. The return value is a map between intervals created
-   * based on the segment granularity and the shard specs to be created.
-   * Note that the shard specs to be created is a pair of {@link ShardSpecFactory} and number of segments per interval
-   * and filled only when {@link #isGuaranteedRollup} = true. Otherwise, the return value contains only the set of
-   * intervals generated based on the segment granularity.
-   */
-  protected static PartitionAnalysis createShardSpecWithoutInputScan(
-      GranularitySpec granularitySpec,
-      @Nonnull PartitionsSpec partitionsSpec
-  )
-  {
-    assert !(partitionsSpec instanceof SingleDimensionPartitionsSpec);
-    final SortedSet<Interval> intervals = granularitySpec.bucketIntervals().get();
-    final int numBucketsPerInterval;
-    if (partitionsSpec instanceof HashedPartitionsSpec) {
-      final HashedPartitionsSpec hashedPartitionsSpec = (HashedPartitionsSpec) partitionsSpec;
-      numBucketsPerInterval = hashedPartitionsSpec.getNumShards() == null ? 1 : hashedPartitionsSpec.getNumShards();
-    } else {
-      numBucketsPerInterval = 1;
-    }
-    //noinspection unchecked
-    final PartitionAnalysis<Integer> partitionAnalysis = partitionsSpec.createPartitionAnalysis();
-    intervals.forEach(interval -> partitionAnalysis.updateBucket(interval, numBucketsPerInterval));
-    return partitionAnalysis;
   }
 
   /**

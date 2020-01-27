@@ -53,6 +53,7 @@ import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
 import org.apache.druid.indexer.partitions.HashPartitionAnalysis;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
+import org.apache.druid.indexer.partitions.LinearPartitionAnalysis;
 import org.apache.druid.indexer.partitions.PartitionAnalysis;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
@@ -67,6 +68,7 @@ import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.stats.TaskRealtimeMetricsMonitor;
+import org.apache.druid.indexing.common.task.batch.parallel.PartialHashSegmentGenerateTask;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.DefaultIndexTaskInputRowIteratorBuilder;
 import org.apache.druid.indexing.overlord.sampler.InputSourceSampler;
 import org.apache.druid.java.util.common.IAE;
@@ -74,6 +76,7 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.JodaUtils;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.UOE;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -96,12 +99,8 @@ import org.apache.druid.segment.realtime.appenderator.AppenderatorConfig;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
 import org.apache.druid.segment.realtime.appenderator.BaseAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
-<<<<<<< HEAD
-import org.apache.druid.segment.realtime.appenderator.SegmentsAndCommitMetadata;
-=======
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
-import org.apache.druid.segment.realtime.appenderator.SegmentsAndMetadata;
->>>>>>> append-partitions
+import org.apache.druid.segment.realtime.appenderator.SegmentsAndCommitMetadata;
 import org.apache.druid.segment.realtime.appenderator.TransactionalSegmentPublisher;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
 import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
@@ -137,6 +136,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -617,12 +617,10 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       final TaskToolbox toolbox,
       final InputSource inputSource,
       final File tmpDir,
-      final PartitionsSpec nonNullPartitionsSpec
+      @Nonnull final PartitionsSpec partitionsSpec
   ) throws IOException
   {
     final ObjectMapper jsonMapper = toolbox.getJsonMapper();
-    final IndexTuningConfig tuningConfig = ingestionSchema.getTuningConfig();
-    final IndexIOConfig ioConfig = ingestionSchema.getIOConfig();
 
     final GranularitySpec granularitySpec = ingestionSchema.getDataSchema().getGranularitySpec();
 
@@ -630,12 +628,21 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     final boolean determineIntervals = !granularitySpec.bucketIntervals().isPresent();
 
     // Must determine partitions if rollup is guaranteed and the user didn't provide a specific value.
-    final boolean determineNumPartitions = nonNullPartitionsSpec.needsDeterminePartitions(false);
+    final boolean determineNumPartitions = partitionsSpec.needsDeterminePartitions(false);
 
     // if we were given number of shards per interval and the intervals, we don't need to scan the data
     if (!determineNumPartitions && !determineIntervals) {
       log.info("Skipping determine partition scan");
-      return createShardSpecWithoutInputScan(granularitySpec, nonNullPartitionsSpec);
+      if (partitionsSpec instanceof HashedPartitionsSpec) {
+        return PartialHashSegmentGenerateTask.createHashPartitionAnalysisFromPartitionsSpec(
+            granularitySpec,
+            (HashedPartitionsSpec) partitionsSpec
+        );
+      } else if (partitionsSpec instanceof DynamicPartitionsSpec) {
+        return createLinearPartitionAnalysis(granularitySpec, (DynamicPartitionsSpec) partitionsSpec);
+      } else {
+        throw new UOE("%s", partitionsSpec.getClass().getName());
+      }
     } else {
       // determine intervals containing data and prime HLL collectors
       log.info("Determining intervals and shardSpecs");
@@ -645,10 +652,23 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
           inputSource,
           tmpDir,
           granularitySpec,
-          nonNullPartitionsSpec,
+          partitionsSpec,
           determineIntervals
       );
     }
+  }
+
+  private static LinearPartitionAnalysis createLinearPartitionAnalysis(
+      GranularitySpec granularitySpec,
+      @Nonnull DynamicPartitionsSpec partitionsSpec
+  )
+  {
+    final SortedSet<Interval> intervals = granularitySpec.bucketIntervals().get();
+    final int numBucketsPerInterval = 1;
+    final LinearPartitionAnalysis partitionAnalysis = (LinearPartitionAnalysis) partitionsSpec
+        .createPartitionAnalysis();
+    intervals.forEach(interval -> partitionAnalysis.updateBucket(interval, numBucketsPerInterval));
+    return partitionAnalysis;
   }
 
   private PartitionAnalysis createShardSpecsFromInput(
@@ -673,8 +693,10 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         partitionsSpec,
         determineIntervals
     );
+    // TODO: more pretty
     //noinspection unchecked
-    final PartitionAnalysis<Integer> partitionAnalysis = partitionsSpec.createPartitionAnalysis();
+    final PartitionAnalysis<Integer, ?> partitionAnalysis =
+        (PartitionAnalysis<Integer, ?>) partitionsSpec.createPartitionAnalysis();
     for (final Map.Entry<Interval, Optional<HyperLogLogCollector>> entry : hllCollectors.entrySet()) {
       final Interval interval = entry.getKey();
       final int numBucketsPerInterval;
@@ -816,7 +838,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
   private SegmentAllocator createSegmentAllocator(
       TaskToolbox toolbox,
       DataSchema dataSchema,
-      PartitionsSpec partitionsSpec,
       PartitionAnalysis partitionAnalysis
   ) throws IOException
   {
@@ -827,7 +848,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
           getSegmentLockHelper(),
           isUseSegmentLock() ? LockGranularity.SEGMENT : LockGranularity.TIME_CHUNK,
           ingestionSchema.ioConfig.isAppendToExisting(),
-          partitionsSpec,
           partitionAnalysis
       );
     } else {
@@ -839,13 +859,11 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
             getId(),
             getId(),
             getDataSource(),
-            (HashedPartitionsSpec) partitionsSpec,
             (HashPartitionAnalysis) partitionAnalysis
         );
       } else {
         return new LocalSegmentAllocator(
             toolbox,
-            getId(),
             getDataSource(),
             dataSchema.getGranularitySpec()
         );
@@ -899,7 +917,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     final SegmentAllocator segmentAllocator = createSegmentAllocator(
         toolbox,
         dataSchema,
-        partitionsSpec,
         partitionAnalysis
     );
     final SequenceNameFunction sequenceNameFunction;

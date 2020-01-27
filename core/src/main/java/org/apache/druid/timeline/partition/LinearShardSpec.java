@@ -86,12 +86,6 @@ public final class LinearShardSpec implements ShardSpec
   }
 
   @Override
-  public short getBucketId()
-  {
-    return 0;
-  }
-
-  @Override
   public boolean equals(Object o)
   {
     if (this == o) {

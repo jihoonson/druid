@@ -90,7 +90,8 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory
   @Override
   public ShardSpec create(ObjectMapper objectMapper, int partitionId)
   {
-    return new SingleDimensionShardSpec(partitionDimension, start, end, partitionId, numBuckets);
+    // TODO: numBuckets should be added to SingleDimensionShardSpec in a follow-up PR.
+    return new SingleDimensionShardSpec(partitionDimension, start, end, partitionId);
   }
 
   @Override

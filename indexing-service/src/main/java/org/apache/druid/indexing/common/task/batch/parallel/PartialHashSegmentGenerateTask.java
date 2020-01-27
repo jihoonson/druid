@@ -35,11 +35,15 @@ import org.apache.druid.indexing.common.task.batch.parallel.iterator.DefaultInde
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.partition.ShardSpecFactory;
+import org.joda.time.Interval;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedSet;
 import java.util.stream.Collectors;
 
 /**
@@ -133,8 +137,7 @@ public class PartialHashSegmentGenerateTask extends PartialSegmentGenerateTask<G
         getId(),
         supervisorTaskId,
         getDataSource(),
-        partitionsSpec,
-        (HashPartitionAnalysis) createShardSpecWithoutInputScan(granularitySpec, partitionsSpec)
+        createHashPartitionAnalysisFromPartitionsSpec(granularitySpec, partitionsSpec)
     );
   }
 
@@ -158,5 +161,27 @@ public class PartialHashSegmentGenerateTask extends PartialSegmentGenerateTask<G
         null, // numRows is not supported yet
         null  // sizeBytes is not supported yet
     );
+  }
+
+  /**
+   * Creates shard specs based on the given configurations. The return value is a map between intervals created
+   * based on the segment granularity and the shard specs to be created.
+   * Note that the shard specs to be created is a pair of {@link ShardSpecFactory} and number of segments per interval
+   * and filled only when {@link #isGuaranteedRollup} = true. Otherwise, the return value contains only the set of
+   * intervals generated based on the segment granularity.
+   */
+  public static HashPartitionAnalysis createHashPartitionAnalysisFromPartitionsSpec(
+      GranularitySpec granularitySpec,
+      @Nonnull HashedPartitionsSpec partitionsSpec
+  )
+  {
+    final SortedSet<Interval> intervals = granularitySpec.bucketIntervals().get();
+    final int numBucketsPerInterval = partitionsSpec.getNumShards() == null
+                                      ? 1
+                                      : partitionsSpec.getNumShards();
+    final HashPartitionAnalysis partitionAnalysis =
+        (HashPartitionAnalysis) partitionsSpec.createPartitionAnalysis();
+    intervals.forEach(interval -> partitionAnalysis.updateBucket(interval, numBucketsPerInterval));
+    return partitionAnalysis;
   }
 }

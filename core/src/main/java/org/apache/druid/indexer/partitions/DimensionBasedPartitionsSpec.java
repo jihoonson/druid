@@ -25,7 +25,7 @@ import java.util.List;
 /**
  * PartitionsSpec based on dimension values.
  */
-public interface DimensionBasedPartitionsSpec<T> extends PartitionsSpec<T>
+public interface DimensionBasedPartitionsSpec extends PartitionsSpec
 {
   String TARGET_ROWS_PER_SEGMENT = "targetRowsPerSegment";
 

@@ -574,8 +574,7 @@ public class IndexGeneratorJobTest
             "host",
             shardInfo[0],
             shardInfo[1],
-            partitionNum++,
-            (int) SingleDimensionShardSpec.UNKNOWN_NUM_BUCKETS
+            partitionNum++
         ));
       }
     } else {

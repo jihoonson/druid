@@ -28,7 +28,7 @@ import java.util.Objects;
 /**
  * Dynamically determine partitions in the middle of indexing.
  */
-public class DynamicPartitionsSpec implements PartitionsSpec<Integer>
+public class DynamicPartitionsSpec implements PartitionsSpec
 {
   /**
    * Default maxTotalRows for most task types except compaction task.
@@ -88,9 +88,9 @@ public class DynamicPartitionsSpec implements PartitionsSpec<Integer>
   }
 
   @Override
-  public PartitionAnalysis<Integer> createPartitionAnalysis()
+  public PartitionAnalysis<Integer, DynamicPartitionsSpec> createPartitionAnalysis()
   {
-    return new LinearPartitionAnalysis();
+    return new LinearPartitionAnalysis(this);
   }
 
   @Override

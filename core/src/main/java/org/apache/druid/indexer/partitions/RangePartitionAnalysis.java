@@ -27,9 +27,21 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-public class RangePartitionAnalysis implements PartitionAnalysis<PartitionBoundaries>
+public class RangePartitionAnalysis implements PartitionAnalysis<PartitionBoundaries, SingleDimensionPartitionsSpec>
 {
   private final Map<Interval, PartitionBoundaries> intervalToPartitionBoundaries = new HashMap<>();
+  private final SingleDimensionPartitionsSpec partitionsSpec;
+
+  public RangePartitionAnalysis(SingleDimensionPartitionsSpec partitionsSpec)
+  {
+    this.partitionsSpec = partitionsSpec;
+  }
+
+  @Override
+  public SingleDimensionPartitionsSpec getPartitionsSpec()
+  {
+    return partitionsSpec;
+  }
 
   @Override
   public void updateBucket(Interval interval, PartitionBoundaries bucketAnalysis)

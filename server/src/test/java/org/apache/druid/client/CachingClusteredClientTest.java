@@ -1482,12 +1482,12 @@ public class CachingClusteredClientTest
     QueryRunner runner = new FinalizeResultsQueryRunner(getDefaultQueryRunner(), new TimeseriesQueryQueryToolChest());
 
     final DruidServer lastServer = servers[random.nextInt(servers.length)];
-    ServerSelector selector1 = makeMockSingleDimensionSelector(lastServer, "dim1", null, "b", 1, 4);
-    ServerSelector selector2 = makeMockSingleDimensionSelector(lastServer, "dim1", "e", "f", 2, 4);
-    ServerSelector selector3 = makeMockSingleDimensionSelector(lastServer, "dim1", "hi", "zzz", 3, 4);
-    ServerSelector selector4 = makeMockSingleDimensionSelector(lastServer, "dim2", "a", "e", 4, 3);
-    ServerSelector selector5 = makeMockSingleDimensionSelector(lastServer, "dim2", null, null, 5, 1);
-    ServerSelector selector6 = makeMockSingleDimensionSelector(lastServer, "other", "b", null, 6, 2);
+    ServerSelector selector1 = makeMockSingleDimensionSelector(lastServer, "dim1", null, "b", 1);
+    ServerSelector selector2 = makeMockSingleDimensionSelector(lastServer, "dim1", "e", "f", 2);
+    ServerSelector selector3 = makeMockSingleDimensionSelector(lastServer, "dim1", "hi", "zzz", 3);
+    ServerSelector selector4 = makeMockSingleDimensionSelector(lastServer, "dim2", "a", "e", 4);
+    ServerSelector selector5 = makeMockSingleDimensionSelector(lastServer, "dim2", null, null, 5);
+    ServerSelector selector6 = makeMockSingleDimensionSelector(lastServer, "other", "b", null, 6);
 
     timeline.add(interval1, "v", new StringPartitionChunk<>(null, "a", 1, selector1));
     timeline.add(interval1, "v", new StringPartitionChunk<>("a", "b", 2, selector2));
@@ -1526,8 +1526,7 @@ public class CachingClusteredClientTest
       String dimension,
       String start,
       String end,
-      int partitionNum,
-      int numBuckets
+      int partitionNum
   )
   {
     final DataSegment segment = new DataSegment(
@@ -1535,7 +1534,7 @@ public class CachingClusteredClientTest
         null,
         null,
         null,
-        new SingleDimensionShardSpec(dimension, start, end, partitionNum, numBuckets),
+        new SingleDimensionShardSpec(dimension, start, end, partitionNum),
         null,
         9,
         0L
@@ -1963,7 +1962,7 @@ public class CachingClusteredClientTest
 
         final ShardSpec shardSpec;
         if (numChunks == 1) {
-          shardSpec = new SingleDimensionShardSpec("dimAll", null, null, 0, 1);
+          shardSpec = new SingleDimensionShardSpec("dimAll", null, null, 0);
         } else {
           String start = null;
           String end = null;
@@ -1973,7 +1972,7 @@ public class CachingClusteredClientTest
           if (j + 1 < numChunks) {
             end = String.valueOf(j + 1);
           }
-          shardSpec = new SingleDimensionShardSpec("dim" + k, start, end, j, numChunks);
+          shardSpec = new SingleDimensionShardSpec("dim" + k, start, end, j);
         }
         DataSegment mockSegment = makeMock(mocks, DataSegment.class);
         ServerExpectation<Object> expectation = new ServerExpectation<>(

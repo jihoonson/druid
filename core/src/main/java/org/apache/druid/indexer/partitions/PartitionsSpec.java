@@ -35,7 +35,7 @@ import javax.annotation.Nullable;
     @JsonSubTypes.Type(name = HashedPartitionsSpec.NAME, value = HashedPartitionsSpec.class),
     @JsonSubTypes.Type(name = DynamicPartitionsSpec.NAME, value = DynamicPartitionsSpec.class)
 })
-public interface PartitionsSpec<T>
+public interface PartitionsSpec
 {
   int DEFAULT_MAX_ROWS_PER_SEGMENT = 5_000_000;
   String MAX_ROWS_PER_SEGMENT = "maxRowsPerSegment";
@@ -80,7 +80,7 @@ public interface PartitionsSpec<T>
   @JsonIgnore
   String getForceGuaranteedRollupIncompatiblityReason();
 
-  PartitionAnalysis<T> createPartitionAnalysis();
+  PartitionAnalysis<?, ?> createPartitionAnalysis();
 
   /**
    * '-1' regarded as null for some historical reason.

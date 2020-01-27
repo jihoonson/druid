@@ -37,7 +37,7 @@ import java.util.Objects;
 /**
  * Partition a segment by a single dimension.
  */
-public class SingleDimensionPartitionsSpec implements DimensionBasedPartitionsSpec<PartitionBoundaries>
+public class SingleDimensionPartitionsSpec implements DimensionBasedPartitionsSpec
 {
   public static final String NAME = "single_dim";
   static final String OLD_NAME = "dimension";  // for backward compatibility
@@ -183,9 +183,9 @@ public class SingleDimensionPartitionsSpec implements DimensionBasedPartitionsSp
   }
 
   @Override
-  public PartitionAnalysis<PartitionBoundaries> createPartitionAnalysis()
+  public PartitionAnalysis<PartitionBoundaries, SingleDimensionPartitionsSpec> createPartitionAnalysis()
   {
-    return new RangePartitionAnalysis();
+    return new RangePartitionAnalysis(this);
   }
 
   @Override

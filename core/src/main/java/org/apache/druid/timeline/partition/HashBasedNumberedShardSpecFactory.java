@@ -31,16 +31,16 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
 {
   @Nullable
   private final List<String> partitionDimensions;
-  private final int numBuckets;
+  private final int numPartitions;
 
   @JsonCreator
   public HashBasedNumberedShardSpecFactory(
       @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
-      @JsonProperty("numPartitions") int numBuckets
+      @JsonProperty("numPartitions") int numPartitions
   )
   {
     this.partitionDimensions = partitionDimensions;
-    this.numBuckets = numBuckets;
+    this.numPartitions = numPartitions;
   }
 
   @Nullable
@@ -50,30 +50,27 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
     return partitionDimensions;
   }
 
-  @JsonProperty("numPartitions")
-  public int getNumBuckets()
+  @JsonProperty public int getNumPartitions()
   {
-    return numBuckets;
+    return numPartitions;
   }
 
   @Override
   public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
   {
-    final int partitionId;
-    if (specOfPreviousMaxPartitionId != null) {
-      assert specOfPreviousMaxPartitionId instanceof HashBasedNumberedShardSpec;
-      final HashBasedNumberedShardSpec prevSpec = (HashBasedNumberedShardSpec) specOfPreviousMaxPartitionId;
-      partitionId = prevSpec.getPartitionNum() + 1;
-    } else {
-      partitionId = 0;
-    }
-    return create(objectMapper, partitionId);
+    final HashBasedNumberedShardSpec prevSpec = (HashBasedNumberedShardSpec) specOfPreviousMaxPartitionId;
+    return new HashBasedNumberedShardSpec(
+        prevSpec == null ? 0 : prevSpec.getPartitionNum() + 1,
+        numPartitions,
+        partitionDimensions,
+        objectMapper
+    );
   }
 
   @Override
   public ShardSpec create(ObjectMapper objectMapper, int partitionId)
   {
-    return new HashBasedNumberedShardSpec(partitionId, numBuckets, partitionDimensions, objectMapper);
+    return new HashBasedNumberedShardSpec(partitionId, numPartitions, partitionDimensions, objectMapper);
   }
 
   @Override
@@ -92,13 +89,13 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
       return false;
     }
     HashBasedNumberedShardSpecFactory that = (HashBasedNumberedShardSpecFactory) o;
-    return numBuckets == that.numBuckets &&
+    return numPartitions == that.numPartitions &&
            Objects.equals(partitionDimensions, that.partitionDimensions);
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(partitionDimensions, numBuckets);
+    return Objects.hash(partitionDimensions, numPartitions);
   }
 }

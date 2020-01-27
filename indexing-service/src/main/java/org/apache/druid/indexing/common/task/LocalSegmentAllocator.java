@@ -20,6 +20,7 @@
 package org.apache.druid.indexing.common.task;
 
 import com.google.common.base.Optional;
+import com.google.common.collect.Maps;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexing.common.TaskLock;
@@ -34,7 +35,6 @@ import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
@@ -44,25 +44,16 @@ import java.util.stream.Collectors;
  */
 class LocalSegmentAllocator implements SegmentAllocator
 {
-  private final String taskId;
-
   private final SegmentAllocator internalAllocator;
 
-  LocalSegmentAllocator(
-      TaskToolbox toolbox,
-      String taskId,
-      String dataSource,
-      GranularitySpec granularitySpec
-  ) throws IOException
+  LocalSegmentAllocator(TaskToolbox toolbox, String dataSource, GranularitySpec granularitySpec) throws IOException
   {
-    this.taskId = taskId;
-    final Map<Interval, MutableInt> counters = new HashMap<>();
-
     final Map<Interval, String> intervalToVersion = toolbox
         .getTaskActionClient()
         .submit(new LockListAction())
         .stream()
         .collect(Collectors.toMap(TaskLock::getInterval, TaskLock::getVersion));
+    final Map<Interval, MutableInt> counters = Maps.newHashMapWithExpectedSize(intervalToVersion.size());
 
     internalAllocator = (row, sequenceName, previousSegmentId, skipSegmentLineageCheck) -> {
       final DateTime timestamp = row.getTimestamp();
@@ -100,77 +91,4 @@ class LocalSegmentAllocator implements SegmentAllocator
   {
     return internalAllocator.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);
   }
-
-//  public static NumberedShardSpec createLinearPartitionedShardSpec(
-//      LockGranularity lockGranularityToTry,
-//      boolean appendToExisting,
-//      SegmentLockHelper segmentLockHelper,
-//      int partitionId
-//  )
-//  {
-//    if (lockGranularityToTry == LockGranularity.SEGMENT) {
-//      if (segmentLockHelper.hasLockedExistingSegments() && !appendToExisting) {
-//        throw new ISE("Segment ID should be allocated by the overlord with the segment lock");
-//      }
-//    }
-//    return new NumberedShardSpec(partitionId, 0);
-//  }
-//
-//  public static HashBasedNumberedShardSpec createHashPartitionedShardSpec(
-//      TaskToolbox toolbox,
-//      LockGranularity lockGranularityToTry,
-//      boolean appendToExisting,
-//      HashedPartitionsSpec partitionsSpec,
-//      PartitionAnalysis partitionAnalysis,
-//      SegmentLockHelper segmentLockHelper,
-//      Interval interval,
-//      int partitionId
-//  )
-//  {
-//    if (lockGranularityToTry == LockGranularity.SEGMENT) {
-//      if (segmentLockHelper.hasLockedExistingSegments() && !appendToExisting) {
-//        throw new UnsupportedOperationException("Append with hash partitioning with segment lock is not supported yet");
-//      }
-//    }
-//    final HashPartitionAnalysis hashPartitionAnalysis = (HashPartitionAnalysis) partitionAnalysis;
-//    return new HashBasedNumberedShardSpec(
-//        partitionId,
-//        hashPartitionAnalysis.getBucketAnalysis(interval),
-//        partitionsSpec.getPartitionDimensions(),
-//        toolbox.getJsonMapper()
-//    );
-//  }
-
-//  public static SingleDimensionShardSpec createSingleDimensionRangePartitionedShardSpec(
-//      LockGranularity lockGranularityToTry,
-//      boolean appendToExisting,
-//      SingleDimensionPartitionsSpec partitionsSpec,
-//      PartitionAnalysis partitionAnalysis,
-//      SegmentLockHelper segmentLockHelper,
-//      Interval interval,
-//      int partitionId,
-//      int bucketId
-//  )
-//  {
-//    if (lockGranularityToTry == LockGranularity.SEGMENT) {
-//      if (segmentLockHelper.hasLockedExistingSegments() && !appendToExisting) {
-//        throw new UnsupportedOperationException("Append with range partitioning with segment lock is not supported yet");
-//      }
-//    }
-//    final RangePartitionAnalysis rangePartitionAnalysis = (RangePartitionAnalysis) partitionAnalysis;
-//    final PartitionBoundaries partitionBoundaries = rangePartitionAnalysis.getBucketAnalysis(interval);
-//    Preconditions.checkArgument(
-//        bucketId < partitionBoundaries.size() - 1,
-//        "Invalid bucketId[%s]. Size of partitionBoundaries: %s",
-//        bucketId,
-//        partitionBoundaries.size()
-//    );
-//    return new SingleDimensionShardSpec(
-//        partitionsSpec.getPartitionDimension(),
-//        partitionBoundaries.get(bucketId),
-//        partitionBoundaries.get(bucketId + 1),
-//        partitionId,
-//        partitionBoundaries.size() - 1
-//    );
-//  }
 }

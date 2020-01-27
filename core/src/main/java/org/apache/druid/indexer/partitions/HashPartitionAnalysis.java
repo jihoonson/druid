@@ -28,13 +28,25 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-public class HashPartitionAnalysis implements PartitionAnalysis<Integer>
+public class HashPartitionAnalysis implements PartitionAnalysis<Integer, HashedPartitionsSpec>
 {
   /**
    * Key is the time ranges for the primary partitioning.
    * Value is the number of partitions per time range for the secondary partitioning
    */
   private final Map<Interval, Integer> intervalToNumBuckets = new HashMap<>();
+  private final HashedPartitionsSpec partitionsSpec;
+
+  public HashPartitionAnalysis(HashedPartitionsSpec partitionsSpec)
+  {
+    this.partitionsSpec = partitionsSpec;
+  }
+
+  @Override
+  public HashedPartitionsSpec getPartitionsSpec()
+  {
+    return partitionsSpec;
+  }
 
   @Override
   public void updateBucket(Interval interval, Integer bucketAnalysis)

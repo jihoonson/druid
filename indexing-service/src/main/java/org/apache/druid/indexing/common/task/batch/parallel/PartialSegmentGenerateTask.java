@@ -47,12 +47,8 @@ import org.apache.druid.segment.realtime.RealtimeMetricsMonitor;
 import org.apache.druid.segment.realtime.appenderator.Appenderator;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
-<<<<<<< HEAD
-import org.apache.druid.segment.realtime.appenderator.SegmentsAndCommitMetadata;
-=======
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
-import org.apache.druid.segment.realtime.appenderator.SegmentsAndMetadata;
->>>>>>> append-partitions
+import org.apache.druid.segment.realtime.appenderator.SegmentsAndCommitMetadata;
 import org.apache.druid.timeline.DataSegment;
 
 import java.io.File;

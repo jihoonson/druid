@@ -69,12 +69,6 @@ public class DataSegmentTest
       }
 
       @Override
-      public short getBucketId()
-      {
-        return 0;
-      }
-
-      @Override
       public int getPartitionNum()
       {
         return partitionNum;

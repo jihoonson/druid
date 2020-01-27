@@ -113,8 +113,7 @@ public class RangePartitionCachingLocalSegmentAllocator extends CachingLocalSegm
                         versionFinder.apply(interval),
                         partitionBoundaries.get(i),
                         partitionBoundaries.get(i + 1),
-                        i,
-                        partitionBoundaries.size() - 1
+                        i
                     ))
                     .collect(Collectors.toList());
   }
@@ -126,8 +125,7 @@ public class RangePartitionCachingLocalSegmentAllocator extends CachingLocalSegm
       String partitionDimension,
       String partitionStart,
       @Nullable String partitionEnd,
-      int partitionNum,
-      int numBuckets
+      int partitionNum
   )
   {
     // The shardSpec created here will be reused in PartialGenericSegmentMergeTask. This is ok because
@@ -140,8 +138,7 @@ public class RangePartitionCachingLocalSegmentAllocator extends CachingLocalSegm
             partitionDimension,
             partitionStart,
             partitionEnd,
-            partitionNum,
-            numBuckets
+            partitionNum
         )
     );
   }

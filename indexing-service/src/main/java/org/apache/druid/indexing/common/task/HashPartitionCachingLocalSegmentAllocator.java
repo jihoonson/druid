@@ -44,7 +44,6 @@ public class HashPartitionCachingLocalSegmentAllocator extends CachingLocalSegme
       String taskId,
       String supervisorTaskId,
       String dataSource,
-      HashedPartitionsSpec partitionsSpec,
       HashPartitionAnalysis partitionAnalysis
   ) throws IOException
   {
@@ -52,18 +51,18 @@ public class HashPartitionCachingLocalSegmentAllocator extends CachingLocalSegme
         toolbox,
         taskId,
         supervisorTaskId,
-        versionFinder -> getIntervalToSegmentIds(toolbox, dataSource, partitionsSpec, partitionAnalysis, versionFinder)
+        versionFinder -> getIntervalToSegmentIds(toolbox, dataSource, partitionAnalysis, versionFinder)
     );
   }
 
   private static Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds(
       TaskToolbox toolbox,
       String dataSource,
-      HashedPartitionsSpec partitionsSpec,
       HashPartitionAnalysis partitionAnalysis,
       Function<Interval, String> versionFinder
   )
   {
+    final HashedPartitionsSpec partitionsSpec = partitionAnalysis.getPartitionsSpec();
     final Map<Interval, List<SegmentIdWithShardSpec>> intervalToSegmentIds =
         Maps.newHashMapWithExpectedSize(partitionAnalysis.numPrimaryPartitions());
 

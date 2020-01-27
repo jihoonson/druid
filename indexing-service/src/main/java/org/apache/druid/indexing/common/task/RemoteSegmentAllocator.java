@@ -21,8 +21,6 @@ package org.apache.druid.indexing.common.task;
 
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
-import org.apache.druid.indexer.partitions.HashPartitionAnalysis;
-import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.indexer.partitions.PartitionAnalysis;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
@@ -35,7 +33,6 @@ import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
-import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedOverwriteShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
@@ -56,7 +53,6 @@ public class RemoteSegmentAllocator implements SegmentAllocator
       final SegmentLockHelper segmentLockHelper,
       final LockGranularity lockGranularity,
       final boolean appendToExisting,
-      PartitionsSpec partitionsSpec,
       PartitionAnalysis partitionAnalysis
   )
   {
@@ -71,7 +67,6 @@ public class RemoteSegmentAllocator implements SegmentAllocator
           final ShardSpecFactory shardSpecFactory = createShardSpecFactory(
               lockGranularity,
               appendToExisting,
-              partitionsSpec,
               partitionAnalysis,
               segmentLockHelper,
               interval
@@ -102,15 +97,15 @@ public class RemoteSegmentAllocator implements SegmentAllocator
     return internalAllocator.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);
   }
 
-  static ShardSpecFactory createShardSpecFactory(
+  private static ShardSpecFactory createShardSpecFactory(
       LockGranularity lockGranularityToTry,
       boolean appendToExisting,
-      PartitionsSpec partitionsSpec,
       PartitionAnalysis partitionAnalysis,
       SegmentLockHelper segmentLockHelper,
       Interval interval
   )
   {
+    final PartitionsSpec partitionsSpec = partitionAnalysis.getPartitionsSpec();
     if (partitionsSpec instanceof DynamicPartitionsSpec) {
       if (lockGranularityToTry == LockGranularity.SEGMENT) {
         if (segmentLockHelper.hasLockedExistingSegments() && !appendToExisting) {
@@ -127,29 +122,12 @@ public class RemoteSegmentAllocator implements SegmentAllocator
         }
       }
       return NumberedShardSpecFactory.instance();
-    } else if (partitionsSpec instanceof HashedPartitionsSpec) {
-      final HashPartitionAnalysis hashPartitionAnalysis = (HashPartitionAnalysis) partitionAnalysis;
-      return new HashBasedNumberedShardSpecFactory(
-          ((HashedPartitionsSpec) partitionsSpec).getPartitionDimensions(),
-          hashPartitionAnalysis.getBucketAnalysis(interval)
-      );
-//    } else if (partitionsSpec instanceof SingleDimensionPartitionsSpec) {
-//      final RangePartitionAnalysis rangePartitionAnalysis = (RangePartitionAnalysis) partitionAnalysis;
-//      final PartitionBoundaries partitionBoundaries = rangePartitionAnalysis.getBucketAnalysis(interval);
-//      Preconditions.checkArgument(
-//          bucketId < partitionBoundaries.size() - 1,
-//          "Invalid bucketId[%s]. Size of partitionBoundaries: %s",
-//          bucketId,
-//          partitionBoundaries.size()
-//      );
-//      return new SingleDimensionShardSpecFactory(
-//          ((SingleDimensionPartitionsSpec) partitionsSpec).getPartitionDimension(),
-//          partitionBoundaries.size() - 1,
-//          partitionBoundaries.get(bucketId),
-//          partitionBoundaries.get(bucketId + 1)
-//      );
     } else {
-      throw new ISE("TODO");
+      throw new ISE(
+          "%s is not supported for partitionsSpec[%s]",
+          RemoteSegmentAllocator.class.getName(),
+          partitionsSpec.getClass().getName()
+      );
     }
   }
 }

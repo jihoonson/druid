@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec<Integer>
+public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
 {
   static final String NAME = "hashed";
   @VisibleForTesting
@@ -158,9 +158,9 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec<Intege
   }
 
   @Override
-  public PartitionAnalysis<Integer> createPartitionAnalysis()
+  public PartitionAnalysis<Integer, HashedPartitionsSpec> createPartitionAnalysis()
   {
-    return new HashPartitionAnalysis();
+    return new HashPartitionAnalysis(this);
   }
 
   @Override

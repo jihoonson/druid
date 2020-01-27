@@ -23,8 +23,10 @@ import org.joda.time.Interval;
 
 import java.util.Set;
 
-public interface PartitionAnalysis<T>
+public interface PartitionAnalysis<T, P extends PartitionsSpec>
 {
+  P getPartitionsSpec();
+
   void updateBucket(Interval interval, T bucketAnalysis);
 
   T getBucketAnalysis(Interval interval);

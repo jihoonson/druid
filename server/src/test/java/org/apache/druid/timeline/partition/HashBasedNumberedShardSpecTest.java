@@ -200,10 +200,7 @@ public class HashBasedNumberedShardSpecTest
 
   public static class HashOverridenShardSpec extends HashBasedNumberedShardSpec
   {
-    public HashOverridenShardSpec(
-        int partitionNum,
-        int partitions
-    )
+    public HashOverridenShardSpec(int partitionNum, int partitions)
     {
       super(partitionNum, partitions, null, ServerTestHelper.MAPPER);
     }

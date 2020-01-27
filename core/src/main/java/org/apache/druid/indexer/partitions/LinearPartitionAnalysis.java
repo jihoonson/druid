@@ -26,9 +26,21 @@ import org.joda.time.Interval;
 import java.util.HashSet;
 import java.util.Set;
 
-public class LinearPartitionAnalysis implements PartitionAnalysis<Integer>
+public class LinearPartitionAnalysis implements PartitionAnalysis<Integer, DynamicPartitionsSpec>
 {
   private final Set<Interval> intervals = new HashSet<>();
+  private final DynamicPartitionsSpec partitionsSpec;
+
+  public LinearPartitionAnalysis(DynamicPartitionsSpec partitionsSpec)
+  {
+    this.partitionsSpec = partitionsSpec;
+  }
+
+  @Override
+  public DynamicPartitionsSpec getPartitionsSpec()
+  {
+    return partitionsSpec;
+  }
 
   @Override
   public void updateBucket(Interval interval, Integer bucketAnalysis)
