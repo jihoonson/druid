@@ -219,40 +219,6 @@ public class IndexTaskSerdeTest
     );
   }
 
-  @Test
-  public void testBestEffortRollupWithHashedPartitionsSpec()
-  {
-    expectedException.expect(IllegalStateException.class);
-    expectedException.expectMessage("DynamicPartitionsSpec must be used for best-effort rollup");
-    final IndexTuningConfig tuningConfig = new IndexTuningConfig(
-        null,
-        null,
-        100,
-        2000L,
-        null,
-        null,
-        null,
-        null,
-        new HashedPartitionsSpec(null, 10, ImmutableList.of("dim1", "dim2")),
-        new IndexSpec(
-            new RoaringBitmapSerdeFactory(false),
-            CompressionStrategy.LZ4,
-            CompressionStrategy.LZF,
-            LongEncodingStrategy.LONGS
-        ),
-        null,
-        null,
-        false,
-        null,
-        null,
-        100L,
-        OffHeapMemorySegmentWriteOutMediumFactory.instance(),
-        true,
-        10,
-        100
-    );
-  }
-
   private static void assertSerdeTuningConfig(IndexTuningConfig tuningConfig) throws IOException
   {
     final byte[] json = MAPPER.writeValueAsBytes(tuningConfig);

@@ -133,6 +133,12 @@ public class NumberedOverwriteShardSpec implements OverwriteShardSpec
     return true;
   }
 
+  @Override
+  public short getBucketId()
+  {
+    return 0;
+  }
+
   @JsonProperty("partitionId")
   @Override
   public int getPartitionNum()

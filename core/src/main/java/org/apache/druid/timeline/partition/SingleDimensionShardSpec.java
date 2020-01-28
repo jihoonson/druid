@@ -27,6 +27,7 @@ import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.Numbers;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -38,25 +39,30 @@ import java.util.Objects;
  */
 public class SingleDimensionShardSpec implements ShardSpec
 {
+  public static final short UNKNOWN_NUM_BUCKETS = -1;
+
   private final String dimension;
   @Nullable
   private final String start;
   @Nullable
   private final String end;
   private final int partitionNum;
+  private final short numBuckets;
 
   /**
    * @param dimension    partition dimension
    * @param start        inclusive start of this range
    * @param end          exclusive end of this range
    * @param partitionNum unique ID for this shard
+   * @param numBuckets   number of range-partitioned buckets
    */
   @JsonCreator
   public SingleDimensionShardSpec(
       @JsonProperty("dimension") String dimension,
       @JsonProperty("start") @Nullable String start,
       @JsonProperty("end") @Nullable String end,
-      @JsonProperty("partitionNum") int partitionNum
+      @JsonProperty("partitionNum") int partitionNum,
+      @JsonProperty("numBuckets") @Nullable Integer numBuckets
   )
   {
     Preconditions.checkArgument(partitionNum >= 0, "partitionNum >= 0");
@@ -64,6 +70,9 @@ public class SingleDimensionShardSpec implements ShardSpec
     this.start = start;
     this.end = end;
     this.partitionNum = partitionNum;
+    this.numBuckets = numBuckets == null
+                      ? UNKNOWN_NUM_BUCKETS
+                      : Numbers.toShortExact(numBuckets, "Illegal numBuckets[" + numBuckets + "]");
   }
 
   @JsonProperty("dimension")
@@ -91,6 +100,12 @@ public class SingleDimensionShardSpec implements ShardSpec
   public int getPartitionNum()
   {
     return partitionNum;
+  }
+
+  @JsonProperty("numBuckets")
+  public short getNumBuckets()
+  {
+    return numBuckets;
   }
 
   @Override
@@ -161,6 +176,16 @@ public class SingleDimensionShardSpec implements ShardSpec
     }
   }
 
+  @Override
+  public short getBucketId()
+  {
+    if (numBuckets == UNKNOWN_NUM_BUCKETS) {
+      return (short) partitionNum;
+    } else {
+      return (short) (partitionNum % numBuckets);
+    }
+  }
+
   private boolean checkValue(String value)
   {
     if (value == null) {
@@ -176,17 +201,6 @@ public class SingleDimensionShardSpec implements ShardSpec
   }
 
   @Override
-  public String toString()
-  {
-    return "SingleDimensionShardSpec{" +
-           "dimension='" + dimension + '\'' +
-           ", start='" + start + '\'' +
-           ", end='" + end + '\'' +
-           ", partitionNum=" + partitionNum +
-           '}';
-  }
-
-  @Override
   public boolean equals(Object o)
   {
     if (this == o) {
@@ -197,6 +211,7 @@ public class SingleDimensionShardSpec implements ShardSpec
     }
     SingleDimensionShardSpec that = (SingleDimensionShardSpec) o;
     return partitionNum == that.partitionNum &&
+           numBuckets == that.numBuckets &&
            Objects.equals(dimension, that.dimension) &&
            Objects.equals(start, that.start) &&
            Objects.equals(end, that.end);
@@ -205,6 +220,18 @@ public class SingleDimensionShardSpec implements ShardSpec
   @Override
   public int hashCode()
   {
-    return Objects.hash(dimension, start, end, partitionNum);
+    return Objects.hash(dimension, start, end, partitionNum, numBuckets);
+  }
+
+  @Override
+  public String toString()
+  {
+    return "SingleDimensionShardSpec{" +
+           "dimension='" + dimension + '\'' +
+           ", start='" + start + '\'' +
+           ", end='" + end + '\'' +
+           ", partitionNum=" + partitionNum +
+           ", numBuckets=" + numBuckets +
+           '}';
   }
 }

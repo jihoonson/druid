@@ -127,4 +127,19 @@ public class NumbersTest
     expectedException.expectMessage(CoreMatchers.startsWith("Unknown type"));
     Numbers.parseBoolean(new Object());
   }
+
+  @Test
+  public void testToShortExactWithShortReturningItself()
+  {
+    final short val = Short.MAX_VALUE;
+    Assert.assertEquals(val, Numbers.toShortExact(val, "error"));
+  }
+
+  @Test
+  public void testToShortExactWithIntegerThrowingError()
+  {
+    expectedException.expect(ArithmeticException.class);
+    expectedException.expectMessage("testToShortExactWithIntegerThrowingError");
+    Numbers.toShortExact(Short.MAX_VALUE + 1, "testToShortExactWithIntegerThrowingError");
+  }
 }

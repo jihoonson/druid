@@ -59,6 +59,12 @@ public class NoneShardSpec implements ShardSpec
   }
 
   @Override
+  public short getBucketId()
+  {
+    return 0;
+  }
+
+  @Override
   @JsonIgnore
   public int getPartitionNum()
   {

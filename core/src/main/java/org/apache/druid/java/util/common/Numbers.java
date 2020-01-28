@@ -175,6 +175,14 @@ public final class Numbers
     return (int) value;
   }
 
+  public static short toShortExact(int value, String error)
+  {
+    if ((short) value != value) {
+      throw new ArithmeticException(error);
+    }
+    return (short) value;
+  }
+
   private Numbers()
   {
   }

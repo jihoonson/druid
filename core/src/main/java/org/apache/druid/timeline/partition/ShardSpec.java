@@ -46,6 +46,12 @@ public interface ShardSpec
 
   boolean isInChunk(long timestamp, InputRow inputRow);
 
+  /**
+   * Returns the bucket ID of this partition (segment). A bucket represents the secondary partition.
+   * This always returns 0 for the linear partitioning, i.e., {@link LinearShardSpec} or {@link NumberedShardSpec}.
+   */
+  short getBucketId();
+
   int getPartitionNum();
 
   default int getStartRootPartitionId()

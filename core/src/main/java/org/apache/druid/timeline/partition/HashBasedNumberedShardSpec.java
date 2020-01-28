@@ -48,7 +48,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   @JsonCreator
   public HashBasedNumberedShardSpec(
       @JsonProperty("partitionNum") int partitionNum,    // partitionId
-      @JsonProperty("partitions") int partitions,        // # of partitions
+      @JsonProperty("partitions") int partitions,        // # of buckets
       @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
       @JacksonInject ObjectMapper jsonMapper
   )
@@ -56,6 +56,13 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     super(partitionNum, partitions);
     this.jsonMapper = jsonMapper;
     this.partitionDimensions = partitionDimensions == null ? DEFAULT_PARTITION_DIMENSIONS : partitionDimensions;
+  }
+
+  @Override
+  public short getBucketId()
+  {
+    // partitionId % (# of buckets)
+    return (short) (getPartitionNum() % getPartitions());
   }
 
   @JsonProperty("partitionDimensions")
@@ -73,6 +80,8 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   @Override
   public boolean isInChunk(long timestamp, InputRow inputRow)
   {
+    // Since partitionNum = bucketId + partitions (numBuckets) + n,
+    // the below function still holds.
     return (((long) hash(timestamp, inputRow)) - getPartitionNum()) % getPartitions() == 0;
   }
 
