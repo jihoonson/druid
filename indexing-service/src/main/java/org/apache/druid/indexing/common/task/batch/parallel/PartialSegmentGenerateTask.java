@@ -120,7 +120,7 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
         ingestionSchema.getTuningConfig().getChatHandlerNumRetries()
     );
 
-    final List<DataSegment> segments = generateSegments(toolbox, inputSource, tmpDir);
+    final List<DataSegment> segments = generateSegments(toolbox, taskClient, inputSource, tmpDir);
     taskClient.report(supervisorTaskId, createGeneratedPartitionsReport(toolbox, segments));
 
     return TaskStatus.success(getId());
@@ -129,7 +129,10 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
   /**
    * @return {@link SegmentAllocator} suitable for the desired segment partitioning strategy.
    */
-  abstract CachingLocalSegmentAllocator createSegmentAllocator(TaskToolbox toolbox) throws IOException;
+  abstract CachingLocalSegmentAllocator createSegmentAllocator(
+      TaskToolbox toolbox,
+      ParallelIndexSupervisorTaskClient taskClient
+  ) throws IOException;
 
   /**
    * @return {@link GeneratedPartitionsReport} suitable for the desired segment partitioning strategy.
@@ -141,6 +144,7 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
 
   private List<DataSegment> generateSegments(
       final TaskToolbox toolbox,
+      final ParallelIndexSupervisorTaskClient taskClient,
       final InputSource inputSource,
       final File tmpDir
   ) throws IOException, InterruptedException, ExecutionException, TimeoutException
@@ -167,7 +171,7 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
     final PartitionsSpec partitionsSpec = tuningConfig.getGivenOrDefaultPartitionsSpec();
     final long pushTimeout = tuningConfig.getPushTimeout();
 
-    final CachingLocalSegmentAllocator segmentAllocator = createSegmentAllocator(toolbox);
+    final CachingLocalSegmentAllocator segmentAllocator = createSegmentAllocator(toolbox, taskClient);
     final SequenceNameFunction sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(
         getId(),
         segmentAllocator.getShardSpecs()

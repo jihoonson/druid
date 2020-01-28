@@ -53,6 +53,12 @@ public class DynamicPartitionsSpec implements PartitionsSpec
   }
 
   @Override
+  public SecondaryPartitionType getType()
+  {
+    return SecondaryPartitionType.LINEAR;
+  }
+
+  @Override
   @JsonProperty
   public Integer getMaxRowsPerSegment()
   {
@@ -85,12 +91,6 @@ public class DynamicPartitionsSpec implements PartitionsSpec
   public String getForceGuaranteedRollupIncompatiblityReason()
   {
     return NAME + " partitions unsupported";
-  }
-
-  @Override
-  public PartitionAnalysis<Integer, DynamicPartitionsSpec> createPartitionAnalysis()
-  {
-    return new LinearPartitionAnalysis(this);
   }
 
   @Override

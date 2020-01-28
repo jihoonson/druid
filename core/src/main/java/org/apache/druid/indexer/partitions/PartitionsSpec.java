@@ -41,6 +41,8 @@ public interface PartitionsSpec
   String MAX_ROWS_PER_SEGMENT = "maxRowsPerSegment";
   int HISTORICAL_NULL = -1;
 
+  SecondaryPartitionType getType();
+
   /**
    * Returns the max number of rows per segment.
    * Implementations can have different default values which it could be even null.
@@ -79,8 +81,6 @@ public interface PartitionsSpec
    */
   @JsonIgnore
   String getForceGuaranteedRollupIncompatiblityReason();
-
-  PartitionAnalysis<?, ?> createPartitionAnalysis();
 
   /**
    * '-1' regarded as null for some historical reason.

@@ -24,15 +24,16 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.MapBasedInputRow;
-import org.apache.druid.indexer.partitions.HashPartitionAnalysis;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
-import org.apache.druid.indexing.common.task.HashPartitionCachingLocalSegmentAllocator;
+import org.apache.druid.indexing.common.task.CachingLocalSegmentAllocator;
 import org.apache.druid.indexing.common.task.NonLinearlyPartitionedSequenceNameFunction;
+import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.SequenceNameFunction;
+import org.apache.druid.indexing.common.task.batch.partition.HashPartitionAnalysis;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
@@ -67,27 +68,23 @@ public class HashPartitionCachingLocalSegmentAllocatorTest
       Collections.singletonList(DIMENSION)
   );
 
-  private HashPartitionCachingLocalSegmentAllocator target;
+  private CachingLocalSegmentAllocator target;
   private SequenceNameFunction sequenceNameFunction;
 
   @Before
   public void setup() throws IOException
   {
     TaskToolbox toolbox = createToolbox();
-    HashPartitionAnalysis partitionAnalysis = new HashPartitionAnalysis();
+    HashPartitionAnalysis partitionAnalysis = new HashPartitionAnalysis(PARTITIONS_SPEC);
     partitionAnalysis.updateBucket(INTERVAL, NUM_PARTITONS);
-    target = new HashPartitionCachingLocalSegmentAllocator(
+    target = SegmentAllocators.forNonLinearPartitioning(
         toolbox,
-        TASKID,
-        SUPERVISOR_TASKID,
         DATASOURCE,
-        PARTITIONS_SPEC,
+        TASKID,
+        new SupervisorTaskAccess(SUPERVISOR_TASKID, null),
         partitionAnalysis
     );
-    sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(
-        TASKID,
-        target.getShardSpecs()
-    );
+    sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(TASKID, target.getShardSpecs());
   }
 
   @Test

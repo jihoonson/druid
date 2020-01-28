@@ -17,9 +17,11 @@
  * under the License.
  */
 
-package org.apache.druid.indexer.partitions;
+package org.apache.druid.indexing.common.task.batch.partition;
 
 import com.google.common.base.Preconditions;
+import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
+import org.apache.druid.indexer.partitions.SecondaryPartitionType;
 import org.apache.druid.java.util.common.ISE;
 import org.joda.time.Interval;
 
@@ -34,6 +36,12 @@ public class LinearPartitionAnalysis implements PartitionAnalysis<Integer, Dynam
   public LinearPartitionAnalysis(DynamicPartitionsSpec partitionsSpec)
   {
     this.partitionsSpec = partitionsSpec;
+  }
+
+  @Override
+  public SecondaryPartitionType getSecondaryPartitionType()
+  {
+    return SecondaryPartitionType.LINEAR;
   }
 
   @Override
@@ -63,5 +71,11 @@ public class LinearPartitionAnalysis implements PartitionAnalysis<Integer, Dynam
   public Set<Interval> getAllIntervalsToIndex()
   {
     return intervals;
+  }
+
+  @Override
+  public int numTimePartitions()
+  {
+    return intervals.size();
   }
 }

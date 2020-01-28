@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.druid.indexer.partitions;
+package org.apache.druid.indexing.common.task.batch.partition;
 
 import com.google.common.collect.ForwardingList;
 

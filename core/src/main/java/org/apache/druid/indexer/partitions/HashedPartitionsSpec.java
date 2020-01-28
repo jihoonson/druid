@@ -123,6 +123,12 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
     return null;
   }
 
+  @Override
+  public SecondaryPartitionType getType()
+  {
+    return SecondaryPartitionType.HASH;
+  }
+
   @Nullable
   @Override
   @JsonProperty
@@ -155,12 +161,6 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
   public String getForceGuaranteedRollupIncompatiblityReason()
   {
     return getNumShards() == null ? NUM_SHARDS + " must be specified" : FORCE_GUARANTEED_ROLLUP_COMPATIBLE;
-  }
-
-  @Override
-  public PartitionAnalysis<Integer, HashedPartitionsSpec> createPartitionAnalysis()
-  {
-    return new HashPartitionAnalysis(this);
   }
 
   @Override

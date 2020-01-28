@@ -20,14 +20,13 @@
 package org.apache.druid.indexing.common.task;
 
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
-import org.apache.druid.indexer.partitions.PartitionAnalysis;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
+import org.apache.druid.indexer.partitions.SecondaryPartitionType;
 import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
-import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
-import org.apache.druid.indexing.common.task.SegmentLockHelper.OverwritingRootGenerationPartitions;
+import org.apache.druid.indexing.common.actions.SurrogateAction;
+import org.apache.druid.indexing.common.task.TaskLockHelper.OverwritingRootGenerationPartitions;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
@@ -43,17 +42,17 @@ import java.io.IOException;
 /**
  * Segment allocator which allocates new segments using the overlord per request.
  */
-public class RemoteSegmentAllocator implements SegmentAllocator
+public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
 {
   private final ActionBasedSegmentAllocator internalAllocator;
 
-  RemoteSegmentAllocator(
+  OverlordCoordinatingSegmentAllocator(
       final TaskToolbox toolbox,
+      final String supervisorTaskId,
       final DataSchema dataSchema,
-      final SegmentLockHelper segmentLockHelper,
-      final LockGranularity lockGranularity,
+      final TaskLockHelper taskLockHelper,
       final boolean appendToExisting,
-      PartitionAnalysis partitionAnalysis
+      final PartitionsSpec partitionsSpec
   )
   {
     this.internalAllocator = new ActionBasedSegmentAllocator(
@@ -65,22 +64,24 @@ public class RemoteSegmentAllocator implements SegmentAllocator
               .bucketInterval(row.getTimestamp())
               .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()));
           final ShardSpecFactory shardSpecFactory = createShardSpecFactory(
-              lockGranularity,
               appendToExisting,
-              partitionAnalysis,
-              segmentLockHelper,
+              partitionsSpec,
+              taskLockHelper,
               interval
           );
-          return new SegmentAllocateAction(
-              schema.getDataSource(),
-              row.getTimestamp(),
-              schema.getGranularitySpec().getQueryGranularity(),
-              schema.getGranularitySpec().getSegmentGranularity(),
-              sequenceName,
-              previousSegmentId,
-              skipSegmentLineageCheck,
-              shardSpecFactory,
-              lockGranularity
+          return new SurrogateAction<>(
+              supervisorTaskId,
+              new SegmentAllocateAction(
+                  schema.getDataSource(),
+                  row.getTimestamp(),
+                  schema.getGranularitySpec().getQueryGranularity(),
+                  schema.getGranularitySpec().getSegmentGranularity(),
+                  sequenceName,
+                  previousSegmentId,
+                  skipSegmentLineageCheck,
+                  shardSpecFactory,
+                  taskLockHelper.getLockGranularityToUse()
+              )
           );
         }
     );
@@ -98,18 +99,16 @@ public class RemoteSegmentAllocator implements SegmentAllocator
   }
 
   private static ShardSpecFactory createShardSpecFactory(
-      LockGranularity lockGranularityToTry,
       boolean appendToExisting,
-      PartitionAnalysis partitionAnalysis,
-      SegmentLockHelper segmentLockHelper,
+      PartitionsSpec partitionsSpec,
+      TaskLockHelper taskLockHelper,
       Interval interval
   )
   {
-    final PartitionsSpec partitionsSpec = partitionAnalysis.getPartitionsSpec();
-    if (partitionsSpec instanceof DynamicPartitionsSpec) {
-      if (lockGranularityToTry == LockGranularity.SEGMENT) {
-        if (segmentLockHelper.hasLockedExistingSegments() && !appendToExisting) {
-          final OverwritingRootGenerationPartitions overwritingRootGenerationPartitions = segmentLockHelper
+    if (partitionsSpec.getType() == SecondaryPartitionType.LINEAR) {
+      if (taskLockHelper.isUseSegmentLock()) {
+        if (taskLockHelper.hasOverwritingRootGenerationPartition(interval) && !appendToExisting) {
+          final OverwritingRootGenerationPartitions overwritingRootGenerationPartitions = taskLockHelper
               .getOverwritingRootGenerationPartition(interval);
           if (overwritingRootGenerationPartitions == null) {
             throw new ISE("Can't find overwritingSegmentMeta for interval[%s]", interval);
@@ -125,7 +124,7 @@ public class RemoteSegmentAllocator implements SegmentAllocator
     } else {
       throw new ISE(
           "%s is not supported for partitionsSpec[%s]",
-          RemoteSegmentAllocator.class.getName(),
+          OverlordCoordinatingSegmentAllocator.class.getName(),
           partitionsSpec.getClass().getName()
       );
     }

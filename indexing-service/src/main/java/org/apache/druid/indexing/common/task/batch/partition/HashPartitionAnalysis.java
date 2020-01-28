@@ -17,18 +17,28 @@
  * under the License.
  */
 
-package org.apache.druid.indexer.partitions;
+package org.apache.druid.indexing.common.task.batch.partition;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Maps;
+import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
+import org.apache.druid.indexer.partitions.SecondaryPartitionType;
+import org.apache.druid.indexing.common.TaskToolbox;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
+import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.joda.time.Interval;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
-public class HashPartitionAnalysis implements PartitionAnalysis<Integer, HashedPartitionsSpec>
+public class HashPartitionAnalysis implements CompletePartitionAnalysis<Integer, HashedPartitionsSpec>
 {
   /**
    * Key is the time ranges for the primary partitioning.
@@ -40,6 +50,12 @@ public class HashPartitionAnalysis implements PartitionAnalysis<Integer, HashedP
   public HashPartitionAnalysis(HashedPartitionsSpec partitionsSpec)
   {
     this.partitionsSpec = partitionsSpec;
+  }
+
+  @Override
+  public SecondaryPartitionType getSecondaryPartitionType()
+  {
+    return SecondaryPartitionType.HASH;
   }
 
   @Override
@@ -70,7 +86,8 @@ public class HashPartitionAnalysis implements PartitionAnalysis<Integer, HashedP
     return Collections.unmodifiableSet(intervalToNumBuckets.keySet());
   }
 
-  public int numPrimaryPartitions()
+  @Override
+  public int numTimePartitions()
   {
     return intervalToNumBuckets.size();
   }
@@ -78,5 +95,40 @@ public class HashPartitionAnalysis implements PartitionAnalysis<Integer, HashedP
   public void forEach(BiConsumer<Interval, Integer> consumer)
   {
     intervalToNumBuckets.forEach(consumer);
+  }
+
+  @Override
+  public Map<Interval, List<SegmentIdWithShardSpec>> convertToIntervalToSegmentIds(
+      TaskToolbox toolbox,
+      String dataSource,
+      Function<Interval, String> versionFinder
+  )
+  {
+    final Map<Interval, List<SegmentIdWithShardSpec>> intervalToSegmentIds =
+        Maps.newHashMapWithExpectedSize(numTimePartitions());
+
+    forEach((interval, numBuckets) -> {
+      intervalToSegmentIds.put(
+          interval,
+          IntStream.range(0, numBuckets)
+                   .mapToObj(i -> {
+                     final HashBasedNumberedShardSpec shardSpec = new HashBasedNumberedShardSpec(
+                         i,
+                         numBuckets,
+                         partitionsSpec.getPartitionDimensions(),
+                         toolbox.getJsonMapper()
+                     );
+                     return new SegmentIdWithShardSpec(
+                         dataSource,
+                         interval,
+                         versionFinder.apply(interval),
+                         shardSpec
+                     );
+                   })
+                   .collect(Collectors.toList())
+      );
+    });
+
+    return intervalToSegmentIds;
   }
 }

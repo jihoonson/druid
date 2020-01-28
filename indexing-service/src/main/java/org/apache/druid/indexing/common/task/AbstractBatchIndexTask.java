@@ -71,24 +71,17 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
 {
   private static final Logger log = new Logger(AbstractBatchIndexTask.class);
 
-  private final SegmentLockHelper segmentLockHelper;
-
   @GuardedBy("this")
   private final TaskResourceCleaner resourceCloserOnAbnormalExit = new TaskResourceCleaner();
-
-  /**
-   * State to indicate that this task will use segmentLock or timeChunkLock.
-   * This is automatically set when {@link #determineLockGranularityandTryLock} is called.
-   */
-  private boolean useSegmentLock;
 
   @GuardedBy("this")
   private boolean stopped = false;
 
+  private TaskLockHelper taskLockHelper;
+
   protected AbstractBatchIndexTask(String id, String dataSource, Map<String, Object> context)
   {
     super(id, dataSource, context);
-    segmentLockHelper = new SegmentLockHelper();
   }
 
   protected AbstractBatchIndexTask(
@@ -100,7 +93,6 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
   )
   {
     super(id, groupId, taskResource, dataSource, context);
-    segmentLockHelper = new SegmentLockHelper();
   }
 
   /**
@@ -187,19 +179,9 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
     return getContextValue(Tasks.PRIORITY_KEY, Tasks.DEFAULT_BATCH_INDEX_TASK_PRIORITY);
   }
 
-  public boolean isUseSegmentLock()
+  public TaskLockHelper getTaskLockHelper()
   {
-    return useSegmentLock;
-  }
-
-  public LockGranularity getLockGranularityToTry()
-  {
-    return isUseSegmentLock() ? LockGranularity.SEGMENT : LockGranularity.TIME_CHUNK;
-  }
-
-  public SegmentLockHelper getSegmentLockHelper()
-  {
-    return segmentLockHelper;
+    return Preconditions.checkNotNull(taskLockHelper, "segmentLockHelper is not initialized yet");
   }
 
   /**
@@ -227,7 +209,7 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
     // Respect task context value most.
     if (forceTimeChunkLock) {
       log.info("[%s] is set to true in task context. Use timeChunk lock", Tasks.FORCE_TIME_CHUNK_LOCK_KEY);
-      useSegmentLock = false;
+      taskLockHelper = new TaskLockHelper(false);
       if (!intervals.isEmpty()) {
         return tryTimeChunkLock(client, intervals);
       } else {
@@ -236,7 +218,7 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
     } else {
       if (!intervals.isEmpty()) {
         final LockGranularityDetermineResult result = determineSegmentGranularity(client, intervals);
-        useSegmentLock = result.lockGranularity == LockGranularity.SEGMENT;
+        taskLockHelper = new TaskLockHelper(result.lockGranularity == LockGranularity.SEGMENT);
         return tryLockWithDetermineResult(client, result);
       } else {
         return true;
@@ -253,14 +235,14 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
     );
     if (forceTimeChunkLock) {
       log.info("[%s] is set to true in task context. Use timeChunk lock", Tasks.FORCE_TIME_CHUNK_LOCK_KEY);
-      useSegmentLock = false;
+      taskLockHelper = new TaskLockHelper(false);
       return tryTimeChunkLock(
           client,
           new ArrayList<>(segments.stream().map(DataSegment::getInterval).collect(Collectors.toSet()))
       );
     } else {
       final LockGranularityDetermineResult result = determineSegmentGranularity(segments);
-      useSegmentLock = result.lockGranularity == LockGranularity.SEGMENT;
+      taskLockHelper = new TaskLockHelper(result.lockGranularity == LockGranularity.SEGMENT);
       return tryLockWithDetermineResult(client, result);
     }
   }
@@ -296,7 +278,7 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
     if (result.lockGranularity == LockGranularity.TIME_CHUNK) {
       return tryTimeChunkLock(client, Preconditions.checkNotNull(result.intervals, "intervals"));
     } else {
-      return segmentLockHelper.verifyAndLockExistingSegments(
+      return taskLockHelper.verifyAndLockExistingSegments(
           client,
           Preconditions.checkNotNull(result.segments, "segments")
       );

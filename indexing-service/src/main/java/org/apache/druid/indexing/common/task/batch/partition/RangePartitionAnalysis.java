@@ -17,11 +17,10 @@
  * under the License.
  */
 
-package org.apache.druid.indexing.common.task;
+package org.apache.druid.indexing.common.task.batch.partition;
 
 import com.google.common.collect.Maps;
-import org.apache.druid.indexer.partitions.PartitionBoundaries;
-import org.apache.druid.indexer.partitions.RangePartitionAnalysis;
+import org.apache.druid.indexer.partitions.SecondaryPartitionType;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
@@ -29,61 +28,91 @@ import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-/**
- * Allocates all necessary range-partitioned segments locally at the beginning and reuses them.
- *
- * @see CachingLocalSegmentAllocator
- */
-public class RangePartitionCachingLocalSegmentAllocator extends CachingLocalSegmentAllocator
+public class RangePartitionAnalysis
+    implements CompletePartitionAnalysis<PartitionBoundaries, SingleDimensionPartitionsSpec>
 {
-  public RangePartitionCachingLocalSegmentAllocator(
-      TaskToolbox toolbox,
-      String taskId,
-      String supervisorTaskId,
-      String dataSource,
-      SingleDimensionPartitionsSpec partitionsSpec,
-      RangePartitionAnalysis partitionAnalysis
-  ) throws IOException
+  private final Map<Interval, PartitionBoundaries> intervalToPartitionBoundaries = new HashMap<>();
+  private final SingleDimensionPartitionsSpec partitionsSpec;
+
+  public RangePartitionAnalysis(SingleDimensionPartitionsSpec partitionsSpec)
   {
-    super(
-        toolbox,
-        taskId,
-        supervisorTaskId,
-        versionFinder -> getIntervalToSegmentIds(dataSource, partitionsSpec, partitionAnalysis, versionFinder)
-    );
+    this.partitionsSpec = partitionsSpec;
   }
 
-  private static Map<Interval, List<SegmentIdWithShardSpec>> getIntervalToSegmentIds(
+  @Override
+  public SecondaryPartitionType getSecondaryPartitionType()
+  {
+    return SecondaryPartitionType.RANGE;
+  }
+
+  @Override
+  public SingleDimensionPartitionsSpec getPartitionsSpec()
+  {
+    return partitionsSpec;
+  }
+
+  @Override
+  public void updateBucket(Interval interval, PartitionBoundaries bucketAnalysis)
+  {
+    intervalToPartitionBoundaries.put(interval, bucketAnalysis);
+  }
+
+  @Override
+  public PartitionBoundaries getBucketAnalysis(Interval interval)
+  {
+    return intervalToPartitionBoundaries.get(interval);
+  }
+
+  @Override
+  public Set<Interval> getAllIntervalsToIndex()
+  {
+    return Collections.unmodifiableSet(intervalToPartitionBoundaries.keySet());
+  }
+
+  public void forEach(BiConsumer<Interval, PartitionBoundaries> consumer)
+  {
+    intervalToPartitionBoundaries.forEach(consumer);
+  }
+
+  @Override
+  public int numTimePartitions()
+  {
+    return intervalToPartitionBoundaries.size();
+  }
+
+  @Override
+  public Map<Interval, List<SegmentIdWithShardSpec>> convertToIntervalToSegmentIds(
+      TaskToolbox toolbox,
       String dataSource,
-      SingleDimensionPartitionsSpec partitionsSpec,
-      RangePartitionAnalysis partitionAnalysis,
       Function<Interval, String> versionFinder
   )
   {
     final String partitionDimension = partitionsSpec.getPartitionDimension();
     final Map<Interval, List<SegmentIdWithShardSpec>> intervalToSegmentIds = Maps.newHashMapWithExpectedSize(
-        partitionAnalysis.size()
+        numTimePartitions()
     );
 
-    partitionAnalysis.forEach((interval, partitionBoundaries) ->
-            intervalToSegmentIds.put(
-                interval,
-                translatePartitionBoundaries(
-                    dataSource,
+    forEach((interval, partitionBoundaries) ->
+                intervalToSegmentIds.put(
                     interval,
-                    partitionDimension,
-                    partitionBoundaries,
-                    versionFinder
+                    translatePartitionBoundaries(
+                        dataSource,
+                        interval,
+                        partitionDimension,
+                        partitionBoundaries,
+                        versionFinder
+                    )
                 )
-            )
     );
 
     return intervalToSegmentIds;

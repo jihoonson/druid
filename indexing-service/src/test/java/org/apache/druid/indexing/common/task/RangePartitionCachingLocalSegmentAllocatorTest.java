@@ -21,13 +21,14 @@ package org.apache.druid.indexing.common.task;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.indexer.partitions.PartitionBoundaries;
-import org.apache.druid.indexer.partitions.RangePartitionAnalysis;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
+import org.apache.druid.indexing.common.task.batch.parallel.SupervisorTaskAccess;
+import org.apache.druid.indexing.common.task.batch.partition.PartitionBoundaries;
+import org.apache.druid.indexing.common.task.batch.partition.RangePartitionAnalysis;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
@@ -81,7 +82,7 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
       INTERVAL_NORMAL, NORMAL_PARTITIONS
   );
 
-  private RangePartitionCachingLocalSegmentAllocator target;
+  private CachingLocalSegmentAllocator target;
   private SequenceNameFunction sequenceNameFunction;
 
   @Rule
@@ -96,16 +97,18 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
                            .map(RangePartitionCachingLocalSegmentAllocatorTest::createTaskLock)
                            .collect(Collectors.toList())
     );
-    final RangePartitionAnalysis partitionAnalysis = new RangePartitionAnalysis();
+    final RangePartitionAnalysis partitionAnalysis = new RangePartitionAnalysis(
+        new SingleDimensionPartitionsSpec(null, null, PARTITION_DIMENSION, false)
+    );
     INTERVAL_TO_PARTITONS.forEach(partitionAnalysis::updateBucket);
-    target = new RangePartitionCachingLocalSegmentAllocator(
+    target = SegmentAllocators.forNonLinearPartitioning(
         toolbox,
-        TASKID,
-        SUPERVISOR_TASKID,
         DATASOURCE,
-        new SingleDimensionPartitionsSpec(null, null, PARTITION_DIMENSION, false),
+        TASKID,
+        new SupervisorTaskAccess(SUPERVISOR_TASKID, null),
         partitionAnalysis
     );
+    sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(TASKID, target.getShardSpecs());
   }
 
   @Test

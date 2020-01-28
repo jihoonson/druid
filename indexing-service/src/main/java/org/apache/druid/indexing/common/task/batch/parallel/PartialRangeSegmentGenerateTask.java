@@ -24,17 +24,17 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.client.indexing.IndexingServiceClient;
-import org.apache.druid.indexer.partitions.PartitionBoundaries;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
-import org.apache.druid.indexer.partitions.RangePartitionAnalysis;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.task.CachingLocalSegmentAllocator;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
-import org.apache.druid.indexing.common.task.RangePartitionCachingLocalSegmentAllocator;
+import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.RangePartitionIndexTaskInputRowIteratorBuilder;
+import org.apache.druid.indexing.common.task.batch.partition.PartitionBoundaries;
+import org.apache.druid.indexing.common.task.batch.partition.RangePartitionAnalysis;
 import org.apache.druid.indexing.worker.ShuffleDataSegmentPusher;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
 import org.apache.druid.timeline.DataSegment;
@@ -150,16 +150,18 @@ public class PartialRangeSegmentGenerateTask extends PartialSegmentGenerateTask<
   }
 
   @Override
-  CachingLocalSegmentAllocator createSegmentAllocator(TaskToolbox toolbox) throws IOException
+  CachingLocalSegmentAllocator createSegmentAllocator(TaskToolbox toolbox, ParallelIndexSupervisorTaskClient taskClient)
+      throws IOException
   {
-    final RangePartitionAnalysis partitionAnalysis = new RangePartitionAnalysis();
+    final RangePartitionAnalysis partitionAnalysis = new RangePartitionAnalysis(
+        (SingleDimensionPartitionsSpec) ingestionSchema.getTuningConfig().getPartitionsSpec()
+    );
     intervalToPartitions.forEach(partitionAnalysis::updateBucket);
-    return new RangePartitionCachingLocalSegmentAllocator(
+    return SegmentAllocators.forNonLinearPartitioning(
         toolbox,
-        getId(),
-        supervisorTaskId,
         getDataSource(),
-        (SingleDimensionPartitionsSpec) ingestionSchema.getTuningConfig().getPartitionsSpec(),
+        getId(),
+        new SupervisorTaskAccess(supervisorTaskId, taskClient),
         partitionAnalysis
     );
   }

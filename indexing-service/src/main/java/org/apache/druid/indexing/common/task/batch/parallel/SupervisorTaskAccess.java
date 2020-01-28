@@ -17,19 +17,29 @@
  * under the License.
  */
 
-package org.apache.druid.indexer.partitions;
+package org.apache.druid.indexing.common.task.batch.parallel;
 
-import org.joda.time.Interval;
-
-import java.util.Set;
-
-public interface PartitionAnalysis<T, P extends PartitionsSpec>
+public class SupervisorTaskAccess
 {
-  P getPartitionsSpec();
+  private final String supervisorTaskId;
+  private final ParallelIndexSupervisorTaskClient taskClient;
 
-  void updateBucket(Interval interval, T bucketAnalysis);
+  public SupervisorTaskAccess(
+      String supervisorTaskId,
+      ParallelIndexSupervisorTaskClient taskClient
+  )
+  {
+    this.supervisorTaskId = supervisorTaskId;
+    this.taskClient = taskClient;
+  }
 
-  T getBucketAnalysis(Interval interval);
+  public String getSupervisorTaskId()
+  {
+    return supervisorTaskId;
+  }
 
-  Set<Interval> getAllIntervalsToIndex();
+  public ParallelIndexSupervisorTaskClient getTaskClient()
+  {
+    return taskClient;
+  }
 }

@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 /**
  * Segment allocator which allocates new segments locally per request.
  */
-class LocalSegmentAllocator implements SegmentAllocator
+public class LocalSegmentAllocator implements SegmentAllocator
 {
   private final SegmentAllocator internalAllocator;
 

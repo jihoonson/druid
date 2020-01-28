@@ -138,6 +138,12 @@ public class SingleDimensionPartitionsSpec implements DimensionBasedPartitionsSp
     return targetRowsPerSegment;
   }
 
+  @Override
+  public SecondaryPartitionType getType()
+  {
+    return SecondaryPartitionType.RANGE;
+  }
+
   @JsonIgnore
   @Override
   @NotNull
@@ -180,12 +186,6 @@ public class SingleDimensionPartitionsSpec implements DimensionBasedPartitionsSp
     }
 
     return FORCE_GUARANTEED_ROLLUP_COMPATIBLE;
-  }
-
-  @Override
-  public PartitionAnalysis<PartitionBoundaries, SingleDimensionPartitionsSpec> createPartitionAnalysis()
-  {
-    return new RangePartitionAnalysis(this);
   }
 
   @Override

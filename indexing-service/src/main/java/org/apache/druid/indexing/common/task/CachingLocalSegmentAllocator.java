@@ -42,9 +42,6 @@ import java.util.stream.Collectors;
 
 /**
  * Allocates all necessary segments locally at the beginning and reuses them.
- *
- * @see HashPartitionCachingLocalSegmentAllocator
- * @see RangePartitionCachingLocalSegmentAllocator
  */
 public class CachingLocalSegmentAllocator implements SegmentAllocator
 {
@@ -60,11 +57,16 @@ public class CachingLocalSegmentAllocator implements SegmentAllocator
      *
      * @return Information for segment preallocation
      */
-    Map<Interval, List<SegmentIdWithShardSpec>> create(Function<Interval, String> versionFinder);
+    Map<Interval, List<SegmentIdWithShardSpec>> create(
+        TaskToolbox toolbox,
+        String dataSource,
+        Function<Interval, String> versionFinder
+    );
   }
 
   CachingLocalSegmentAllocator(
       TaskToolbox toolbox,
+      String dataSource,
       String taskId,
       String supervisorTaskId,
       IntervalToSegmentIdsCreator intervalToSegmentIdsCreator
@@ -83,7 +85,11 @@ public class CachingLocalSegmentAllocator implements SegmentAllocator
                ));
     Function<Interval, String> versionFinder = interval -> findVersion(intervalToVersion, interval);
 
-    final Map<Interval, List<SegmentIdWithShardSpec>> intervalToIds = intervalToSegmentIdsCreator.create(versionFinder);
+    final Map<Interval, List<SegmentIdWithShardSpec>> intervalToIds = intervalToSegmentIdsCreator.create(
+        toolbox,
+        dataSource,
+        versionFinder
+    );
     final Map<Interval, List<ShardSpec>> shardSpecMap = new HashMap<>();
 
     for (Entry<Interval, List<SegmentIdWithShardSpec>> entry : intervalToIds.entrySet()) {
