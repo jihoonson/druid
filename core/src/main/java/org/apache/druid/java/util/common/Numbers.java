@@ -24,6 +24,7 @@ import com.google.common.primitives.Floats;
 import com.google.common.primitives.Longs;
 
 import javax.annotation.Nullable;
+import java.util.function.Supplier;
 
 public final class Numbers
 {
@@ -175,10 +176,10 @@ public final class Numbers
     return (int) value;
   }
 
-  public static short toShortExact(int value, String error)
+  public static short toShortExact(int value, Supplier<String> errorSupplier)
   {
     if ((short) value != value) {
-      throw new ArithmeticException(error);
+      throw new ArithmeticException(errorSupplier.get());
     }
     return (short) value;
   }

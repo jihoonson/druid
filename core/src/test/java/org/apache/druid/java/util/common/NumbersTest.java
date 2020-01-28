@@ -132,7 +132,7 @@ public class NumbersTest
   public void testToShortExactWithShortReturningItself()
   {
     final short val = Short.MAX_VALUE;
-    Assert.assertEquals(val, Numbers.toShortExact(val, "error"));
+    Assert.assertEquals(val, Numbers.toShortExact(val, () -> "error"));
   }
 
   @Test
@@ -140,6 +140,6 @@ public class NumbersTest
   {
     expectedException.expect(ArithmeticException.class);
     expectedException.expectMessage("testToShortExactWithIntegerThrowingError");
-    Numbers.toShortExact(Short.MAX_VALUE + 1, "testToShortExactWithIntegerThrowingError");
+    Numbers.toShortExact(Short.MAX_VALUE + 1, () -> "testToShortExactWithIntegerThrowingError");
   }
 }

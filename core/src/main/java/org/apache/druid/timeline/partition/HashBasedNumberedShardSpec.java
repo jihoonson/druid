@@ -62,7 +62,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   public short getBucketId()
   {
     // partitionId % (# of buckets)
-    return (short) (getPartitionNum() % getPartitions());
+    return Partitions.getBucketId(getPartitionNum(), getPartitions());
   }
 
   @JsonProperty("partitionDimensions")

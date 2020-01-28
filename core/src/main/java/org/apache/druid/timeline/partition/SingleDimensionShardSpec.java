@@ -72,7 +72,7 @@ public class SingleDimensionShardSpec implements ShardSpec
     this.partitionNum = partitionNum;
     this.numBuckets = numBuckets == null
                       ? UNKNOWN_NUM_BUCKETS
-                      : Numbers.toShortExact(numBuckets, "Illegal numBuckets[" + numBuckets + "]");
+                      : Numbers.toShortExact(numBuckets, () -> "Illegal numBuckets[" + numBuckets + "]");
   }
 
   @JsonProperty("dimension")
@@ -182,7 +182,7 @@ public class SingleDimensionShardSpec implements ShardSpec
     if (numBuckets == UNKNOWN_NUM_BUCKETS) {
       return (short) partitionNum;
     } else {
-      return (short) (partitionNum % numBuckets);
+      return Partitions.getBucketId(partitionNum, numBuckets);
     }
   }
 
