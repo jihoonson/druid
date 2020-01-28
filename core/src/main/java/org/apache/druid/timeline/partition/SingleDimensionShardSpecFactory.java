@@ -30,23 +30,18 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory
 {
   private final String partitionDimension;
   private final int numBuckets;
-  @Nullable
-  private final String start;
-  @Nullable
-  private final String end;
+  private final PartitionBoundaries partitionBoundaries;
 
   @JsonCreator
   public SingleDimensionShardSpecFactory(
       @JsonProperty("partitionDimension") String partitionDimension,
       @JsonProperty("numBuckets") int numBuckets,
-      @JsonProperty("start") @Nullable String start,
-      @JsonProperty("end") @Nullable String end
+      @JsonProperty("partitionBoundaries") PartitionBoundaries partitionBoundaries
   )
   {
     this.partitionDimension = partitionDimension;
     this.numBuckets = numBuckets;
-    this.start = start;
-    this.end = end;
+    this.partitionBoundaries = partitionBoundaries;
   }
 
   @JsonProperty
@@ -62,15 +57,9 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory
   }
 
   @JsonProperty
-  public @Nullable String getStart()
+  public PartitionBoundaries getPartitionBoundaries()
   {
-    return start;
-  }
-
-  @JsonProperty
-  public @Nullable String getEnd()
-  {
-    return end;
+    return partitionBoundaries;
   }
 
   @Override
@@ -90,7 +79,13 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory
   @Override
   public ShardSpec create(ObjectMapper objectMapper, int partitionId)
   {
-    return new SingleDimensionShardSpec(partitionDimension, start, end, partitionId, numBuckets);
+    return new SingleDimensionShardSpec(
+        partitionDimension,
+        partitionBoundaries.get(partitionId),
+        partitionBoundaries.get(partitionId + 1),
+        partitionId,
+        numBuckets
+    );
   }
 
   @Override
@@ -111,13 +106,12 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory
     SingleDimensionShardSpecFactory that = (SingleDimensionShardSpecFactory) o;
     return numBuckets == that.numBuckets &&
            Objects.equals(partitionDimension, that.partitionDimension) &&
-           Objects.equals(start, that.start) &&
-           Objects.equals(end, that.end);
+           Objects.equals(partitionBoundaries, that.partitionBoundaries);
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(partitionDimension, numBuckets, start, end);
+    return Objects.hash(partitionDimension, numBuckets, partitionBoundaries);
   }
 }
