@@ -81,7 +81,7 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
       INTERVAL_NORMAL, NORMAL_PARTITIONS
   );
 
-  private CachingLocalSegmentAllocator target;
+  private CachingSegmentAllocator target;
   private SequenceNameFunction sequenceNameFunction;
 
   @Rule

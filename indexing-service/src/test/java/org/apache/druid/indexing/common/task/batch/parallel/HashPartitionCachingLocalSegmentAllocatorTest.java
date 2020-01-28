@@ -29,7 +29,7 @@ import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
-import org.apache.druid.indexing.common.task.CachingLocalSegmentAllocator;
+import org.apache.druid.indexing.common.task.CachingSegmentAllocator;
 import org.apache.druid.indexing.common.task.NonLinearlyPartitionedSequenceNameFunction;
 import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.SequenceNameFunction;
@@ -69,7 +69,7 @@ public class HashPartitionCachingLocalSegmentAllocatorTest
       Collections.singletonList(DIMENSION)
   );
 
-  private CachingLocalSegmentAllocator target;
+  private CachingSegmentAllocator target;
   private SequenceNameFunction sequenceNameFunction;
 
   @Before

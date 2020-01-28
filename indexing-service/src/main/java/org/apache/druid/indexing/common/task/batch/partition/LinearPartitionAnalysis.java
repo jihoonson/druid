@@ -27,6 +27,10 @@ import org.joda.time.Interval;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Partition analysis for the linear partitioning. This analysis is not complete because, in the linear partitioning,
+ * segments are partitioned by their size which means they will be allocated dynamically during the indexing.
+ */
 public class LinearPartitionAnalysis implements PartitionAnalysis<Integer, DynamicPartitionsSpec>
 {
   private final Set<Interval> intervals = new HashSet<>();

@@ -73,7 +73,7 @@ public final class SegmentAllocators
    * Creates a new {@link SegmentAllocator} for the hash and range partitioning.
    * supervisorTaskAccess can be null if this method is called by the {@link IndexTask}.
    */
-  public static CachingLocalSegmentAllocator forNonLinearPartitioning(
+  public static CachingSegmentAllocator forNonLinearPartitioning(
       final TaskToolbox toolbox,
       final String dataSource,
       final String taskId,

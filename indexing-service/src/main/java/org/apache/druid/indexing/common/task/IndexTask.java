@@ -529,7 +529,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
           dataSchema,
           inputSource,
           tmpDir,
-          partitionsSpec,
           partitionAnalysis
       );
     }
@@ -692,8 +691,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         partitionsSpec,
         determineIntervals
     );
-    // TODO: more pretty
-    //noinspection unchecked
     final PartitionAnalysis<Integer, ?> partitionAnalysis;
     if (partitionsSpec.getType() == SecondaryPartitionType.LINEAR) {
       partitionAnalysis = new LinearPartitionAnalysis((DynamicPartitionsSpec) partitionsSpec);
@@ -863,7 +860,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       final DataSchema dataSchema,
       final InputSource inputSource,
       final File tmpDir,
-      final PartitionsSpec partitionsSpec,
       final PartitionAnalysis partitionAnalysis
   ) throws IOException, InterruptedException
   {
@@ -880,6 +876,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       toolbox.getMonitorScheduler().addMonitor(metricsMonitor);
     }
 
+    final PartitionsSpec partitionsSpec = partitionAnalysis.getPartitionsSpec();
     final IndexTuningConfig tuningConfig = ingestionSchema.getTuningConfig();
     final long pushTimeout = tuningConfig.getPushTimeout();
 
@@ -896,7 +893,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       );
       sequenceNameFunction = new LinearlyPartitionedSequenceNameFunction(getId());
     } else {
-      final CachingLocalSegmentAllocator localSegmentAllocator = SegmentAllocators.forNonLinearPartitioning(
+      final CachingSegmentAllocator localSegmentAllocator = SegmentAllocators.forNonLinearPartitioning(
           toolbox,
           getDataSource(),
           getId(),
