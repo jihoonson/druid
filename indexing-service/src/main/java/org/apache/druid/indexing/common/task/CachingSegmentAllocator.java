@@ -19,17 +19,21 @@
 
 package org.apache.druid.indexing.common.task;
 
-import org.apache.druid.data.input.InputRow;
+import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
-import org.joda.time.Interval;
 
-public interface SequenceNameFunction
+/**
+ * SegmentAllocator that allocates all necessary segments upfront. This allocator should be used for the hash or range
+ * secondary partitioning.
+ *
+ * In the hash or range secondary partitioning, the information about all partition buckets should be known before
+ * the task starts to allocate segments. For example, for the hash partitioning, the task should know how many hash
+ * buckets it will create, what is the hash value allocated for each bucket, etc. Similar for the range partitioning.
+ */
+public interface CachingSegmentAllocator extends SegmentAllocator
 {
   /**
-   * The sequence name is to keep track of the row sequences that should be stored in the same segment.
-   * In other words, given two rows, they should be stored in the same segment if their sequence name is same.
-   *
-   * @see SegmentAllocator
+   * Returns the {@link org.apache.druid.timeline.partition.ShardSpec}s of all segments allocated upfront.
    */
-  String getSequenceName(Interval interval, InputRow inputRow);
+  ShardSpecs getShardSpecs();
 }

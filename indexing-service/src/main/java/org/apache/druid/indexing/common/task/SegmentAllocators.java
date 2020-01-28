@@ -31,6 +31,10 @@ import java.io.IOException;
 
 public final class SegmentAllocators
 {
+  /**
+   * Creates a new {@link SegmentAllocator} for the linear partitioning.
+   * supervisorTaskAccess can be null if this method is called by the {@link IndexTask}.
+   */
   public static SegmentAllocator forLinearPartitioning(
       final TaskToolbox toolbox,
       final String taskId,
@@ -66,6 +70,10 @@ public final class SegmentAllocators
     }
   }
 
+  /**
+   * Creates a new {@link SegmentAllocator} for the hash and range partitioning.
+   * supervisorTaskAccess can be null if this method is called by the {@link IndexTask}.
+   */
   public static CachingLocalSegmentAllocator forNonLinearPartitioning(
       final TaskToolbox toolbox,
       final String dataSource,

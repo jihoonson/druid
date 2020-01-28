@@ -24,6 +24,15 @@ import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
 
+/**
+ * This sequence name function should be used for the hash or range partitioning. This function creates a proper
+ * sequence name based on the partition information (time chunk + partition ID).
+ *
+ * Note that all segment IDs should be allocated upfront to use this function.
+ *
+ * @see org.apache.druid.indexer.partitions.SecondaryPartitionType
+ * @see CachingSegmentAllocator
+ */
 public class NonLinearlyPartitionedSequenceNameFunction implements SequenceNameFunction
 {
   private final String taskId;

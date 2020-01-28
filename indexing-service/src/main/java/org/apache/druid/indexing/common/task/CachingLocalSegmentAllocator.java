@@ -19,6 +19,7 @@
 
 package org.apache.druid.indexing.common.task;
 
+import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
@@ -26,7 +27,6 @@ import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.SurrogateAction;
 import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
 import org.apache.druid.java.util.common.ISE;
-import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 /**
  * Allocates all necessary segments locally at the beginning and reuses them.
  */
-public class CachingLocalSegmentAllocator implements SegmentAllocator
+public class CachingLocalSegmentAllocator implements CachingSegmentAllocator
 {
   private final String taskId;
   private final Map<String, SegmentIdWithShardSpec> sequenceNameToSegmentId;
@@ -122,7 +122,11 @@ public class CachingLocalSegmentAllocator implements SegmentAllocator
       boolean skipSegmentLineageCheck
   )
   {
-    return sequenceNameToSegmentId.get(sequenceName);
+    return Preconditions.checkNotNull(
+        sequenceNameToSegmentId.get(sequenceName),
+        "Missing segmentId for the sequence[%s]",
+        sequenceName
+    );
   }
 
   /**
@@ -137,6 +141,7 @@ public class CachingLocalSegmentAllocator implements SegmentAllocator
     return taskId + "_" + interval + "_" + shardSpec.getPartitionNum();
   }
 
+  @Override
   public ShardSpecs getShardSpecs()
   {
     return shardSpecs;

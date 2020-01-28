@@ -22,11 +22,17 @@ package org.apache.druid.indexing.common.task;
 import org.apache.druid.data.input.InputRow;
 import org.joda.time.Interval;
 
+/**
+ * This sequence name function should be used for the linear partitioning. Since the segments are created as needed,
+ * this function uses a single sequence name.
+ *
+ * @see org.apache.druid.indexer.partitions.SecondaryPartitionType
+ */
 public class LinearlyPartitionedSequenceNameFunction implements SequenceNameFunction
 {
   private final String taskId;
 
-  public LinearlyPartitionedSequenceNameFunction(String taskId)
+  LinearlyPartitionedSequenceNameFunction(String taskId)
   {
     this.taskId = taskId;
   }
@@ -34,8 +40,6 @@ public class LinearlyPartitionedSequenceNameFunction implements SequenceNameFunc
   @Override
   public String getSequenceName(Interval interval, InputRow inputRow)
   {
-    // Segments are created as needed, using a single sequence name. They may be allocated from the overlord
-    // (in append mode) or may be created on our own authority (in overwrite mode).
     return taskId;
   }
 }

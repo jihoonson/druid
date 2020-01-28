@@ -19,9 +19,32 @@
 
 package org.apache.druid.indexer.partitions;
 
+/**
+ * In Druid, ingested data are primarily partitioned based on time range (GranularitySpec#getSegmentGranularity),
+ * and then secondly partitioned based on the given {@link PartitionsSpec}. This enum lists all supported types for the
+ * secondary partitioning.
+ */
 public enum SecondaryPartitionType
 {
+  /**
+   * Linear partitioning partitions segments in the same time chunk based on their size or number of rows in them.
+   *
+   * @see DynamicPartitionsSpec
+   * @see org.apache.druid.timeline.partition.NumberedShardSpec
+   */
   LINEAR,
+  /**
+   * Hash partitioning partitions segments in the same time chunk based on the hash value of the partition dimensions.
+   *
+   * @see HashedPartitionsSpec
+   * @see org.apache.druid.timeline.partition.HashBasedNumberedShardSpec
+   */
   HASH,
+  /**
+   * Range partitioning partitions segments in the same time chunk based on the value range of the partition dimension.
+   *
+   * @see SingleDimensionPartitionsSpec
+   * @see org.apache.druid.timeline.partition.SingleDimensionShardSpec
+   */
   RANGE
 }

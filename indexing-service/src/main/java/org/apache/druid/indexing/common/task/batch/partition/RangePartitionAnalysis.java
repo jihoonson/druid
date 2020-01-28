@@ -20,7 +20,6 @@
 package org.apache.druid.indexing.common.task.batch.partition;
 
 import com.google.common.collect.Maps;
-import org.apache.druid.indexer.partitions.SecondaryPartitionType;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
@@ -47,12 +46,6 @@ public class RangePartitionAnalysis
   public RangePartitionAnalysis(SingleDimensionPartitionsSpec partitionsSpec)
   {
     this.partitionsSpec = partitionsSpec;
-  }
-
-  @Override
-  public SecondaryPartitionType getSecondaryPartitionType()
-  {
-    return SecondaryPartitionType.RANGE;
   }
 
   @Override

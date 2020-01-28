@@ -28,6 +28,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * This interface represents the PartitionAnalysis that has the complete picture of secondary partitions to create.
+ * This type of PartitionAnalysis can be used for the hash or range partitioning in which all secondary partitions
+ * should be determined when the analysis is done.
+ */
 public interface CompletePartitionAnalysis<T, P extends PartitionsSpec> extends PartitionAnalysis<T, P>
 {
   Map<Interval, List<SegmentIdWithShardSpec>> convertToIntervalToSegmentIds(

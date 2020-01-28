@@ -22,7 +22,6 @@ package org.apache.druid.indexing.common.task.batch.partition;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
-import org.apache.druid.indexer.partitions.SecondaryPartitionType;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
@@ -50,12 +49,6 @@ public class HashPartitionAnalysis implements CompletePartitionAnalysis<Integer,
   public HashPartitionAnalysis(HashedPartitionsSpec partitionsSpec)
   {
     this.partitionsSpec = partitionsSpec;
-  }
-
-  @Override
-  public SecondaryPartitionType getSecondaryPartitionType()
-  {
-    return SecondaryPartitionType.HASH;
   }
 
   @Override

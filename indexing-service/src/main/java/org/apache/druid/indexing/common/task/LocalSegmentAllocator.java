@@ -34,6 +34,7 @@ import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -81,6 +82,7 @@ public class LocalSegmentAllocator implements SegmentAllocator
     };
   }
 
+  @Nullable
   @Override
   public SegmentIdWithShardSpec allocate(
       InputRow row,

@@ -20,15 +20,19 @@
 package org.apache.druid.indexing.common.task.batch.partition;
 
 import org.apache.druid.indexer.partitions.PartitionsSpec;
-import org.apache.druid.indexer.partitions.SecondaryPartitionType;
 import org.joda.time.Interval;
 
 import java.util.Set;
 
+/**
+ * Analysis of the partitions to create. The implementation is mutable and updated by the indexing
+ * {@link org.apache.druid.indexing.common.task.Task}.
+ *
+ * This interface provides all time chunks for the primary partitioning and the bucket information per time chunk
+ * for the secondary partitioning.
+ */
 public interface PartitionAnalysis<T, P extends PartitionsSpec>
 {
-  SecondaryPartitionType getSecondaryPartitionType();
-
   P getPartitionsSpec();
 
   void updateBucket(Interval interval, T bucketAnalysis);

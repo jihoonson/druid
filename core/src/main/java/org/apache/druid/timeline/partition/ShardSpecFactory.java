@@ -36,7 +36,6 @@ import javax.annotation.Nullable;
     @Type(name = "single_dim", value = SingleDimensionShardSpecFactory.class),
     @Type(name = "numbered_overwrite", value = NumberedOverwriteShardSpecFactory.class),
 })
-// TODO: it's not a factory..
 public interface ShardSpecFactory
 {
   /**

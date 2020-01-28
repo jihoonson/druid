@@ -37,6 +37,7 @@ import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpecFactory;
 import org.joda.time.Interval;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**
@@ -87,6 +88,7 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
     );
   }
 
+  @Nullable
   @Override
   public SegmentIdWithShardSpec allocate(
       InputRow row,

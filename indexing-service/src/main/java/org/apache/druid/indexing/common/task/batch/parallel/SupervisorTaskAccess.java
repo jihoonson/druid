@@ -19,6 +19,11 @@
 
 package org.apache.druid.indexing.common.task.batch.parallel;
 
+/**
+ * Simple POJO to hold the information of the supervisor task.
+ *
+ * @see ParallelIndexSupervisorTask
+ */
 public class SupervisorTaskAccess
 {
   private final String supervisorTaskId;

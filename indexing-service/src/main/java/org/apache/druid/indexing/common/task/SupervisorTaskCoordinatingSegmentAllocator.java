@@ -26,6 +26,9 @@ import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 
 import java.io.IOException;
 
+/**
+ * Segment allocator that allocates new segments using the supervisor task per request.
+ */
 public class SupervisorTaskCoordinatingSegmentAllocator implements SegmentAllocator
 {
   private final String supervisorTaskId;
