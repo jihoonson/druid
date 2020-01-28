@@ -692,7 +692,6 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
           .getGivenOrDefaultPartitionsSpec();
       final SegmentAllocator segmentAllocator = SegmentAllocators.forLinearPartitioning(
           toolbox,
-          getId(),
           new SupervisorTaskAccess(getSupervisorTaskId(), taskClient),
           getIngestionSchema().getDataSchema(),
           getTaskLockHelper(),

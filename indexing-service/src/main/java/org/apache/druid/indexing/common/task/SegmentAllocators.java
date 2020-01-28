@@ -37,7 +37,6 @@ public final class SegmentAllocators
    */
   public static SegmentAllocator forLinearPartitioning(
       final TaskToolbox toolbox,
-      final String taskId,
       final @Nullable SupervisorTaskAccess supervisorTaskAccess,
       final DataSchema dataSchema,
       final TaskLockHelper taskLockHelper,
@@ -48,7 +47,7 @@ public final class SegmentAllocators
     if (appendToExisting || taskLockHelper.isUseSegmentLock()) {
       return new OverlordCoordinatingSegmentAllocator(
           toolbox,
-          supervisorTaskAccess == null ? taskId : supervisorTaskAccess.getSupervisorTaskId(),
+          supervisorTaskAccess,
           dataSchema,
           taskLockHelper,
           appendToExisting,
@@ -86,7 +85,7 @@ public final class SegmentAllocators
         toolbox,
         dataSource,
         taskId,
-        supervisorTaskAccess == null ? taskId : supervisorTaskAccess.getSupervisorTaskId(),
+        supervisorTaskAccess,
         partitionAnalysis::convertToIntervalToSegmentIds
     );
   }
