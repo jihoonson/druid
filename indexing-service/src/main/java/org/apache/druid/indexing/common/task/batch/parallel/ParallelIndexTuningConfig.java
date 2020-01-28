@@ -189,7 +189,7 @@ public class ParallelIndexTuningConfig extends IndexTuningConfig
     Preconditions.checkArgument(this.totalNumMergeTasks > 0, "totalNumMergeTasks must be positive");
     if (getPartitionsSpec() != null && getPartitionsSpec() instanceof SingleDimensionPartitionsSpec) {
       if (((SingleDimensionPartitionsSpec) getPartitionsSpec()).getPartitionDimension() == null) {
-        throw new ISE("partitionDimension is required");
+        throw new IAE("partitionDimension must be specified");
       }
     }
   }
