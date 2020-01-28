@@ -26,7 +26,6 @@ import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
-import org.apache.druid.indexing.common.task.batch.parallel.SupervisorTaskAccess;
 import org.apache.druid.indexing.common.task.batch.partition.PartitionBoundaries;
 import org.apache.druid.indexing.common.task.batch.partition.RangePartitionAnalysis;
 import org.apache.druid.java.util.common.DateTimes;
@@ -105,7 +104,7 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
         toolbox,
         DATASOURCE,
         TASKID,
-        new SupervisorTaskAccess(SUPERVISOR_TASKID, null),
+        new SupervisorTaskAccessWithNullClient(SUPERVISOR_TASKID),
         partitionAnalysis
     );
     sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(TASKID, target.getShardSpecs());
