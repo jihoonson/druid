@@ -138,8 +138,8 @@ public class RangePartitionAnalysis
                     .mapToObj(i -> createSegmentIdWithShardSpec(
                         dataSource,
                         interval,
-                        partitionDimension,
                         versionFinder.apply(interval),
+                        partitionDimension,
                         partitionBoundaries.get(i),
                         partitionBoundaries.get(i + 1),
                         i

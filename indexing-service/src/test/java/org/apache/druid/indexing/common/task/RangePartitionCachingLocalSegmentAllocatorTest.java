@@ -98,7 +98,7 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
                            .collect(Collectors.toList())
     );
     final RangePartitionAnalysis partitionAnalysis = new RangePartitionAnalysis(
-        new SingleDimensionPartitionsSpec(null, null, PARTITION_DIMENSION, false)
+        new SingleDimensionPartitionsSpec(null, 1, PARTITION_DIMENSION, false)
     );
     INTERVAL_TO_PARTITONS.forEach(partitionAnalysis::updateBucket);
     target = SegmentAllocators.forNonLinearPartitioning(

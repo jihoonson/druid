@@ -41,6 +41,7 @@ public interface PartitionsSpec
   String MAX_ROWS_PER_SEGMENT = "maxRowsPerSegment";
   int HISTORICAL_NULL = -1;
 
+  @JsonIgnore
   SecondaryPartitionType getType();
 
   /**
