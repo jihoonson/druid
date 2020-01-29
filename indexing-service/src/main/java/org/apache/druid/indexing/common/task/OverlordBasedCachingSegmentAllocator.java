@@ -22,7 +22,6 @@ package org.apache.druid.indexing.common.task;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
-import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
 import org.apache.druid.indexing.common.task.batch.parallel.SupervisorTaskAccess;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
@@ -45,7 +44,7 @@ public class OverlordBasedCachingSegmentAllocator implements CachingSegmentAlloc
   }
 
   @Override
-  public ShardSpecs getShardSpecs()
+  public IntervalToShardSpecs getShardSpecs()
   {
     return null;
   }

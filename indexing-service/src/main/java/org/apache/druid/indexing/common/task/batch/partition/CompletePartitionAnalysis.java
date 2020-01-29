@@ -33,7 +33,8 @@ import java.util.function.Function;
  * This type of PartitionAnalysis can be used for the hash or range partitioning in which all secondary partitions
  * should be determined when the analysis is done.
  */
-public interface CompletePartitionAnalysis<T, P extends PartitionsSpec> extends PartitionAnalysis<T, P>
+public interface CompletePartitionAnalysis<T extends TimeChunkBucketAnalysis, P extends PartitionsSpec>
+    extends PartitionAnalysis<T, P>
 {
   Map<Interval, List<SegmentIdWithShardSpec>> convertToIntervalToSegmentIds(
       TaskToolbox toolbox,

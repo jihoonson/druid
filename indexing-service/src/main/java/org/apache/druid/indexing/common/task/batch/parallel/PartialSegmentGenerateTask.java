@@ -33,10 +33,12 @@ import org.apache.druid.indexing.common.task.ClientBasedTaskInfoProvider;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
 import org.apache.druid.indexing.common.task.InputSourceProcessor;
 import org.apache.druid.indexing.common.task.NonLinearlyPartitionedSequenceNameFunction;
+import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.SequenceNameFunction;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.IndexTaskInputRowIteratorBuilder;
+import org.apache.druid.indexing.common.task.batch.partition.CompletePartitionAnalysis;
 import org.apache.druid.indexing.worker.ShuffleDataSegmentPusher;
 import org.apache.druid.query.DruidMetrics;
 import org.apache.druid.segment.indexing.DataSchema;
@@ -126,12 +128,15 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
     return TaskStatus.success(getId());
   }
 
+  abstract CompletePartitionAnalysis createPartitionAnalysis();
+
   /**
    * @return {@link SegmentAllocator} suitable for the desired segment partitioning strategy.
    */
   abstract CachingSegmentAllocator createSegmentAllocator(
       TaskToolbox toolbox,
-      ParallelIndexSupervisorTaskClient taskClient
+      ParallelIndexSupervisorTaskClient taskClient,
+      CompletePartitionAnalysis partitionAnalysis
   ) throws IOException;
 
   /**
@@ -171,10 +176,17 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
     final PartitionsSpec partitionsSpec = tuningConfig.getGivenOrDefaultPartitionsSpec();
     final long pushTimeout = tuningConfig.getPushTimeout();
 
-    final CachingSegmentAllocator segmentAllocator = createSegmentAllocator(toolbox, taskClient);
+    final CompletePartitionAnalysis partitionAnalysis = createPartitionAnalysis();
+    final CachingSegmentAllocator segmentAllocator = SegmentAllocators.forNonLinearPartitioning(
+        toolbox,
+        getDataSource(),
+        getId(),
+        new SupervisorTaskAccess(supervisorTaskId, taskClient),
+        partitionAnalysis
+    );
     final SequenceNameFunction sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(
         getId(),
-        segmentAllocator.getShardSpecs()
+        partitionAnalysis
     );
 
     final Appenderator appenderator = BatchAppenderators.newAppenderator(

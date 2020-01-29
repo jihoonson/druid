@@ -42,6 +42,7 @@ import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.common.task.batch.partition.LinearPartitionAnalysis;
+import org.apache.druid.indexing.common.task.batch.partition.SinglePartitionBucketAnalysis;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
@@ -320,7 +321,11 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
     // as it reads input data. As a result, the partition analysis cannot have any interval
     // if explicitIntervals = false.
     if (explicitIntervals) {
-      granularitySpec.bucketIntervals().get().forEach(interval -> partitionAnalysis.updateBucket(interval, 1));
+      granularitySpec
+          .bucketIntervals()
+          .get()
+          .forEach(interval -> partitionAnalysis.updateBucket(interval, SinglePartitionBucketAnalysis.instance()
+      ));
     }
     final SegmentAllocator segmentAllocator = SegmentAllocators.forLinearPartitioning(
         toolbox,

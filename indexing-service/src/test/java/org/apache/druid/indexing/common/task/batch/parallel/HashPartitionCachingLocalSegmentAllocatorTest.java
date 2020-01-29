@@ -35,6 +35,7 @@ import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.SequenceNameFunction;
 import org.apache.druid.indexing.common.task.SupervisorTaskAccessWithNullClient;
 import org.apache.druid.indexing.common.task.batch.partition.HashPartitionAnalysis;
+import org.apache.druid.indexing.common.task.batch.partition.HashPartitionBucketAnalysis;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
@@ -77,7 +78,7 @@ public class HashPartitionCachingLocalSegmentAllocatorTest
   {
     TaskToolbox toolbox = createToolbox();
     HashPartitionAnalysis partitionAnalysis = new HashPartitionAnalysis(PARTITIONS_SPEC);
-    partitionAnalysis.updateBucket(INTERVAL, NUM_PARTITONS);
+    partitionAnalysis.updateBucket(INTERVAL, new HashPartitionBucketAnalysis(PARTITION_DIMENSIONS, NUM_PARTITONS));
     target = SegmentAllocators.forNonLinearPartitioning(
         toolbox,
         DATASOURCE,
@@ -85,7 +86,7 @@ public class HashPartitionCachingLocalSegmentAllocatorTest
         new SupervisorTaskAccessWithNullClient(SUPERVISOR_TASKID),
         partitionAnalysis
     );
-    sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(TASKID, target.getShardSpecs());
+    sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(TASKID, partitionAnalysis);
   }
 
   @Test

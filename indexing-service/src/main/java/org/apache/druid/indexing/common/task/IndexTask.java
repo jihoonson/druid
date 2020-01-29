@@ -68,8 +68,11 @@ import org.apache.druid.indexing.common.task.batch.parallel.PartialHashSegmentGe
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.DefaultIndexTaskInputRowIteratorBuilder;
 import org.apache.druid.indexing.common.task.batch.partition.CompletePartitionAnalysis;
 import org.apache.druid.indexing.common.task.batch.partition.HashPartitionAnalysis;
+import org.apache.druid.indexing.common.task.batch.partition.HashPartitionBucketAnalysis;
 import org.apache.druid.indexing.common.task.batch.partition.LinearPartitionAnalysis;
 import org.apache.druid.indexing.common.task.batch.partition.PartitionAnalysis;
+import org.apache.druid.indexing.common.task.batch.partition.SinglePartitionBucketAnalysis;
+import org.apache.druid.indexing.common.task.batch.partition.TimeChunkBucketAnalysis;
 import org.apache.druid.indexing.overlord.sampler.InputSourceSampler;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
@@ -110,7 +113,6 @@ import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
-import org.apache.druid.timeline.partition.ShardSpec;
 import org.apache.druid.utils.CircularBuffer;
 import org.codehaus.plexus.util.FileUtils;
 import org.joda.time.Interval;
@@ -602,7 +604,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
    * ShardSpecs must be determined if the perfect rollup must be guaranteed even though the number of shards is not
    * specified in {@link IndexTuningConfig}.
    * <p/>
-   * If both intervals and shardSpecs don't have to be determined, this method simply returns {@link ShardSpecs} for the
+   * If both intervals and shardSpecs don't have to be determined, this method simply returns {@link IntervalToShardSpecs} for the
    * given intervals.  Here, if {@link HashedPartitionsSpec#numShards} is not specified, {@link NumberedShardSpec} is
    * used.
    * <p/>
@@ -663,9 +665,8 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
   )
   {
     final SortedSet<Interval> intervals = granularitySpec.bucketIntervals().get();
-    final int numBucketsPerInterval = 1;
     final LinearPartitionAnalysis partitionAnalysis = new LinearPartitionAnalysis(partitionsSpec);
-    intervals.forEach(interval -> partitionAnalysis.updateBucket(interval, numBucketsPerInterval));
+    intervals.forEach(interval -> partitionAnalysis.updateBucket(interval, SinglePartitionBucketAnalysis.instance()));
     return partitionAnalysis;
   }
 
@@ -691,7 +692,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         partitionsSpec,
         determineIntervals
     );
-    final PartitionAnalysis<Integer, ?> partitionAnalysis;
+    final PartitionAnalysis partitionAnalysis;
     if (partitionsSpec.getType() == SecondaryPartitionType.LINEAR) {
       partitionAnalysis = new LinearPartitionAnalysis((DynamicPartitionsSpec) partitionsSpec);
     } else if (partitionsSpec.getType() == SecondaryPartitionType.HASH) {
@@ -701,8 +702,9 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     }
     for (final Map.Entry<Interval, Optional<HyperLogLogCollector>> entry : hllCollectors.entrySet()) {
       final Interval interval = entry.getKey();
-      final int numBucketsPerInterval;
+      final TimeChunkBucketAnalysis timeChunkBucketAnalysis;
       if (partitionsSpec.getType() == SecondaryPartitionType.HASH) {
+        final int numBucketsPerInterval;
         final HashedPartitionsSpec hashedPartitionsSpec = (HashedPartitionsSpec) partitionsSpec;
         final HyperLogLogCollector collector = entry.getValue().orNull();
 
@@ -722,11 +724,16 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
           numBucketsPerInterval = hashedPartitionsSpec.getNumShards() == null ? 1 : hashedPartitionsSpec.getNumShards();
           log.info("Creating [%,d] buckets for interval [%s]", numBucketsPerInterval, interval);
         }
+        timeChunkBucketAnalysis = new HashPartitionBucketAnalysis(
+            hashedPartitionsSpec.getPartitionDimensions(),
+            numBucketsPerInterval
+        );
       } else {
-        numBucketsPerInterval = 1;
+        timeChunkBucketAnalysis = SinglePartitionBucketAnalysis.instance();
       }
 
-      partitionAnalysis.updateBucket(interval, numBucketsPerInterval);
+      //noinspection unchecked
+      partitionAnalysis.updateBucket(interval, timeChunkBucketAnalysis);
     }
     log.info("Found intervals and shardSpecs in %,dms", System.currentTimeMillis() - determineShardSpecsStartMillis);
 
@@ -902,7 +909,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       );
       sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(
           getId(),
-          localSegmentAllocator.getShardSpecs()
+          partitionAnalysis
       );
       segmentAllocator = localSegmentAllocator;
     }
@@ -1005,36 +1012,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       return publishFuture.get();
     } else {
       return publishFuture.get(publishTimeout, TimeUnit.MILLISECONDS);
-    }
-  }
-
-  /**
-   * This class represents a map of (Interval, ShardSpec) and is used for easy shardSpec generation.
-   */
-  static class ShardSpecs
-  {
-    private final Map<Interval, List<ShardSpec>> map;
-
-    ShardSpecs(final Map<Interval, List<ShardSpec>> map)
-    {
-      this.map = map;
-    }
-
-    /**
-     * Return a shardSpec for the given interval and input row.
-     *
-     * @param interval interval for shardSpec
-     * @param row      input row
-     *
-     * @return a shardSpec
-     */
-    ShardSpec getShardSpec(Interval interval, InputRow row)
-    {
-      final List<ShardSpec> shardSpecs = map.get(interval);
-      if (shardSpecs == null || shardSpecs.isEmpty()) {
-        throw new ISE("Failed to get shardSpec for interval[%s]", interval);
-      }
-      return shardSpecs.get(0).getLookup(shardSpecs).getShardSpec(row.getTimestampFromEpoch(), row);
     }
   }
 

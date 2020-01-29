@@ -19,27 +19,11 @@
 
 package org.apache.druid.indexing.common.task.batch.partition;
 
-import org.apache.druid.indexer.partitions.PartitionsSpec;
-import org.joda.time.Interval;
+import org.apache.druid.data.input.InputRow;
 
-import java.util.Set;
-
-/**
- * Analysis of the partitions to create. The implementation is mutable and updated by the indexing
- * {@link org.apache.druid.indexing.common.task.Task}.
- *
- * This interface provides all time chunks for the primary partitioning and the bucket information per time chunk
- * for the secondary partitioning.
- */
-public interface PartitionAnalysis<T extends TimeChunkBucketAnalysis, P extends PartitionsSpec>
+public interface TimeChunkBucketAnalysis
 {
-  P getPartitionsSpec();
+  int numSecondaryBuckets();
 
-  void updateBucket(Interval interval, T bucketAnalysis);
-
-  T getBucketAnalysis(Interval interval);
-
-  Set<Interval> getAllIntervalsToIndex();
-
-  int numTimePartitions();
+  int lookupBucket(long timestamp, InputRow row);
 }

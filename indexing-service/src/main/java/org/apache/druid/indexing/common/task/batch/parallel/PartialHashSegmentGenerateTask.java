@@ -31,7 +31,9 @@ import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
 import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.DefaultIndexTaskInputRowIteratorBuilder;
+import org.apache.druid.indexing.common.task.batch.partition.CompletePartitionAnalysis;
 import org.apache.druid.indexing.common.task.batch.partition.HashPartitionAnalysis;
+import org.apache.druid.indexing.common.task.batch.partition.HashPartitionBucketAnalysis;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
 import org.apache.druid.timeline.DataSegment;
@@ -127,18 +129,27 @@ public class PartialHashSegmentGenerateTask extends PartialSegmentGenerateTask<G
   }
 
   @Override
-  CachingSegmentAllocator createSegmentAllocator(TaskToolbox toolbox, ParallelIndexSupervisorTaskClient taskClient)
-      throws IOException
+  CompletePartitionAnalysis createPartitionAnalysis()
   {
     final GranularitySpec granularitySpec = ingestionSchema.getDataSchema().getGranularitySpec();
     final ParallelIndexTuningConfig tuningConfig = ingestionSchema.getTuningConfig();
     final HashedPartitionsSpec partitionsSpec = (HashedPartitionsSpec) tuningConfig.getGivenOrDefaultPartitionsSpec();
+    return createHashPartitionAnalysisFromPartitionsSpec(granularitySpec, partitionsSpec);
+  }
+
+  @Override
+  CachingSegmentAllocator createSegmentAllocator(
+      TaskToolbox toolbox,
+      ParallelIndexSupervisorTaskClient taskClient,
+      CompletePartitionAnalysis partitionAnalysis
+  ) throws IOException
+  {
     return SegmentAllocators.forNonLinearPartitioning(
         toolbox,
         getDataSource(),
         getId(),
         new SupervisorTaskAccess(supervisorTaskId, taskClient),
-        createHashPartitionAnalysisFromPartitionsSpec(granularitySpec, partitionsSpec)
+        partitionAnalysis
     );
   }
 
@@ -181,7 +192,10 @@ public class PartialHashSegmentGenerateTask extends PartialSegmentGenerateTask<G
                                       ? 1
                                       : partitionsSpec.getNumShards();
     final HashPartitionAnalysis partitionAnalysis = new HashPartitionAnalysis(partitionsSpec);
-    intervals.forEach(interval -> partitionAnalysis.updateBucket(interval, numBucketsPerInterval));
+    intervals.forEach(interval -> partitionAnalysis.updateBucket(
+        interval,
+        new HashPartitionBucketAnalysis(partitionsSpec.getPartitionDimensions(), numBucketsPerInterval)
+    ));
     return partitionAnalysis;
   }
 }

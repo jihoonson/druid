@@ -144,7 +144,7 @@ public class PartialRangeSegmentGenerateTaskTest
           ParallelIndexTestingFactory.NUM_ATTEMPTS,
           ingestionSpec,
           ParallelIndexTestingFactory.CONTEXT,
-          ImmutableMap.of(Intervals.ETERNITY, PartitionBoundaries.from(new String[] {"a"})),
+          ImmutableMap.of(Intervals.ETERNITY, PartitionBoundaries.fromNonNullBoundaries(new String[] {"a"})),
           ParallelIndexTestingFactory.INDEXING_SERVICE_CLIENT,
           taskClientFactory,
           ParallelIndexTestingFactory.APPENDERATORS_MANAGER

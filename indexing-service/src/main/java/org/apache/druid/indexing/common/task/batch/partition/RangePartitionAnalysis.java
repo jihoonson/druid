@@ -19,6 +19,7 @@
 
 package org.apache.druid.indexing.common.task.batch.partition;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
@@ -39,9 +40,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class RangePartitionAnalysis
-    implements CompletePartitionAnalysis<PartitionBoundaries, SingleDimensionPartitionsSpec>
+    implements CompletePartitionAnalysis<RangePartitionBucketAnalysis, SingleDimensionPartitionsSpec>
 {
-  private final Map<Interval, PartitionBoundaries> intervalToPartitionBoundaries = new HashMap<>();
+  private final Map<Interval, RangePartitionBucketAnalysis> intervalToPartitionBoundaries = new HashMap<>();
   private final SingleDimensionPartitionsSpec partitionsSpec;
 
   public RangePartitionAnalysis(SingleDimensionPartitionsSpec partitionsSpec)
@@ -56,15 +57,19 @@ public class RangePartitionAnalysis
   }
 
   @Override
-  public void updateBucket(Interval interval, PartitionBoundaries bucketAnalysis)
+  public void updateBucket(Interval interval, RangePartitionBucketAnalysis bucketAnalysis)
   {
     intervalToPartitionBoundaries.put(interval, bucketAnalysis);
   }
 
   @Override
-  public PartitionBoundaries getBucketAnalysis(Interval interval)
+  public RangePartitionBucketAnalysis getBucketAnalysis(Interval interval)
   {
-    return intervalToPartitionBoundaries.get(interval);
+    return Preconditions.checkNotNull(
+        intervalToPartitionBoundaries.get(interval),
+        "Missing numBuckets for interval[%s]",
+        interval
+    );
   }
 
   @Override
@@ -73,7 +78,7 @@ public class RangePartitionAnalysis
     return Collections.unmodifiableSet(intervalToPartitionBoundaries.keySet());
   }
 
-  public void forEach(BiConsumer<Interval, PartitionBoundaries> consumer)
+  public void forEach(BiConsumer<Interval, RangePartitionBucketAnalysis> consumer)
   {
     intervalToPartitionBoundaries.forEach(consumer);
   }
@@ -96,14 +101,14 @@ public class RangePartitionAnalysis
         numTimePartitions()
     );
 
-    forEach((interval, partitionBoundaries) ->
+    forEach((interval, bucketAnalysis) ->
                 intervalToSegmentIds.put(
                     interval,
                     translatePartitionBoundaries(
                         dataSource,
                         interval,
                         partitionDimension,
-                        partitionBoundaries,
+                        bucketAnalysis.getPartitionBoundaries(),
                         versionFinder
                     )
                 )

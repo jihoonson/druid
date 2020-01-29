@@ -33,7 +33,9 @@ import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
 import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.RangePartitionIndexTaskInputRowIteratorBuilder;
+import org.apache.druid.indexing.common.task.batch.partition.CompletePartitionAnalysis;
 import org.apache.druid.indexing.common.task.batch.partition.RangePartitionAnalysis;
+import org.apache.druid.indexing.common.task.batch.partition.RangePartitionBucketAnalysis;
 import org.apache.druid.indexing.worker.ShuffleDataSegmentPusher;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
 import org.apache.druid.timeline.DataSegment;
@@ -150,13 +152,27 @@ public class PartialRangeSegmentGenerateTask extends PartialSegmentGenerateTask<
   }
 
   @Override
-  CachingSegmentAllocator createSegmentAllocator(TaskToolbox toolbox, ParallelIndexSupervisorTaskClient taskClient)
-      throws IOException
+  CompletePartitionAnalysis createPartitionAnalysis()
   {
-    final RangePartitionAnalysis partitionAnalysis = new RangePartitionAnalysis(
-        (SingleDimensionPartitionsSpec) ingestionSchema.getTuningConfig().getPartitionsSpec()
+    final SingleDimensionPartitionsSpec partitionsSpec = (SingleDimensionPartitionsSpec) Preconditions.checkNotNull(
+        ingestionSchema.getTuningConfig().getPartitionsSpec(),
+        "partitionsSpec"
     );
-    intervalToPartitions.forEach(partitionAnalysis::updateBucket);
+    final RangePartitionAnalysis partitionAnalysis = new RangePartitionAnalysis(partitionsSpec);
+    intervalToPartitions.forEach((interval, partitionBoundaries) -> partitionAnalysis.updateBucket(
+        interval,
+        new RangePartitionBucketAnalysis(partitionsSpec.getPartitionDimension(), partitionBoundaries)
+    ));
+    return partitionAnalysis;
+  }
+
+  @Override
+  CachingSegmentAllocator createSegmentAllocator(
+      TaskToolbox toolbox,
+      ParallelIndexSupervisorTaskClient taskClient,
+      CompletePartitionAnalysis partitionAnalysis
+  ) throws IOException
+  {
     return SegmentAllocators.forNonLinearPartitioning(
         toolbox,
         getDataSource(),

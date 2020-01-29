@@ -25,47 +25,46 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
 public class PartitionBoundariesTest
 {
   private PartitionBoundaries target;
   private String[] values;
-  private List<String> expected;
+  private String[] expected;
 
   @Before
   public void setup()
   {
     values = new String[]{"a", "dup", "dup", "z"};
-    expected = Arrays.asList(null, "dup", null);
-    target = PartitionBoundaries.from(values);
+    expected = new String[]{null, "dup", null};
+    target = PartitionBoundaries.fromNonNullBoundaries(values);
   }
 
   @Test
   public void hasCorrectValues()
   {
-    Assert.assertEquals(expected, target);
+    Assert.assertArrayEquals(expected, target.getBoundaries());
   }
 
   @Test
   public void cannotBeIndirectlyModified()
   {
     values[1] = "changed";
-    Assert.assertEquals(expected, target);
+    Assert.assertArrayEquals(expected, target.getBoundaries());
   }
 
   @Test
   public void handlesNoValues()
   {
-    Assert.assertEquals(Collections.emptyList(), PartitionBoundaries.empty());
+    Assert.assertArrayEquals(new String[0], PartitionBoundaries.empty().getBoundaries());
   }
 
   @Test
   public void handlesRepeatedValue()
   {
-    Assert.assertEquals(Arrays.asList(null, null), PartitionBoundaries.from(new String[] {"a", "a", "a"}));
+    Assert.assertArrayEquals(
+        new String[]{null, null},
+        PartitionBoundaries.fromNonNullBoundaries(new String[]{"a", "a", "a"}).getBoundaries()
+    );
   }
 
   @Test

@@ -41,10 +41,10 @@ public class PartitionBoundaries
 
   public static PartitionBoundaries empty()
   {
-    return from(new String[]{});
+    return fromNonNullBoundaries(new String[]{});
   }
 
-  public static PartitionBoundaries from(String[] boundaries)
+  public static PartitionBoundaries fromNonNullBoundaries(String[] boundaries)
   {
     if (boundaries.length == 0) {
       return new PartitionBoundaries(boundaries);
@@ -70,6 +70,16 @@ public class PartitionBoundaries
       dedupedBoundaries.set(dedupedBoundaries.size() - 1, null);
     }
     return new PartitionBoundaries(dedupedBoundaries.toArray(new String[0]));
+  }
+
+  public static PartitionBoundaries fromSortedShardSpecs(List<SingleDimensionShardSpec> sortedShardSpecs)
+  {
+    final List<String> boundaries = sortedShardSpecs
+        .stream()
+        .map(SingleDimensionShardSpec::getStart)
+        .collect(Collectors.toList());
+    boundaries.add(null);
+    return new PartitionBoundaries(boundaries.toArray(new String[0]));
   }
 
   @JsonCreator
@@ -112,7 +122,8 @@ public class PartitionBoundaries
     return boundaries.length == 0;
   }
 
-  public int indexFor(@Nullable String key)
+  // TODO: unit test
+  public int bucketFor(@Nullable String key)
   {
     Preconditions.checkState(boundaries.length > 0, "Cannot find index for key[%s] from empty boundaries", key);
 
@@ -122,7 +133,7 @@ public class PartitionBoundaries
 
     final int index = Arrays.binarySearch(boundaries, 1, boundaries.length - 1, key);
     if (index < 0) {
-      return -(index + 1);
+      return -(index + 1) - 1;
     } else {
       return index;
     }

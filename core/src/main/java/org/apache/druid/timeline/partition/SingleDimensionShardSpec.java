@@ -30,7 +30,6 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Numbers;
 
 import javax.annotation.Nullable;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -113,21 +112,25 @@ public class SingleDimensionShardSpec implements ShardSpec
   @Override
   public ShardSpecLookup getLookup(final List<ShardSpec> shardSpecs)
   {
-    final List<ShardSpec> sortedSpecs = shardSpecs
+    final List<SingleDimensionShardSpec> sortedSpecs = shardSpecs
         .stream()
-        .sorted(Comparator.nullsFirst(Comparator.comparing(shardSpec -> ((SingleDimensionShardSpec) shardSpec).start)))
+        .map(shardSpec -> (SingleDimensionShardSpec) shardSpec)
+        .sorted((s1, s2) -> {
+          if (s1.start == null) {
+            return -1;
+          } else if (s2.start == null) {
+            return 1;
+          } else {
+            return s1.start.compareTo(s2.start);
+          }
+        })
         .collect(Collectors.toList());
-    final String[] boundaries = sortedSpecs
-        .stream()
-        .map(shardSpec -> ((SingleDimensionShardSpec) shardSpec).start)
-        .filter(Objects::nonNull)
-        .toArray(String[]::new);
-    final PartitionBoundaries partitionBoundaries = PartitionBoundaries.from(boundaries);
+    final PartitionBoundaries partitionBoundaries = PartitionBoundaries.fromSortedShardSpecs(sortedSpecs);
     return (timestamp, row) -> {
       if (partitionBoundaries.isEmpty()) {
         throw new ISE("row[%s] doesn't fit in any shard[%s]", row, sortedSpecs);
       }
-      return sortedSpecs.get(partitionBoundaries.indexFor(getKey(row, dimension)));
+      return sortedSpecs.get(partitionBoundaries.bucketFor(getKey(row, dimension)));
     };
   }
 

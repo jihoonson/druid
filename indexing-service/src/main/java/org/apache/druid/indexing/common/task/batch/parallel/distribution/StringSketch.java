@@ -128,7 +128,7 @@ public class StringSketch implements StringDistribution
         evenPartitionCount
     );
     String[] boundaries = delegate.getQuantiles(evenPartitionCount + 1); // add 1 since this returns endpoints
-    return boundaries == null ? PartitionBoundaries.empty() : PartitionBoundaries.from(boundaries);
+    return boundaries == null ? PartitionBoundaries.empty() : PartitionBoundaries.fromNonNullBoundaries(boundaries);
   }
 
   @Override

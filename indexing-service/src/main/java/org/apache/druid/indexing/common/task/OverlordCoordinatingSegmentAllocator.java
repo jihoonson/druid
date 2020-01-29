@@ -30,6 +30,7 @@ import org.apache.druid.indexing.common.actions.TaskAction;
 import org.apache.druid.indexing.common.task.TaskLockHelper.OverwritingRootGenerationPartitions;
 import org.apache.druid.indexing.common.task.batch.parallel.SupervisorTaskAccess;
 import org.apache.druid.indexing.common.task.batch.partition.HashPartitionAnalysis;
+import org.apache.druid.indexing.common.task.batch.partition.HashPartitionBucketAnalysis;
 import org.apache.druid.indexing.common.task.batch.partition.PartitionAnalysis;
 import org.apache.druid.indexing.common.task.batch.partition.RangePartitionAnalysis;
 import org.apache.druid.java.util.common.ISE;
@@ -192,12 +193,12 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
           row.getTimestampFromEpoch(),
           row
       );
-      final int numBuckets = partitionAnalysis.getBucketAnalysis(interval);
-      final int bucketId = hash % numBuckets;
+      final HashPartitionBucketAnalysis bucketAnalysis = partitionAnalysis.getBucketAnalysis(interval);
+      final int bucketId = hash % bucketAnalysis.numSecondaryBuckets();
       return new HashBasedNumberedShardSpecBuilder(
           partitionsSpec.getPartitionDimensions(),
           bucketId,
-          numBuckets
+          bucketAnalysis.numSecondaryBuckets()
       );
     }
   }
@@ -213,11 +214,13 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
       throw new UnsupportedOperationException("Range partitioning is not supported with segment lock yet");
     } else {
       final SingleDimensionPartitionsSpec partitionsSpec = partitionAnalysis.getPartitionsSpec();
-      final PartitionBoundaries partitionBoundaries = partitionAnalysis.getBucketAnalysis(interval);
+      final PartitionBoundaries partitionBoundaries = partitionAnalysis
+          .getBucketAnalysis(interval)
+          .getPartitionBoundaries();
       if (partitionBoundaries.isEmpty()) {
         throw new ISE("Cannot create shardSpecBuilder from empty partition boundaries");
       }
-      final int bucketId = partitionBoundaries.indexFor(
+      final int bucketId = partitionBoundaries.bucketFor(
           SingleDimensionShardSpec.getKey(row, partitionsSpec.getPartitionDimension())
       );
       return new SingleDimensionShardSpecBuilder(

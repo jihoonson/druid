@@ -20,8 +20,7 @@
 package org.apache.druid.indexing.common.task;
 
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
-import org.apache.druid.timeline.partition.ShardSpec;
+import org.apache.druid.indexing.common.task.batch.partition.PartitionAnalysis;
 import org.joda.time.Interval;
 
 /**
@@ -36,19 +35,24 @@ import org.joda.time.Interval;
 public class NonLinearlyPartitionedSequenceNameFunction implements SequenceNameFunction
 {
   private final String taskId;
-  private final ShardSpecs shardSpecs;
+  private final PartitionAnalysis partitionAnalysis;
 
-  public NonLinearlyPartitionedSequenceNameFunction(String taskId, ShardSpecs shardSpecs)
+  public NonLinearlyPartitionedSequenceNameFunction(String taskId, PartitionAnalysis partitionAnalysis)
   {
     this.taskId = taskId;
-    this.shardSpecs = shardSpecs;
+    this.partitionAnalysis = partitionAnalysis;
   }
 
+  /**
+   * Returns a sequence name based on the taskId, time chunk (primary partition), and the bucket ID of the
+   * secondary partitioning.
+   */
   @Override
   public String getSequenceName(Interval interval, InputRow inputRow)
   {
-    // Sequence name is based solely on the shardSpec, and there will only be one segment per sequence.
-    return getSequenceName(interval, shardSpecs.getShardSpec(interval, inputRow));
+    final int bucketId = partitionAnalysis.getBucketAnalysis(interval)
+                                          .lookupBucket(inputRow.getTimestampFromEpoch(), inputRow);
+    return getSequenceName(taskId, interval, bucketId);
   }
 
   /**
@@ -56,10 +60,10 @@ public class NonLinearlyPartitionedSequenceNameFunction implements SequenceNameF
    *
    * See {@link org.apache.druid.timeline.partition.HashBasedNumberedShardSpec} as an example of partitioning.
    */
-  private String getSequenceName(Interval interval, ShardSpec shardSpec)
+  public static String getSequenceName(String taskId, Interval interval, int bucketId)
   {
     // Note: We do not use String format here since this can be called in a tight loop
     // and it's faster to add strings together than it is to use String#format
-    return taskId + "_" + interval + "_" + shardSpec.getPartitionNum();
+    return taskId + "_" + interval + "_" + bucketId;
   }
 }

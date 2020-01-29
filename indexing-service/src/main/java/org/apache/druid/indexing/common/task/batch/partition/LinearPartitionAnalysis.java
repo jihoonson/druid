@@ -19,7 +19,6 @@
 
 package org.apache.druid.indexing.common.task.batch.partition;
 
-import com.google.common.base.Preconditions;
 import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
 import org.apache.druid.java.util.common.ISE;
 import org.joda.time.Interval;
@@ -31,7 +30,7 @@ import java.util.Set;
  * Partition analysis for the linear partitioning. This analysis is not complete because, in the linear partitioning,
  * segments are partitioned by their size which means they will be allocated dynamically during the indexing.
  */
-public class LinearPartitionAnalysis implements PartitionAnalysis<Integer, DynamicPartitionsSpec>
+public class LinearPartitionAnalysis implements PartitionAnalysis<SinglePartitionBucketAnalysis, DynamicPartitionsSpec>
 {
   private final Set<Interval> intervals = new HashSet<>();
   private final DynamicPartitionsSpec partitionsSpec;
@@ -48,17 +47,16 @@ public class LinearPartitionAnalysis implements PartitionAnalysis<Integer, Dynam
   }
 
   @Override
-  public void updateBucket(Interval interval, Integer bucketAnalysis)
+  public void updateBucket(Interval interval, SinglePartitionBucketAnalysis bucketAnalysis)
   {
-    Preconditions.checkArgument(bucketAnalysis == 1, "There should be only one bucket with linear partitioining");
     intervals.add(interval);
   }
 
   @Override
-  public Integer getBucketAnalysis(Interval interval)
+  public SinglePartitionBucketAnalysis getBucketAnalysis(Interval interval)
   {
     if (intervals.contains(interval)) {
-      return 1;
+      return SinglePartitionBucketAnalysis.instance();
     } else {
       throw new ISE("Unknown interval[%s]", interval);
     }

@@ -19,7 +19,6 @@
 
 package org.apache.druid.indexing.common.task;
 
-import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 
 /**
@@ -35,5 +34,5 @@ public interface CachingSegmentAllocator extends SegmentAllocator
   /**
    * Returns the {@link org.apache.druid.timeline.partition.ShardSpec}s of all segments allocated upfront.
    */
-  ShardSpecs getShardSpecs();
+  IntervalToShardSpecs getShardSpecs();
 }

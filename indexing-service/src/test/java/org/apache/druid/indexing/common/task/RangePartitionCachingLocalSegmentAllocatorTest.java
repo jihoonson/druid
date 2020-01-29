@@ -27,6 +27,7 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.task.batch.partition.RangePartitionAnalysis;
+import org.apache.druid.indexing.common.task.batch.partition.RangePartitionBucketAnalysis;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
@@ -68,11 +69,13 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
   private static final String PARTITION5 = "5";
   private static final String PARTITION9 = "9";
   private static final PartitionBoundaries EMPTY_PARTITIONS = PartitionBoundaries.empty();
-  private static final PartitionBoundaries SINGLETON_PARTITIONS = PartitionBoundaries.from(new String[]{
-      PARTITION0,
-      PARTITION0
-  });
-  private static final PartitionBoundaries NORMAL_PARTITIONS = PartitionBoundaries.from(
+  private static final PartitionBoundaries SINGLETON_PARTITIONS = PartitionBoundaries.fromNonNullBoundaries(
+      new String[]{
+          PARTITION0,
+          PARTITION0
+      }
+  );
+  private static final PartitionBoundaries NORMAL_PARTITIONS = PartitionBoundaries.fromNonNullBoundaries(
       new String[]{
           PARTITION0,
           PARTITION5,
@@ -104,7 +107,10 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
     final RangePartitionAnalysis partitionAnalysis = new RangePartitionAnalysis(
         new SingleDimensionPartitionsSpec(null, 1, PARTITION_DIMENSION, false)
     );
-    INTERVAL_TO_PARTITONS.forEach(partitionAnalysis::updateBucket);
+    INTERVAL_TO_PARTITONS.forEach((interval, partitionBoundaries) -> partitionAnalysis.updateBucket(
+        interval,
+        new RangePartitionBucketAnalysis(PARTITION_DIMENSION, partitionBoundaries)
+    ));
     target = SegmentAllocators.forNonLinearPartitioning(
         toolbox,
         DATASOURCE,
@@ -112,7 +118,7 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
         new SupervisorTaskAccessWithNullClient(SUPERVISOR_TASKID),
         partitionAnalysis
     );
-    sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(TASKID, target.getShardSpecs());
+    sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(TASKID, partitionAnalysis);
   }
 
   @Test

@@ -25,7 +25,6 @@ import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.TaskAction;
-import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
 import org.apache.druid.indexing.common.task.batch.parallel.SupervisorTaskAccess;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
@@ -49,7 +48,7 @@ public class CachingLocalSegmentAllocator implements CachingSegmentAllocator
 {
   private final String taskId;
   private final Map<String, SegmentIdWithShardSpec> sequenceNameToSegmentId;
-  private final ShardSpecs shardSpecs;
+  private final IntervalToShardSpecs shardSpecs;
 
   @FunctionalInterface
   interface IntervalToSegmentIdsCreator
@@ -108,10 +107,17 @@ public class CachingLocalSegmentAllocator implements CachingSegmentAllocator
       for (SegmentIdWithShardSpec segmentIdentifier : idsPerInterval) {
         shardSpecMap.computeIfAbsent(interval, k -> new ArrayList<>()).add(segmentIdentifier.getShardSpec());
         // The shardSpecs for partitioning and publishing can be different if isExtendableShardSpecs = true.
-        sequenceNameToSegmentId.put(getSequenceName(interval, segmentIdentifier.getShardSpec()), segmentIdentifier);
+        sequenceNameToSegmentId.put(
+            NonLinearlyPartitionedSequenceNameFunction.getSequenceName(
+                taskId,
+                interval,
+                segmentIdentifier.getShardSpec().getBucketId()
+            ),
+            segmentIdentifier
+        );
       }
     }
-    shardSpecs = new ShardSpecs(shardSpecMap);
+    shardSpecs = new IntervalToShardSpecs(shardSpecMap);
   }
 
   private static String findVersion(Map<Interval, String> intervalToVersion, Interval interval)
@@ -138,20 +144,8 @@ public class CachingLocalSegmentAllocator implements CachingSegmentAllocator
     );
   }
 
-  /**
-   * Create a sequence name from the given shardSpec and interval.
-   *
-   * See {@link org.apache.druid.timeline.partition.HashBasedNumberedShardSpec} as an example of partitioning.
-   */
-  private String getSequenceName(Interval interval, ShardSpec shardSpec)
-  {
-    // Note: We do not use String format here since this can be called in a tight loop
-    // and it's faster to add strings together than it is to use String#format
-    return taskId + "_" + interval + "_" + shardSpec.getPartitionNum();
-  }
-
   @Override
-  public ShardSpecs getShardSpecs()
+  public IntervalToShardSpecs getShardSpecs()
   {
     return shardSpecs;
   }

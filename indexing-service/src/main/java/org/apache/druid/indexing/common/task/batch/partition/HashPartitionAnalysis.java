@@ -37,13 +37,13 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class HashPartitionAnalysis implements CompletePartitionAnalysis<Integer, HashedPartitionsSpec>
+public class HashPartitionAnalysis implements CompletePartitionAnalysis<HashPartitionBucketAnalysis, HashedPartitionsSpec>
 {
   /**
    * Key is the time ranges for the primary partitioning.
    * Value is the number of partitions per time range for the secondary partitioning
    */
-  private final Map<Interval, Integer> intervalToNumBuckets = new HashMap<>();
+  private final Map<Interval, HashPartitionBucketAnalysis> intervalToNumBuckets = new HashMap<>();
   private final HashedPartitionsSpec partitionsSpec;
 
   public HashPartitionAnalysis(HashedPartitionsSpec partitionsSpec)
@@ -58,13 +58,13 @@ public class HashPartitionAnalysis implements CompletePartitionAnalysis<Integer,
   }
 
   @Override
-  public void updateBucket(Interval interval, Integer bucketAnalysis)
+  public void updateBucket(Interval interval, HashPartitionBucketAnalysis bucketAnalysis)
   {
     intervalToNumBuckets.put(interval, bucketAnalysis);
   }
 
   @Override
-  public Integer getBucketAnalysis(Interval interval)
+  public HashPartitionBucketAnalysis getBucketAnalysis(Interval interval)
   {
     return Preconditions.checkNotNull(
         intervalToNumBuckets.get(interval),
@@ -85,7 +85,7 @@ public class HashPartitionAnalysis implements CompletePartitionAnalysis<Integer,
     return intervalToNumBuckets.size();
   }
 
-  public void forEach(BiConsumer<Interval, Integer> consumer)
+  public void forEach(BiConsumer<Interval, HashPartitionBucketAnalysis> consumer)
   {
     intervalToNumBuckets.forEach(consumer);
   }
@@ -100,14 +100,14 @@ public class HashPartitionAnalysis implements CompletePartitionAnalysis<Integer,
     final Map<Interval, List<SegmentIdWithShardSpec>> intervalToSegmentIds =
         Maps.newHashMapWithExpectedSize(numTimePartitions());
 
-    forEach((interval, numBuckets) -> {
+    forEach((interval, bucketAnalysis) -> {
       intervalToSegmentIds.put(
           interval,
-          IntStream.range(0, numBuckets)
+          IntStream.range(0, bucketAnalysis.numSecondaryBuckets())
                    .mapToObj(i -> {
                      final HashBasedNumberedShardSpec shardSpec = new HashBasedNumberedShardSpec(
                          i,
-                         numBuckets,
+                         bucketAnalysis.numSecondaryBuckets(),
                          partitionsSpec.getPartitionDimensions(),
                          toolbox.getJsonMapper()
                      );
