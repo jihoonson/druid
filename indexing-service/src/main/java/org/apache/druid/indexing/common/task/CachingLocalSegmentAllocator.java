@@ -24,7 +24,6 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
-import org.apache.druid.indexing.common.actions.SurrogateAction;
 import org.apache.druid.indexing.common.actions.TaskAction;
 import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
 import org.apache.druid.indexing.common.task.batch.parallel.SupervisorTaskAccess;
@@ -82,7 +81,7 @@ public class CachingLocalSegmentAllocator implements CachingSegmentAllocator
     if (supervisorTaskAccess == null) {
       action = new LockListAction();
     } else {
-      action = new SurrogateAction<>(supervisorTaskAccess.getSupervisorTaskId(), new LockListAction());
+      action = supervisorTaskAccess.wrapAction(new LockListAction());
     }
 
     final Map<Interval, String> intervalToVersion =

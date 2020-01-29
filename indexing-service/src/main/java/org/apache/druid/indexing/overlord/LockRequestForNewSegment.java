@@ -43,6 +43,7 @@ public class LockRequestForNewSegment implements LockRequest
   @Nullable
   private final String previsousSegmentId;
   private final boolean skipSegmentLineageCheck;
+  private final int bucketId;
 
   private String version;
 
@@ -56,7 +57,8 @@ public class LockRequestForNewSegment implements LockRequest
       int priority,
       String sequenceName,
       @Nullable String previsousSegmentId,
-      boolean skipSegmentLineageCheck
+      boolean skipSegmentLineageCheck,
+      int bucketId
   )
   {
     this.lockGranularity = lockGranularity;
@@ -69,6 +71,7 @@ public class LockRequestForNewSegment implements LockRequest
     this.sequenceName = sequenceName;
     this.previsousSegmentId = previsousSegmentId;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
+    this.bucketId = bucketId;
   }
 
   @VisibleForTesting
@@ -80,7 +83,8 @@ public class LockRequestForNewSegment implements LockRequest
       ShardSpecFactory shardSpecFactory,
       String sequenceName,
       @Nullable String previsousSegmentId,
-      boolean skipSegmentLineageCheck
+      boolean skipSegmentLineageCheck,
+      int bucketId
   )
   {
     this(
@@ -93,7 +97,8 @@ public class LockRequestForNewSegment implements LockRequest
         task.getPriority(),
         sequenceName,
         previsousSegmentId,
-        skipSegmentLineageCheck
+        skipSegmentLineageCheck,
+        bucketId
     );
   }
 
@@ -133,9 +138,14 @@ public class LockRequestForNewSegment implements LockRequest
     return priority;
   }
 
-  public ShardSpecFactory getShardSpecFactory()
+  ShardSpecFactory getShardSpecFactory()
   {
     return shardSpecFactory;
+  }
+
+  int getBucketId()
+  {
+    return bucketId;
   }
 
   @Override
@@ -192,6 +202,8 @@ public class LockRequestForNewSegment implements LockRequest
            ", sequenceName='" + sequenceName + '\'' +
            ", previsousSegmentId='" + previsousSegmentId + '\'' +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
+           ", bucketId=" + bucketId +
+           ", version='" + version + '\'' +
            '}';
   }
 }

@@ -41,7 +41,6 @@ import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.LinearShardSpec;
-import org.apache.druid.timeline.partition.LinearShardSpecFactory;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpecFactory;
 import org.apache.druid.timeline.partition.ShardSpec;
@@ -620,71 +619,6 @@ public class SegmentAllocateActionTest
   }
 
   @Test
-  public void testAddToExistingLinearShardSpecsSameGranularity() throws Exception
-  {
-    final Task task = NoopTask.create();
-
-    taskActionTestKit.getMetadataStorageCoordinator().announceHistoricalSegments(
-        ImmutableSet.of(
-            DataSegment.builder()
-                       .dataSource(DATA_SOURCE)
-                       .interval(Granularities.HOUR.bucket(PARTY_TIME))
-                       .version(PARTY_TIME.toString())
-                       .shardSpec(new LinearShardSpec(0))
-                       .size(0)
-                       .build(),
-            DataSegment.builder()
-                       .dataSource(DATA_SOURCE)
-                       .interval(Granularities.HOUR.bucket(PARTY_TIME))
-                       .version(PARTY_TIME.toString())
-                       .shardSpec(new LinearShardSpec(1))
-                       .size(0)
-                       .build()
-        )
-    );
-
-    taskActionTestKit.getTaskLockbox().add(task);
-
-    final SegmentIdWithShardSpec id1 = allocate(
-        task,
-        PARTY_TIME,
-        Granularities.NONE,
-        Granularities.HOUR,
-        "s1",
-        null,
-        LinearShardSpecFactory.instance()
-    );
-    final SegmentIdWithShardSpec id2 = allocate(
-        task,
-        PARTY_TIME,
-        Granularities.NONE,
-        Granularities.HOUR,
-        "s1",
-        id1.toString(),
-        LinearShardSpecFactory.instance()
-    );
-
-    assertSameIdentifier(
-        new SegmentIdWithShardSpec(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(PARTY_TIME),
-            PARTY_TIME.toString(),
-            new LinearShardSpec(2)
-        ),
-        id1
-    );
-    assertSameIdentifier(
-        new SegmentIdWithShardSpec(
-            DATA_SOURCE,
-            Granularities.HOUR.bucket(PARTY_TIME),
-            PARTY_TIME.toString(),
-            new LinearShardSpec(3)
-        ),
-        id2
-    );
-  }
-
-  @Test
   public void testAddToExistingNumberedShardSpecsSameGranularity() throws Exception
   {
     final Task task = NoopTask.create();
@@ -878,14 +812,14 @@ public class SegmentAllocateActionTest
                        .dataSource(DATA_SOURCE)
                        .interval(Granularities.HOUR.bucket(PARTY_TIME))
                        .version(PARTY_TIME.toString())
-                       .shardSpec(new SingleDimensionShardSpec("foo", null, "bar", 0))
+                       .shardSpec(new SingleDimensionShardSpec("foo", null, "bar", 0, 0))
                        .size(0)
                        .build(),
             DataSegment.builder()
                        .dataSource(DATA_SOURCE)
                        .interval(Granularities.HOUR.bucket(PARTY_TIME))
                        .version(PARTY_TIME.toString())
-                       .shardSpec(new SingleDimensionShardSpec("foo", "bar", null, 1))
+                       .shardSpec(new SingleDimensionShardSpec("foo", "bar", null, 1, 1))
                        .size(0)
                        .build()
         )

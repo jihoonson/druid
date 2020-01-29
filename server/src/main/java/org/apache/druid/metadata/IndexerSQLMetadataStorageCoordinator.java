@@ -496,7 +496,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final Interval interval,
       final ShardSpecFactory shardSpecFactory,
       final String maxVersion,
-      final boolean skipSegmentLineageCheck
+      final boolean skipSegmentLineageCheck,
+      int bucketId
   )
   {
     Preconditions.checkNotNull(dataSource, "dataSource");
@@ -513,7 +514,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
                 sequenceName,
                 interval,
                 shardSpecFactory,
-                maxVersion
+                maxVersion,
+                bucketId
             );
           } else {
             return allocatePendingSegmentWithSegmentLineageCheck(
@@ -523,7 +525,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
                 previousSegmentId,
                 interval,
                 shardSpecFactory,
-                maxVersion
+                maxVersion,
+                bucketId
             );
           }
         }
@@ -538,7 +541,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       @Nullable final String previousSegmentId,
       final Interval interval,
       final ShardSpecFactory shardSpecFactory,
-      final String maxVersion
+      final String maxVersion,
+      final int bucketId
   ) throws IOException
   {
     final String previousSegmentIdNotNull = previousSegmentId == null ? "" : previousSegmentId;
@@ -570,7 +574,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         dataSource,
         interval,
         shardSpecFactory,
-        maxVersion
+        maxVersion,
+        bucketId
     );
     if (newIdentifier == null) {
       return null;
@@ -612,7 +617,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String sequenceName,
       final Interval interval,
       final ShardSpecFactory shardSpecFactory,
-      final String maxVersion
+      final String maxVersion,
+      final int bucketId
   ) throws IOException
   {
     final CheckExistingSegmentIdResult result = checkAndGetExistingSegmentId(
@@ -646,7 +652,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         dataSource,
         interval,
         shardSpecFactory,
-        maxVersion
+        maxVersion,
+        bucketId
     );
     if (newIdentifier == null) {
       return null;
@@ -789,7 +796,8 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       final String dataSource,
       final Interval interval,
       final ShardSpecFactory shardSpecFactory,
-      final String maxVersion
+      final String maxVersion,
+      final int bucketId
   ) throws IOException
   {
     final List<TimelineObjectHolder<String, DataSegment>> existingChunks = getTimelineForIntervalsWithHandle(
@@ -867,7 +875,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       }
 
       if (maxId == null) {
-        final ShardSpec shardSpec = shardSpecFactory.create(jsonMapper, null);
+        final ShardSpec shardSpec = shardSpecFactory.create(jsonMapper, null, bucketId);
         String version = versionOfExistingChunks == null ? maxVersion : versionOfExistingChunks;
         return new SegmentIdWithShardSpec(dataSource, interval, version, shardSpec);
       } else if (!maxId.getInterval().equals(interval) || maxId.getVersion().compareTo(maxVersion) > 0) {
@@ -880,7 +888,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
         );
         return null;
       } else {
-        final ShardSpec newShardSpec = shardSpecFactory.create(jsonMapper, maxId.getShardSpec());
+        final ShardSpec newShardSpec = shardSpecFactory.create(jsonMapper, maxId.getShardSpec(), bucketId);
         return new SegmentIdWithShardSpec(
             dataSource,
             maxId.getInterval(),

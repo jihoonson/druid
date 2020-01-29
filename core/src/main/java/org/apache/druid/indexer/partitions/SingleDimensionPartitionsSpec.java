@@ -35,7 +35,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Partition a segment by a single dimension.
+ * The ShardSpec for the range partitioning based on the single dimension.
+ *
+ * The partition ID must be aligned with the bucket ID, i.g., partitionId = n * numBuckets + bucketId.
  */
 public class SingleDimensionPartitionsSpec implements DimensionBasedPartitionsSpec
 {

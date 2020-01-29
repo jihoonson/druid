@@ -36,6 +36,11 @@ import org.apache.druid.data.input.Rows;
 import javax.annotation.Nullable;
 import java.util.List;
 
+/**
+ * The ShardSpec for the hash partitioning.
+ *
+ * The partition ID must be aligned with the bucket ID, i.g., partitionId = n * numBuckets + bucketId.
+ */
 public class HashBasedNumberedShardSpec extends NumberedShardSpec
 {
   private static final HashFunction HASH_FUNCTION = Hashing.murmur3_32();
@@ -62,7 +67,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   public short getBucketId()
   {
     // partitionId % (# of buckets)
-    return Partitions.getBucketId(getPartitionNum(), getPartitions());
+    return PartitionUtils.getBucketId(getPartitionNum(), getPartitions());
   }
 
   @JsonProperty("partitionDimensions")
@@ -80,7 +85,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   @Override
   public boolean isInChunk(long timestamp, InputRow inputRow)
   {
-    // Since partitionNum = bucketId + partitions (numBuckets) + n,
+    // Since partitionNum = bucketId + partitions (numBuckets) * n,
     // the below function still holds.
     return (((long) hash(timestamp, inputRow)) - getPartitionNum()) % getPartitions() == 0;
   }

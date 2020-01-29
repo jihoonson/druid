@@ -325,6 +325,25 @@ public class TaskLockbox
     }
   }
 
+  @Nullable
+  private Pair<LockRequest, SegmentIdWithShardSpec> convertRequestIfNecessary(LockRequest request)
+  {
+    if (request instanceof LockRequestForNewSegment) {
+      final LockRequestForNewSegment lockRequestForNewSegment = (LockRequestForNewSegment) request;
+      if (lockRequestForNewSegment.getGranularity() == LockGranularity.SEGMENT) {
+        final SegmentIdWithShardSpec newSegmentId = allocateSegmentId(lockRequestForNewSegment, request.getVersion());
+        if (newSegmentId == null) {
+          return null;
+        }
+        return Pair.of(new SpecificSegmentLockRequest(lockRequestForNewSegment, newSegmentId), newSegmentId);
+      } else {
+        return Pair.of(new TimeChunkLockRequest(lockRequestForNewSegment), null);
+      }
+    } else {
+      return Pair.of(request, null);
+    }
+  }
+
   /**
    * Attempt to acquire a lock for a task, without removing it from the queue. Can safely be called multiple times on
    * the same task until the lock is preempted.
@@ -344,23 +363,19 @@ public class TaskLockbox
       }
       Preconditions.checkArgument(request.getInterval().toDurationMillis() > 0, "interval empty");
 
-      SegmentIdWithShardSpec newSegmentId = null;
-      final LockRequest convertedRequest;
-      if (request instanceof LockRequestForNewSegment) {
-        final LockRequestForNewSegment lockRequestForNewSegment = (LockRequestForNewSegment) request;
-        if (lockRequestForNewSegment.getGranularity() == LockGranularity.SEGMENT) {
-          newSegmentId = allocateSegmentId(lockRequestForNewSegment, request.getVersion());
-          if (newSegmentId == null) {
-            return LockResult.fail(false);
-          }
-          convertedRequest = new SpecificSegmentLockRequest(lockRequestForNewSegment, newSegmentId);
-        } else {
-          convertedRequest = new TimeChunkLockRequest(lockRequestForNewSegment);
-        }
-      } else {
-        convertedRequest = request;
+      // With the time chunk lock, it's not possible to allocate a new ID until we get the lock for the time chunk.
+      // However, with the segment lock, it's not possible to get the lock for the new segment until we allocate a new
+      // segment ID.
+      // The below method is to handle the lock request for the new segment with the segment lock.
+      // For the time chunk lock request, the new segment ID will be allocated later when the lock is successfully held.
+      final Pair<LockRequest, SegmentIdWithShardSpec> pair = convertRequestIfNecessary(request);
+      if (pair == null) {
+        return LockResult.fail(false);
       }
+      final LockRequest convertedRequest = pair.lhs;
+      SegmentIdWithShardSpec newSegmentId = pair.rhs;
 
+      //noinspection ConstantConditions
       final TaskLockPosse posseToUse = createOrFindLockPosse(convertedRequest);
       if (posseToUse != null && !posseToUse.getTaskLock().isRevoked()) {
         if (request instanceof LockRequestForNewSegment) {
@@ -536,7 +551,8 @@ public class TaskLockbox
         request.getInterval(),
         request.getShardSpecFactory(),
         version,
-        request.isSkipSegmentLineageCheck()
+        request.isSkipSegmentLineageCheck(),
+        request.getBucketId()
     );
   }
 

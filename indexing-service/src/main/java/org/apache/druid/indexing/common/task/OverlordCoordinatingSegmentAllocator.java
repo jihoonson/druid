@@ -25,7 +25,7 @@ import org.apache.druid.indexer.partitions.SecondaryPartitionType;
 import org.apache.druid.indexing.appenderator.ActionBasedSegmentAllocator;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
-import org.apache.druid.indexing.common.actions.SurrogateAction;
+import org.apache.druid.indexing.common.actions.TaskAction;
 import org.apache.druid.indexing.common.task.TaskLockHelper.OverwritingRootGenerationPartitions;
 import org.apache.druid.indexing.common.task.batch.parallel.SupervisorTaskAccess;
 import org.apache.druid.java.util.common.ISE;
@@ -71,33 +71,21 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
               taskLockHelper,
               interval
           );
+          final TaskAction<SegmentIdWithShardSpec> action = new SegmentAllocateAction(
+              schema.getDataSource(),
+              row.getTimestamp(),
+              schema.getGranularitySpec().getQueryGranularity(),
+              schema.getGranularitySpec().getSegmentGranularity(),
+              sequenceName,
+              previousSegmentId,
+              skipSegmentLineageCheck,
+              shardSpecFactory,
+              taskLockHelper.getLockGranularityToUse()
+          );
           if (supervisorTaskAccess != null) {
-            return new SurrogateAction<>(
-                supervisorTaskAccess.getSupervisorTaskId(),
-                new SegmentAllocateAction(
-                    schema.getDataSource(),
-                    row.getTimestamp(),
-                    schema.getGranularitySpec().getQueryGranularity(),
-                    schema.getGranularitySpec().getSegmentGranularity(),
-                    sequenceName,
-                    previousSegmentId,
-                    skipSegmentLineageCheck,
-                    shardSpecFactory,
-                    taskLockHelper.getLockGranularityToUse()
-                )
-            );
+            return supervisorTaskAccess.wrapAction(action);
           } else {
-            return new SegmentAllocateAction(
-                schema.getDataSource(),
-                row.getTimestamp(),
-                schema.getGranularitySpec().getQueryGranularity(),
-                schema.getGranularitySpec().getSegmentGranularity(),
-                sequenceName,
-                previousSegmentId,
-                skipSegmentLineageCheck,
-                shardSpecFactory,
-                taskLockHelper.getLockGranularityToUse()
-            );
+            return action;
           }
         }
     );

@@ -22,6 +22,7 @@ package org.apache.druid.timeline.partition;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Preconditions;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -57,20 +58,19 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
+  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId)
   {
-    final HashBasedNumberedShardSpec prevSpec = (HashBasedNumberedShardSpec) specOfPreviousMaxPartitionId;
-    return new HashBasedNumberedShardSpec(
-        prevSpec == null ? 0 : prevSpec.getPartitionNum() + 1,
-        numBuckets,
-        partitionDimensions,
-        objectMapper
+    Preconditions.checkArgument(
+        bucketId < numBuckets,
+        "bucketId[%s] should be smaller than numBuckets[%s]",
+        bucketId,
+        numBuckets
     );
-  }
-
-  @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId)
-  {
+    final int partitionId = PartitionUtils.nextValidPartitionId(
+        specOfPreviousMaxPartitionId == null ? null : specOfPreviousMaxPartitionId.getPartitionNum(),
+        bucketId,
+        numBuckets
+    );
     return new HashBasedNumberedShardSpec(partitionId, numBuckets, partitionDimensions, objectMapper);
   }
 
@@ -78,6 +78,12 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
   public Class<? extends ShardSpec> getShardSpecClass()
   {
     return HashBasedNumberedShardSpec.class;
+  }
+
+  @Override
+  public int numBuckets()
+  {
+    return numBuckets;
   }
 
   @Override

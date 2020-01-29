@@ -19,6 +19,9 @@
 
 package org.apache.druid.indexing.common.task.batch.parallel;
 
+import org.apache.druid.indexing.common.actions.SurrogateAction;
+import org.apache.druid.indexing.common.actions.TaskAction;
+
 /**
  * Simple POJO to hold the information of the supervisor task.
  *
@@ -46,5 +49,10 @@ public class SupervisorTaskAccess
   public ParallelIndexSupervisorTaskClient getTaskClient()
   {
     return taskClient;
+  }
+
+  public <T> TaskAction<T> wrapAction(TaskAction<T> action)
+  {
+    return new SurrogateAction<>(supervisorTaskId, action);
   }
 }

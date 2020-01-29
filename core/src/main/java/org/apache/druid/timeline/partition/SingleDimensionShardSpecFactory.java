@@ -54,24 +54,14 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
+  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId)
   {
-    final int partitionId;
-    if (specOfPreviousMaxPartitionId != null) {
-      assert specOfPreviousMaxPartitionId instanceof SingleDimensionShardSpec;
-      final SingleDimensionShardSpec prevSpec = (SingleDimensionShardSpec) specOfPreviousMaxPartitionId;
+    final int partitionId = PartitionUtils.nextValidPartitionId(
+        specOfPreviousMaxPartitionId == null ? null : specOfPreviousMaxPartitionId.getPartitionNum(),
+        bucketId,
+        partitionBoundaries.numBuckets()
+    );
 
-      partitionId = prevSpec.getPartitionNum() + 1;
-    } else {
-      partitionId = 0;
-    }
-    return create(objectMapper, partitionId);
-  }
-
-  @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId)
-  {
-    final short bucketId = Partitions.getBucketId(partitionId, partitionBoundaries.numBuckets());
     return new SingleDimensionShardSpec(
         partitionDimension,
         partitionBoundaries.get(bucketId),
@@ -85,6 +75,12 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory
   public Class<? extends ShardSpec> getShardSpecClass()
   {
     return SingleDimensionShardSpec.class;
+  }
+
+  @Override
+  public int numBuckets()
+  {
+    return partitionBoundaries.numBuckets();
   }
 
   @Override

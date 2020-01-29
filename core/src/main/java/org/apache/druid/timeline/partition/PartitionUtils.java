@@ -19,40 +19,36 @@
 
 package org.apache.druid.timeline.partition;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.druid.java.util.common.Numbers;
+import org.apache.druid.java.util.common.StringUtils;
 
 import javax.annotation.Nullable;
 
-public class LinearShardSpecFactory implements ShardSpecFactory
+public final class PartitionUtils
 {
-  private static final LinearShardSpecFactory INSTANCE = new LinearShardSpecFactory();
-
-  public static LinearShardSpecFactory instance()
+  public static short getBucketId(int partitionId, int numBuckets)
   {
-    return INSTANCE;
-  }
-
-  private LinearShardSpecFactory()
-  {
-  }
-
-  @Override
-  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
-  {
-    return new LinearShardSpec(
-        specOfPreviousMaxPartitionId == null ? 0 : specOfPreviousMaxPartitionId.getPartitionNum() + 1
+    return Numbers.toShortExact(
+        partitionId % numBuckets,
+        () -> StringUtils.format(
+            "Cannot get a valid bucket ID from partitionId[%s] and numBuckets[%s]",
+            partitionId,
+            numBuckets
+        )
     );
   }
 
-  @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId)
+  public static int nextValidPartitionId(@Nullable Integer previousMaxPartitionId, int bucketId, int numBuckets)
   {
-    return new LinearShardSpec(partitionId);
+    if (previousMaxPartitionId == null) {
+      return bucketId;
+    } else {
+      final int n = previousMaxPartitionId / numBuckets;
+      return (n + 1) * numBuckets + bucketId;
+    }
   }
 
-  @Override
-  public Class<? extends ShardSpec> getShardSpecClass()
+  private PartitionUtils()
   {
-    return LinearShardSpec.class;
   }
 }

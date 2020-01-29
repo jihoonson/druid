@@ -182,7 +182,7 @@ public class SingleDimensionShardSpec implements ShardSpec
     if (numBuckets == UNKNOWN_NUM_BUCKETS) {
       return (short) partitionNum;
     } else {
-      return Partitions.getBucketId(partitionNum, numBuckets);
+      return PartitionUtils.getBucketId(partitionNum, numBuckets);
     }
   }
 

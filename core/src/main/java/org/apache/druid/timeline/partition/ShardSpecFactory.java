@@ -44,15 +44,12 @@ public interface ShardSpecFactory
    * Note that {@code specOfPreviousMaxPartitionId} can also be null for {@link OverwriteShardSpec} if all segments
    * in the timeChunk are first-generation segments.
    */
-  ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId);
-
-  /**
-   * Create a new shardSpec having the given partitionId.
-   */
-  ShardSpec create(ObjectMapper objectMapper, int partitionId);
+  ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId);
 
   /**
    * Return the class of the shardSpec created by this factory.
    */
   Class<? extends ShardSpec> getShardSpecClass();
+
+  int numBuckets();
 }
