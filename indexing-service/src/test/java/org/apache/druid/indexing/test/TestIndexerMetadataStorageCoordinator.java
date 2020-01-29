@@ -146,15 +146,14 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
       Interval interval,
       ShardSpecBuilder shardSpecBuilder,
       String maxVersion,
-      boolean skipSegmentLineageCheck,
-      int bucketId
+      boolean skipSegmentLineageCheck
   )
   {
     return new SegmentIdWithShardSpec(
         dataSource,
         interval,
         maxVersion,
-        shardSpecBuilder.build(objectMapper, null, bucketId)
+        shardSpecBuilder.build(objectMapper, null)
     );
   }
 

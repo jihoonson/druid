@@ -26,13 +26,13 @@ import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
-import org.apache.druid.timeline.partition.PartitionBoundaries;
 import org.apache.druid.indexing.common.task.batch.partition.RangePartitionAnalysis;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.SegmentId;
+import org.apache.druid.timeline.partition.PartitionBoundaries;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
 import org.easymock.EasyMock;
 import org.joda.time.Interval;
@@ -67,12 +67,17 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
   private static final String PARTITION0 = "0";
   private static final String PARTITION5 = "5";
   private static final String PARTITION9 = "9";
-  private static final PartitionBoundaries EMPTY_PARTITIONS = new PartitionBoundaries();
-  private static final PartitionBoundaries SINGLETON_PARTITIONS = new PartitionBoundaries(PARTITION0, PARTITION0);
-  private static final PartitionBoundaries NORMAL_PARTITIONS = new PartitionBoundaries(
+  private static final PartitionBoundaries EMPTY_PARTITIONS = PartitionBoundaries.empty();
+  private static final PartitionBoundaries SINGLETON_PARTITIONS = PartitionBoundaries.from(new String[]{
       PARTITION0,
-      PARTITION5,
-      PARTITION9
+      PARTITION0
+  });
+  private static final PartitionBoundaries NORMAL_PARTITIONS = PartitionBoundaries.from(
+      new String[]{
+          PARTITION0,
+          PARTITION5,
+          PARTITION9
+      }
   );
 
   private static final Map<Interval, PartitionBoundaries> INTERVAL_TO_PARTITONS = ImmutableMap.of(

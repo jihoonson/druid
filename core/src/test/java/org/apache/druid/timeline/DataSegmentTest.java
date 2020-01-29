@@ -35,6 +35,7 @@ import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.ShardSpec;
+import org.apache.druid.timeline.partition.ShardSpecBuilder;
 import org.apache.druid.timeline.partition.ShardSpecLookup;
 import org.joda.time.Interval;
 import org.junit.Assert;
@@ -100,6 +101,12 @@ public class DataSegmentTest
 
       @Override
       public boolean isCompatible(Class<? extends ShardSpec> other)
+      {
+        return false;
+      }
+
+      @Override
+      public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
       {
         return false;
       }

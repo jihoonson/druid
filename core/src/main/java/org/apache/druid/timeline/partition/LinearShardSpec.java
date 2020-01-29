@@ -74,6 +74,12 @@ public final class LinearShardSpec implements ShardSpec
   }
 
   @Override
+  public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
+  {
+    return shardSpecBuilder instanceof LinearShardSpecBuilder;
+  }
+
+  @Override
   public <T> PartitionChunk<T> createChunk(T obj)
   {
     return new LinearPartitionChunk<>(partitionNum, obj);

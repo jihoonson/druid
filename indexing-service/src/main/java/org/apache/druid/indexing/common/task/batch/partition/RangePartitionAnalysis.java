@@ -136,7 +136,8 @@ public class RangePartitionAnalysis
                         partitionDimension,
                         partitionBoundaries.get(i),
                         partitionBoundaries.get(i + 1),
-                        i
+                        i,
+                        partitionBoundaries.numBuckets()
                     ))
                     .collect(Collectors.toList());
   }
@@ -148,7 +149,8 @@ public class RangePartitionAnalysis
       String partitionDimension,
       String partitionStart,
       @Nullable String partitionEnd,
-      int partitionNum
+      int partitionNum,
+      int numBuckets
   )
   {
     // The shardSpec created here will be reused in PartialGenericSegmentMergeTask. This is ok because
@@ -161,7 +163,8 @@ public class RangePartitionAnalysis
             partitionDimension,
             partitionStart,
             partitionEnd,
-            partitionNum
+            partitionNum,
+            numBuckets
         )
     );
   }

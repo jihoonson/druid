@@ -1032,10 +1032,10 @@ public class IndexerSQLMetadataStorageCoordinatorTest
   @Test
   public void testAllocatePendingSegmentsForHashBasedNumberedShardSpec() throws IOException
   {
-    final ShardSpecBuilder shardSpecBuilder = new HashBasedNumberedShardSpecBuilder(null, 5);
     final String dataSource = "ds";
     final Interval interval = Intervals.of("2017-01-01/2017-02-01");
 
+    ShardSpecBuilder shardSpecBuilder = new HashBasedNumberedShardSpecBuilder(null, 0, 5);
     SegmentIdWithShardSpec id = coordinator.allocatePendingSegment(
         dataSource,
         "seq",
@@ -1048,7 +1048,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
 
     HashBasedNumberedShardSpec shardSpec = (HashBasedNumberedShardSpec) id.getShardSpec();
     Assert.assertEquals(0, shardSpec.getPartitionNum());
-    Assert.assertEquals(5, shardSpec.getPartitions());
+    Assert.assertEquals(5, shardSpec.getNumBuckets());
 
     coordinator.announceHistoricalSegments(
         Collections.singleton(
@@ -1066,6 +1066,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         )
     );
 
+    shardSpecBuilder = new HashBasedNumberedShardSpecBuilder(null, 1, 5);
     id = coordinator.allocatePendingSegment(
         dataSource,
         "seq2",
@@ -1078,7 +1079,7 @@ public class IndexerSQLMetadataStorageCoordinatorTest
 
     shardSpec = (HashBasedNumberedShardSpec) id.getShardSpec();
     Assert.assertEquals(1, shardSpec.getPartitionNum());
-    Assert.assertEquals(5, shardSpec.getPartitions());
+    Assert.assertEquals(5, shardSpec.getNumBuckets());
 
     coordinator.announceHistoricalSegments(
         Collections.singleton(
@@ -1096,18 +1097,19 @@ public class IndexerSQLMetadataStorageCoordinatorTest
         )
     );
 
+    shardSpecBuilder = new HashBasedNumberedShardSpecBuilder(null, 2, 3);
     id = coordinator.allocatePendingSegment(
         dataSource,
         "seq3",
         null,
         interval,
-        new HashBasedNumberedShardSpecBuilder(null, 3),
+        shardSpecBuilder,
         "version",
         true
     );
 
     shardSpec = (HashBasedNumberedShardSpec) id.getShardSpec();
     Assert.assertEquals(2, shardSpec.getPartitionNum());
-    Assert.assertEquals(3, shardSpec.getPartitions());
+    Assert.assertEquals(3, shardSpec.getNumBuckets());
   }
 }

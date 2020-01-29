@@ -22,7 +22,6 @@ package org.apache.druid.timeline.partition;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Preconditions;
 
 import javax.annotation.Nullable;
 
@@ -63,9 +62,8 @@ public class NumberedOverwriteShardSpecBuilder implements ShardSpecBuilder
   }
 
   @Override
-  public ShardSpec build(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId)
+  public ShardSpec build(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
   {
-    Preconditions.checkArgument(bucketId == 1, "Invalid bucketId[%s]", bucketId);
     // specOfPreviousMaxPartitionId is the max partitionId of the same shardSpec
     // and could be null if all existing segments are first-generation segments.
     return new NumberedOverwriteShardSpec(

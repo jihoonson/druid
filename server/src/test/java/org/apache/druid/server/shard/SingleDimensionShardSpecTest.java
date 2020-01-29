@@ -158,7 +158,7 @@ public class SingleDimensionShardSpecTest
 
   private SingleDimensionShardSpec makeSpec(String dimension, String start, String end)
   {
-    return new SingleDimensionShardSpec(dimension, start, end, 0);
+    return new SingleDimensionShardSpec(dimension, start, end, 0, 1);
   }
 
   private Map<String, String> makeMap(String value)

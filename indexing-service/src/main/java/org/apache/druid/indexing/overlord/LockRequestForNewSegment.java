@@ -43,7 +43,6 @@ public class LockRequestForNewSegment implements LockRequest
   @Nullable
   private final String previsousSegmentId;
   private final boolean skipSegmentLineageCheck;
-  private final int bucketId;
 
   private String version;
 
@@ -57,8 +56,7 @@ public class LockRequestForNewSegment implements LockRequest
       int priority,
       String sequenceName,
       @Nullable String previsousSegmentId,
-      boolean skipSegmentLineageCheck,
-      int bucketId
+      boolean skipSegmentLineageCheck
   )
   {
     this.lockGranularity = lockGranularity;
@@ -71,7 +69,6 @@ public class LockRequestForNewSegment implements LockRequest
     this.sequenceName = sequenceName;
     this.previsousSegmentId = previsousSegmentId;
     this.skipSegmentLineageCheck = skipSegmentLineageCheck;
-    this.bucketId = bucketId;
   }
 
   @VisibleForTesting
@@ -83,8 +80,7 @@ public class LockRequestForNewSegment implements LockRequest
       ShardSpecBuilder shardSpecBuilder,
       String sequenceName,
       @Nullable String previsousSegmentId,
-      boolean skipSegmentLineageCheck,
-      int bucketId
+      boolean skipSegmentLineageCheck
   )
   {
     this(
@@ -97,8 +93,7 @@ public class LockRequestForNewSegment implements LockRequest
         task.getPriority(),
         sequenceName,
         previsousSegmentId,
-        skipSegmentLineageCheck,
-        bucketId
+        skipSegmentLineageCheck
     );
   }
 
@@ -141,11 +136,6 @@ public class LockRequestForNewSegment implements LockRequest
   public ShardSpecBuilder getShardSpecBuilder()
   {
     return shardSpecBuilder;
-  }
-
-  int getBucketId()
-  {
-    return bucketId;
   }
 
   @Override
@@ -202,7 +192,6 @@ public class LockRequestForNewSegment implements LockRequest
            ", sequenceName='" + sequenceName + '\'' +
            ", previsousSegmentId='" + previsousSegmentId + '\'' +
            ", skipSegmentLineageCheck=" + skipSegmentLineageCheck +
-           ", bucketId=" + bucketId +
            ", version='" + version + '\'' +
            '}';
   }

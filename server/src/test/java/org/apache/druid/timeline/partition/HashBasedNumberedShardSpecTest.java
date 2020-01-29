@@ -57,7 +57,7 @@ public class HashBasedNumberedShardSpecTest
         ShardSpec.class
     );
     Assert.assertEquals(1, spec.getPartitionNum());
-    Assert.assertEquals(2, ((HashBasedNumberedShardSpec) spec).getPartitions());
+    Assert.assertEquals(2, ((HashBasedNumberedShardSpec) spec).getNumBuckets());
     Assert.assertEquals(ImmutableList.of("visitor_id"), ((HashBasedNumberedShardSpec) spec).getPartitionDimensions());
   }
 
@@ -69,14 +69,14 @@ public class HashBasedNumberedShardSpecTest
         ShardSpec.class
     );
     Assert.assertEquals(1, spec.getPartitionNum());
-    Assert.assertEquals(2, ((HashBasedNumberedShardSpec) spec).getPartitions());
+    Assert.assertEquals(2, ((HashBasedNumberedShardSpec) spec).getNumBuckets());
 
     final ShardSpec specWithPartitionDimensions = ServerTestHelper.MAPPER.readValue(
         "{\"type\": \"hashed\", \"partitions\": 2, \"partitionNum\": 1, \"partitionDimensions\":[\"visitor_id\"]}",
         ShardSpec.class
     );
     Assert.assertEquals(1, specWithPartitionDimensions.getPartitionNum());
-    Assert.assertEquals(2, ((HashBasedNumberedShardSpec) specWithPartitionDimensions).getPartitions());
+    Assert.assertEquals(2, ((HashBasedNumberedShardSpec) specWithPartitionDimensions).getNumBuckets());
     Assert.assertEquals(ImmutableList.of("visitor_id"), ((HashBasedNumberedShardSpec) specWithPartitionDimensions).getPartitionDimensions());
   }
 

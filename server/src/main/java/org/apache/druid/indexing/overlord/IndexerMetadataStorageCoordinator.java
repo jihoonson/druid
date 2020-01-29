@@ -163,7 +163,6 @@ public interface IndexerMetadataStorageCoordinator
    *                                identifier may have a version lower than this one, but will not have one higher.
    * @param skipSegmentLineageCheck if true, perform lineage validation using previousSegmentId for this sequence.
    *                                Should be set to false if replica tasks would index events in same order
-   * @param bucketId                TODO
    *
    * @return the pending segment identifier, or null if it was impossible to allocate a new segment
    */
@@ -174,8 +173,7 @@ public interface IndexerMetadataStorageCoordinator
       Interval interval,
       ShardSpecBuilder shardSpecBuilder,
       String maxVersion,
-      boolean skipSegmentLineageCheck,
-      int bucketId
+      boolean skipSegmentLineageCheck
   );
 
   /**

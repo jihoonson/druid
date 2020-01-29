@@ -30,9 +30,11 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Numbers;
 
 import javax.annotation.Nullable;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * {@link ShardSpec} for range partitioning based on a single dimension
@@ -111,14 +113,33 @@ public class SingleDimensionShardSpec implements ShardSpec
   @Override
   public ShardSpecLookup getLookup(final List<ShardSpec> shardSpecs)
   {
-    return (long timestamp, InputRow row) -> {
-      for (ShardSpec spec : shardSpecs) {
-        if (spec.isInChunk(timestamp, row)) {
-          return spec;
-        }
+    final List<ShardSpec> sortedSpecs = shardSpecs
+        .stream()
+        .sorted(Comparator.nullsFirst(Comparator.comparing(shardSpec -> ((SingleDimensionShardSpec) shardSpec).start)))
+        .collect(Collectors.toList());
+    final String[] boundaries = sortedSpecs
+        .stream()
+        .map(shardSpec -> ((SingleDimensionShardSpec) shardSpec).start)
+        .filter(Objects::nonNull)
+        .toArray(String[]::new);
+    final PartitionBoundaries partitionBoundaries = PartitionBoundaries.from(boundaries);
+    return (timestamp, row) -> {
+      if (partitionBoundaries.isEmpty()) {
+        throw new ISE("row[%s] doesn't fit in any shard[%s]", row, sortedSpecs);
       }
-      throw new ISE("row[%s] doesn't fit in any shard[%s]", row, shardSpecs);
+      return sortedSpecs.get(partitionBoundaries.indexFor(getKey(row, dimension)));
     };
+  }
+
+  @Nullable
+  public static String getKey(InputRow row, String dimension)
+  {
+    final List<String> values = row.getDimension(dimension);
+    if (values == null || values.size() != 1) {
+      return null;
+    } else {
+      return values.get(0);
+    }
   }
 
   @Override
@@ -159,6 +180,20 @@ public class SingleDimensionShardSpec implements ShardSpec
   }
 
   @Override
+  public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
+  {
+    if (shardSpecBuilder instanceof SingleDimensionShardSpecBuilder) {
+      final SingleDimensionShardSpecBuilder that = (SingleDimensionShardSpecBuilder) shardSpecBuilder;
+      return Objects.equals(dimension, that.getPartitionDimension()) &&
+             numBuckets == that.numBuckets() &&
+             getBucketId() == that.getBucketId() &&
+             Objects.equals(start, that.getStart()) &&
+             Objects.equals(end, that.getEnd());
+    }
+    return false;
+  }
+
+  @Override
   public <T> PartitionChunk<T> createChunk(T obj)
   {
     return new StringPartitionChunk<T>(start, end, partitionNum, obj);
@@ -186,7 +221,7 @@ public class SingleDimensionShardSpec implements ShardSpec
     }
   }
 
-  private boolean checkValue(String value)
+  private boolean checkValue(@Nullable String value)
   {
     if (value == null) {
       return start == null;

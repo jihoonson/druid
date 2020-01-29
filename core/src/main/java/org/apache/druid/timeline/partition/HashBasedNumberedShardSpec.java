@@ -35,6 +35,7 @@ import org.apache.druid.data.input.Rows;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The ShardSpec for the hash partitioning.
@@ -67,7 +68,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   public short getBucketId()
   {
     // partitionId % (# of buckets)
-    return PartitionUtils.getBucketId(getPartitionNum(), getPartitions());
+    return PartitionUtils.getBucketId(getPartitionNum(), getNumBuckets());
   }
 
   @JsonProperty("partitionDimensions")
@@ -83,26 +84,37 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   }
 
   @Override
+  public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
+  {
+    if (shardSpecBuilder instanceof HashBasedNumberedShardSpecBuilder) {
+      final HashBasedNumberedShardSpecBuilder that = (HashBasedNumberedShardSpecBuilder) shardSpecBuilder;
+      return Objects.equals(partitionDimensions, that.getPartitionDimensions()) &&
+             getNumBuckets() == that.numBuckets() &&
+             getBucketId() == that.getBucketId();
+    }
+    return false;
+  }
+
+  @Override
   public boolean isInChunk(long timestamp, InputRow inputRow)
   {
     // Since partitionNum = bucketId + partitions (numBuckets) * n,
     // the below function still holds.
-    return (((long) hash(timestamp, inputRow)) - getPartitionNum()) % getPartitions() == 0;
+    return (((long) hash(timestamp, inputRow)) - getPartitionNum()) % getNumBuckets() == 0;
   }
 
   protected int hash(long timestamp, InputRow inputRow)
   {
-    final List<Object> groupKey = getGroupKey(timestamp, inputRow);
-    try {
-      return hash(jsonMapper, groupKey);
-    }
-    catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
+    return hash(jsonMapper, partitionDimensions, timestamp, inputRow);
   }
 
   @VisibleForTesting
   List<Object> getGroupKey(final long timestamp, final InputRow inputRow)
+  {
+    return getGroupKey(partitionDimensions, timestamp, inputRow);
+  }
+
+  private static List<Object> getGroupKey(List<String> partitionDimensions, long timestamp, InputRow inputRow)
   {
     if (partitionDimensions.isEmpty()) {
       return Rows.toGroupKey(timestamp, inputRow);
@@ -117,12 +129,45 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     return HASH_FUNCTION.hashBytes(jsonMapper.writeValueAsBytes(objects)).asInt();
   }
 
+  public static int hash(ObjectMapper jsonMapper, List<String> partitionDimensions, long timestamp, InputRow inputRow)
+  {
+    final List<Object> groupKey = getGroupKey(partitionDimensions, timestamp, inputRow);
+    try {
+      return hash(jsonMapper, groupKey);
+    }
+    catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    if (!super.equals(o)) {
+      return false;
+    }
+    HashBasedNumberedShardSpec shardSpec = (HashBasedNumberedShardSpec) o;
+    return Objects.equals(partitionDimensions, shardSpec.partitionDimensions);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(super.hashCode(), partitionDimensions);
+  }
+
   @Override
   public String toString()
   {
     return "HashBasedNumberedShardSpec{" +
            "partitionNum=" + getPartitionNum() +
-           ", partitions=" + getPartitions() +
+           ", partitions=" + getNumBuckets() +
            ", partitionDimensions=" + getPartitionDimensions() +
            '}';
   }
@@ -131,7 +176,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   public ShardSpecLookup getLookup(final List<ShardSpec> shardSpecs)
   {
     return (long timestamp, InputRow row) -> {
-      int index = Math.abs(hash(timestamp, row) % getPartitions());
+      int index = Math.abs(hash(timestamp, row) % getNumBuckets());
       return shardSpecs.get(index);
     };
   }

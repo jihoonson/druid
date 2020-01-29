@@ -32,15 +32,18 @@ public class HashBasedNumberedShardSpecBuilder implements ShardSpecBuilder
 {
   @Nullable
   private final List<String> partitionDimensions;
+  private final int bucketId;
   private final int numBuckets;
 
   @JsonCreator
   public HashBasedNumberedShardSpecBuilder(
       @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
+      @JsonProperty("bucketId") int bucketId,
       @JsonProperty("numPartitions") int numBuckets
   )
   {
     this.partitionDimensions = partitionDimensions;
+    this.bucketId = bucketId;
     this.numBuckets = numBuckets;
   }
 
@@ -51,14 +54,21 @@ public class HashBasedNumberedShardSpecBuilder implements ShardSpecBuilder
     return partitionDimensions;
   }
 
+  @JsonProperty
+  public int getBucketId()
+  {
+    return bucketId;
+  }
+
   @JsonProperty("numPartitions")
-  public int getNumBuckets()
+  @Override
+  public int numBuckets()
   {
     return numBuckets;
   }
 
   @Override
-  public ShardSpec build(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId)
+  public ShardSpec build(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
   {
     Preconditions.checkArgument(
         bucketId < numBuckets,
@@ -81,12 +91,6 @@ public class HashBasedNumberedShardSpecBuilder implements ShardSpecBuilder
   }
 
   @Override
-  public int numBuckets()
-  {
-    return numBuckets;
-  }
-
-  @Override
   public boolean equals(Object o)
   {
     if (this == o) {
@@ -96,13 +100,14 @@ public class HashBasedNumberedShardSpecBuilder implements ShardSpecBuilder
       return false;
     }
     HashBasedNumberedShardSpecBuilder that = (HashBasedNumberedShardSpecBuilder) o;
-    return numBuckets == that.numBuckets &&
+    return bucketId == that.bucketId &&
+           numBuckets == that.numBuckets &&
            Objects.equals(partitionDimensions, that.partitionDimensions);
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(partitionDimensions, numBuckets);
+    return Objects.hash(partitionDimensions, bucketId, numBuckets);
   }
 }

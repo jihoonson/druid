@@ -574,7 +574,8 @@ public class IndexGeneratorJobTest
             "host",
             shardInfo[0],
             shardInfo[1],
-            partitionNum++
+            partitionNum++,
+            (int) SingleDimensionShardSpec.UNKNOWN_NUM_BUCKETS
         ));
       }
     } else {
@@ -694,12 +695,12 @@ public class IndexGeneratorJobTest
         if (forceExtendableShardSpecs) {
           NumberedShardSpec spec = (NumberedShardSpec) dataSegment.getShardSpec();
           Assert.assertEquals(i, spec.getPartitionNum());
-          Assert.assertEquals(shardInfo.length, spec.getPartitions());
+          Assert.assertEquals(shardInfo.length, spec.getNumBuckets());
         } else if ("hashed".equals(partitionType)) {
           Integer[] hashShardInfo = (Integer[]) shardInfo[i];
           HashBasedNumberedShardSpec spec = (HashBasedNumberedShardSpec) dataSegment.getShardSpec();
           Assert.assertEquals((int) hashShardInfo[0], spec.getPartitionNum());
-          Assert.assertEquals((int) hashShardInfo[1], spec.getPartitions());
+          Assert.assertEquals((int) hashShardInfo[1], spec.getNumBuckets());
         } else if ("single".equals(partitionType)) {
           String[] singleDimensionShardInfo = (String[]) shardInfo[i];
           SingleDimensionShardSpec spec = (SingleDimensionShardSpec) dataSegment.getShardSpec();

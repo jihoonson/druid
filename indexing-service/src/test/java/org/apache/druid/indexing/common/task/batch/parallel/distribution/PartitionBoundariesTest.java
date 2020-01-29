@@ -19,8 +19,8 @@
 
 package org.apache.druid.indexing.common.task.batch.parallel.distribution;
 
-import org.apache.druid.timeline.partition.PartitionBoundaries;
 import org.apache.druid.segment.TestHelper;
+import org.apache.druid.timeline.partition.PartitionBoundaries;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,19 +40,13 @@ public class PartitionBoundariesTest
   {
     values = new String[]{"a", "dup", "dup", "z"};
     expected = Arrays.asList(null, "dup", null);
-    target = new PartitionBoundaries(values);
+    target = PartitionBoundaries.from(values);
   }
 
   @Test
   public void hasCorrectValues()
   {
     Assert.assertEquals(expected, target);
-  }
-
-  @Test(expected = UnsupportedOperationException.class)
-  public void isImmutable()
-  {
-    target.add("should fail");
   }
 
   @Test
@@ -65,13 +59,13 @@ public class PartitionBoundariesTest
   @Test
   public void handlesNoValues()
   {
-    Assert.assertEquals(Collections.emptyList(), new PartitionBoundaries());
+    Assert.assertEquals(Collections.emptyList(), PartitionBoundaries.empty());
   }
 
   @Test
   public void handlesRepeatedValue()
   {
-    Assert.assertEquals(Arrays.asList(null, null), new PartitionBoundaries("a", "a", "a"));
+    Assert.assertEquals(Arrays.asList(null, null), PartitionBoundaries.from(new String[] {"a", "a", "a"}));
   }
 
   @Test

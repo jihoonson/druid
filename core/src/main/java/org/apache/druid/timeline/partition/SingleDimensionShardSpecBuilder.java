@@ -78,14 +78,15 @@ public class SingleDimensionShardSpecBuilder implements ShardSpecBuilder
     return end;
   }
 
-  @JsonProperty
-  public int getNumBuckets()
+  @JsonProperty("numBuckets")
+  @Override
+  public int numBuckets()
   {
     return numBuckets;
   }
 
   @Override
-  public ShardSpec build(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId)
+  public ShardSpec build(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
   {
     final int partitionId = PartitionUtils.nextValidPartitionId(
         specOfPreviousMaxPartitionId == null ? null : specOfPreviousMaxPartitionId.getPartitionNum(),
@@ -106,12 +107,6 @@ public class SingleDimensionShardSpecBuilder implements ShardSpecBuilder
   public Class<? extends ShardSpec> getShardSpecClass()
   {
     return SingleDimensionShardSpec.class;
-  }
-
-  @Override
-  public int numBuckets()
-  {
-    return numBuckets;
   }
 
   @Override

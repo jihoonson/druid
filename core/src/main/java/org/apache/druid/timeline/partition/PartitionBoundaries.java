@@ -19,64 +19,103 @@
 
 package org.apache.druid.timeline.partition;
 
-import com.google.common.collect.ForwardingList;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.base.Preconditions;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * List of range partition boundaries.
+ * Sorted array of range partition boundaries for a string dimension.
+ * Note that
  */
-public class PartitionBoundaries extends ForwardingList<String> implements List<String>
+public class PartitionBoundaries
 {
-  private final List<String> delegate;
+  private final String[] boundaries;
 
-  // For jackson
-  @SuppressWarnings("unused")
-  private PartitionBoundaries()
+  public static PartitionBoundaries empty()
   {
-    delegate = new ArrayList<>();
+    return from(new String[] {});
   }
 
-  /**
-   * @param partitions Elements corresponding to evenly-spaced fractional ranks of the distribution
-   */
-  public PartitionBoundaries(String... partitions)
+  public static PartitionBoundaries from(String[] boundaries)
   {
-    if (partitions.length == 0) {
-      delegate = Collections.emptyList();
-      return;
+    if (boundaries.length == 0) {
+      return new PartitionBoundaries(boundaries);
     }
 
+    Preconditions.checkArgument(
+        Arrays.stream(boundaries).anyMatch(Objects::isNull),
+        "Input boundaries cannot contain nulls"
+    );
     // Future improvement: Handle skewed partitions better (e.g., many values are repeated).
-    List<String> partitionBoundaries = Arrays.stream(partitions)
-                                             .distinct()
-                                             .collect(Collectors.toCollection(ArrayList::new));
+    List<String> dedupedBoundaries = Arrays.stream(boundaries)
+                                           .distinct()
+                                           .sorted()
+                                           .collect(Collectors.toCollection(ArrayList::new));
 
     // First partition starts with null (see StringPartitionChunk.isStart())
-    partitionBoundaries.set(0, null);
+    dedupedBoundaries.set(0, null);
 
     // Last partition ends with null (see StringPartitionChunk.isEnd())
-    if (partitionBoundaries.size() == 1) {
-      partitionBoundaries.add(null);
+    if (dedupedBoundaries.size() == 1) {
+      dedupedBoundaries.add(null);
     } else {
-      partitionBoundaries.set(partitionBoundaries.size() - 1, null);
+      dedupedBoundaries.set(dedupedBoundaries.size() - 1, null);
     }
-
-    delegate = Collections.unmodifiableList(partitionBoundaries);
+    return new PartitionBoundaries(dedupedBoundaries.toArray(new String[0]));
   }
 
-  @Override
-  protected List<String> delegate()
+  @JsonCreator
+  private PartitionBoundaries(@JsonProperty("boundaries") String[] boundaries)
   {
-    return delegate;
+    this.boundaries = boundaries;
+  }
+
+  @JsonProperty
+  public String[] getBoundaries()
+  {
+    return boundaries;
+  }
+
+  public String get(int i)
+  {
+    return boundaries[i];
   }
 
   public int numBuckets()
   {
-    return delegate.size() - 1;
+    return boundaries.length > 0 ? boundaries.length - 1 : 0;
+  }
+
+  public int size()
+  {
+    return boundaries.length;
+  }
+
+  public boolean isEmpty()
+  {
+    return boundaries.length == 0;
+  }
+
+  public int indexFor(@Nullable String key)
+  {
+    Preconditions.checkState(boundaries.length > 0, "Cannot find index for key[%s] from empty boundaries", key);
+
+    if (key == null) {
+      return 0;
+    }
+
+    final int index = Arrays.binarySearch(boundaries, 1, boundaries.length - 1, key);
+    if (index < 0) {
+      return -(index + 1);
+    } else {
+      return index;
+    }
   }
 }

@@ -22,7 +22,6 @@ package org.apache.druid.indexing.common.task;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
-import org.apache.druid.indexing.common.actions.TaskAction;
 import org.apache.druid.indexing.common.task.IndexTask.ShardSpecs;
 import org.apache.druid.indexing.common.task.batch.parallel.SupervisorTaskAccess;
 import org.apache.druid.segment.indexing.DataSchema;
@@ -54,7 +53,10 @@ public class OverlordBasedCachingSegmentAllocator implements CachingSegmentAlloc
   @Nullable
   @Override
   public SegmentIdWithShardSpec allocate(
-      InputRow row, String sequenceName, @Nullable String previousSegmentId, boolean skipSegmentLineageCheck
+      InputRow row,
+      String sequenceName,
+      @Nullable String previousSegmentId,
+      boolean skipSegmentLineageCheck
   ) throws IOException
   {
     return null;

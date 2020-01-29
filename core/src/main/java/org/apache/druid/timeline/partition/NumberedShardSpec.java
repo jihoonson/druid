@@ -33,9 +33,9 @@ import java.util.Objects;
 
 /**
  * An extendable linear shard spec containing the information of core partitions.  This class contains two variables of
- * {@link #partitionNum} and {@link #partitions}, which represent the unique id of a partition and the number of core
- * partitions, respectively.  {@link #partitions} simply indicates that the atomic update is regarded as completed when
- * {@link #partitions} partitions are successfully updated, and {@link #partitionNum} can go beyond it when some types
+ * {@link #partitionNum} and {@link #numBuckets}, which represent the unique id of a partition and the number of core
+ * partitions, respectively.  {@link #numBuckets} simply indicates that the atomic update is regarded as completed when
+ * {@link #numBuckets} partitions are successfully updated, and {@link #partitionNum} can go beyond it when some types
  * of index tasks are trying to append to existing partitions.
  */
 public class NumberedShardSpec implements ShardSpec
@@ -44,18 +44,18 @@ public class NumberedShardSpec implements ShardSpec
   private final int partitionNum;
 
   @JsonIgnore
-  private final int partitions;
+  private final int numBuckets;
 
   @JsonCreator
   public NumberedShardSpec(
       @JsonProperty("partitionNum") int partitionNum,
-      @JsonProperty("partitions") int partitions
+      @JsonProperty("partitions") int numBuckets
   )
   {
     Preconditions.checkArgument(partitionNum >= 0, "partitionNum >= 0");
-    Preconditions.checkArgument(partitions >= 0, "partitions >= 0");
+    Preconditions.checkArgument(numBuckets >= 0, "numBuckets >= 0");
     this.partitionNum = partitionNum;
-    this.partitions = partitions;
+    this.numBuckets = numBuckets;
   }
 
   @JsonProperty("partitionNum")
@@ -89,16 +89,23 @@ public class NumberedShardSpec implements ShardSpec
     return other == NumberedShardSpec.class || other == NumberedOverwriteShardSpec.class;
   }
 
-  @JsonProperty("partitions")
-  public int getPartitions()
+  @Override
+  public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
   {
-    return partitions;
+    return shardSpecBuilder instanceof NumberedShardSpecBuilder
+           || shardSpecBuilder instanceof NumberedOverwriteShardSpecBuilder;
+  }
+
+  @JsonProperty("partitions")
+  public int getNumBuckets()
+  {
+    return numBuckets;
   }
 
   @Override
   public <T> PartitionChunk<T> createChunk(T obj)
   {
-    return NumberedPartitionChunk.make(partitionNum, partitions, obj);
+    return NumberedPartitionChunk.make(partitionNum, numBuckets, obj);
   }
 
   @Override
@@ -118,7 +125,7 @@ public class NumberedShardSpec implements ShardSpec
   {
     return "NumberedShardSpec{" +
            "partitionNum=" + partitionNum +
-           ", partitions=" + partitions +
+           ", numBuckets=" + numBuckets +
            '}';
   }
 
@@ -137,12 +144,12 @@ public class NumberedShardSpec implements ShardSpec
     if (partitionNum != that.partitionNum) {
       return false;
     }
-    return partitions == that.partitions;
+    return numBuckets == that.numBuckets;
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(partitionNum, partitions);
+    return Objects.hash(partitionNum, numBuckets);
   }
 }

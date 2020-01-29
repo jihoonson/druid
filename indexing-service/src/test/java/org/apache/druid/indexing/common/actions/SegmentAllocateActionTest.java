@@ -976,7 +976,7 @@ public class SegmentAllocateActionTest
 
     Assert.assertTrue(shardSpec instanceof HashBasedNumberedShardSpec);
     final HashBasedNumberedShardSpec hashBasedNumberedShardSpec = (HashBasedNumberedShardSpec) shardSpec;
-    Assert.assertEquals(2, hashBasedNumberedShardSpec.getPartitions());
+    Assert.assertEquals(2, hashBasedNumberedShardSpec.getNumBuckets());
     Assert.assertEquals(ImmutableList.of("dim1"), hashBasedNumberedShardSpec.getPartitionDimensions());
   }
 
@@ -1033,8 +1033,8 @@ public class SegmentAllocateActionTest
     if (expected.getShardSpec().getClass() == NumberedShardSpec.class
         && actual.getShardSpec().getClass() == NumberedShardSpec.class) {
       Assert.assertEquals(
-          ((NumberedShardSpec) expected.getShardSpec()).getPartitions(),
-          ((NumberedShardSpec) actual.getShardSpec()).getPartitions()
+          ((NumberedShardSpec) expected.getShardSpec()).getNumBuckets(),
+          ((NumberedShardSpec) actual.getShardSpec()).getNumBuckets()
       );
     } else if (expected.getShardSpec().getClass() == LinearShardSpec.class
                && actual.getShardSpec().getClass() == LinearShardSpec.class) {

@@ -20,7 +20,6 @@
 package org.apache.druid.timeline.partition;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Preconditions;
 
 import javax.annotation.Nullable;
 
@@ -38,9 +37,8 @@ public class LinearShardSpecBuilder implements ShardSpecBuilder
   }
 
   @Override
-  public ShardSpec build(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId)
+  public ShardSpec build(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
   {
-    Preconditions.checkArgument(bucketId == 1, "Invalid bucketId[%s]", bucketId);
     return new LinearShardSpec(
         specOfPreviousMaxPartitionId == null ? 0 : specOfPreviousMaxPartitionId.getPartitionNum() + 1
     );

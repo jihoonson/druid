@@ -199,6 +199,13 @@ public class NumberedOverwriteShardSpec implements OverwriteShardSpec
   }
 
   @Override
+  public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
+  {
+    return shardSpecBuilder instanceof NumberedShardSpecBuilder
+           || shardSpecBuilder instanceof NumberedOverwriteShardSpecBuilder;
+  }
+
+  @Override
   public boolean equals(Object o)
   {
     if (this == o) {

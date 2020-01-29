@@ -1534,7 +1534,7 @@ public class CachingClusteredClientTest
         null,
         null,
         null,
-        new SingleDimensionShardSpec(dimension, start, end, partitionNum),
+        new SingleDimensionShardSpec(dimension, start, end, partitionNum, 1),
         null,
         9,
         0L
@@ -1962,7 +1962,7 @@ public class CachingClusteredClientTest
 
         final ShardSpec shardSpec;
         if (numChunks == 1) {
-          shardSpec = new SingleDimensionShardSpec("dimAll", null, null, 0);
+          shardSpec = new SingleDimensionShardSpec("dimAll", null, null, 0, numChunks);
         } else {
           String start = null;
           String end = null;
@@ -1972,7 +1972,7 @@ public class CachingClusteredClientTest
           if (j + 1 < numChunks) {
             end = String.valueOf(j + 1);
           }
-          shardSpec = new SingleDimensionShardSpec("dim" + k, start, end, j);
+          shardSpec = new SingleDimensionShardSpec("dim" + k, start, end, j, numChunks);
         }
         DataSegment mockSegment = makeMock(mocks, DataSegment.class);
         ServerExpectation<Object> expectation = new ServerExpectation<>(
