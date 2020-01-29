@@ -971,8 +971,8 @@ public class TaskLockboxTest
     final Task task = NoopTask.create();
     lockbox.add(task);
 
-    allocateSegmentsAndAssert(task, "seq", 3, new HashBasedNumberedShardSpecBuilder(null, 3));
-    allocateSegmentsAndAssert(task, "seq2", 5, new HashBasedNumberedShardSpecBuilder(null, 5));
+    allocateSegmentsAndAssert(task, "seq", 3, new HashBasedNumberedShardSpecBuilder(null, 1, 3));
+    allocateSegmentsAndAssert(task, "seq2", 5, new HashBasedNumberedShardSpecBuilder(null, 2, 5));
   }
 
   private void allocateSegmentsAndAssert(

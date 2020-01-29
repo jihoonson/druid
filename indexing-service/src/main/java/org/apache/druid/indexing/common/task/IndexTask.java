@@ -889,7 +889,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
           dataSchema,
           getTaskLockHelper(),
           ingestionSchema.getIOConfig().isAppendToExisting(),
-          partitionAnalysis.getPartitionsSpec()
+          partitionAnalysis
       );
       sequenceNameFunction = new LinearlyPartitionedSequenceNameFunction(getId());
     } else {

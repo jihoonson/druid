@@ -22,6 +22,7 @@ package org.apache.druid.timeline.partition;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
+import org.apache.druid.java.util.common.StringUtils;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -40,7 +41,7 @@ public class PartitionBoundaries
 
   public static PartitionBoundaries empty()
   {
-    return from(new String[] {});
+    return from(new String[]{});
   }
 
   public static PartitionBoundaries from(String[] boundaries)
@@ -50,7 +51,7 @@ public class PartitionBoundaries
     }
 
     Preconditions.checkArgument(
-        Arrays.stream(boundaries).anyMatch(Objects::isNull),
+        Arrays.stream(boundaries).noneMatch(Objects::isNull),
         "Input boundaries cannot contain nulls"
     );
     // Future improvement: Handle skewed partitions better (e.g., many values are repeated).
@@ -74,7 +75,7 @@ public class PartitionBoundaries
   @JsonCreator
   private PartitionBoundaries(@JsonProperty("boundaries") String[] boundaries)
   {
-    this.boundaries = boundaries;
+    this.boundaries = Preconditions.checkNotNull(boundaries, "boundaries");
   }
 
   @JsonProperty
@@ -85,7 +86,15 @@ public class PartitionBoundaries
 
   public String get(int i)
   {
-    return boundaries[i];
+    if (i < boundaries.length) {
+      return boundaries[i];
+    } else {
+      throw new IndexOutOfBoundsException(StringUtils.format(
+          "Index[%s] is requested for array of size[%s]",
+          i,
+          boundaries.length
+      ));
+    }
   }
 
   public int numBuckets()

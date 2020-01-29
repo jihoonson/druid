@@ -42,6 +42,7 @@ import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.TestAppenderatorsManager;
 import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexTaskRunner.SubTaskSpecStatus;
+import org.apache.druid.indexing.common.task.batch.partition.LinearPartitionAnalysis;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
@@ -696,7 +697,7 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
           getIngestionSchema().getDataSchema(),
           getTaskLockHelper(),
           getIngestionSchema().getIOConfig().isAppendToExisting(),
-          partitionsSpec
+          new LinearPartitionAnalysis(partitionsSpec)
       );
 
       final SegmentIdWithShardSpec segmentIdentifier = segmentAllocator.allocate(

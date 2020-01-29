@@ -127,8 +127,8 @@ public class StringSketch implements StringDistribution
         "evenPartitionCount must be positive but is %s",
         evenPartitionCount
     );
-    String[] partitions = delegate.getQuantiles(evenPartitionCount + 1); // add 1 since this returns endpoints
-    return new PartitionBoundaries((partitions == null) ? new String[0] : partitions);
+    String[] boundaries = delegate.getQuantiles(evenPartitionCount + 1); // add 1 since this returns endpoints
+    return boundaries == null ? PartitionBoundaries.empty() : PartitionBoundaries.from(boundaries);
   }
 
   @Override

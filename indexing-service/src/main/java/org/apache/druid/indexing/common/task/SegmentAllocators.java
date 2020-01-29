@@ -19,10 +19,10 @@
 
 package org.apache.druid.indexing.common.task;
 
-import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.task.batch.parallel.SupervisorTaskAccess;
 import org.apache.druid.indexing.common.task.batch.partition.CompletePartitionAnalysis;
+import org.apache.druid.indexing.common.task.batch.partition.PartitionAnalysis;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 
@@ -41,7 +41,7 @@ public final class SegmentAllocators
       final DataSchema dataSchema,
       final TaskLockHelper taskLockHelper,
       final boolean appendToExisting,
-      final PartitionsSpec partitionsSpec
+      final PartitionAnalysis partitionAnalysis
   ) throws IOException
   {
     if (appendToExisting || taskLockHelper.isUseSegmentLock()) {
@@ -51,7 +51,7 @@ public final class SegmentAllocators
           dataSchema,
           taskLockHelper,
           appendToExisting,
-          partitionsSpec
+          partitionAnalysis
       );
     } else {
       if (supervisorTaskAccess == null) {

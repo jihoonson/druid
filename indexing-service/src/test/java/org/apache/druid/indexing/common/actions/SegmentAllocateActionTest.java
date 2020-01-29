@@ -965,7 +965,7 @@ public class SegmentAllocateActionTest
         "seq",
         null,
         true,
-        new HashBasedNumberedShardSpecBuilder(ImmutableList.of("dim1"), 2),
+        new HashBasedNumberedShardSpecBuilder(ImmutableList.of("dim1"), 0, 2),
         lockGranularity
     );
     final SegmentIdWithShardSpec segmentIdentifier = action.perform(task, taskActionTestKit.getTaskActionToolbox());
