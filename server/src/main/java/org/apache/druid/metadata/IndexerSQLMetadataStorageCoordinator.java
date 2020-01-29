@@ -807,7 +807,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
     // Note that OverwriteShardSpec has the higher range for partitionId than others.
     // See PartitionIds.
     return segments
-        .filter(segment-> shardSpecExtractFn.apply(segment).getClass() == shardSpecBuilder.getShardSpecClass())
+        .filter(segment -> shardSpecExtractFn.apply(segment).getClass() == shardSpecBuilder.getShardSpecClass())
         .filter(segment -> shardSpecExtractFn.apply(segment).isSamePartitionBucket(shardSpecBuilder))
         .max((s1, s2) -> {
           final int versionCompare = versionExtractFn.apply(s1).compareTo(versionExtractFn.apply(s2));
