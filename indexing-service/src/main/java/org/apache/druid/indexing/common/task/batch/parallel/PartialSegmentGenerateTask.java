@@ -28,7 +28,6 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.stats.DropwizardRowIngestionMeters;
 import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.task.BatchAppenderators;
-import org.apache.druid.indexing.common.task.CachingSegmentAllocator;
 import org.apache.druid.indexing.common.task.ClientBasedTaskInfoProvider;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
 import org.apache.druid.indexing.common.task.InputSourceProcessor;
@@ -131,15 +130,6 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
   abstract CompletePartitionAnalysis createPartitionAnalysis();
 
   /**
-   * @return {@link SegmentAllocator} suitable for the desired segment partitioning strategy.
-   */
-  abstract CachingSegmentAllocator createSegmentAllocator(
-      TaskToolbox toolbox,
-      ParallelIndexSupervisorTaskClient taskClient,
-      CompletePartitionAnalysis partitionAnalysis
-  ) throws IOException;
-
-  /**
    * @return {@link GeneratedPartitionsReport} suitable for the desired segment partitioning strategy.
    */
   abstract T createGeneratedPartitionsReport(
@@ -177,11 +167,14 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
     final long pushTimeout = tuningConfig.getPushTimeout();
 
     final CompletePartitionAnalysis partitionAnalysis = createPartitionAnalysis();
-    final CachingSegmentAllocator segmentAllocator = SegmentAllocators.forNonLinearPartitioning(
+    final SegmentAllocator segmentAllocator = SegmentAllocators.create(
         toolbox,
         getDataSource(),
         getId(),
         new SupervisorTaskAccess(supervisorTaskId, taskClient),
+        dataSchema,
+        getTaskLockHelper(),
+        ingestionSchema.getIOConfig().isAppendToExisting(),
         partitionAnalysis
     );
     final SequenceNameFunction sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(

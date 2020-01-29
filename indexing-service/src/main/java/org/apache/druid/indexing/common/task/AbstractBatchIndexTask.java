@@ -163,6 +163,7 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
       throws IOException;
 
   /**
+   * // TODO:
    * Returns true if this task is in the perfect (guaranteed) rollup mode.
    */
   public abstract boolean isPerfectRollup();
@@ -287,6 +288,7 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
 
   protected boolean tryTimeChunkLock(TaskActionClient client, List<Interval> intervals) throws IOException
   {
+    taskLockHelper = new TaskLockHelper(false);
     // In this case, the intervals to lock must be aligned with segmentGranularity if it's defined
     final Set<Interval> uniqueIntervals = new HashSet<>();
     for (Interval interval : JodaUtils.condenseIntervals(intervals)) {

@@ -327,8 +327,10 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
           .forEach(interval -> partitionAnalysis.updateBucket(interval, SinglePartitionBucketAnalysis.instance()
       ));
     }
-    final SegmentAllocator segmentAllocator = SegmentAllocators.forLinearPartitioning(
+    final SegmentAllocator segmentAllocator = SegmentAllocators.create(
         toolbox,
+        getDataSource(),
+        getId(),
         new SupervisorTaskAccess(getSupervisorTaskId(), taskClient),
         getIngestionSchema().getDataSchema(),
         getTaskLockHelper(),

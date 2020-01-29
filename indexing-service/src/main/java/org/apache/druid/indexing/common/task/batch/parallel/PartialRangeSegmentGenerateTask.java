@@ -28,9 +28,7 @@ import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
-import org.apache.druid.indexing.common.task.CachingSegmentAllocator;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
-import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.RangePartitionIndexTaskInputRowIteratorBuilder;
 import org.apache.druid.indexing.common.task.batch.partition.CompletePartitionAnalysis;
@@ -146,9 +144,12 @@ public class PartialRangeSegmentGenerateTask extends PartialSegmentGenerateTask<
   }
 
   @Override
-  public boolean isReady(TaskActionClient taskActionClient)
+  public boolean isReady(TaskActionClient taskActionClient) throws IOException
   {
-    return true;
+    return tryTimeChunkLock(
+        taskActionClient,
+        getIngestionSchema().getDataSchema().getGranularitySpec().inputIntervals()
+    );
   }
 
   @Override
@@ -164,22 +165,6 @@ public class PartialRangeSegmentGenerateTask extends PartialSegmentGenerateTask<
         new RangePartitionBucketAnalysis(partitionsSpec.getPartitionDimension(), partitionBoundaries)
     ));
     return partitionAnalysis;
-  }
-
-  @Override
-  CachingSegmentAllocator createSegmentAllocator(
-      TaskToolbox toolbox,
-      ParallelIndexSupervisorTaskClient taskClient,
-      CompletePartitionAnalysis partitionAnalysis
-  ) throws IOException
-  {
-    return SegmentAllocators.forNonLinearPartitioning(
-        toolbox,
-        getDataSource(),
-        getId(),
-        new SupervisorTaskAccess(supervisorTaskId, taskClient),
-        partitionAnalysis
-    );
   }
 
   @Override

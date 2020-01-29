@@ -30,7 +30,6 @@ import org.joda.time.Interval;
  * Note that all segment IDs should be allocated upfront to use this function.
  *
  * @see org.apache.druid.indexer.partitions.SecondaryPartitionType
- * @see CachingSegmentAllocator
  */
 public class NonLinearlyPartitionedSequenceNameFunction implements SequenceNameFunction
 {

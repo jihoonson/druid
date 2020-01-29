@@ -19,6 +19,7 @@
 
 package org.apache.druid.indexing.common.task;
 
+import org.apache.druid.indexer.partitions.SecondaryPartitionType;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.task.batch.parallel.SupervisorTaskAccess;
 import org.apache.druid.indexing.common.task.batch.partition.CompletePartitionAnalysis;
@@ -32,11 +33,12 @@ import java.io.IOException;
 public final class SegmentAllocators
 {
   /**
-   * Creates a new {@link SegmentAllocator} for the linear partitioning.
-   * supervisorTaskAccess can be null if this method is called by the {@link IndexTask}.
+   * TODO
    */
-  public static SegmentAllocator forLinearPartitioning(
+  public static SegmentAllocator create(
       final TaskToolbox toolbox,
+      final String dataSource,
+      final String taskId,
       final @Nullable SupervisorTaskAccess supervisorTaskAccess,
       final DataSchema dataSchema,
       final TaskLockHelper taskLockHelper,
@@ -54,40 +56,30 @@ public final class SegmentAllocators
           partitionAnalysis
       );
     } else {
-      if (supervisorTaskAccess == null) {
-        return new LocalSegmentAllocator(
-            toolbox,
-            dataSchema.getDataSource(),
-            dataSchema.getGranularitySpec()
-        );
+      if (partitionAnalysis.getPartitionsSpec().getType() == SecondaryPartitionType.LINEAR) {
+        if (supervisorTaskAccess == null) {
+          return new LocalSegmentAllocator(
+              toolbox,
+              dataSchema.getDataSource(),
+              dataSchema.getGranularitySpec()
+          );
+        } else {
+          return new SupervisorTaskCoordinatingSegmentAllocator(
+              supervisorTaskAccess.getSupervisorTaskId(),
+              supervisorTaskAccess.getTaskClient()
+          );
+        }
       } else {
-        return new SupervisorTaskCoordinatingSegmentAllocator(
-            supervisorTaskAccess.getSupervisorTaskId(),
-            supervisorTaskAccess.getTaskClient()
+        final CompletePartitionAnalysis completePartitionAnalysis = (CompletePartitionAnalysis) partitionAnalysis;
+        return new CachingLocalSegmentAllocator(
+            toolbox,
+            dataSource,
+            taskId,
+            supervisorTaskAccess,
+            completePartitionAnalysis::convertToIntervalToSegmentIds
         );
       }
     }
-  }
-
-  /**
-   * Creates a new {@link SegmentAllocator} for the hash and range partitioning.
-   * supervisorTaskAccess can be null if this method is called by the {@link IndexTask}.
-   */
-  public static CachingSegmentAllocator forNonLinearPartitioning(
-      final TaskToolbox toolbox,
-      final String dataSource,
-      final String taskId,
-      final @Nullable SupervisorTaskAccess supervisorTaskAccess,
-      final CompletePartitionAnalysis partitionAnalysis
-  ) throws IOException
-  {
-    return new CachingLocalSegmentAllocator(
-        toolbox,
-        dataSource,
-        taskId,
-        supervisorTaskAccess,
-        partitionAnalysis::convertToIntervalToSegmentIds
-    );
   }
 
   private SegmentAllocators()

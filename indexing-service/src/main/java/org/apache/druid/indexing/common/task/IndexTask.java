@@ -66,7 +66,6 @@ import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.stats.TaskRealtimeMetricsMonitor;
 import org.apache.druid.indexing.common.task.batch.parallel.PartialHashSegmentGenerateTask;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.DefaultIndexTaskInputRowIteratorBuilder;
-import org.apache.druid.indexing.common.task.batch.partition.CompletePartitionAnalysis;
 import org.apache.druid.indexing.common.task.batch.partition.HashPartitionAnalysis;
 import org.apache.druid.indexing.common.task.batch.partition.HashPartitionBucketAnalysis;
 import org.apache.druid.indexing.common.task.batch.partition.LinearPartitionAnalysis;
@@ -887,31 +886,21 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     final IndexTuningConfig tuningConfig = ingestionSchema.getTuningConfig();
     final long pushTimeout = tuningConfig.getPushTimeout();
 
-    final SegmentAllocator segmentAllocator;
+    final SegmentAllocator segmentAllocator = SegmentAllocators.create(
+        toolbox,
+        getDataSource(),
+        getId(),
+        null,
+        dataSchema,
+        getTaskLockHelper(),
+        ingestionSchema.getIOConfig().isAppendToExisting(),
+        partitionAnalysis
+    );
     final SequenceNameFunction sequenceNameFunction;
     if (partitionsSpec.getType() == SecondaryPartitionType.LINEAR) {
-      segmentAllocator = SegmentAllocators.forLinearPartitioning(
-          toolbox,
-          null,
-          dataSchema,
-          getTaskLockHelper(),
-          ingestionSchema.getIOConfig().isAppendToExisting(),
-          partitionAnalysis
-      );
       sequenceNameFunction = new LinearlyPartitionedSequenceNameFunction(getId());
     } else {
-      final CachingSegmentAllocator localSegmentAllocator = SegmentAllocators.forNonLinearPartitioning(
-          toolbox,
-          getDataSource(),
-          getId(),
-          null,
-          (CompletePartitionAnalysis) partitionAnalysis
-      );
-      sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(
-          getId(),
-          partitionAnalysis
-      );
-      segmentAllocator = localSegmentAllocator;
+      sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(getId(), partitionAnalysis);
     }
 
     final TransactionalSegmentPublisher publisher = (segmentsToBeOverwritten, segmentsToPublish, commitMetadata) ->

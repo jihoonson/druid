@@ -27,6 +27,7 @@ import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.TaskAction;
 import org.apache.druid.indexing.common.task.batch.parallel.SupervisorTaskAccess;
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.partition.ShardSpec;
 import org.joda.time.Interval;
@@ -44,14 +45,12 @@ import java.util.stream.Collectors;
 /**
  * Allocates all necessary segments locally at the beginning and reuses them.
  */
-public class CachingLocalSegmentAllocator implements CachingSegmentAllocator
+public class CachingLocalSegmentAllocator implements SegmentAllocator
 {
-  private final String taskId;
   private final Map<String, SegmentIdWithShardSpec> sequenceNameToSegmentId;
-  private final IntervalToShardSpecs shardSpecs;
 
   @FunctionalInterface
-  interface IntervalToSegmentIdsCreator
+  public interface IntervalToSegmentIdsCreator
   {
     /**
      * @param versionFinder Returns the version for the specified interval
@@ -65,7 +64,7 @@ public class CachingLocalSegmentAllocator implements CachingSegmentAllocator
     );
   }
 
-  CachingLocalSegmentAllocator(
+  public CachingLocalSegmentAllocator(
       TaskToolbox toolbox,
       String dataSource,
       String taskId,
@@ -73,7 +72,6 @@ public class CachingLocalSegmentAllocator implements CachingSegmentAllocator
       IntervalToSegmentIdsCreator intervalToSegmentIdsCreator
   ) throws IOException
   {
-    this.taskId = taskId;
     this.sequenceNameToSegmentId = new HashMap<>();
 
     final TaskAction<List<TaskLock>> action;
@@ -117,7 +115,6 @@ public class CachingLocalSegmentAllocator implements CachingSegmentAllocator
         );
       }
     }
-    shardSpecs = new IntervalToShardSpecs(shardSpecMap);
   }
 
   private static String findVersion(Map<Interval, String> intervalToVersion, Interval interval)
@@ -142,11 +139,5 @@ public class CachingLocalSegmentAllocator implements CachingSegmentAllocator
         "Missing segmentId for the sequence[%s]",
         sequenceName
     );
-  }
-
-  @Override
-  public IntervalToShardSpecs getShardSpecs()
-  {
-    return shardSpecs;
   }
 }

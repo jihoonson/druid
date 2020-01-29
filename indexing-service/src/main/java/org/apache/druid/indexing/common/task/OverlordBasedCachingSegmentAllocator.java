@@ -20,16 +20,17 @@
 package org.apache.druid.indexing.common.task;
 
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.task.batch.parallel.SupervisorTaskAccess;
+import org.apache.druid.indexing.common.task.batch.partition.PartitionAnalysis;
 import org.apache.druid.segment.indexing.DataSchema;
+import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 
-public class OverlordBasedCachingSegmentAllocator implements CachingSegmentAllocator
+public class OverlordBasedCachingSegmentAllocator implements SegmentAllocator
 {
   OverlordBasedCachingSegmentAllocator(
       final TaskToolbox toolbox,
@@ -37,16 +38,10 @@ public class OverlordBasedCachingSegmentAllocator implements CachingSegmentAlloc
       final DataSchema dataSchema,
       final TaskLockHelper taskLockHelper,
       final boolean appendToExisting,
-      final PartitionsSpec partitionsSpec
+      final PartitionAnalysis partitionAnalysis
   )
   {
 
-  }
-
-  @Override
-  public IntervalToShardSpecs getShardSpecs()
-  {
-    return null;
   }
 
   @Nullable

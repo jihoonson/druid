@@ -29,15 +29,15 @@ import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
-import org.apache.druid.indexing.common.task.CachingSegmentAllocator;
+import org.apache.druid.indexing.common.task.CachingLocalSegmentAllocator;
 import org.apache.druid.indexing.common.task.NonLinearlyPartitionedSequenceNameFunction;
-import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.SequenceNameFunction;
 import org.apache.druid.indexing.common.task.SupervisorTaskAccessWithNullClient;
 import org.apache.druid.indexing.common.task.batch.partition.HashPartitionAnalysis;
 import org.apache.druid.indexing.common.task.batch.partition.HashPartitionBucketAnalysis;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.SegmentId;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
@@ -70,7 +70,7 @@ public class HashPartitionCachingLocalSegmentAllocatorTest
       Collections.singletonList(DIMENSION)
   );
 
-  private CachingSegmentAllocator target;
+  private SegmentAllocator target;
   private SequenceNameFunction sequenceNameFunction;
 
   @Before
@@ -79,12 +79,12 @@ public class HashPartitionCachingLocalSegmentAllocatorTest
     TaskToolbox toolbox = createToolbox();
     HashPartitionAnalysis partitionAnalysis = new HashPartitionAnalysis(PARTITIONS_SPEC);
     partitionAnalysis.updateBucket(INTERVAL, new HashPartitionBucketAnalysis(PARTITION_DIMENSIONS, NUM_PARTITONS));
-    target = SegmentAllocators.forNonLinearPartitioning(
+    target = new CachingLocalSegmentAllocator(
         toolbox,
         DATASOURCE,
         TASKID,
         new SupervisorTaskAccessWithNullClient(SUPERVISOR_TASKID),
-        partitionAnalysis
+        partitionAnalysis::convertToIntervalToSegmentIds
     );
     sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(TASKID, partitionAnalysis);
   }

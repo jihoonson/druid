@@ -26,9 +26,7 @@ import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
-import org.apache.druid.indexing.common.task.CachingSegmentAllocator;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
-import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.DefaultIndexTaskInputRowIteratorBuilder;
 import org.apache.druid.indexing.common.task.batch.partition.CompletePartitionAnalysis;
@@ -42,7 +40,6 @@ import org.joda.time.Interval;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
@@ -135,22 +132,6 @@ public class PartialHashSegmentGenerateTask extends PartialSegmentGenerateTask<G
     final ParallelIndexTuningConfig tuningConfig = ingestionSchema.getTuningConfig();
     final HashedPartitionsSpec partitionsSpec = (HashedPartitionsSpec) tuningConfig.getGivenOrDefaultPartitionsSpec();
     return createHashPartitionAnalysisFromPartitionsSpec(granularitySpec, partitionsSpec);
-  }
-
-  @Override
-  CachingSegmentAllocator createSegmentAllocator(
-      TaskToolbox toolbox,
-      ParallelIndexSupervisorTaskClient taskClient,
-      CompletePartitionAnalysis partitionAnalysis
-  ) throws IOException
-  {
-    return SegmentAllocators.forNonLinearPartitioning(
-        toolbox,
-        getDataSource(),
-        getId(),
-        new SupervisorTaskAccess(supervisorTaskId, taskClient),
-        partitionAnalysis
-    );
   }
 
   @Override

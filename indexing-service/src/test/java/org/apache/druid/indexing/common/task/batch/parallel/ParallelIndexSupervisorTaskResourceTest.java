@@ -691,8 +691,10 @@ public class ParallelIndexSupervisorTaskResourceTest extends AbstractParallelInd
       final DynamicPartitionsSpec partitionsSpec = (DynamicPartitionsSpec) getIngestionSchema()
           .getTuningConfig()
           .getGivenOrDefaultPartitionsSpec();
-      final SegmentAllocator segmentAllocator = SegmentAllocators.forLinearPartitioning(
+      final SegmentAllocator segmentAllocator = SegmentAllocators.create(
           toolbox,
+          getDataSource(),
+          getId(),
           new SupervisorTaskAccess(getSupervisorTaskId(), taskClient),
           getIngestionSchema().getDataSchema(),
           getTaskLockHelper(),

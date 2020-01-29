@@ -38,6 +38,7 @@ import java.util.Map;
 /**
  * Base class for parallel indexing perfect rollup worker tasks.
  */
+// TODO: rename
 abstract class PerfectRollupWorkerTask extends AbstractBatchIndexTask
 {
   private final GranularitySpec granularitySpec;
@@ -74,6 +75,7 @@ abstract class PerfectRollupWorkerTask extends AbstractBatchIndexTask
 
   private static void checkPartitionsSpec(PartitionsSpec partitionsSpec)
   {
+    // TODO: fix check and error message
     if (!partitionsSpec.isForceGuaranteedRollupCompatible()) {
       String incompatibiltyMsg = partitionsSpec.getForceGuaranteedRollupIncompatiblityReason();
       String msg = "forceGuaranteedRollup is incompatible with partitionsSpec: " + incompatibiltyMsg;

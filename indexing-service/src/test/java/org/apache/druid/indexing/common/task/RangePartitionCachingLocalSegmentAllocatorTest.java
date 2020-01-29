@@ -31,6 +31,7 @@ import org.apache.druid.indexing.common.task.batch.partition.RangePartitionBucke
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.SegmentId;
 import org.apache.druid.timeline.partition.PartitionBoundaries;
@@ -89,7 +90,7 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
       INTERVAL_NORMAL, NORMAL_PARTITIONS
   );
 
-  private CachingSegmentAllocator target;
+  private SegmentAllocator target;
   private SequenceNameFunction sequenceNameFunction;
 
   @Rule
@@ -111,12 +112,12 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
         interval,
         new RangePartitionBucketAnalysis(PARTITION_DIMENSION, partitionBoundaries)
     ));
-    target = SegmentAllocators.forNonLinearPartitioning(
+    target = new CachingLocalSegmentAllocator(
         toolbox,
         DATASOURCE,
         TASKID,
         new SupervisorTaskAccessWithNullClient(SUPERVISOR_TASKID),
-        partitionAnalysis
+        partitionAnalysis::convertToIntervalToSegmentIds
     );
     sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(TASKID, partitionAnalysis);
   }
