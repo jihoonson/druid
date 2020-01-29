@@ -609,6 +609,101 @@ public class IndexTaskTest extends IngestionTestBase
   }
 
   @Test
+  public void testWriteNewSegmentsWithAppendToExistingWithHashPartitioningSuccessfullyAppend() throws Exception
+  {
+    File tmpDir = temporaryFolder.newFolder();
+    File tmpFile = File.createTempFile("druid", "index", tmpDir);
+
+    try (BufferedWriter writer = Files.newWriter(tmpFile, StandardCharsets.UTF_8)) {
+      writer.write("2014-01-01T00:00:10Z,a,1\n");
+      writer.write("2014-01-01T01:00:20Z,b,1\n");
+      writer.write("2014-01-01T02:00:30Z,c,1\n");
+    }
+
+    IndexTask initialTask = new IndexTask(
+        null,
+        null,
+        createIngestionSpec(
+            useInputFormatApi,
+            jsonMapper,
+            tmpDir,
+            null,
+            null,
+            null,
+            createTuningConfigWithPartitionsSpec(
+                new HashedPartitionsSpec(null, 2, null),
+                false
+            ),
+            true
+        ),
+        null,
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory,
+        appenderatorsManager
+    );
+
+    Assert.assertEquals("index_append_test", initialTask.getGroupId());
+
+    Pair<TaskStatus, List<DataSegment>> result = runTask(initialTask);
+    Assert.assertTrue(result.lhs.isSuccess());
+    List<DataSegment> segments = runTask(initialTask).rhs;
+
+    Assert.assertEquals(2, taskRunner.getTaskActionClient().getActionCount(SegmentAllocateAction.class));
+    Assert.assertEquals(2, segments.size());
+
+    Assert.assertEquals("test", segments.get(0).getDataSource());
+    Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
+    Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
+    Assert.assertEquals(0, segments.get(0).getShardSpec().getPartitionNum());
+
+    Assert.assertEquals("test", segments.get(1).getDataSource());
+    Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
+    Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
+    Assert.assertEquals(1, segments.get(1).getShardSpec().getPartitionNum());
+
+    IndexTask appendTask = new IndexTask(
+        null,
+        null,
+        createIngestionSpec(
+            useInputFormatApi,
+            jsonMapper,
+            tmpDir,
+            null,
+            null,
+            null,
+            createTuningConfigWithPartitionsSpec(
+                new HashedPartitionsSpec(2, null, null),
+                false
+            ),
+            true
+        ),
+        null,
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory,
+        appenderatorsManager
+    );
+
+    result = runTask(appendTask);
+    Assert.assertTrue(result.lhs.isSuccess());
+    segments = runTask(appendTask).rhs;
+
+    Assert.assertEquals(2, taskRunner.getTaskActionClient().getActionCount(SegmentAllocateAction.class));
+    Assert.assertEquals(2, segments.size());
+
+    Assert.assertEquals("test", segments.get(0).getDataSource());
+    Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
+    Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
+    Assert.assertEquals(0, segments.get(2).getShardSpec().getPartitionNum());
+
+    Assert.assertEquals("test", segments.get(1).getDataSource());
+    Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
+    Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
+    Assert.assertEquals(1, segments.get(3).getShardSpec().getPartitionNum());
+  }
+
+  @Test
   public void testIntervalNotSpecified() throws Exception
   {
     File tmpDir = temporaryFolder.newFolder();

@@ -52,8 +52,8 @@ public class NumberedShardSpec implements ShardSpec
       @JsonProperty("partitions") int numBuckets
   )
   {
-    Preconditions.checkArgument(partitionNum >= 0, "partitionNum >= 0");
-    Preconditions.checkArgument(numBuckets >= 0, "numBuckets >= 0");
+    Preconditions.checkArgument(partitionNum >= 0, "partitionNum[%s] should be larger than 0", partitionNum);
+    Preconditions.checkArgument(numBuckets >= 0, "numBuckets[%s] should be larger than 0", numBuckets);
     this.partitionNum = partitionNum;
     this.numBuckets = numBuckets;
   }
