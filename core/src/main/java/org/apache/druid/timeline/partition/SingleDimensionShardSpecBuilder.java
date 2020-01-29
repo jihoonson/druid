@@ -22,62 +22,90 @@ package org.apache.druid.timeline.partition;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Preconditions;
 
 import javax.annotation.Nullable;
-import java.util.List;
 import java.util.Objects;
 
-public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
+public class SingleDimensionShardSpecBuilder implements ShardSpecBuilder
 {
+  private final String partitionDimension;
+  private final int bucketId;
   @Nullable
-  private final List<String> partitionDimensions;
+  private final String start;
+  @Nullable
+  private final String end;
   private final int numBuckets;
 
   @JsonCreator
-  public HashBasedNumberedShardSpecFactory(
-      @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
-      @JsonProperty("numPartitions") int numBuckets
+  public SingleDimensionShardSpecBuilder(
+      @JsonProperty("partitionDimension") String partitionDimension,
+      @JsonProperty("bucketId") int bucketId,
+      @JsonProperty("start") @Nullable String start,
+      @JsonProperty("end") @Nullable String end,
+      @JsonProperty("numBuckets") int numBuckets
   )
   {
-    this.partitionDimensions = partitionDimensions;
+    this.partitionDimension = partitionDimension;
+    this.bucketId = bucketId;
+    this.start = start;
+    this.end = end;
     this.numBuckets = numBuckets;
   }
 
-  @Nullable
   @JsonProperty
-  public List<String> getPartitionDimensions()
+  public String getPartitionDimension()
   {
-    return partitionDimensions;
+    return partitionDimension;
   }
 
-  @JsonProperty("numPartitions")
+  @JsonProperty
+  public int getBucketId()
+  {
+    return bucketId;
+  }
+
+  @JsonProperty
+  @Nullable
+  public String getStart()
+  {
+    return start;
+  }
+
+  @JsonProperty
+  @Nullable
+  public String getEnd()
+  {
+    return end;
+  }
+
+  @JsonProperty
   public int getNumBuckets()
   {
     return numBuckets;
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId)
+  public ShardSpec build(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId)
   {
-    Preconditions.checkArgument(
-        bucketId < numBuckets,
-        "bucketId[%s] should be smaller than numBuckets[%s]",
-        bucketId,
-        numBuckets
-    );
     final int partitionId = PartitionUtils.nextValidPartitionId(
         specOfPreviousMaxPartitionId == null ? null : specOfPreviousMaxPartitionId.getPartitionNum(),
         bucketId,
         numBuckets
     );
-    return new HashBasedNumberedShardSpec(partitionId, numBuckets, partitionDimensions, objectMapper);
+
+    return new SingleDimensionShardSpec(
+        partitionDimension,
+        start,
+        end,
+        partitionId,
+        numBuckets
+    );
   }
 
   @Override
   public Class<? extends ShardSpec> getShardSpecClass()
   {
-    return HashBasedNumberedShardSpec.class;
+    return SingleDimensionShardSpec.class;
   }
 
   @Override
@@ -95,14 +123,17 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    HashBasedNumberedShardSpecFactory that = (HashBasedNumberedShardSpecFactory) o;
-    return numBuckets == that.numBuckets &&
-           Objects.equals(partitionDimensions, that.partitionDimensions);
+    SingleDimensionShardSpecBuilder that = (SingleDimensionShardSpecBuilder) o;
+    return bucketId == that.bucketId &&
+           numBuckets == that.numBuckets &&
+           Objects.equals(partitionDimension, that.partitionDimension) &&
+           Objects.equals(start, that.start) &&
+           Objects.equals(end, that.end);
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(partitionDimensions, numBuckets);
+    return Objects.hash(partitionDimension, bucketId, start, end, numBuckets);
   }
 }

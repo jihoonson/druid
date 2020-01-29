@@ -25,7 +25,7 @@ import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.java.util.common.DateTimes;
-import org.apache.druid.timeline.partition.ShardSpecFactory;
+import org.apache.druid.timeline.partition.ShardSpecBuilder;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -37,7 +37,7 @@ public class LockRequestForNewSegment implements LockRequest
   private final String groupId;
   private final String dataSource;
   private final Interval interval;
-  private final ShardSpecFactory shardSpecFactory;
+  private final ShardSpecBuilder shardSpecBuilder;
   private final int priority;
   private final String sequenceName;
   @Nullable
@@ -53,7 +53,7 @@ public class LockRequestForNewSegment implements LockRequest
       String groupId,
       String dataSource,
       Interval interval,
-      ShardSpecFactory shardSpecFactory,
+      ShardSpecBuilder shardSpecBuilder,
       int priority,
       String sequenceName,
       @Nullable String previsousSegmentId,
@@ -66,7 +66,7 @@ public class LockRequestForNewSegment implements LockRequest
     this.groupId = groupId;
     this.dataSource = dataSource;
     this.interval = interval;
-    this.shardSpecFactory = shardSpecFactory;
+    this.shardSpecBuilder = shardSpecBuilder;
     this.priority = priority;
     this.sequenceName = sequenceName;
     this.previsousSegmentId = previsousSegmentId;
@@ -80,7 +80,7 @@ public class LockRequestForNewSegment implements LockRequest
       TaskLockType lockType,
       Task task,
       Interval interval,
-      ShardSpecFactory shardSpecFactory,
+      ShardSpecBuilder shardSpecBuilder,
       String sequenceName,
       @Nullable String previsousSegmentId,
       boolean skipSegmentLineageCheck,
@@ -93,7 +93,7 @@ public class LockRequestForNewSegment implements LockRequest
         task.getGroupId(),
         task.getDataSource(),
         interval,
-        shardSpecFactory,
+        shardSpecBuilder,
         task.getPriority(),
         sequenceName,
         previsousSegmentId,
@@ -138,9 +138,9 @@ public class LockRequestForNewSegment implements LockRequest
     return priority;
   }
 
-  ShardSpecFactory getShardSpecFactory()
+  public ShardSpecBuilder getShardSpecBuilder()
   {
-    return shardSpecFactory;
+    return shardSpecBuilder;
   }
 
   int getBucketId()
@@ -197,7 +197,7 @@ public class LockRequestForNewSegment implements LockRequest
            ", groupId='" + groupId + '\'' +
            ", dataSource='" + dataSource + '\'' +
            ", interval=" + interval +
-           ", shardSpecFactory=" + shardSpecFactory +
+           ", shardSpecFactory=" + shardSpecBuilder +
            ", priority=" + priority +
            ", sequenceName='" + sequenceName + '\'' +
            ", previsousSegmentId='" + previsousSegmentId + '\'' +

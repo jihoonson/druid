@@ -24,35 +24,32 @@ import com.google.common.base.Preconditions;
 
 import javax.annotation.Nullable;
 
-public class NumberedShardSpecFactory implements ShardSpecFactory
+public class LinearShardSpecBuilder implements ShardSpecBuilder
 {
-  private static final NumberedShardSpecFactory INSTANCE = new NumberedShardSpecFactory();
+  private static final LinearShardSpecBuilder INSTANCE = new LinearShardSpecBuilder();
 
-  public static NumberedShardSpecFactory instance()
+  public static LinearShardSpecBuilder instance()
   {
     return INSTANCE;
   }
 
-  private NumberedShardSpecFactory()
+  private LinearShardSpecBuilder()
   {
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId)
+  public ShardSpec build(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId)
   {
     Preconditions.checkArgument(bucketId == 1, "Invalid bucketId[%s]", bucketId);
-    if (specOfPreviousMaxPartitionId == null) {
-      return new NumberedShardSpec(0, 0);
-    } else {
-      final NumberedShardSpec prevSpec = (NumberedShardSpec) specOfPreviousMaxPartitionId;
-      return new NumberedShardSpec(prevSpec.getPartitionNum() + 1, prevSpec.getPartitions());
-    }
+    return new LinearShardSpec(
+        specOfPreviousMaxPartitionId == null ? 0 : specOfPreviousMaxPartitionId.getPartitionNum() + 1
+    );
   }
 
   @Override
   public Class<? extends ShardSpec> getShardSpecClass()
   {
-    return NumberedShardSpec.class;
+    return LinearShardSpec.class;
   }
 
   @Override

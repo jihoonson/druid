@@ -26,14 +26,14 @@ import com.google.common.base.Preconditions;
 
 import javax.annotation.Nullable;
 
-public class NumberedOverwriteShardSpecFactory implements ShardSpecFactory
+public class NumberedOverwriteShardSpecBuilder implements ShardSpecBuilder
 {
   private final int startRootPartitionId;
   private final int endRootPartitionId;
   private final short minorVersion;
 
   @JsonCreator
-  public NumberedOverwriteShardSpecFactory(
+  public NumberedOverwriteShardSpecBuilder(
       @JsonProperty("startRootPartitionId") int startRootPartitionId,
       @JsonProperty("endRootPartitionId") int endRootPartitionId,
       @JsonProperty("minorVersion") short minorVersion
@@ -63,7 +63,7 @@ public class NumberedOverwriteShardSpecFactory implements ShardSpecFactory
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId)
+  public ShardSpec build(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId, int bucketId)
   {
     Preconditions.checkArgument(bucketId == 1, "Invalid bucketId[%s]", bucketId);
     // specOfPreviousMaxPartitionId is the max partitionId of the same shardSpec
