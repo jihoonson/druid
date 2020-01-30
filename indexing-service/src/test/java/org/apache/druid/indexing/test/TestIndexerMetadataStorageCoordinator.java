@@ -153,7 +153,7 @@ public class TestIndexerMetadataStorageCoordinator implements IndexerMetadataSto
         dataSource,
         interval,
         maxVersion,
-        partialShardSpec.build(objectMapper, null)
+        partialShardSpec.complete(objectMapper, null)
     );
   }
 
