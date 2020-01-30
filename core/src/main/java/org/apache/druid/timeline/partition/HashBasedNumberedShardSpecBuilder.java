@@ -62,7 +62,7 @@ public class HashBasedNumberedShardSpecBuilder implements ShardSpecBuilder
 
   @JsonProperty("numPartitions")
   @Override
-  public int numBuckets()
+  public int getNumBuckets()
   {
     return numBuckets;
   }

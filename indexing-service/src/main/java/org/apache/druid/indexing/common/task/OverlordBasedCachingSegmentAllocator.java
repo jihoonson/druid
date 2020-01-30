@@ -30,6 +30,7 @@ import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import javax.annotation.Nullable;
 import java.io.IOException;
 
+// TODO: remove
 public class OverlordBasedCachingSegmentAllocator implements SegmentAllocator
 {
   OverlordBasedCachingSegmentAllocator(

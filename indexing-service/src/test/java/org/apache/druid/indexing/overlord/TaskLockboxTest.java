@@ -949,8 +949,12 @@ public class TaskLockboxTest
   {
     final Task task = NoopTask.create();
     lockbox.add(task);
-    allocateSegmentsAndAssert(task, "seq", 3, NumberedShardSpecBuilder.instance());
-    allocateSegmentsAndAssert(task, "seq2", 2, new NumberedOverwriteShardSpecBuilder(0, 3, (short) 1));
+    for (int i = 0; i < 3; i++) {
+      allocateSegmentsAndAssert(task, "seq_" + i, NumberedShardSpecBuilder.instance());
+    }
+    for (int i = 0; i < 2; i++) {
+      allocateSegmentsAndAssert(task, "seq2_" + i, new NumberedOverwriteShardSpecBuilder(0, 3, (short) 1));
+    }
 
     final List<TaskLock> locks = lockbox.findLocksForTask(task);
     Assert.assertEquals(5, locks.size());
@@ -971,30 +975,27 @@ public class TaskLockboxTest
     final Task task = NoopTask.create();
     lockbox.add(task);
 
-    allocateSegmentsAndAssert(task, "seq", 3, new HashBasedNumberedShardSpecBuilder(null, 1, 3));
-    allocateSegmentsAndAssert(task, "seq2", 5, new HashBasedNumberedShardSpecBuilder(null, 2, 5));
+    allocateSegmentsAndAssert(task, "seq", new HashBasedNumberedShardSpecBuilder(null, 1, 3));
+    allocateSegmentsAndAssert(task, "seq2", new HashBasedNumberedShardSpecBuilder(null, 2, 5));
   }
 
   private void allocateSegmentsAndAssert(
       Task task,
-      String baseSequenceName,
-      int numSegmentsToAllocate,
+      String sequenceName,
       ShardSpecBuilder shardSpecBuilder
   )
   {
-    for (int i = 0; i < numSegmentsToAllocate; i++) {
-      final LockRequestForNewSegment request = new LockRequestForNewSegment(
-          LockGranularity.SEGMENT,
-          TaskLockType.EXCLUSIVE,
-          task,
-          Intervals.of("2015-01-01/2015-01-05"),
-          shardSpecBuilder,
-          StringUtils.format("%s_%d", baseSequenceName, i),
-          null,
-          true
-      );
-      assertAllocatedSegments(request, lockbox.tryLock(task, request));
-    }
+    final LockRequestForNewSegment request = new LockRequestForNewSegment(
+        LockGranularity.SEGMENT,
+        TaskLockType.EXCLUSIVE,
+        task,
+        Intervals.of("2015-01-01/2015-01-05"),
+        shardSpecBuilder,
+        sequenceName,
+        null,
+        true
+    );
+    assertAllocatedSegments(request, lockbox.tryLock(task, request));
   }
 
   private void assertAllocatedSegments(

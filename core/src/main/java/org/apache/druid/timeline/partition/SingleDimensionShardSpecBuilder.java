@@ -80,7 +80,7 @@ public class SingleDimensionShardSpecBuilder implements ShardSpecBuilder
 
   @JsonProperty("numBuckets")
   @Override
-  public int numBuckets()
+  public int getNumBuckets()
   {
     return numBuckets;
   }

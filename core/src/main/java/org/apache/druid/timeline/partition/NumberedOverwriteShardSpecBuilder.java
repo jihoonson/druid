@@ -83,7 +83,7 @@ public class NumberedOverwriteShardSpecBuilder implements ShardSpecBuilder
   }
 
   @Override
-  public int numBuckets()
+  public int getNumBuckets()
   {
     return 1;
   }

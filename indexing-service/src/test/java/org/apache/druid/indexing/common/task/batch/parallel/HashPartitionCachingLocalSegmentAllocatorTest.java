@@ -36,7 +36,6 @@ import org.apache.druid.indexing.common.task.SupervisorTaskAccessWithNullClient;
 import org.apache.druid.indexing.common.task.batch.partition.HashPartitionAnalysis;
 import org.apache.druid.indexing.common.task.batch.partition.HashPartitionBucketAnalysis;
 import org.apache.druid.java.util.common.Intervals;
-import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.SegmentId;
@@ -86,7 +85,7 @@ public class HashPartitionCachingLocalSegmentAllocatorTest
         new SupervisorTaskAccessWithNullClient(SUPERVISOR_TASKID),
         partitionAnalysis::convertToIntervalToSegmentIds
     );
-    sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(TASKID, partitionAnalysis);
+    sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(SUPERVISOR_TASKID, partitionAnalysis);
   }
 
   @Test
@@ -105,16 +104,6 @@ public class HashPartitionCachingLocalSegmentAllocatorTest
     Assert.assertEquals(PARTITION_DIMENSIONS, shardSpec.getPartitionDimensions());
     Assert.assertEquals(NUM_PARTITONS, shardSpec.getNumBuckets());
     Assert.assertEquals(PARTITION_NUM, shardSpec.getPartitionNum());
-  }
-
-  @Test
-  public void getSequenceName()
-  {
-    // getSequenceName_forIntervalAndRow_shouldUseISOFormatAndPartitionNumForRow
-    InputRow row = createInputRow();
-    String sequenceName = sequenceNameFunction.getSequenceName(INTERVAL, row);
-    String expectedSequenceName = StringUtils.format("%s_%s_%d", TASKID, INTERVAL, PARTITION_NUM);
-    Assert.assertEquals(expectedSequenceName, sequenceName);
   }
 
   private static TaskToolbox createToolbox()

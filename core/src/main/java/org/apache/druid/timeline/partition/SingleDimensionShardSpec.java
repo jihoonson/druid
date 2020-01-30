@@ -188,7 +188,7 @@ public class SingleDimensionShardSpec implements ShardSpec
     if (shardSpecBuilder instanceof SingleDimensionShardSpecBuilder) {
       final SingleDimensionShardSpecBuilder that = (SingleDimensionShardSpecBuilder) shardSpecBuilder;
       return Objects.equals(dimension, that.getPartitionDimension()) &&
-             numBuckets == that.numBuckets() &&
+             numBuckets == that.getNumBuckets() &&
              getBucketId() == that.getBucketId() &&
              Objects.equals(start, that.getStart()) &&
              Objects.equals(end, that.getEnd());

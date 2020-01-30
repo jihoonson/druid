@@ -51,5 +51,5 @@ public interface ShardSpecBuilder
    */
   Class<? extends ShardSpec> getShardSpecClass();
 
-  int numBuckets();
+  int getNumBuckets();
 }

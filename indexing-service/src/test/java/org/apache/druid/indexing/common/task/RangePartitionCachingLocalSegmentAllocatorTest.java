@@ -30,7 +30,6 @@ import org.apache.druid.indexing.common.task.batch.partition.RangePartitionAnaly
 import org.apache.druid.indexing.common.task.batch.partition.RangePartitionBucketAnalysis;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
-import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.timeline.SegmentId;
@@ -119,7 +118,7 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
         new SupervisorTaskAccessWithNullClient(SUPERVISOR_TASKID),
         partitionAnalysis::convertToIntervalToSegmentIds
     );
-    sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(TASKID, partitionAnalysis);
+    sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(SUPERVISOR_TASKID, partitionAnalysis);
   }
 
   @Test
@@ -129,7 +128,7 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
     InputRow row = createInputRow(interval, PARTITION9);
 
     exception.expect(IllegalStateException.class);
-    exception.expectMessage("Failed to get shardSpec");
+    exception.expectMessage("Cannot find index for key[9] from empty boundaries");
 
     String sequenceName = sequenceNameFunction.getSequenceName(interval, row);
     allocate(row, sequenceName);
@@ -142,7 +141,6 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
     InputRow row = createInputRow(interval, PARTITION9);
     testAllocate(row, interval, 0, null);
   }
-
 
   @Test
   public void allocatesCorrectShardSpecsForFirstPartition()
@@ -159,17 +157,6 @@ public class RangePartitionCachingLocalSegmentAllocatorTest
     InputRow row = createInputRow(interval, PARTITION9);
     int partitionNum = INTERVAL_TO_PARTITONS.get(interval).size() - 2;
     testAllocate(row, interval, partitionNum, null);
-  }
-
-  @Test
-  public void getSequenceName()
-  {
-    // getSequenceName_forIntervalAndRow_shouldUseISOFormatAndPartitionNumForRow
-    Interval interval = INTERVAL_NORMAL;
-    InputRow row = createInputRow(interval, PARTITION9);
-    String sequenceName = sequenceNameFunction.getSequenceName(interval, row);
-    String expectedSequenceName = StringUtils.format("%s_%s_%d", TASKID, interval, 1);
-    Assert.assertEquals(expectedSequenceName, sequenceName);
   }
 
   @SuppressWarnings("SameParameterValue")

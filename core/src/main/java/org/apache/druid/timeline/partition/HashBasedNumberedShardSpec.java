@@ -89,7 +89,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     if (shardSpecBuilder instanceof HashBasedNumberedShardSpecBuilder) {
       final HashBasedNumberedShardSpecBuilder that = (HashBasedNumberedShardSpecBuilder) shardSpecBuilder;
       return Objects.equals(partitionDimensions, that.getPartitionDimensions()) &&
-             getNumBuckets() == that.numBuckets() &&
+             getNumBuckets() == that.getNumBuckets() &&
              getBucketId() == that.getBucketId();
     }
     return false;
