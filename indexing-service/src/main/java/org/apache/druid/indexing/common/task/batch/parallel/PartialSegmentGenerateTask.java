@@ -178,7 +178,7 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
         partitionAnalysis
     );
     final SequenceNameFunction sequenceNameFunction = new NonLinearlyPartitionedSequenceNameFunction(
-        getId(),
+        supervisorTaskId,
         partitionAnalysis
     );
 

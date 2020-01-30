@@ -107,7 +107,7 @@ public class CachingLocalSegmentAllocator implements SegmentAllocator
         // The shardSpecs for partitioning and publishing can be different if isExtendableShardSpecs = true.
         sequenceNameToSegmentId.put(
             NonLinearlyPartitionedSequenceNameFunction.getSequenceName(
-                taskId,
+                supervisorTaskAccess == null ? taskId : supervisorTaskAccess.getSupervisorTaskId(),
                 interval,
                 segmentIdentifier.getShardSpec().getBucketId()
             ),

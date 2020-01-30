@@ -63,6 +63,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -180,10 +181,50 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
         ),
         maxNumConcurrentSubTasks
     );
-    assertRangePartitions(publishedSegments);
+    assertRangePartitions(publishedSegments, false);
   }
 
-  private void assertRangePartitions(Set<DataSegment> publishedSegments) throws IOException
+  @Test
+  public void testAppendDataSuccessfullyAppended() throws Exception
+  {
+    int targetRowsPerSegment = NUM_ROW / NUM_DAY / NUM_PARTITION;
+    final Set<DataSegment> publishedSegments = new HashSet<>();
+    publishedSegments.addAll(
+        runTestTask(
+            PARSE_SPEC,
+            Intervals.of("%s/%s", YEAR, YEAR + 1),
+            inputDir,
+            TEST_FILE_NAME_PREFIX + "*",
+            new SingleDimensionPartitionsSpec(
+                targetRowsPerSegment,
+                null,
+                DIM1,
+                false
+            ),
+            maxNumConcurrentSubTasks
+        )
+    );
+    publishedSegments.addAll(
+        runTestTask(
+            PARSE_SPEC,
+            Intervals.of("%s/%s", YEAR, YEAR + 1),
+            inputDir,
+            TEST_FILE_NAME_PREFIX + "*",
+            new SingleDimensionPartitionsSpec(
+                targetRowsPerSegment,
+                null,
+                DIM1,
+                false
+            ),
+            maxNumConcurrentSubTasks,
+            true
+        )
+    );
+    assertRangePartitions(publishedSegments, true);
+  }
+
+  private void assertRangePartitions(Set<DataSegment> publishedSegments, boolean appended)
+      throws IOException
   {
     Multimap<Interval, DataSegment> intervalToSegments = ArrayListMultimap.create();
     publishedSegments.forEach(s -> intervalToSegments.put(s.getInterval(), s));
@@ -197,7 +238,7 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
     File tempSegmentDir = temporaryFolder.newFolder();
 
     intervalToSegments.asMap().forEach((interval, segments) -> {
-      assertNumPartition(interval, segments, firstInterval, lastInterval);
+      assertNumPartition(interval, segments, firstInterval, lastInterval, appended);
 
       List<String> allValues = new ArrayList<>(NUM_ROW);
       for (DataSegment segment : segments) {
@@ -206,7 +247,7 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
         allValues.addAll(values);
       }
 
-      assertIntervalHasAllExpectedValues(interval, allValues);
+      assertIntervalHasAllExpectedValues(interval, allValues, appended);
     });
   }
 
@@ -219,7 +260,8 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
       Interval interval,
       Collection<DataSegment> segments,
       Interval firstInterval,
-      Interval lastInterval
+      Interval lastInterval,
+      boolean appended
   )
   {
     int expectedNumPartition = NUM_PARTITION;
@@ -227,6 +269,7 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
       expectedNumPartition -= 1;
     }
     expectedNumPartition *= NUM_DAY;
+    expectedNumPartition = appended ? expectedNumPartition * 2 : expectedNumPartition;
     Assert.assertEquals(expectedNumPartition, segments.size());
   }
 
@@ -258,9 +301,12 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
     }
   }
 
-  private void assertIntervalHasAllExpectedValues(Interval interval, List<String> actualValues)
+  private void assertIntervalHasAllExpectedValues(Interval interval, List<String> actualValues, boolean appended)
   {
     List<String> expectedValues = new ArrayList<>(intervalToDim1.get(interval));
+    if (appended) {
+      expectedValues.addAll(intervalToDim1.get(interval));
+    }
     Assert.assertEquals(expectedValues.size(), actualValues.size());
     Collections.sort(expectedValues);
     Collections.sort(actualValues);

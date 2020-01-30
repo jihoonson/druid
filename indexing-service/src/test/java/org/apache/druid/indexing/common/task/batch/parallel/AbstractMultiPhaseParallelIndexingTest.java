@@ -102,6 +102,11 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
     temporaryFolder.delete();
   }
 
+  LockGranularity getLockGranularity()
+  {
+    return lockGranularity;
+  }
+
   Set<DataSegment> runTestTask(
       ParseSpec parseSpec,
       Interval interval,
@@ -111,13 +116,27 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
       int maxNumConcurrentSubTasks
   ) throws Exception
   {
+    return runTestTask(parseSpec, interval, inputDir, filter, partitionsSpec, maxNumConcurrentSubTasks, false);
+  }
+
+  Set<DataSegment> runTestTask(
+      ParseSpec parseSpec,
+      Interval interval,
+      File inputDir,
+      String filter,
+      DimensionBasedPartitionsSpec partitionsSpec,
+      int maxNumConcurrentSubTasks,
+      boolean appendToExisting
+  ) throws Exception
+  {
     final ParallelIndexSupervisorTask task = newTask(
         parseSpec,
         interval,
         inputDir,
         filter,
         partitionsSpec,
-        maxNumConcurrentSubTasks
+        maxNumConcurrentSubTasks,
+        appendToExisting
     );
 
     actionClient = createActionClient(task);
@@ -140,7 +159,8 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
       File inputDir,
       String filter,
       DimensionBasedPartitionsSpec partitionsSpec,
-      int maxNumConcurrentSubTasks
+      int maxNumConcurrentSubTasks,
+      boolean appendToExisting
   )
   {
     GranularitySpec granularitySpec = new UniformGranularitySpec(
@@ -185,7 +205,7 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
           null,
           new LocalInputSource(inputDir, filter),
           parseSpec.toInputFormat(),
-          false
+          appendToExisting
       );
       ingestionSpec = new ParallelIndexIngestionSpec(
           new DataSchema(
@@ -204,7 +224,7 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
     } else {
       ParallelIndexIOConfig ioConfig = new ParallelIndexIOConfig(
           new LocalFirehoseFactory(inputDir, filter, null),
-          false
+          appendToExisting
       );
       //noinspection unchecked
       ingestionSpec = new ParallelIndexIngestionSpec(

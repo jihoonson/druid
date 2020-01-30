@@ -54,6 +54,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -133,10 +134,39 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
         new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
         MAX_NUM_CONCURRENT_SUB_TASKS
     );
-    assertHashedPartition(publishedSegments);
+    assertHashedPartition(2, publishedSegments);
   }
 
-  private void assertHashedPartition(Set<DataSegment> publishedSegments) throws IOException
+  @Test
+  public void testAppendDataSuccessfullyAppended() throws Exception
+  {
+    final Set<DataSegment> publishedSegments = new HashSet<>();
+    publishedSegments.addAll(
+        runTestTask(
+            PARSE_SPEC,
+            Intervals.of("2017/2018"),
+            inputDir,
+            "test_*",
+            new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
+            MAX_NUM_CONCURRENT_SUB_TASKS
+        )
+    );
+    publishedSegments.addAll(
+        runTestTask(
+            PARSE_SPEC,
+            Intervals.of("2017/2018"),
+            inputDir,
+            "test_*",
+            new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
+            MAX_NUM_CONCURRENT_SUB_TASKS,
+            true
+        )
+    );
+    assertHashedPartition(4, publishedSegments);
+  }
+
+  private void assertHashedPartition(int expectedNumSegmentsPerInterval, Set<DataSegment> publishedSegments)
+      throws IOException
   {
     final Map<Interval, List<DataSegment>> intervalToSegments = new HashMap<>();
     publishedSegments.forEach(
@@ -144,7 +174,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
     );
     final File tempSegmentDir = temporaryFolder.newFolder();
     for (List<DataSegment> segmentsInInterval : intervalToSegments.values()) {
-      Assert.assertEquals(2, segmentsInInterval.size());
+      Assert.assertEquals(expectedNumSegmentsPerInterval, segmentsInInterval.size());
       for (DataSegment segment : segmentsInInterval) {
         List<ScanResultValue> results = querySegment(segment, ImmutableList.of("dim1", "dim2"), tempSegmentDir);
         final int hash = HashBasedNumberedShardSpec.hash(getObjectMapper(), (List<Object>) results.get(0).getEvents());
