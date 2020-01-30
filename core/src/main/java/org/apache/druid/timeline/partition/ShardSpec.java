@@ -94,6 +94,8 @@ public interface ShardSpec
    */
   boolean isCompatible(Class<? extends ShardSpec> other);
 
-  // TODO: check in indexerSqlMetadataStoragecoordinator
+  /**
+   * Checks whether this ShardSpec is in the same bucket of the secondary partitioning with the given ShardSpecBuilder.
+   */
   boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder);
 }

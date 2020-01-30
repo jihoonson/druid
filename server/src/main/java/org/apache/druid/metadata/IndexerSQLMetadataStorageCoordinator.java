@@ -70,12 +70,13 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
@@ -783,6 +784,45 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
           .execute();
   }
 
+  /**
+   * Returns the segment of the max ID that matches with the given {@link ShardSpecBuilder} from the given set of
+   * segments. A segment matches with a ShardSpecBuilder if the below conditions are satisfied.
+   *
+   * 1) The segment has the same type of {@link ShardSpec} with the ShardSpecBuilder.
+   * 2) The segment is in the same bucket of the secondary partitioning with the ShardSpecBuilder.
+   *
+   * The max ID is defined as the ID of the highest version and the highest partition ID.
+   *
+   * @see ShardSpec#isSamePartitionBucket
+   */
+  @Nullable
+  private static <T> T findSegmentOfMaxId(
+      Stream<T> segments,
+      ShardSpecBuilder shardSpecBuilder,
+      Function<T, ShardSpec> shardSpecExtractFn,
+      Function<T, String> versionExtractFn
+  )
+  {
+    // Here we check only the segments of the same shardSpec to find out the max partitionId.
+    // Note that OverwriteShardSpec has the higher range for partitionId than others.
+    // See PartitionIds.
+    return segments
+        .filter(segment-> shardSpecExtractFn.apply(segment).getClass() == shardSpecBuilder.getShardSpecClass())
+        .filter(segment -> shardSpecExtractFn.apply(segment).isSamePartitionBucket(shardSpecBuilder))
+        .max((s1, s2) -> {
+          final int versionCompare = versionExtractFn.apply(s1).compareTo(versionExtractFn.apply(s2));
+          if (versionCompare != 0) {
+            return versionCompare;
+          } else {
+            return Integer.compare(
+                shardSpecExtractFn.apply(s1).getPartitionNum(),
+                shardSpecExtractFn.apply(s2).getPartitionNum()
+            );
+          }
+        })
+        .orElse(null);
+  }
+
   @Nullable
   private SegmentIdWithShardSpec createNewSegment(
       final Handle handle,
@@ -818,51 +858,38 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       }
 
       // max partitionId of the SAME shardSpec
-      SegmentIdWithShardSpec maxId = null;
-
-      if (!existingChunks.isEmpty()) {
-        TimelineObjectHolder<String, DataSegment> existingHolder = Iterables.getOnlyElement(existingChunks);
-
-        maxId = StreamSupport
-            .stream(existingHolder.getObject().spliterator(), false)
-            // Here we check only the segments of the same shardSpec to find out the max partitionId.
-            // Note that OverwriteShardSpec has the higher range for partitionId than others.
-            // See PartitionIds.
-            .filter(chunk -> chunk.getObject().getShardSpec().getClass() == shardSpecBuilder.getShardSpecClass())
-            .max(Comparator.comparing(chunk -> chunk.getObject().getShardSpec().getPartitionNum()))
-            .map(chunk -> SegmentIdWithShardSpec.fromDataSegment(chunk.getObject()))
-            .orElse(null);
-      }
-
-      final List<SegmentIdWithShardSpec> pendings = getPendingSegmentsForIntervalWithHandle(
+      final List<SegmentIdWithShardSpec> candidates = getPendingSegmentsForIntervalWithHandle(
           handle,
           dataSource,
           interval
       );
 
-      if (maxId != null) {
-        pendings.add(maxId);
+      if (!existingChunks.isEmpty()) {
+        final TimelineObjectHolder<String, DataSegment> existingHolder = Iterables.getOnlyElement(existingChunks);
+        final PartitionChunk<DataSegment> maxChunk = findSegmentOfMaxId(
+            StreamSupport.stream(existingHolder.getObject().spliterator(), false),
+            shardSpecBuilder,
+            chunk -> chunk.getObject().getShardSpec(),
+            chunk -> chunk.getObject().getVersion()
+        );
+        if (maxChunk != null) {
+          candidates.add(SegmentIdWithShardSpec.fromDataSegment(maxChunk.getObject()));
+        }
       }
 
-      maxId = pendings.stream()
-                      .filter(id -> id.getShardSpec().getClass() == shardSpecBuilder.getShardSpecClass())
-                      .filter(id -> id.getShardSpec().isSamePartitionBucket(shardSpecBuilder))
-                      .max((id1, id2) -> {
-                        final int versionCompare = id1.getVersion().compareTo(id2.getVersion());
-                        if (versionCompare != 0) {
-                          return versionCompare;
-                        } else {
-                          return Integer.compare(id1.getShardSpec().getPartitionNum(), id2.getShardSpec().getPartitionNum());
-                        }
-                      })
-                      .orElse(null);
+      final SegmentIdWithShardSpec maxId = findSegmentOfMaxId(
+          candidates.stream(),
+          shardSpecBuilder,
+          SegmentIdWithShardSpec::getShardSpec,
+          SegmentIdWithShardSpec::getVersion
+      );
 
       // Find the major version of existing segments
       @Nullable final String versionOfExistingChunks;
       if (!existingChunks.isEmpty()) {
         versionOfExistingChunks = existingChunks.get(0).getVersion();
-      } else if (!pendings.isEmpty()) {
-        versionOfExistingChunks = pendings.get(0).getVersion();
+      } else if (!candidates.isEmpty()) {
+        versionOfExistingChunks = candidates.get(0).getVersion();
       } else {
         versionOfExistingChunks = null;
       }
