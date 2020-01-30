@@ -26,7 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.annotation.Nullable;
 import java.util.Objects;
 
-public class SingleDimensionShardSpecBuilder implements ShardSpecBuilder
+public class SingleDimensionPartialShardSpec implements PartialShardSpec
 {
   private final String partitionDimension;
   private final int bucketId;
@@ -37,7 +37,7 @@ public class SingleDimensionShardSpecBuilder implements ShardSpecBuilder
   private final int numBuckets;
 
   @JsonCreator
-  public SingleDimensionShardSpecBuilder(
+  public SingleDimensionPartialShardSpec(
       @JsonProperty("partitionDimension") String partitionDimension,
       @JsonProperty("bucketId") int bucketId,
       @JsonProperty("start") @Nullable String start,
@@ -118,7 +118,7 @@ public class SingleDimensionShardSpecBuilder implements ShardSpecBuilder
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    SingleDimensionShardSpecBuilder that = (SingleDimensionShardSpecBuilder) o;
+    SingleDimensionPartialShardSpec that = (SingleDimensionPartialShardSpec) o;
     return bucketId == that.bucketId &&
            numBuckets == that.numBuckets &&
            Objects.equals(partitionDimension, that.partitionDimension) &&

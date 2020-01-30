@@ -84,10 +84,10 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   }
 
   @Override
-  public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
+  public boolean isSamePartitionBucket(PartialShardSpec partialShardSpec)
   {
-    if (shardSpecBuilder instanceof HashBasedNumberedShardSpecBuilder) {
-      final HashBasedNumberedShardSpecBuilder that = (HashBasedNumberedShardSpecBuilder) shardSpecBuilder;
+    if (partialShardSpec instanceof HashBasedNumberedPartialShardSpec) {
+      final HashBasedNumberedPartialShardSpec that = (HashBasedNumberedPartialShardSpec) partialShardSpec;
       return Objects.equals(partitionDimensions, that.getPartitionDimensions()) &&
              getNumBuckets() == that.getNumBuckets() &&
              getBucketId() == that.getBucketId();

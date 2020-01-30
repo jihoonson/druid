@@ -74,9 +74,9 @@ public final class LinearShardSpec implements ShardSpec
   }
 
   @Override
-  public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
+  public boolean isSamePartitionBucket(PartialShardSpec partialShardSpec)
   {
-    return shardSpecBuilder instanceof LinearShardSpecBuilder;
+    return partialShardSpec instanceof LinearPartialShardSpec;
   }
 
   @Override

@@ -199,10 +199,10 @@ public class NumberedOverwriteShardSpec implements OverwriteShardSpec
   }
 
   @Override
-  public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
+  public boolean isSamePartitionBucket(PartialShardSpec partialShardSpec)
   {
-    return shardSpecBuilder instanceof NumberedShardSpecBuilder
-           || shardSpecBuilder instanceof NumberedOverwriteShardSpecBuilder;
+    return partialShardSpec instanceof NumberedPartialShardSpec
+           || partialShardSpec instanceof NumberedOverwritePartialShardSpec;
   }
 
   @Override

@@ -33,9 +33,9 @@ import org.apache.druid.java.util.common.jackson.JacksonUtils;
 import org.apache.druid.timeline.DataSegment.PruneSpecsHolder;
 import org.apache.druid.timeline.partition.NoneShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.apache.druid.timeline.partition.PartialShardSpec;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.ShardSpec;
-import org.apache.druid.timeline.partition.ShardSpecBuilder;
 import org.apache.druid.timeline.partition.ShardSpecLookup;
 import org.joda.time.Interval;
 import org.junit.Assert;
@@ -106,7 +106,7 @@ public class DataSegmentTest
       }
 
       @Override
-      public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
+      public boolean isSamePartitionBucket(PartialShardSpec partialShardSpec)
       {
         return false;
       }

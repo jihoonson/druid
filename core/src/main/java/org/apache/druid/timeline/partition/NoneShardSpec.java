@@ -96,7 +96,7 @@ public class NoneShardSpec implements ShardSpec
   }
 
   @Override
-  public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
+  public boolean isSamePartitionBucket(PartialShardSpec partialShardSpec)
   {
     return false;
   }

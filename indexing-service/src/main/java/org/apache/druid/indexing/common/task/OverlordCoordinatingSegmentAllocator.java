@@ -38,14 +38,14 @@ import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.realtime.appenderator.SegmentAllocator;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
+import org.apache.druid.timeline.partition.HashBasedNumberedPartialShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
-import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecBuilder;
-import org.apache.druid.timeline.partition.NumberedOverwriteShardSpecBuilder;
-import org.apache.druid.timeline.partition.NumberedShardSpecBuilder;
+import org.apache.druid.timeline.partition.NumberedOverwritePartialShardSpec;
+import org.apache.druid.timeline.partition.NumberedPartialShardSpec;
+import org.apache.druid.timeline.partition.PartialShardSpec;
 import org.apache.druid.timeline.partition.PartitionBoundaries;
-import org.apache.druid.timeline.partition.ShardSpecBuilder;
+import org.apache.druid.timeline.partition.SingleDimensionPartialShardSpec;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
-import org.apache.druid.timeline.partition.SingleDimensionShardSpecBuilder;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -75,7 +75,7 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
           final Interval interval = granularitySpec
               .bucketInterval(row.getTimestamp())
               .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()));
-          final ShardSpecBuilder shardSpecBuilder = createShardSpecBuilder(
+          final PartialShardSpec partialShardSpec = createShardSpecBuilder(
               toolbox,
               taskLockHelper,
               appendToExisting,
@@ -91,7 +91,7 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
               sequenceName,
               previousSegmentId,
               skipSegmentLineageCheck,
-              shardSpecBuilder,
+              partialShardSpec,
               taskLockHelper.getLockGranularityToUse()
           );
           if (supervisorTaskAccess != null) {
@@ -115,7 +115,7 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
     return internalAllocator.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);
   }
 
-  private static ShardSpecBuilder createShardSpecBuilder(
+  private static PartialShardSpec createShardSpecBuilder(
       TaskToolbox toolbox,
       TaskLockHelper taskLockHelper,
       boolean appendToExisting,
@@ -152,7 +152,7 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
     }
   }
 
-  private static ShardSpecBuilder createLinearShardSpecBuilder(
+  private static PartialShardSpec createLinearShardSpecBuilder(
       boolean appendToExisting,
       TaskLockHelper taskLockHelper,
       Interval interval
@@ -165,17 +165,17 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
         if (overwritingRootGenerationPartitions == null) {
           throw new ISE("Can't find overwritingSegmentMeta for interval[%s]", interval);
         }
-        return new NumberedOverwriteShardSpecBuilder(
+        return new NumberedOverwritePartialShardSpec(
             overwritingRootGenerationPartitions.getStartRootPartitionId(),
             overwritingRootGenerationPartitions.getEndRootPartitionId(),
             overwritingRootGenerationPartitions.getMinorVersionForNewSegments()
         );
       }
     }
-    return NumberedShardSpecBuilder.instance();
+    return NumberedPartialShardSpec.instance();
   }
 
-  private static HashBasedNumberedShardSpecBuilder createHashShardSpecBuilder(
+  private static HashBasedNumberedPartialShardSpec createHashShardSpecBuilder(
       TaskToolbox toolbox,
       TaskLockHelper taskLockHelper,
       HashPartitionAnalysis partitionAnalysis,
@@ -196,7 +196,7 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
               row
           ) % bucketAnalysis.numSecondaryBuckets()
       );
-      return new HashBasedNumberedShardSpecBuilder(
+      return new HashBasedNumberedPartialShardSpec(
           partitionsSpec.getPartitionDimensions(),
           bucketId,
           bucketAnalysis.numSecondaryBuckets()
@@ -204,7 +204,7 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
     }
   }
 
-  private static SingleDimensionShardSpecBuilder createRangeShardSpecBuilder(
+  private static SingleDimensionPartialShardSpec createRangeShardSpecBuilder(
       TaskLockHelper taskLockHelper,
       RangePartitionAnalysis partitionAnalysis,
       Interval interval,
@@ -224,7 +224,7 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
       final int bucketId = partitionBoundaries.bucketFor(
           SingleDimensionShardSpec.getKey(row, partitionsSpec.getPartitionDimension())
       );
-      return new SingleDimensionShardSpecBuilder(
+      return new SingleDimensionPartialShardSpec(
           partitionsSpec.getPartitionDimension(),
           bucketId,
           partitionBoundaries.get(bucketId),

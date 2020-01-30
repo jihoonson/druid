@@ -90,10 +90,10 @@ public class NumberedShardSpec implements ShardSpec
   }
 
   @Override
-  public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
+  public boolean isSamePartitionBucket(PartialShardSpec partialShardSpec)
   {
-    return shardSpecBuilder instanceof NumberedShardSpecBuilder
-           || shardSpecBuilder instanceof NumberedOverwriteShardSpecBuilder;
+    return partialShardSpec instanceof NumberedPartialShardSpec
+           || partialShardSpec instanceof NumberedOverwritePartialShardSpec;
   }
 
   @JsonProperty("partitions")

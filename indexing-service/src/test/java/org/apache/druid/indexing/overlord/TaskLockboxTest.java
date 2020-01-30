@@ -54,13 +54,13 @@ import org.apache.druid.metadata.MetadataStorageTablesConfig;
 import org.apache.druid.metadata.TestDerbyConnector;
 import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
+import org.apache.druid.timeline.partition.HashBasedNumberedPartialShardSpec;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
-import org.apache.druid.timeline.partition.HashBasedNumberedShardSpecBuilder;
-import org.apache.druid.timeline.partition.NumberedOverwriteShardSpecBuilder;
+import org.apache.druid.timeline.partition.NumberedOverwritePartialShardSpec;
+import org.apache.druid.timeline.partition.NumberedPartialShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
-import org.apache.druid.timeline.partition.NumberedShardSpecBuilder;
+import org.apache.druid.timeline.partition.PartialShardSpec;
 import org.apache.druid.timeline.partition.PartitionIds;
-import org.apache.druid.timeline.partition.ShardSpecBuilder;
 import org.easymock.EasyMock;
 import org.joda.time.Interval;
 import org.junit.Assert;
@@ -950,10 +950,10 @@ public class TaskLockboxTest
     final Task task = NoopTask.create();
     lockbox.add(task);
     for (int i = 0; i < 3; i++) {
-      allocateSegmentsAndAssert(task, "seq_" + i, NumberedShardSpecBuilder.instance());
+      allocateSegmentsAndAssert(task, "seq_" + i, NumberedPartialShardSpec.instance());
     }
     for (int i = 0; i < 2; i++) {
-      allocateSegmentsAndAssert(task, "seq2_" + i, new NumberedOverwriteShardSpecBuilder(0, 3, (short) 1));
+      allocateSegmentsAndAssert(task, "seq2_" + i, new NumberedOverwritePartialShardSpec(0, 3, (short) 1));
     }
 
     final List<TaskLock> locks = lockbox.findLocksForTask(task);
@@ -975,14 +975,14 @@ public class TaskLockboxTest
     final Task task = NoopTask.create();
     lockbox.add(task);
 
-    allocateSegmentsAndAssert(task, "seq", new HashBasedNumberedShardSpecBuilder(null, 1, 3));
-    allocateSegmentsAndAssert(task, "seq2", new HashBasedNumberedShardSpecBuilder(null, 2, 5));
+    allocateSegmentsAndAssert(task, "seq", new HashBasedNumberedPartialShardSpec(null, 1, 3));
+    allocateSegmentsAndAssert(task, "seq2", new HashBasedNumberedPartialShardSpec(null, 2, 5));
   }
 
   private void allocateSegmentsAndAssert(
       Task task,
       String sequenceName,
-      ShardSpecBuilder shardSpecBuilder
+      PartialShardSpec partialShardSpec
   )
   {
     final LockRequestForNewSegment request = new LockRequestForNewSegment(
@@ -990,7 +990,7 @@ public class TaskLockboxTest
         TaskLockType.EXCLUSIVE,
         task,
         Intervals.of("2015-01-01/2015-01-05"),
-        shardSpecBuilder,
+        partialShardSpec,
         sequenceName,
         null,
         true
@@ -1014,7 +1014,7 @@ public class TaskLockboxTest
     Assert.assertEquals(lockRequest.getGroupId(), segmentLock.getGroupId());
     Assert.assertEquals(lockRequest.getDataSource(), segmentLock.getDataSource());
     Assert.assertEquals(lockRequest.getInterval(), segmentLock.getInterval());
-    Assert.assertEquals(lockRequest.getShardSpecBuilder().getShardSpecClass(), segmentId.getShardSpec().getClass());
+    Assert.assertEquals(lockRequest.getPartialShardSpec().getShardSpecClass(), segmentId.getShardSpec().getClass());
     Assert.assertEquals(lockRequest.getPriority(), lockRequest.getPriority());
   }
 

@@ -24,15 +24,16 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.annotation.Nullable;
+import java.util.Objects;
 
-public class NumberedOverwriteShardSpecBuilder implements ShardSpecBuilder
+public class NumberedOverwritePartialShardSpec implements PartialShardSpec
 {
   private final int startRootPartitionId;
   private final int endRootPartitionId;
   private final short minorVersion;
 
   @JsonCreator
-  public NumberedOverwriteShardSpecBuilder(
+  public NumberedOverwritePartialShardSpec(
       @JsonProperty("startRootPartitionId") int startRootPartitionId,
       @JsonProperty("endRootPartitionId") int endRootPartitionId,
       @JsonProperty("minorVersion") short minorVersion
@@ -86,5 +87,26 @@ public class NumberedOverwriteShardSpecBuilder implements ShardSpecBuilder
   public int getNumBuckets()
   {
     return 1;
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    NumberedOverwritePartialShardSpec that = (NumberedOverwritePartialShardSpec) o;
+    return startRootPartitionId == that.startRootPartitionId &&
+           endRootPartitionId == that.endRootPartitionId &&
+           minorVersion == that.minorVersion;
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(startRootPartitionId, endRootPartitionId, minorVersion);
   }
 }

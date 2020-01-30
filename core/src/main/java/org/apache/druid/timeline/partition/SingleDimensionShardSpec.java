@@ -183,10 +183,10 @@ public class SingleDimensionShardSpec implements ShardSpec
   }
 
   @Override
-  public boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder)
+  public boolean isSamePartitionBucket(PartialShardSpec partialShardSpec)
   {
-    if (shardSpecBuilder instanceof SingleDimensionShardSpecBuilder) {
-      final SingleDimensionShardSpecBuilder that = (SingleDimensionShardSpecBuilder) shardSpecBuilder;
+    if (partialShardSpec instanceof SingleDimensionPartialShardSpec) {
+      final SingleDimensionPartialShardSpec that = (SingleDimensionPartialShardSpec) partialShardSpec;
       return Objects.equals(dimension, that.getPartitionDimension()) &&
              numBuckets == that.getNumBuckets() &&
              getBucketId() == that.getBucketId() &&

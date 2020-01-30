@@ -97,5 +97,5 @@ public interface ShardSpec
   /**
    * Checks whether this ShardSpec is in the same bucket of the secondary partitioning with the given ShardSpecBuilder.
    */
-  boolean isSamePartitionBucket(ShardSpecBuilder shardSpecBuilder);
+  boolean isSamePartitionBucket(PartialShardSpec shardSpecBuilder);
 }
