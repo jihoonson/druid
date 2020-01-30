@@ -846,6 +846,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
 
       maxId = pendings.stream()
                       .filter(id -> id.getShardSpec().getClass() == shardSpecBuilder.getShardSpecClass())
+                      .filter(id -> id.getShardSpec().isSamePartitionBucket(shardSpecBuilder))
                       .max((id1, id2) -> {
                         final int versionCompare = id1.getVersion().compareTo(id2.getVersion());
                         if (versionCompare != 0) {

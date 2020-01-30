@@ -103,7 +103,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     return (hash(timestamp, inputRow) - getPartitionNum()) % getNumBuckets() == 0;
   }
 
-  protected long hash(long timestamp, InputRow inputRow)
+  protected int hash(long timestamp, InputRow inputRow)
   {
     return hash(jsonMapper, partitionDimensions, timestamp, inputRow);
   }
@@ -124,12 +124,12 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   }
 
   @VisibleForTesting
-  public static long hash(ObjectMapper jsonMapper, List<Object> objects) throws JsonProcessingException
+  public static int hash(ObjectMapper jsonMapper, List<Object> objects) throws JsonProcessingException
   {
-    return HASH_FUNCTION.hashBytes(jsonMapper.writeValueAsBytes(objects)).asLong();
+    return HASH_FUNCTION.hashBytes(jsonMapper.writeValueAsBytes(objects)).asInt();
   }
 
-  public static long hash(ObjectMapper jsonMapper, List<String> partitionDimensions, long timestamp, InputRow inputRow)
+  public static int hash(ObjectMapper jsonMapper, List<String> partitionDimensions, long timestamp, InputRow inputRow)
   {
     final List<Object> groupKey = getGroupKey(partitionDimensions, timestamp, inputRow);
     try {
@@ -176,7 +176,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   public ShardSpecLookup getLookup(final List<ShardSpec> shardSpecs)
   {
     return (long timestamp, InputRow row) -> {
-      int index = (int) hash(timestamp, row) % getNumBuckets();
+      int index = Math.abs(hash(timestamp, row) % getNumBuckets());
       return shardSpecs.get(index);
     };
   }

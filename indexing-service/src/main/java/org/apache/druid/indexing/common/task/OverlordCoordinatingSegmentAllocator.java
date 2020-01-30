@@ -187,14 +187,15 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
       throw new UnsupportedOperationException("Hash partitioning is not supported with segment lock yet");
     } else {
       final HashedPartitionsSpec partitionsSpec = partitionAnalysis.getPartitionsSpec();
-      final int hash = HashBasedNumberedShardSpec.hash(
-          toolbox.getJsonMapper(),
-          partitionsSpec.getPartitionDimensions(),
-          row.getTimestampFromEpoch(),
-          row
-      );
       final HashPartitionBucketAnalysis bucketAnalysis = partitionAnalysis.getBucketAnalysis(interval);
-      final int bucketId = hash % bucketAnalysis.numSecondaryBuckets();
+      final int bucketId = Math.abs(
+          HashBasedNumberedShardSpec.hash(
+              toolbox.getJsonMapper(),
+              partitionsSpec.getPartitionDimensions(),
+              row.getTimestampFromEpoch(),
+              row
+          ) % bucketAnalysis.numSecondaryBuckets()
+      );
       return new HashBasedNumberedShardSpecBuilder(
           partitionsSpec.getPartitionDimensions(),
           bucketId,
