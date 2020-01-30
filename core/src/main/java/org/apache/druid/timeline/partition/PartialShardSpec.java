@@ -27,16 +27,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.annotation.Nullable;
 
 /**
- * Factory to be used to allocate segments remotely in the overlord.
+ * This class contains partial information to create a complete {@link ShardSpec}.
+ * It is mostly used to allocate a new shardSpec remotely in the overlord.
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
-    @Type(name = "numbered", value = NumberedShardSpecFactory.class),
-    @Type(name = "hashed", value = HashBasedNumberedShardSpecFactory.class),
-    @Type(name = "single_dim", value = SingleDimensionShardSpecFactory.class),
-    @Type(name = "numbered_overwrite", value = NumberedOverwriteShardSpecFactory.class),
+    @Type(name = "numbered", value = NumberedPartialShardSpec.class),
+    @Type(name = "hashed", value = HashBasedNumberedPartialShardSpec.class),
+    @Type(name = "single_dim", value = SingleDimensionPartialShardSpec.class),
+    @Type(name = "numbered_overwrite", value = NumberedOverwritePartialShardSpec.class),
 })
-public interface ShardSpecFactory
+public interface PartialShardSpec
 {
   /**
    * Create a new shardSpec based on {@code specOfPreviousMaxPartitionId}. If it's null, it assumes that this is the
@@ -44,12 +45,12 @@ public interface ShardSpecFactory
    * Note that {@code specOfPreviousMaxPartitionId} can also be null for {@link OverwriteShardSpec} if all segments
    * in the timeChunk are first-generation segments.
    */
-  ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId);
+  ShardSpec complete(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId);
 
   /**
    * Create a new shardSpec having the given partitionId.
    */
-  ShardSpec create(ObjectMapper objectMapper, int partitionId);
+  ShardSpec complete(ObjectMapper objectMapper, int partitionId);
 
   /**
    * Return the class of the shardSpec created by this factory.

@@ -27,14 +27,14 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 
-public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
+public class HashBasedNumberedPartialShardSpec implements PartialShardSpec
 {
   @Nullable
   private final List<String> partitionDimensions;
   private final int numPartitions;
 
   @JsonCreator
-  public HashBasedNumberedShardSpecFactory(
+  public HashBasedNumberedPartialShardSpec(
       @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
       @JsonProperty("numPartitions") int numPartitions
   )
@@ -56,7 +56,7 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
+  public ShardSpec complete(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
   {
     final HashBasedNumberedShardSpec prevSpec = (HashBasedNumberedShardSpec) specOfPreviousMaxPartitionId;
     return new HashBasedNumberedShardSpec(
@@ -68,7 +68,7 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId)
+  public ShardSpec complete(ObjectMapper objectMapper, int partitionId)
   {
     return new HashBasedNumberedShardSpec(partitionId, numPartitions, partitionDimensions, objectMapper);
   }
@@ -88,7 +88,7 @@ public class HashBasedNumberedShardSpecFactory implements ShardSpecFactory
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    HashBasedNumberedShardSpecFactory that = (HashBasedNumberedShardSpecFactory) o;
+    HashBasedNumberedPartialShardSpec that = (HashBasedNumberedPartialShardSpec) o;
     return numPartitions == that.numPartitions &&
            Objects.equals(partitionDimensions, that.partitionDimensions);
   }

@@ -26,7 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.annotation.Nullable;
 import java.util.Objects;
 
-public class SingleDimensionShardSpecFactory implements ShardSpecFactory
+public class SingleDimensionPartialShardSpec implements PartialShardSpec
 {
   private final String partitionDimension;
   private final int numBuckets;
@@ -36,7 +36,7 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory
   private final String end;
 
   @JsonCreator
-  public SingleDimensionShardSpecFactory(
+  public SingleDimensionPartialShardSpec(
       @JsonProperty("partitionDimension") String partitionDimension,
       @JsonProperty("numBuckets") int numBuckets,
       @JsonProperty("start") @Nullable String start,
@@ -74,7 +74,7 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
+  public ShardSpec complete(ObjectMapper objectMapper, @Nullable ShardSpec specOfPreviousMaxPartitionId)
   {
     final int partitionId;
     if (specOfPreviousMaxPartitionId != null) {
@@ -84,11 +84,11 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory
     } else {
       partitionId = 0;
     }
-    return create(objectMapper, partitionId);
+    return complete(objectMapper, partitionId);
   }
 
   @Override
-  public ShardSpec create(ObjectMapper objectMapper, int partitionId)
+  public ShardSpec complete(ObjectMapper objectMapper, int partitionId)
   {
     // TODO: numBuckets should be added to SingleDimensionShardSpec in a follow-up PR.
     return new SingleDimensionShardSpec(partitionDimension, start, end, partitionId);
@@ -109,7 +109,7 @@ public class SingleDimensionShardSpecFactory implements ShardSpecFactory
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    SingleDimensionShardSpecFactory that = (SingleDimensionShardSpecFactory) o;
+    SingleDimensionPartialShardSpec that = (SingleDimensionPartialShardSpec) o;
     return numBuckets == that.numBuckets &&
            Objects.equals(partitionDimension, that.partitionDimension) &&
            Objects.equals(start, that.start) &&
