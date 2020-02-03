@@ -107,7 +107,7 @@ public class PartitionBoundaries
     }
   }
 
-  public int numBuckets()
+  public int getNumBuckets()
   {
     return boundaries.length > 0 ? boundaries.length - 1 : 0;
   }
@@ -137,5 +137,27 @@ public class PartitionBoundaries
     } else {
       return index;
     }
+  }
+
+  @Override
+  public boolean equals(Object o)
+  {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    if (!super.equals(o)) {
+      return false;
+    }
+    PartitionBoundaries strings = (PartitionBoundaries) o;
+    return Objects.equals(delegate, strings.delegate);
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return Objects.hash(super.hashCode(), delegate);
   }
 }
