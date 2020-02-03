@@ -75,7 +75,7 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
           final Interval interval = granularitySpec
               .bucketInterval(row.getTimestamp())
               .or(granularitySpec.getSegmentGranularity().bucket(row.getTimestamp()));
-          final PartialShardSpec partialShardSpec = createShardSpecBuilder(
+          final PartialShardSpec partialShardSpec = createPartialShardSpec(
               toolbox,
               taskLockHelper,
               appendToExisting,
@@ -115,7 +115,7 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
     return internalAllocator.allocate(row, sequenceName, previousSegmentId, skipSegmentLineageCheck);
   }
 
-  private static PartialShardSpec createShardSpecBuilder(
+  private static PartialShardSpec createPartialShardSpec(
       TaskToolbox toolbox,
       TaskLockHelper taskLockHelper,
       boolean appendToExisting,
@@ -229,7 +229,7 @@ public class OverlordCoordinatingSegmentAllocator implements SegmentAllocator
           bucketId,
           partitionBoundaries.get(bucketId),
           partitionBoundaries.get(bucketId + 1),
-          partitionBoundaries.numBuckets()
+          partitionBoundaries.getNumBuckets()
       );
     }
   }

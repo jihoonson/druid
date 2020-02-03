@@ -37,6 +37,9 @@ public interface PartitionAnalysis<T extends TimeChunkBucketAnalysis, P extends 
 
   void updateBucket(Interval interval, T bucketAnalysis);
 
+  /**
+   * Returns the analysis of the secondary bucket for the given time chunk.
+   */
   T getBucketAnalysis(Interval interval);
 
   Set<Interval> getAllIntervalsToIndex();

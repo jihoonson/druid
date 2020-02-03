@@ -142,7 +142,7 @@ public class RangePartitionAnalysis
                         partitionBoundaries.get(i),
                         partitionBoundaries.get(i + 1),
                         i,
-                        partitionBoundaries.numBuckets()
+                        partitionBoundaries.getNumBuckets()
                     ))
                     .collect(Collectors.toList());
   }
