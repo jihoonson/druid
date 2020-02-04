@@ -20,7 +20,7 @@
 package org.apache.druid.indexing.common.task.batch.partition;
 
 import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
-import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.IAE;
 import org.joda.time.Interval;
 
 import java.util.HashSet;
@@ -58,7 +58,7 @@ public class LinearPartitionAnalysis implements PartitionAnalysis<SinglePartitio
     if (intervals.contains(interval)) {
       return SinglePartitionBucketAnalysis.instance();
     } else {
-      throw new ISE("Unknown interval[%s]", interval);
+      throw new IAE("Missing bucket analysis for interval[%s]", interval);
     }
   }
 
@@ -69,7 +69,7 @@ public class LinearPartitionAnalysis implements PartitionAnalysis<SinglePartitio
   }
 
   @Override
-  public int numTimePartitions()
+  public int getNumTimePartitions()
   {
     return intervals.size();
   }
