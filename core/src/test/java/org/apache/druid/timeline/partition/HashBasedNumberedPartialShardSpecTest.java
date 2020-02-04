@@ -36,6 +36,7 @@ public class HashBasedNumberedPartialShardSpecTest
   {
     final HashBasedNumberedPartialShardSpec expected = new HashBasedNumberedPartialShardSpec(
         ImmutableList.of("dim1", "dim2"),
+        2,
         3
     );
     final byte[] json = MAPPER.writeValueAsBytes(expected);
@@ -51,13 +52,15 @@ public class HashBasedNumberedPartialShardSpecTest
   {
     final HashBasedNumberedPartialShardSpec expected = new HashBasedNumberedPartialShardSpec(
         ImmutableList.of("dim1", "dim2"),
+        2,
         3
     );
     final byte[] json = MAPPER.writeValueAsBytes(expected);
     //noinspection unchecked
     final Map<String, Object> map = MAPPER.readValue(json, Map.class);
-    Assert.assertEquals(3, map.size());
+    Assert.assertEquals(4, map.size());
     Assert.assertEquals(HashBasedNumberedPartialShardSpec.TYPE, map.get("type"));
+    Assert.assertEquals(2, map.get("bucketId"));
     Assert.assertEquals(expected.getPartitionDimensions(), map.get("partitionDimensions"));
     Assert.assertEquals(expected.getNumBuckets(), map.get("numPartitions"));
   }

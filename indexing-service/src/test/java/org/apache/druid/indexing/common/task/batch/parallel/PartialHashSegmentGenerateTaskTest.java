@@ -100,7 +100,7 @@ public class PartialHashSegmentGenerateTaskTest
         );
     Assert.assertEquals(intervals.size(), partitionAnalysis.getNumTimePartitions());
     for (Interval interval : intervals) {
-      Assert.assertEquals(expectedNumBuckets, partitionAnalysis.getBucketAnalysis(interval).intValue());
+      Assert.assertEquals(expectedNumBuckets, partitionAnalysis.getBucketAnalysis(interval).numSecondaryBuckets());
     }
   }
 }

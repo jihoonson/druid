@@ -148,16 +148,13 @@ public class PartitionBoundaries
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    if (!super.equals(o)) {
-      return false;
-    }
-    PartitionBoundaries strings = (PartitionBoundaries) o;
-    return Objects.equals(delegate, strings.delegate);
+    PartitionBoundaries that = (PartitionBoundaries) o;
+    return Arrays.equals(boundaries, that.boundaries);
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(super.hashCode(), delegate);
+    return Arrays.hashCode(boundaries);
   }
 }

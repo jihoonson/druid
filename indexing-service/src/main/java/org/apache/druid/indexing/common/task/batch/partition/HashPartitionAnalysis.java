@@ -66,7 +66,7 @@ public class HashPartitionAnalysis implements CompletePartitionAnalysis<HashPart
   @Override
   public HashPartitionBucketAnalysis getBucketAnalysis(Interval interval)
   {
-    final Integer bucketAnalysis = intervalToNumBuckets.get(interval);
+    final HashPartitionBucketAnalysis bucketAnalysis = intervalToNumBuckets.get(interval);
     if (bucketAnalysis == null) {
       throw new IAE("Missing bucket analysis for interval[%s]", interval);
     } else {

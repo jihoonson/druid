@@ -42,7 +42,7 @@ public class RangePartitionBucketAnalysis implements TimeChunkBucketAnalysis
   @Override
   public int numSecondaryBuckets()
   {
-    return partitionBoundaries.numBuckets();
+    return partitionBoundaries.getNumBuckets();
   }
 
   @Override
