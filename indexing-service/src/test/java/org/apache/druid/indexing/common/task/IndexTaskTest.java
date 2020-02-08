@@ -593,7 +593,9 @@ public class IndexTaskTest extends IngestionTestBase
 
     Assert.assertEquals("index_append_test", indexTask.getGroupId());
 
-    final List<DataSegment> segments = runTask(indexTask).rhs;
+    Pair<TaskStatus, List<DataSegment>> result = runTask(indexTask);
+    Assert.assertTrue(result.lhs.isSuccess());
+    List<DataSegment> segments = result.rhs;
 
     Assert.assertEquals(2, taskRunner.getTaskActionClient().getActionCount(SegmentAllocateAction.class));
     Assert.assertEquals(2, segments.size());
@@ -607,14 +609,49 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
     Assert.assertEquals(NumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
     Assert.assertEquals(1, segments.get(1).getShardSpec().getPartitionNum());
+
+    IndexTask appendTask = new IndexTask(
+        null,
+        null,
+        createIngestionSpec(
+            useInputFormatApi,
+            jsonMapper,
+            tmpDir,
+            null,
+            null,
+            null,
+            createTuningConfigWithMaxRowsPerSegment(2, false),
+            true
+        ),
+        null,
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory,
+        appenderatorsManager
+    );
+
+    segments = runTask(appendTask).rhs;
+
+    Assert.assertEquals(2, taskRunner.getTaskActionClient().getActionCount(SegmentAllocateAction.class));
+    Assert.assertEquals(2, segments.size());
+
+    Assert.assertEquals("test", segments.get(0).getDataSource());
+    Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(0).getInterval());
+    Assert.assertEquals(NumberedShardSpec.class, segments.get(0).getShardSpec().getClass());
+    Assert.assertEquals(2, segments.get(0).getShardSpec().getPartitionNum());
+
+    Assert.assertEquals("test", segments.get(1).getDataSource());
+    Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
+    Assert.assertEquals(NumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
+    Assert.assertEquals(3, segments.get(1).getShardSpec().getPartitionNum());
   }
 
   @Test
-  public void testWriteNewSegmentsWithAppendToExistingWithHashPartitioningSuccessfullyAppend() throws Exception
+  public void testAppendHashPartitionedSegmentsToHashPartitionedDatasourceSuccessfullyAppend() throws Exception
   {
-//    if (lockGranularity == LockGranularity.SEGMENT) {
-//      return;
-//    }
+    if (lockGranularity == LockGranularity.SEGMENT) {
+      return;
+    }
     File tmpDir = temporaryFolder.newFolder();
     File tmpFile = File.createTempFile("druid", "index", tmpDir);
 
@@ -708,7 +745,7 @@ public class IndexTaskTest extends IngestionTestBase
   }
 
   @Test
-  public void testAppendHashPartitionedSegmentsToMixedPartitionedDatasourceThrowingError() throws Exception
+  public void testAppendHashPartitionedSegmentsToLinearlyPartitionedDatasourceFailToAppend() throws Exception
   {
     if (lockGranularity == LockGranularity.SEGMENT) {
       return;
@@ -745,8 +782,6 @@ public class IndexTaskTest extends IngestionTestBase
         appenderatorsManager
     );
 
-    Assert.assertEquals("index_append_test", initialTask.getGroupId());
-
     Pair<TaskStatus, List<DataSegment>> result = runTask(initialTask);
     Assert.assertTrue(result.lhs.isSuccess());
 
@@ -774,32 +809,7 @@ public class IndexTaskTest extends IngestionTestBase
     );
 
     result = runTask(linearPartitionAppendTask);
-    Assert.assertTrue(result.lhs.isSuccess());
-
-    IndexTask hashPartitionAppendTask = new IndexTask(
-        null,
-        null,
-        createIngestionSpec(
-            useInputFormatApi,
-            jsonMapper,
-            tmpDir,
-            null,
-            null,
-            null,
-            createTuningConfigWithPartitionsSpec(
-                new HashedPartitionsSpec(null, 2, null),
-                false
-            ),
-            true
-        ),
-        null,
-        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
-        null,
-        rowIngestionMetersFactory,
-        appenderatorsManager
-    );
-
-    result = runTask(hashPartitionAppendTask);
+    Assert.assertFalse(result.lhs.isSuccess());
   }
 
   @Test
@@ -1301,7 +1311,7 @@ public class IndexTaskTest extends IngestionTestBase
     );
 
     TaskStatus status = runTask(indexTask).lhs;
-    Assert.assertEquals(TaskState.SUCCESS, status.getStatusCode());
+    Assert.assertTrue(status.isSuccess());
     Assert.assertEquals(null, status.getErrorMsg());
 
     IngestionStatsAndErrorsTaskReportData reportData = getTaskReportData();

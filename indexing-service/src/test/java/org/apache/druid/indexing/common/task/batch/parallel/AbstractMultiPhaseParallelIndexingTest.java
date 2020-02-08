@@ -25,7 +25,7 @@ import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.data.input.impl.StringInputRowParser;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
-import org.apache.druid.indexer.partitions.DimensionBasedPartitionsSpec;
+import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.SegmentLoaderFactory;
 import org.apache.druid.indexing.common.task.TaskResource;
@@ -112,7 +112,7 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
       Interval interval,
       File inputDir,
       String filter,
-      DimensionBasedPartitionsSpec partitionsSpec,
+      PartitionsSpec partitionsSpec,
       int maxNumConcurrentSubTasks
   ) throws Exception
   {
@@ -124,7 +124,7 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
       Interval interval,
       File inputDir,
       String filter,
-      DimensionBasedPartitionsSpec partitionsSpec,
+      PartitionsSpec partitionsSpec,
       int maxNumConcurrentSubTasks,
       boolean appendToExisting
   ) throws Exception
@@ -158,7 +158,7 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
       Interval interval,
       File inputDir,
       String filter,
-      DimensionBasedPartitionsSpec partitionsSpec,
+      PartitionsSpec partitionsSpec,
       int maxNumConcurrentSubTasks,
       boolean appendToExisting
   )

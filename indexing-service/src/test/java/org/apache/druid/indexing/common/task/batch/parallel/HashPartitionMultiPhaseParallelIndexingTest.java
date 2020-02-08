@@ -26,6 +26,7 @@ import org.apache.druid.data.input.impl.CSVParseSpec;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.data.input.impl.TimestampSpec;
+import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskToolbox;
@@ -138,8 +139,11 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
   }
 
   @Test
-  public void testAppendDataSuccessfullyAppended() throws Exception
+  public void testAppendHashPartitionedSegmensToHashPartitionedDatasourceSuccessfullyAppended() throws Exception
   {
+    if (getLockGranularity() == LockGranularity.SEGMENT) {
+      return;
+    }
     final Set<DataSegment> publishedSegments = new HashSet<>();
     publishedSegments.addAll(
         runTestTask(
@@ -155,6 +159,38 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
         runTestTask(
             PARSE_SPEC,
             Intervals.of("2017/2018"),
+            inputDir,
+            "test_*",
+            new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
+            MAX_NUM_CONCURRENT_SUB_TASKS,
+            true
+        )
+    );
+    assertHashedPartition(4, publishedSegments);
+  }
+
+  @Test
+  public void testAppendHashPartitionedSegmensToLinearlyPartitionedDatasourceFailToAppend() throws Exception
+  {
+    if (getLockGranularity() == LockGranularity.SEGMENT) {
+      return;
+    }
+    final Set<DataSegment> publishedSegments = new HashSet<>();
+    publishedSegments.addAll(
+        runTestTask(
+            PARSE_SPEC,
+            Intervals.of("2017/P1M"),
+            inputDir,
+            "test_*",
+            new DynamicPartitionsSpec(2, null),
+            MAX_NUM_CONCURRENT_SUB_TASKS,
+            true
+        )
+    );
+    publishedSegments.addAll(
+        runTestTask(
+            PARSE_SPEC,
+            Intervals.of("2017/P1M"),
             inputDir,
             "test_*",
             new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
