@@ -86,6 +86,6 @@ public class PartitionBoundariesTest
   @Test
   public void testEqualsContract()
   {
-    EqualsVerifier.forClass(PartitionBoundaries.class).withNonnullFields("delegate").usingGetClass().verify();
+    EqualsVerifier.forClass(PartitionBoundaries.class).withNonnullFields("boundaries").usingGetClass().verify();
   }
 }

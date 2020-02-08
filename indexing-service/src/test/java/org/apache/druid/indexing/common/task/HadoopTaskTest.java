@@ -88,7 +88,7 @@ public class HadoopTaskTest
       }
 
       @Override
-      public boolean isPerfectRollup()
+      public boolean requireTimeChunkLock()
       {
         return true;
       }

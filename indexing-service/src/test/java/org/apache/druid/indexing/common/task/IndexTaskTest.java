@@ -612,9 +612,9 @@ public class IndexTaskTest extends IngestionTestBase
   @Test
   public void testWriteNewSegmentsWithAppendToExistingWithHashPartitioningSuccessfullyAppend() throws Exception
   {
-    if (lockGranularity == LockGranularity.SEGMENT) {
-      return;
-    }
+//    if (lockGranularity == LockGranularity.SEGMENT) {
+//      return;
+//    }
     File tmpDir = temporaryFolder.newFolder();
     File tmpFile = File.createTempFile("druid", "index", tmpDir);
 
@@ -705,6 +705,101 @@ public class IndexTaskTest extends IngestionTestBase
     Assert.assertEquals(Intervals.of("2014/P1D"), segments.get(1).getInterval());
     Assert.assertEquals(HashBasedNumberedShardSpec.class, segments.get(1).getShardSpec().getClass());
     Assert.assertEquals(3, segments.get(1).getShardSpec().getPartitionNum());
+  }
+
+  @Test
+  public void testAppendHashPartitionedSegmentsToMixedPartitionedDatasourceThrowingError() throws Exception
+  {
+    if (lockGranularity == LockGranularity.SEGMENT) {
+      return;
+    }
+    File tmpDir = temporaryFolder.newFolder();
+    File tmpFile = File.createTempFile("druid", "index", tmpDir);
+
+    try (BufferedWriter writer = Files.newWriter(tmpFile, StandardCharsets.UTF_8)) {
+      writer.write("2014-01-01T00:00:10Z,a,1\n");
+      writer.write("2014-01-01T01:00:20Z,b,1\n");
+      writer.write("2014-01-01T02:00:30Z,c,1\n");
+    }
+
+    IndexTask initialTask = new IndexTask(
+        null,
+        null,
+        createIngestionSpec(
+            useInputFormatApi,
+            jsonMapper,
+            tmpDir,
+            null,
+            null,
+            null,
+            createTuningConfigWithPartitionsSpec(
+                new HashedPartitionsSpec(null, 2, null),
+                false
+            ),
+            true
+        ),
+        null,
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory,
+        appenderatorsManager
+    );
+
+    Assert.assertEquals("index_append_test", initialTask.getGroupId());
+
+    Pair<TaskStatus, List<DataSegment>> result = runTask(initialTask);
+    Assert.assertTrue(result.lhs.isSuccess());
+
+    IndexTask linearPartitionAppendTask = new IndexTask(
+        null,
+        null,
+        createIngestionSpec(
+            useInputFormatApi,
+            jsonMapper,
+            tmpDir,
+            null,
+            null,
+            null,
+            createTuningConfigWithPartitionsSpec(
+                new DynamicPartitionsSpec(2, null),
+                false
+            ),
+            true
+        ),
+        null,
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory,
+        appenderatorsManager
+    );
+
+    result = runTask(linearPartitionAppendTask);
+    Assert.assertTrue(result.lhs.isSuccess());
+
+    IndexTask hashPartitionAppendTask = new IndexTask(
+        null,
+        null,
+        createIngestionSpec(
+            useInputFormatApi,
+            jsonMapper,
+            tmpDir,
+            null,
+            null,
+            null,
+            createTuningConfigWithPartitionsSpec(
+                new HashedPartitionsSpec(null, 2, null),
+                false
+            ),
+            true
+        ),
+        null,
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        null,
+        rowIngestionMetersFactory,
+        appenderatorsManager
+    );
+
+    result = runTask(hashPartitionAppendTask);
   }
 
   @Test
@@ -1924,7 +2019,7 @@ public class IndexTaskTest extends IngestionTestBase
               granularitySpec != null ? granularitySpec : new UniformGranularitySpec(
                   Granularities.DAY,
                   Granularities.MINUTE,
-                  Collections.singletonList(Intervals.of("2014/2015"))
+                  Collections.singletonList(Intervals.of("2014/P1M"))
               ),
               transformSpec
           ),
@@ -1953,7 +2048,7 @@ public class IndexTaskTest extends IngestionTestBase
               granularitySpec != null ? granularitySpec : new UniformGranularitySpec(
                   Granularities.DAY,
                   Granularities.MINUTE,
-                  Collections.singletonList(Intervals.of("2014/2015"))
+                  Collections.singletonList(Intervals.of("2014/P1M"))
               ),
               transformSpec,
               objectMapper

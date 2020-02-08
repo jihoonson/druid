@@ -357,7 +357,7 @@ public class CompactionTask extends AbstractBatchIndexTask
   }
 
   @Override
-  public boolean isPerfectRollup()
+  public boolean requireTimeChunkLock()
   {
     return tuningConfig != null && tuningConfig.isForceGuaranteedRollup();
   }

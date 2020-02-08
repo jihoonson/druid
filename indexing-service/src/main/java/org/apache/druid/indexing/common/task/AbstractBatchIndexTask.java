@@ -163,10 +163,9 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
       throws IOException;
 
   /**
-   * // TODO:
-   * Returns true if this task is in the perfect (guaranteed) rollup mode.
+   * Returns true if this task requires to use the time chunk lock.
    */
-  public abstract boolean isPerfectRollup();
+  public abstract boolean requireTimeChunkLock();
 
   /**
    * Returns the segmentGranularity defined in the ingestion spec.
@@ -252,7 +251,7 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
       throws IOException
   {
     if (requireLockExistingSegments()) {
-      if (isPerfectRollup()) {
+      if (requireTimeChunkLock()) {
         log.info("Using timeChunk lock for perfect rollup");
         return new LockGranularityDetermineResult(LockGranularity.TIME_CHUNK, intervals, null);
       } else if (!intervals.isEmpty()) {

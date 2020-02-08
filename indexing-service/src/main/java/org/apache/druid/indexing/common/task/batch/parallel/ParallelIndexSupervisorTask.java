@@ -37,6 +37,7 @@ import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
+import org.apache.druid.indexer.partitions.SecondaryPartitionType;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
 import org.apache.druid.indexing.common.Counters;
@@ -64,6 +65,7 @@ import org.apache.druid.indexing.common.task.batch.parallel.distribution.StringS
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.UOE;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.indexing.TuningConfig;
@@ -192,7 +194,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
     this.ingestionSchema = ingestionSchema;
 
-    if (ingestionSchema.getTuningConfig().isForceGuaranteedRollup()) {
+    if (isGuaranteedRollup(ingestionSchema.getIOConfig(), ingestionSchema.getTuningConfig())) {
       checkPartitionsSpecForForceGuaranteedRollup(ingestionSchema.getTuningConfig().getGivenOrDefaultPartitionsSpec());
 
       if (ingestionSchema.getDataSchema().getGranularitySpec().inputIntervals().isEmpty()) {
@@ -397,9 +399,11 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   }
 
   @Override
-  public boolean isPerfectRollup()
+  public boolean requireTimeChunkLock()
   {
-    return isGuaranteedRollup(getIngestionSchema().getIOConfig(), getIngestionSchema().getTuningConfig());
+    final PartitionsSpec partitionsSpec = getIngestionSchema().getTuningConfig().getGivenOrDefaultPartitionsSpec();
+    return isGuaranteedRollup(getIngestionSchema().getIOConfig(), getIngestionSchema().getTuningConfig()) ||
+           partitionsSpec.getType() != SecondaryPartitionType.LINEAR;
   }
 
   @Nullable
@@ -444,10 +448,16 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
       if (isParallelMode()) {
         this.toolbox = toolbox;
-        if (getIngestionSchema().getTuningConfig().isForceGuaranteedRollup()) {
-          return runMultiPhaseParallel(toolbox);
-        } else {
-          return runSinglePhaseParallel(toolbox);
+        final PartitionsSpec partitionsSpec = ingestionSchema.getTuningConfig().getGivenOrDefaultPartitionsSpec();
+        switch (partitionsSpec.getType()) {
+          case LINEAR:
+            return runSinglePhaseParallel(toolbox);
+          case HASH:
+            return runHashPartitionMultiPhaseParallel(toolbox);
+          case RANGE:
+            return runRangePartitionMultiPhaseParallel(toolbox);
+          default:
+            throw new UOE("Unknown partition type: %s", partitionsSpec.getType());
         }
       } else {
         if (!baseInputSource.isSplittable()) {
@@ -521,24 +531,6 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
       publishSegments(toolbox, runner.getReports());
     }
     return TaskStatus.fromCode(getId(), state);
-  }
-
-  /**
-   * Run the multi phase parallel indexing for perfect rollup. In this mode, the parallel indexing is currently
-   * executed in two phases.
-   *
-   * - In the first phase, each task partitions input data and stores those partitions in local storage.
-   *   - The partition is created based on the segment granularity (primary partition key) and the partition dimension
-   *     values in {@link PartitionsSpec} (secondary partition key).
-   *   - Partitioned data is maintained by {@link org.apache.druid.indexing.worker.IntermediaryDataManager}.
-   * - In the second phase, each task reads partitioned data from the intermediary data server (middleManager
-   *   or indexer) and merges them to create the final segments.
-   */
-  private TaskStatus runMultiPhaseParallel(TaskToolbox toolbox) throws Exception
-  {
-    return useRangePartitions()
-           ? runRangePartitionMultiPhaseParallel(toolbox)
-           : runHashPartitionMultiPhaseParallel(toolbox);
   }
 
   private TaskStatus runHashPartitionMultiPhaseParallel(TaskToolbox toolbox) throws Exception

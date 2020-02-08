@@ -214,7 +214,7 @@ public class HadoopIndexTask extends HadoopTask implements ChatHandler
   }
 
   @Override
-  public boolean isPerfectRollup()
+  public boolean requireTimeChunkLock()
   {
     return true;
   }

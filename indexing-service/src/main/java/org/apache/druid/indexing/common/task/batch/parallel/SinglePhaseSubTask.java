@@ -254,7 +254,7 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
   }
 
   @Override
-  public boolean isPerfectRollup()
+  public boolean requireTimeChunkLock()
   {
     return false;
   }

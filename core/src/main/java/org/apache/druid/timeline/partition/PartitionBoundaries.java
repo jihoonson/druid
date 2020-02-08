@@ -20,6 +20,7 @@
 package org.apache.druid.timeline.partition;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.java.util.common.StringUtils;
@@ -107,6 +108,7 @@ public class PartitionBoundaries
     }
   }
 
+  @JsonIgnore
   public int getNumBuckets()
   {
     return boundaries.length > 0 ? boundaries.length - 1 : 0;
@@ -117,6 +119,7 @@ public class PartitionBoundaries
     return boundaries.length;
   }
 
+  @JsonIgnore
   public boolean isEmpty()
   {
     return boundaries.length == 0;

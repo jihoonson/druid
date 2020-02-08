@@ -302,9 +302,11 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
   }
 
   @Override
-  public boolean isPerfectRollup()
+  public boolean requireTimeChunkLock()
   {
-    return isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig);
+    final PartitionsSpec partitionsSpec = ingestionSchema.tuningConfig.getGivenOrDefaultPartitionsSpec();
+    return isGuaranteedRollup(ingestionSchema.ioConfig, ingestionSchema.tuningConfig) ||
+           partitionsSpec.getType() == SecondaryPartitionType.LINEAR;
   }
 
   @Nullable

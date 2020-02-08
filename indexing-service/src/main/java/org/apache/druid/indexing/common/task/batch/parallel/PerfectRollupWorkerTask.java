@@ -56,11 +56,6 @@ abstract class PerfectRollupWorkerTask extends AbstractBatchIndexTask
   {
     super(id, groupId, taskResource, dataSchema.getDataSource(), context);
 
-    Preconditions.checkArgument(
-        tuningConfig.isForceGuaranteedRollup(),
-        "forceGuaranteedRollup must be set"
-    );
-
     checkPartitionsSpec(tuningConfig.getGivenOrDefaultPartitionsSpec());
 
     granularitySpec = dataSchema.getGranularitySpec();
@@ -96,7 +91,7 @@ abstract class PerfectRollupWorkerTask extends AbstractBatchIndexTask
   }
 
   @Override
-  public final boolean isPerfectRollup()
+  public final boolean requireTimeChunkLock()
   {
     return true;
   }
