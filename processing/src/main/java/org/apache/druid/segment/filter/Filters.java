@@ -527,9 +527,7 @@ public class Filters
           andList.add(child);
         } else if (child instanceof OrFilter) {
           // pull apart the kids of the OR expression
-          for (Filter grandChild : ((OrFilter) child).getFilters()) {
-            nonAndList.add(grandChild);
-          }
+          nonAndList.addAll(((OrFilter) child).getFilters());
         } else {
           nonAndList.add(child);
         }
@@ -548,8 +546,7 @@ public class Filters
   private static Filter flatten(Filter root)
   {
     if (root instanceof BooleanFilter) {
-      List<Filter> children = new ArrayList<>();
-      children.addAll(((BooleanFilter) root).getFilters());
+      List<Filter> children = new ArrayList<>(((BooleanFilter) root).getFilters());
       // iterate through the index, so that if we add more children,
       // they don't get re-visited
       for (int i = 0; i < children.size(); ++i) {
@@ -643,5 +640,27 @@ public class Filters
       });
     }
     return false;
+  }
+
+  /**
+   * Create a filter representing an AND relationship across a list of filters.
+   *
+   * @param filterList List of filters
+   * @return If filterList has more than one element, return an AND filter composed of the filters from filterList
+   *         If filterList has a single element, return that element alone
+   *         If filterList is empty, return null
+   */
+  @Nullable
+  public static Filter and(List<Filter> filterList)
+  {
+    if (filterList.isEmpty()) {
+      return null;
+    }
+
+    if (filterList.size() == 1) {
+      return filterList.get(0);
+    }
+
+    return new AndFilter(filterList);
   }
 }

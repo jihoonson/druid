@@ -34,9 +34,9 @@ import org.joda.time.Interval;
 public class NonLinearlyPartitionedSequenceNameFunction implements SequenceNameFunction
 {
   private final String taskId;
-  private final PartitionAnalysis partitionAnalysis;
+  private final PartitionAnalysis<?, ?> partitionAnalysis;
 
-  public NonLinearlyPartitionedSequenceNameFunction(String taskId, PartitionAnalysis partitionAnalysis)
+  public NonLinearlyPartitionedSequenceNameFunction(String taskId, PartitionAnalysis<?, ?> partitionAnalysis)
   {
     this.taskId = taskId;
     this.partitionAnalysis = partitionAnalysis;
