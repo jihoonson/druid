@@ -24,25 +24,17 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.SetMultimap;
-import org.apache.druid.client.indexing.IndexingServiceClient;
-import org.apache.druid.data.input.InputSplit;
 import org.apache.druid.data.input.impl.CSVParseSpec;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.LockGranularity;
-import org.apache.druid.indexing.common.TaskToolbox;
-import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
-import org.apache.druid.indexing.common.task.TaskResource;
-import org.apache.druid.indexing.common.task.TestAppenderatorsManager;
-import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.query.scan.ScanResultValue;
 import org.apache.druid.timeline.DataSegment;
-import org.apache.druid.timeline.partition.PartitionBoundaries;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
 import org.hamcrest.Matchers;
 import org.joda.time.Interval;
@@ -52,7 +44,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
@@ -65,7 +56,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -126,11 +116,9 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
     this.maxNumConcurrentSubTasks = maxNumConcurrentSubTasks;
   }
 
-  @Override
   @Before
   public void setup() throws IOException
   {
-    super.setup();
     inputDir = temporaryFolder.newFolder("data");
     intervalToDim1 = createInputFiles(inputDir);
   }
@@ -169,7 +157,7 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
     int targetRowsPerSegment = NUM_ROW / NUM_DAY / NUM_PARTITION;
     final Set<DataSegment> publishedSegments = runTestTask(
         PARSE_SPEC,
-        Intervals.of("%s/%s", YEAR, YEAR + 1),
+        Intervals.of("%s-12/P1M", YEAR),
         inputDir,
         TEST_FILE_NAME_PREFIX + "*",
         new SingleDimensionPartitionsSpec(
@@ -265,219 +253,5 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
     Collections.sort(expectedValues);
     Collections.sort(actualValues);
     Assert.assertEquals(expectedValues, actualValues);
-  }
-
-  @Override
-  ParallelIndexSupervisorTask createParallelIndexSupervisorTask(
-      String id,
-      TaskResource taskResource,
-      ParallelIndexIngestionSpec ingestionSchema,
-      Map<String, Object> context,
-      IndexingServiceClient indexingServiceClient
-  )
-  {
-    return new TestSupervisorTask(id, taskResource, ingestionSchema, context, indexingServiceClient);
-  }
-
-  private static class TestSupervisorTask extends TestParallelIndexSupervisorTask
-  {
-    TestSupervisorTask(
-        String id,
-        TaskResource taskResource,
-        ParallelIndexIngestionSpec ingestionSchema,
-        Map<String, Object> context,
-        IndexingServiceClient indexingServiceClient
-    )
-    {
-      super(id, taskResource, ingestionSchema, context, indexingServiceClient);
-    }
-
-    @Override
-    PartialDimensionDistributionParallelIndexTaskRunner createPartialDimensionDistributionRunner(TaskToolbox toolbox)
-    {
-      return new TestPartialDimensionDistributionRunner(toolbox, this, getIndexingServiceClient());
-    }
-
-    @Override
-    PartialRangeSegmentGenerateParallelIndexTaskRunner createPartialRangeSegmentGenerateRunner(
-        TaskToolbox toolbox,
-        Map<Interval, PartitionBoundaries> intervalToPartitions
-    )
-    {
-      return new TestPartialRangeSegmentGenerateRunner(
-          toolbox,
-          this,
-          getIndexingServiceClient(),
-          intervalToPartitions
-      );
-    }
-
-    @Override
-    public PartialGenericSegmentMergeParallelIndexTaskRunner createPartialGenericSegmentMergeRunner(
-        TaskToolbox toolbox,
-        List<PartialGenericSegmentMergeIOConfig> ioConfigs
-    )
-    {
-      return new TestPartialGenericSegmentMergeParallelIndexTaskRunner(
-          toolbox,
-          this,
-          ioConfigs,
-          getIndexingServiceClient()
-      );
-    }
-  }
-
-  private static class TestPartialDimensionDistributionRunner
-      extends PartialDimensionDistributionParallelIndexTaskRunner
-  {
-    private TestPartialDimensionDistributionRunner(
-        TaskToolbox toolbox,
-        ParallelIndexSupervisorTask supervisorTask,
-        IndexingServiceClient indexingServiceClient
-    )
-    {
-      super(
-          toolbox,
-          supervisorTask.getId(),
-          supervisorTask.getGroupId(),
-          supervisorTask.getIngestionSchema(),
-          supervisorTask.getContext(),
-          indexingServiceClient,
-          new LocalParallelIndexTaskClientFactory(supervisorTask)
-      );
-    }
-  }
-
-  private static class TestPartialRangeSegmentGenerateRunner extends PartialRangeSegmentGenerateParallelIndexTaskRunner
-  {
-    private TestPartialRangeSegmentGenerateRunner(
-        TaskToolbox toolbox,
-        ParallelIndexSupervisorTask supervisorTask,
-        IndexingServiceClient indexingServiceClient,
-        Map<Interval, PartitionBoundaries> intervalToPartitions
-    )
-    {
-      super(
-          toolbox,
-          supervisorTask.getId(),
-          supervisorTask.getGroupId(),
-          supervisorTask.getIngestionSchema(),
-          supervisorTask.getContext(),
-          indexingServiceClient,
-          intervalToPartitions,
-          new LocalParallelIndexTaskClientFactory(supervisorTask),
-          new TestAppenderatorsManager()
-      );
-    }
-  }
-
-  private static class TestPartialGenericSegmentMergeParallelIndexTaskRunner
-      extends PartialGenericSegmentMergeParallelIndexTaskRunner
-  {
-    private final ParallelIndexSupervisorTask supervisorTask;
-
-    private TestPartialGenericSegmentMergeParallelIndexTaskRunner(
-        TaskToolbox toolbox,
-        ParallelIndexSupervisorTask supervisorTask,
-        List<PartialGenericSegmentMergeIOConfig> mergeIOConfigs,
-        IndexingServiceClient indexingServiceClient
-    )
-    {
-      super(
-          toolbox,
-          supervisorTask.getId(),
-          supervisorTask.getGroupId(),
-          supervisorTask.getIngestionSchema().getDataSchema(),
-          mergeIOConfigs,
-          supervisorTask.getIngestionSchema().getTuningConfig(),
-          supervisorTask.getContext(),
-          indexingServiceClient
-      );
-      this.supervisorTask = supervisorTask;
-    }
-
-    @Override
-    SubTaskSpec<PartialGenericSegmentMergeTask> newTaskSpec(PartialGenericSegmentMergeIOConfig ioConfig)
-    {
-      final PartialGenericSegmentMergeIngestionSpec ingestionSpec =
-          new PartialGenericSegmentMergeIngestionSpec(
-              supervisorTask.getIngestionSchema().getDataSchema(),
-              ioConfig,
-              getTuningConfig()
-          );
-      return new SubTaskSpec<PartialGenericSegmentMergeTask>(
-          getTaskId() + "_" + getAndIncrementNextSpecId(),
-          getGroupId(),
-          getTaskId(),
-          getContext(),
-          new InputSplit<>(ioConfig.getPartitionLocations())
-      )
-      {
-        @Override
-        public PartialGenericSegmentMergeTask newSubTask(int numAttempts)
-        {
-          return new TestPartialGenericSegmentMergeTask(
-              null,
-              getGroupId(),
-              null,
-              getSupervisorTaskId(),
-              numAttempts,
-              ingestionSpec,
-              getContext(),
-              getIndexingServiceClient(),
-              new LocalParallelIndexTaskClientFactory(supervisorTask),
-              getToolbox()
-          );
-        }
-      };
-    }
-  }
-
-  private static class TestPartialGenericSegmentMergeTask extends PartialGenericSegmentMergeTask
-  {
-    private final TaskToolbox toolbox;
-
-    private TestPartialGenericSegmentMergeTask(
-        @Nullable String id,
-        String groupId,
-        TaskResource taskResource,
-        String supervisorTaskId,
-        int numAttempts,
-        PartialGenericSegmentMergeIngestionSpec ingestionSchema,
-        Map<String, Object> context,
-        IndexingServiceClient indexingServiceClient,
-        IndexTaskClientFactory<ParallelIndexSupervisorTaskClient> taskClientFactory,
-        TaskToolbox toolbox
-    )
-    {
-      super(
-          id,
-          groupId,
-          taskResource,
-          supervisorTaskId,
-          numAttempts,
-          ingestionSchema,
-          context,
-          indexingServiceClient,
-          taskClientFactory,
-          null
-      );
-      this.toolbox = toolbox;
-    }
-
-    @Override
-    File fetchSegmentFile(File partitionDir, GenericPartitionLocation location)
-    {
-      final File zippedFile = toolbox.getIntermediaryDataManager().findPartitionFile(
-          getSupervisorTaskId(),
-          location.getSubTaskId(),
-          location.getInterval(),
-          location.getPartitionId()
-      );
-      if (zippedFile == null) {
-        throw new ISE("Can't find segment file for location[%s] at path[%s]", location);
-      }
-      return zippedFile;
-    }
   }
 }
