@@ -229,7 +229,7 @@ public class AbstractParallelIndexSupervisorTaskTest extends IngestionTestBase
     return coordinatorClient;
   }
 
-  private class TaskContainer
+  private static class TaskContainer
   {
     private final Task task;
     @MonotonicNonNull
