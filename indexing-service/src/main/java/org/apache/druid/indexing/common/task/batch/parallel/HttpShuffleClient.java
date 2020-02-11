@@ -38,7 +38,6 @@ public class HttpShuffleClient implements ShuffleClient
   private static final int BUFFER_SIZE = 1024 * 4;
   private static final int NUM_FETCH_RETRIES = 3;
 
-  private final byte[] buffer = new byte[BUFFER_SIZE];
   private final HttpClient httpClient;
 
   @Inject
@@ -54,6 +53,7 @@ public class HttpShuffleClient implements ShuffleClient
       P location
   ) throws IOException
   {
+    final byte[] buffer = new byte[BUFFER_SIZE];
     final File zippedFile = new File(partitionDir, StringUtils.format("temp_%s", location.getSubTaskId()));
     final URI uri = location.toIntermediaryDataServerURI(supervisorTaskId);
     FileUtils.copyLarge(

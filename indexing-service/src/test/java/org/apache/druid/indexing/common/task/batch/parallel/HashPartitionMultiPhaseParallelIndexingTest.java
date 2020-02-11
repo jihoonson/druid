@@ -59,11 +59,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
           "auto",
           null
       ),
-      new DimensionsSpec(
-          DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim1", "dim2")),
-          new ArrayList<>(),
-          new ArrayList<>()
-      ),
+      new DimensionsSpec(DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", "dim1", "dim2"))),
       null,
       Arrays.asList("ts", "dim1", "dim2", "val"),
       false,

@@ -79,11 +79,7 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
           "auto",
           null
       ),
-      new DimensionsSpec(
-          DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", DIM1, DIM2)),
-          new ArrayList<>(),
-          new ArrayList<>()
-      ),
+      new DimensionsSpec(DimensionsSpec.getDefaultSchemas(Arrays.asList("ts", DIM1, DIM2))),
       null,
       Arrays.asList("ts", DIM1, DIM2, "val"),
       false,
