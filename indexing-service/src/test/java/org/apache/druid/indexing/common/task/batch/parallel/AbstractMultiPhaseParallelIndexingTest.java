@@ -113,10 +113,20 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
       File inputDir,
       String filter,
       PartitionsSpec partitionsSpec,
-      int maxNumConcurrentSubTasks
+      int maxNumConcurrentSubTasks,
+      TaskState expectedTaskStatus
   ) throws Exception
   {
-    return runTestTask(parseSpec, interval, inputDir, filter, partitionsSpec, maxNumConcurrentSubTasks, false);
+    return runTestTask(
+        parseSpec,
+        interval,
+        inputDir,
+        filter,
+        partitionsSpec,
+        maxNumConcurrentSubTasks,
+        expectedTaskStatus,
+        false
+    );
   }
 
   Set<DataSegment> runTestTask(
@@ -126,6 +136,7 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
       String filter,
       PartitionsSpec partitionsSpec,
       int maxNumConcurrentSubTasks,
+      TaskState expectedTaskStatus,
       boolean appendToExisting
   ) throws Exception
   {
@@ -148,7 +159,7 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
 
     TaskStatus taskStatus = task.run(toolbox);
 
-    Assert.assertEquals(TaskState.SUCCESS, taskStatus.getStatusCode());
+    Assert.assertEquals(expectedTaskStatus, taskStatus.getStatusCode());
     shutdownTask(task);
     return actionClient.getPublishedSegments();
   }
