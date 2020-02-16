@@ -33,13 +33,13 @@ import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
-import org.apache.druid.indexing.common.task.batch.parallel.distribution.PartitionBoundaries;
 import org.apache.druid.indexing.common.task.batch.parallel.distribution.StringDistribution;
 import org.apache.druid.indexing.common.task.batch.parallel.distribution.StringSketch;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.testing.junit.LoggerCaptureRule;
+import org.apache.druid.timeline.partition.PartitionBoundaries;
 import org.apache.logging.log4j.core.LogEvent;
 import org.easymock.Capture;
 import org.easymock.EasyMock;
@@ -237,7 +237,7 @@ public class PartialDimensionDistributionTaskTest
     }
 
     @Test
-    public void skipsRowsWithMultipleDimensionValues()
+    public void failsIfRowHasMultipleDimensionValues()
     {
       InputSource inlineInputSource = new InlineInputSource(
           ParallelIndexTestingFactory.createRow(0, Arrays.asList("a", "b"))
@@ -245,10 +245,10 @@ public class PartialDimensionDistributionTaskTest
       PartialDimensionDistributionTaskBuilder taskBuilder = new PartialDimensionDistributionTaskBuilder()
           .inputSource(inlineInputSource);
 
-      DimensionDistributionReport report = runTask(taskBuilder);
+      exception.expect(RuntimeException.class);
+      exception.expectMessage("Cannot partition on multi-value dimension [dim]");
 
-      Map<Interval, StringDistribution> intervalToDistribution = report.getIntervalToDistribution();
-      Assert.assertEquals(0, intervalToDistribution.size());
+      runTask(taskBuilder);
     }
 
     @Test
