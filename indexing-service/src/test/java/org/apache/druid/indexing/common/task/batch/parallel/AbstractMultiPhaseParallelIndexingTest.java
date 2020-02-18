@@ -19,7 +19,6 @@
 
 package org.apache.druid.indexing.common.task.batch.parallel;
 
-import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.impl.LocalInputSource;
 import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.data.input.impl.StringInputRowParser;
@@ -28,7 +27,6 @@ import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.SegmentLoaderFactory;
-import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.query.DefaultGenericQueryMetricsFactory;
@@ -54,14 +52,10 @@ import org.apache.druid.segment.loading.SegmentLoadingException;
 import org.apache.druid.segment.realtime.firehose.LocalFirehoseFactory;
 import org.apache.druid.timeline.DataSegment;
 import org.joda.time.Interval;
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,21 +81,6 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
     this.useInputFormatApi = useInputFormatApi;
   }
 
-  @Before
-  public void setup() throws IOException
-  {
-    localDeepStorage = temporaryFolder.newFolder("localStorage");
-    indexingServiceClient = new LocalIndexingServiceClient();
-    initializeIntermediaryDataManager();
-  }
-
-  @After
-  public void teardown()
-  {
-    indexingServiceClient.shutdown();
-    temporaryFolder.delete();
-  }
-
   LockGranularity getLockGranularity()
   {
     return lockGranularity;
@@ -115,7 +94,7 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
       PartitionsSpec partitionsSpec,
       int maxNumConcurrentSubTasks,
       TaskState expectedTaskStatus
-  ) throws Exception
+  )
   {
     return runTestTask(
         parseSpec,
@@ -138,7 +117,7 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
       int maxNumConcurrentSubTasks,
       TaskState expectedTaskStatus,
       boolean appendToExisting
-  ) throws Exception
+  )
   {
     final ParallelIndexSupervisorTask task = newTask(
         parseSpec,
@@ -150,18 +129,10 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
         appendToExisting
     );
 
-    actionClient = createActionClient(task);
-    toolbox = createTaskToolbox(task);
-
-    prepareTaskForLocking(task);
     task.addToContext(Tasks.FORCE_TIME_CHUNK_LOCK_KEY, lockGranularity == LockGranularity.TIME_CHUNK);
-    Assert.assertTrue(task.isReady(actionClient));
-
-    TaskStatus taskStatus = task.run(toolbox);
-
+    TaskStatus taskStatus = getIndexingServiceClient().runAndWait(task);
     Assert.assertEquals(expectedTaskStatus, taskStatus.getStatusCode());
-    shutdownTask(task);
-    return actionClient.getPublishedSegments();
+    return getIndexingServiceClient().getPublishedSegments(task);
   }
 
   private ParallelIndexSupervisorTask newTask(
@@ -258,22 +229,19 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
     }
 
     // set up test tools
-    return createParallelIndexSupervisorTask(
+    return new ParallelIndexSupervisorTask(
+        null,
         null,
         null,
         ingestionSpec,
-        new HashMap<>(),
-        indexingServiceClient
+        Collections.emptyMap(),
+        null,
+        null,
+        null,
+        null,
+        null
     );
   }
-
-  abstract ParallelIndexSupervisorTask createParallelIndexSupervisorTask(
-      String id,
-      TaskResource taskResource,
-      ParallelIndexIngestionSpec ingestionSchema,
-      Map<String, Object> context,
-      IndexingServiceClient indexingServiceClient
-  );
 
   List<ScanResultValue> querySegment(DataSegment dataSegment, List<String> columns, File tempSegmentDir)
   {
