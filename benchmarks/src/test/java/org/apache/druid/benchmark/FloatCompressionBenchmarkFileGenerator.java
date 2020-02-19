@@ -20,8 +20,8 @@
 package org.apache.druid.benchmark;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.druid.benchmark.datagen.BenchmarkColumnSchema;
-import org.apache.druid.benchmark.datagen.BenchmarkColumnValueGenerator;
+import org.apache.druid.data.gen.TestColumnSchema;
+import org.apache.druid.data.gen.TestColumnValueGenerator;
 import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.segment.column.ValueType;
@@ -65,15 +65,15 @@ public class FloatCompressionBenchmarkFileGenerator
       dirPath = args[0];
     }
 
-    BenchmarkColumnSchema enumeratedSchema = BenchmarkColumnSchema.makeEnumerated("", ValueType.FLOAT, true, 1, 0d,
-                                                                                  ImmutableList.of(
+    TestColumnSchema enumeratedSchema = TestColumnSchema.makeEnumerated("", ValueType.FLOAT, true, 1, 0d,
+                                                                        ImmutableList.of(
                                                                                       0f,
                                                                                       1.1f,
                                                                                       2.2f,
                                                                                       3.3f,
                                                                                       4.4f
                                                                                   ),
-                                                                                  ImmutableList.of(
+                                                                        ImmutableList.of(
                                                                                       0.95,
                                                                                       0.001,
                                                                                       0.0189,
@@ -81,7 +81,7 @@ public class FloatCompressionBenchmarkFileGenerator
                                                                                       0.0001
                                                                                   )
     );
-    BenchmarkColumnSchema zipfLowSchema = BenchmarkColumnSchema.makeZipf(
+    TestColumnSchema zipfLowSchema = TestColumnSchema.makeZipf(
         "",
         ValueType.FLOAT,
         true,
@@ -91,7 +91,7 @@ public class FloatCompressionBenchmarkFileGenerator
         1000,
         1d
     );
-    BenchmarkColumnSchema zipfHighSchema = BenchmarkColumnSchema.makeZipf(
+    TestColumnSchema zipfHighSchema = TestColumnSchema.makeZipf(
         "",
         ValueType.FLOAT,
         true,
@@ -101,7 +101,7 @@ public class FloatCompressionBenchmarkFileGenerator
         1000,
         3d
     );
-    BenchmarkColumnSchema sequentialSchema = BenchmarkColumnSchema.makeSequential(
+    TestColumnSchema sequentialSchema = TestColumnSchema.makeSequential(
         "",
         ValueType.FLOAT,
         true,
@@ -110,7 +110,7 @@ public class FloatCompressionBenchmarkFileGenerator
         1470187671,
         2000000000
     );
-    BenchmarkColumnSchema uniformSchema = BenchmarkColumnSchema.makeContinuousUniform(
+    TestColumnSchema uniformSchema = TestColumnSchema.makeContinuousUniform(
         "",
         ValueType.FLOAT,
         true,
@@ -120,18 +120,18 @@ public class FloatCompressionBenchmarkFileGenerator
         1000
     );
 
-    Map<String, BenchmarkColumnValueGenerator> generators = new HashMap<>();
-    generators.put("enumerate", new BenchmarkColumnValueGenerator(enumeratedSchema, 1));
-    generators.put("zipfLow", new BenchmarkColumnValueGenerator(zipfLowSchema, 1));
-    generators.put("zipfHigh", new BenchmarkColumnValueGenerator(zipfHighSchema, 1));
-    generators.put("sequential", new BenchmarkColumnValueGenerator(sequentialSchema, 1));
-    generators.put("uniform", new BenchmarkColumnValueGenerator(uniformSchema, 1));
+    Map<String, TestColumnValueGenerator> generators = new HashMap<>();
+    generators.put("enumerate", new TestColumnValueGenerator(enumeratedSchema, 1));
+    generators.put("zipfLow", new TestColumnValueGenerator(zipfLowSchema, 1));
+    generators.put("zipfHigh", new TestColumnValueGenerator(zipfHighSchema, 1));
+    generators.put("sequential", new TestColumnValueGenerator(sequentialSchema, 1));
+    generators.put("uniform", new TestColumnValueGenerator(uniformSchema, 1));
 
     File dir = new File(dirPath);
     dir.mkdir();
 
     // create data files using BenchmarkColunValueGenerator
-    for (Map.Entry<String, BenchmarkColumnValueGenerator> entry : generators.entrySet()) {
+    for (Map.Entry<String, TestColumnValueGenerator> entry : generators.entrySet()) {
       final File dataFile = new File(dir, entry.getKey());
       dataFile.delete();
       try (Writer writer = Files.newBufferedWriter(dataFile.toPath(), StandardCharsets.UTF_8)) {
@@ -142,7 +142,7 @@ public class FloatCompressionBenchmarkFileGenerator
     }
 
     // create compressed files using all combinations of CompressionStrategy and FloatEncoding provided
-    for (Map.Entry<String, BenchmarkColumnValueGenerator> entry : generators.entrySet()) {
+    for (Map.Entry<String, TestColumnValueGenerator> entry : generators.entrySet()) {
       for (CompressionStrategy compression : COMPRESSIONS) {
         String name = entry.getKey() + "-" + compression;
         log.info("%s: ", name);

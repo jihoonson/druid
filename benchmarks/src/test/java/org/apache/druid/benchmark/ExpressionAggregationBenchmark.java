@@ -21,7 +21,7 @@ package org.apache.druid.benchmark;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import org.apache.druid.benchmark.datagen.BenchmarkColumnSchema;
+import org.apache.druid.data.gen.TestColumnSchema;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemaInfo;
 import org.apache.druid.benchmark.datagen.SegmentGenerator;
 import org.apache.druid.common.config.NullHandling;
@@ -92,8 +92,8 @@ public class ExpressionAggregationBenchmark
 
     final BenchmarkSchemaInfo schemaInfo = new BenchmarkSchemaInfo(
         ImmutableList.of(
-            BenchmarkColumnSchema.makeNormal("x", ValueType.FLOAT, false, 1, 0d, 0d, 10000d, false),
-            BenchmarkColumnSchema.makeNormal("y", ValueType.FLOAT, false, 1, 0d, 0d, 10000d, false)
+            TestColumnSchema.makeNormal("x", ValueType.FLOAT, false, 1, 0d, 0d, 10000d, false),
+            TestColumnSchema.makeNormal("y", ValueType.FLOAT, false, 1, 0d, 0d, 10000d, false)
         ),
         ImmutableList.of(),
         Intervals.of("2000/P1D"),

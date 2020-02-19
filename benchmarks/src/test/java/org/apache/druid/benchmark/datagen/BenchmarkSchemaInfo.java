@@ -19,6 +19,7 @@
 
 package org.apache.druid.benchmark.datagen;
 
+import org.apache.druid.data.gen.TestColumnSchema;
 import org.apache.druid.data.input.impl.DimensionSchema;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.query.aggregation.AggregatorFactory;
@@ -29,13 +30,13 @@ import java.util.stream.Collectors;
 
 public class BenchmarkSchemaInfo
 {
-  private List<BenchmarkColumnSchema> columnSchemas;
+  private List<TestColumnSchema> columnSchemas;
   private List<AggregatorFactory> aggs;
   private Interval dataInterval;
   private boolean withRollup;
 
   public BenchmarkSchemaInfo(
-      List<BenchmarkColumnSchema> columnSchemas,
+      List<TestColumnSchema> columnSchemas,
       List<AggregatorFactory> aggs,
       Interval dataInterval,
       boolean withRollup
@@ -47,7 +48,7 @@ public class BenchmarkSchemaInfo
     this.withRollup = withRollup;
   }
 
-  public List<BenchmarkColumnSchema> getColumnSchemas()
+  public List<TestColumnSchema> getColumnSchemas()
   {
     return columnSchemas;
   }
@@ -56,7 +57,7 @@ public class BenchmarkSchemaInfo
   {
     List<DimensionSchema> specs = getColumnSchemas().stream()
                                                     .filter(x -> !x.isMetric())
-                                                    .map(BenchmarkColumnSchema::getDimensionSchema)
+                                                    .map(TestColumnSchema::getDimensionSchema)
                                                     .collect(Collectors.toList());
 
     return new DimensionsSpec(specs);

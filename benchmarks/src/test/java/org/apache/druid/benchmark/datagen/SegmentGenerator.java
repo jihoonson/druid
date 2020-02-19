@@ -21,6 +21,7 @@ package org.apache.druid.benchmark.datagen;
 
 import com.google.common.hash.Hashing;
 import org.apache.druid.common.config.NullHandling;
+import org.apache.druid.data.gen.TestDataGenerator;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.java.util.common.FileUtils;
 import org.apache.druid.java.util.common.ISE;
@@ -131,7 +132,7 @@ public class SegmentGenerator implements Closeable
 
     log.info("Writing segment with hash[%s] to directory[%s].", dataHash, outDir);
 
-    final BenchmarkDataGenerator dataGenerator = new BenchmarkDataGenerator(
+    final TestDataGenerator dataGenerator = new TestDataGenerator(
         schemaInfo.getColumnSchemas(),
         dataSegment.getId().hashCode(), /* Use segment identifier hashCode as seed */
         schemaInfo.getDataInterval(),

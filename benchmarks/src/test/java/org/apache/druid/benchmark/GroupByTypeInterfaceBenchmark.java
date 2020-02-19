@@ -23,7 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
-import org.apache.druid.benchmark.datagen.BenchmarkDataGenerator;
+import org.apache.druid.data.gen.TestDataGenerator;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemaInfo;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemas;
 import org.apache.druid.benchmark.query.QueryBenchmarkUtil;
@@ -283,7 +283,7 @@ public class GroupByTypeInterfaceBenchmark
     longQuery = SCHEMA_QUERY_MAP.get(schemaName).get("long");
     floatQuery = SCHEMA_QUERY_MAP.get(schemaName).get("float");
 
-    final BenchmarkDataGenerator dataGenerator = new BenchmarkDataGenerator(
+    final TestDataGenerator dataGenerator = new TestDataGenerator(
         schemaInfo.getColumnSchemas(),
         RNG_SEED + 1,
         schemaInfo.getDataInterval(),

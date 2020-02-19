@@ -24,7 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.apache.druid.benchmark.datagen.BenchmarkDataGenerator;
+import org.apache.druid.data.gen.TestDataGenerator;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemaInfo;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemas;
 import org.apache.druid.common.config.NullHandling;
@@ -335,7 +335,7 @@ public class SearchBenchmark
     incIndexes = new ArrayList<>();
     for (int i = 0; i < numSegments; i++) {
       log.info("Generating rows for segment " + i);
-      BenchmarkDataGenerator gen = new BenchmarkDataGenerator(
+      TestDataGenerator gen = new TestDataGenerator(
           schemaInfo.getColumnSchemas(),
           System.currentTimeMillis(),
           schemaInfo.getDataInterval(),

@@ -21,7 +21,7 @@ package org.apache.druid.benchmark;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
-import org.apache.druid.benchmark.datagen.BenchmarkDataGenerator;
+import org.apache.druid.data.gen.TestDataGenerator;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemaInfo;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemas;
 import org.apache.druid.benchmark.query.QueryBenchmarkUtil;
@@ -154,7 +154,7 @@ public class FilteredAggregatorBenchmark
 
     schemaInfo = BenchmarkSchemas.SCHEMA_MAP.get(schema);
 
-    BenchmarkDataGenerator gen = new BenchmarkDataGenerator(
+    TestDataGenerator gen = new TestDataGenerator(
         schemaInfo.getColumnSchemas(),
         RNG_SEED,
         schemaInfo.getDataInterval(),

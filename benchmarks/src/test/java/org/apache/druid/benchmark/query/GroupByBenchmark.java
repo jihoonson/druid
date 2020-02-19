@@ -26,7 +26,7 @@ import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.apache.druid.benchmark.datagen.BenchmarkDataGenerator;
+import org.apache.druid.data.gen.TestDataGenerator;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemaInfo;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemas;
 import org.apache.druid.collections.BlockingPool;
@@ -446,7 +446,7 @@ public class GroupByBenchmark
     schemaInfo = BenchmarkSchemas.SCHEMA_MAP.get(schemaName);
     query = SCHEMA_QUERY_MAP.get(schemaName).get(queryName);
 
-    final BenchmarkDataGenerator dataGenerator = new BenchmarkDataGenerator(
+    final TestDataGenerator dataGenerator = new TestDataGenerator(
         schemaInfo.getColumnSchemas(),
         RNG_SEED + 1,
         schemaInfo.getDataInterval(),

@@ -19,7 +19,7 @@
 
 package org.apache.druid.benchmark.indexing;
 
-import org.apache.druid.benchmark.datagen.BenchmarkDataGenerator;
+import org.apache.druid.data.gen.TestDataGenerator;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemaInfo;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemas;
 import org.apache.druid.common.config.NullHandling;
@@ -102,7 +102,7 @@ public class IncrementalIndexReadBenchmark
 
     schemaInfo = BenchmarkSchemas.SCHEMA_MAP.get(schema);
 
-    BenchmarkDataGenerator gen = new BenchmarkDataGenerator(
+    TestDataGenerator gen = new TestDataGenerator(
         schemaInfo.getColumnSchemas(),
         RNG_SEED,
         schemaInfo.getDataInterval(),

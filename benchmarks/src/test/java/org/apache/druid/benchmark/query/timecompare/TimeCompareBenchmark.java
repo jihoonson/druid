@@ -21,7 +21,7 @@ package org.apache.druid.benchmark.query.timecompare;
 
 import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.benchmark.datagen.BenchmarkDataGenerator;
+import org.apache.druid.data.gen.TestDataGenerator;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemaInfo;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemas;
 import org.apache.druid.benchmark.query.QueryBenchmarkUtil;
@@ -308,7 +308,7 @@ public class TimeCompareBenchmark
     for (int i = 0; i < numSegments; i++) {
       log.info("Generating rows for segment " + i);
 
-      BenchmarkDataGenerator gen = new BenchmarkDataGenerator(
+      TestDataGenerator gen = new TestDataGenerator(
           schemaInfo.getColumnSchemas(),
           RNG_SEED + i,
           segmentIntervals[i],

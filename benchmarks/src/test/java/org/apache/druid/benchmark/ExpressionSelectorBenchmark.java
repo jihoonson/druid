@@ -20,7 +20,7 @@
 package org.apache.druid.benchmark;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.druid.benchmark.datagen.BenchmarkColumnSchema;
+import org.apache.druid.data.gen.TestColumnSchema;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemaInfo;
 import org.apache.druid.benchmark.datagen.SegmentGenerator;
 import org.apache.druid.common.config.NullHandling;
@@ -88,7 +88,7 @@ public class ExpressionSelectorBenchmark
 
     final BenchmarkSchemaInfo schemaInfo = new BenchmarkSchemaInfo(
         ImmutableList.of(
-            BenchmarkColumnSchema.makeZipf(
+            TestColumnSchema.makeZipf(
                 "n",
                 ValueType.LONG,
                 false,
@@ -98,7 +98,7 @@ public class ExpressionSelectorBenchmark
                 10000,
                 3d
             ),
-            BenchmarkColumnSchema.makeZipf(
+            TestColumnSchema.makeZipf(
                 "s",
                 ValueType.STRING,
                 false,
