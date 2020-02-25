@@ -71,13 +71,11 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.StreamSupport;
 
 /**
  */
@@ -825,9 +823,10 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       if (!existingChunks.isEmpty()) {
         TimelineObjectHolder<String, DataSegment> existingHolder = Iterables.getOnlyElement(existingChunks);
 
+        //noinspection ConstantConditions
         for (DataSegment segment : FluentIterable
             .from(existingHolder.getObject())
-            .transform(chunk -> chunk.getObject())
+            .transform(PartitionChunk::getObject)
             // Here we check only the segments of the same shardSpec to find out the max partitionId.
             // Note that OverwriteShardSpec has the higher range for partitionId than others.
             // See PartitionIds.

@@ -26,7 +26,6 @@ import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 /**
  * An object that clumps together multiple other objects which each represent a shard of some space.
@@ -112,11 +111,6 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
   public Iterator<PartitionChunk<T>> iterator()
   {
     return overshadowableManager.visibleChunksIterator();
-  }
-
-  public Stream<PartitionChunk<T>> stream()
-  {
-    return overshadowableManager.createVisibleChunksStream();
   }
 
   public List<PartitionChunk<T>> getOvershadowed()

@@ -239,11 +239,9 @@ public class NewestSegmentFirstIterator implements CompactionSegmentIterator
       if (holders.isEmpty()) {
         throw new NoSuchElementException();
       }
-      return holders.remove(holders.size() - 1)
-                    .getObject()
-                    .stream()
-                    .map(PartitionChunk::getObject)
-                    .collect(Collectors.toList());
+      return FluentIterable.from(holders.remove(holders.size() - 1).getObject())
+                           .transform(PartitionChunk::getObject)
+                           .toList();
     }
   }
 
