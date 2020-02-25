@@ -482,7 +482,12 @@ public class VersionedIntervalTimeline<VersionType, ObjectType extends Overshado
         if (versionCompare > 0) {
           return false;
         } else if (versionCompare == 0) {
-          if (timelineEntry.partitionHolder.stream().noneMatch(chunk -> chunk.getObject().overshadows(object))) {
+          // Intentionally use the Iterators API instead of the stream API for performance.
+          //noinspection ConstantConditions
+          final boolean nonOvershadowedObject = Iterators.all(
+              timelineEntry.partitionHolder.iterator(), chunk -> !chunk.getObject().overshadows(object)
+          );
+          if (nonOvershadowedObject) {
             return false;
           }
         }

@@ -26,7 +26,6 @@ import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Spliterator;
 import java.util.stream.Stream;
 
 /**
@@ -112,13 +111,7 @@ public class PartitionHolder<T extends Overshadowable<T>> implements Iterable<Pa
   @Override
   public Iterator<PartitionChunk<T>> iterator()
   {
-    return stream().iterator();
-  }
-
-  @Override
-  public Spliterator<PartitionChunk<T>> spliterator()
-  {
-    return stream().spliterator();
+    return overshadowableManager.visibleChunksIterator();
   }
 
   public Stream<PartitionChunk<T>> stream()
