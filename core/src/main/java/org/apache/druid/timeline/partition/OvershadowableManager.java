@@ -54,8 +54,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * OvershadowableManager manages the state of {@link AtomicUpdateGroup}. See the below {@link State} for details.
@@ -169,7 +167,7 @@ class OvershadowableManager<T extends Overshadowable<T>>
   private void replaceVisibleWith(
       Collection<AtomicUpdateGroup<T>> oldVisibleGroups,
       State newStateOfOldVisibleGroup,
-      List<AtomicUpdateGroup<T>> newVisibleGroups,
+      Collection<AtomicUpdateGroup<T>> newVisibleGroups,
       State oldStateOfNewVisibleGroups
   )
   {
@@ -517,15 +515,14 @@ class OvershadowableManager<T extends Overshadowable<T>>
       if (!isOvershadowingGroupsFull) {
         // Let's check the overshadowed groups can cover the partition range of groupsOvershadowingAug
         // and are fully available.
-        final List<AtomicUpdateGroup<T>> latestFullGroups = groupsOvershadowingAug
-            .stream()
-            .flatMap(
-                eachFullgroup -> findLatestFullyAvailableOvershadowedAtomicUpdateGroups(
-                    RootPartitionRange.of(eachFullgroup),
-                    eachFullgroup.getMinorVersion()
-                ).stream()
-            )
-            .collect(Collectors.toList());
+        //noinspection ConstantConditions
+        final List<AtomicUpdateGroup<T>> latestFullGroups = FluentIterable
+            .from(groupsOvershadowingAug)
+            .transformAndConcat(eachFullgroup -> findLatestFullyAvailableOvershadowedAtomicUpdateGroups(
+                RootPartitionRange.of(eachFullgroup),
+                eachFullgroup.getMinorVersion()
+            ))
+            .toList();
 
         if (!latestFullGroups.isEmpty()) {
           final boolean isOvershadowedGroupsFull = doGroupsFullyCoverPartitionRange(
@@ -702,38 +699,35 @@ class OvershadowableManager<T extends Overshadowable<T>>
       if (!latestFullAugs.isEmpty()) {
         // The current visible atomicUpdateGroup becomes standby
         // and the fully available overshadowed atomicUpdateGroups become visible
-        final Set<AtomicUpdateGroup<T>> overshadowsLatestFullAugsInVisible = latestFullAugs
-            .stream()
-            .flatMap(group -> findOvershadows(group, State.VISIBLE).stream())
-            .collect(Collectors.toSet());
+        final Set<AtomicUpdateGroup<T>> overshadowsLatestFullAugsInVisible = FluentIterable
+            .from(latestFullAugs)
+            .transformAndConcat(group -> findOvershadows(group, State.VISIBLE))
+            .toSet();
         replaceVisibleWith(
             overshadowsLatestFullAugsInVisible,
             State.STANDBY,
             latestFullAugs,
             State.OVERSHADOWED
         );
-        latestFullAugs
-            .stream()
-            .flatMap(group -> findOvershadows(group, State.OVERSHADOWED).stream())
-            .collect(Collectors.toSet())
-            .forEach(group -> transitAtomicUpdateGroupState(group, State.OVERSHADOWED, State.STANDBY));
+        FluentIterable.from(latestFullAugs)
+                      .transformAndConcat(group -> findOvershadows(group, State.OVERSHADOWED))
+                      .forEach(group -> transitAtomicUpdateGroupState(group, State.OVERSHADOWED, State.STANDBY));
       } else {
         // Find the latest non-fully available atomicUpdateGroups
         final List<AtomicUpdateGroup<T>> latestStandby = findLatestNonFullyAvailableAtomicUpdateGroups(
             findOvershadows(rangeOfAug, minorVersion, State.STANDBY)
         );
         if (!latestStandby.isEmpty()) {
-          final List<AtomicUpdateGroup<T>> overshadowedByLatestStandby = latestStandby
-              .stream()
-              .flatMap(group -> findOvershadowedBy(group, State.VISIBLE).stream())
-              .collect(Collectors.toList());
+          final List<AtomicUpdateGroup<T>> overshadowedByLatestStandby = FluentIterable
+              .from(latestStandby)
+              .transformAndConcat(group -> findOvershadowedBy(group, State.VISIBLE))
+              .toList();
           replaceVisibleWith(overshadowedByLatestStandby, State.OVERSHADOWED, latestStandby, State.STANDBY);
 
           // All standby groups overshadowed by the new visible group should be moved to overshadowed
-          latestStandby
-              .stream()
-              .flatMap(group -> findOvershadowedBy(group, State.STANDBY).stream())
-              .collect(Collectors.toSet())
+          FluentIterable
+              .from(latestStandby)
+              .transformAndConcat(group -> findOvershadowedBy(group, State.STANDBY))
               .forEach(aug -> transitAtomicUpdateGroupState(aug, State.STANDBY, State.OVERSHADOWED));
         } else if (augOfRemovedChunk.isEmpty()) {
           // Visible is empty. Move the latest overshadowed to visible.
@@ -902,18 +896,6 @@ class OvershadowableManager<T extends Overshadowable<T>>
           aug
       );
     }
-  }
-
-  Stream<PartitionChunk<T>> createVisibleChunksStream()
-  {
-    return visibleGroupPerRange
-        .values()
-        .stream()
-        .flatMap((Short2ObjectSortedMap<AtomicUpdateGroup<T>> map) -> {
-          SingleEntryShort2ObjectSortedMap<AtomicUpdateGroup<T>> singleMap =
-              (SingleEntryShort2ObjectSortedMap<AtomicUpdateGroup<T>>) map;
-          return singleMap.val.getChunks().stream();
-        });
   }
 
   Iterator<PartitionChunk<T>> visibleChunksIterator()
