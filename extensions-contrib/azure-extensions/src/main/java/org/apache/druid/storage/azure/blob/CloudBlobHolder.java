@@ -46,4 +46,9 @@ public class CloudBlobHolder
   {
     return delegate.getName();
   }
+
+  public long getBlobLength()
+  {
+    return delegate.getProperties().getLength();
+  }
 }
