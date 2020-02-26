@@ -127,7 +127,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
   }
 
   @Test
-  public void testAppendHashPartitionedSegmensToHashPartitionedDatasourceSuccessfullyAppended() throws Exception
+  public void testAppendHashPartitionedSegmensToHashPartitionedDatasourceSuccessfullyAppend() throws Exception
   {
     if (getLockGranularity() == LockGranularity.SEGMENT) {
       return;
@@ -136,7 +136,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
     publishedSegments.addAll(
         runTestTask(
             PARSE_SPEC,
-            Intervals.of("2017/2018"),
+            INTERVAL_TO_INDEX,
             inputDir,
             "test_*",
             new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
@@ -147,7 +147,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
     publishedSegments.addAll(
         runTestTask(
             PARSE_SPEC,
-            Intervals.of("2017/2018"),
+            INTERVAL_TO_INDEX,
             inputDir,
             "test_*",
             new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
@@ -160,7 +160,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
   }
 
   @Test
-  public void testAppendHashPartitionedSegmensToLinearlyPartitionedDatasourceFailToAppend() throws Exception
+  public void testAppendHashPartitionedSegmensToDifferentlyHashPartitionedDatasourceSuccessfullyAppend() throws Exception
   {
     if (getLockGranularity() == LockGranularity.SEGMENT) {
       return;
@@ -169,28 +169,83 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
     publishedSegments.addAll(
         runTestTask(
             PARSE_SPEC,
-            Intervals.of("2017/P1M"),
+            INTERVAL_TO_INDEX,
             inputDir,
             "test_*",
-            new DynamicPartitionsSpec(2, null),
+            new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
             MAX_NUM_CONCURRENT_SUB_TASKS,
-            TaskState.SUCCESS,
-            true
+            TaskState.SUCCESS
         )
     );
     publishedSegments.addAll(
         runTestTask(
             PARSE_SPEC,
-            Intervals.of("2017/P1M"),
+            INTERVAL_TO_INDEX,
             inputDir,
             "test_*",
-            new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
+            new HashedPartitionsSpec(null, 3, ImmutableList.of("dim1")),
             MAX_NUM_CONCURRENT_SUB_TASKS,
             TaskState.SUCCESS,
             true
         )
     );
     assertHashedPartition(4, publishedSegments);
+  }
+
+  @Test
+  public void testAppendHashPartitionedSegmensToLinearlyPartitionedDatasourceFailToAppend()
+  {
+    if (getLockGranularity() == LockGranularity.SEGMENT) {
+      return;
+    }
+    runTestTask(
+        PARSE_SPEC,
+        INTERVAL_TO_INDEX,
+        inputDir,
+        "test_*",
+        new DynamicPartitionsSpec(2, null),
+        MAX_NUM_CONCURRENT_SUB_TASKS,
+        TaskState.SUCCESS,
+        true
+    );
+    runTestTask(
+        PARSE_SPEC,
+        INTERVAL_TO_INDEX,
+        inputDir,
+        "test_*",
+        new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
+        MAX_NUM_CONCURRENT_SUB_TASKS,
+        TaskState.FAILED,
+        true
+    );
+  }
+
+  @Test
+  public void testAppendLinearlyPartitionedSegmensToHashPartitionedDatasourceFailToAppend()
+  {
+    if (getLockGranularity() == LockGranularity.SEGMENT) {
+      return;
+    }
+    runTestTask(
+        PARSE_SPEC,
+        INTERVAL_TO_INDEX,
+        inputDir,
+        "test_*",
+        new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
+        MAX_NUM_CONCURRENT_SUB_TASKS,
+        TaskState.SUCCESS,
+        true
+    );
+    runTestTask(
+        PARSE_SPEC,
+        INTERVAL_TO_INDEX,
+        inputDir,
+        "test_*",
+        new DynamicPartitionsSpec(2, null),
+        MAX_NUM_CONCURRENT_SUB_TASKS,
+        TaskState.FAILED,
+        true
+    );
   }
 
   private void assertHashedPartition(int expectedNumSegmentsPerInterval, Set<DataSegment> publishedSegments)

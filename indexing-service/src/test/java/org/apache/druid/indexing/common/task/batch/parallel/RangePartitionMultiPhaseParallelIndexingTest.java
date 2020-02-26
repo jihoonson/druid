@@ -214,14 +214,14 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
   }
 
   @Test
-  public void testAppendDataSuccessfullyAppended() throws Exception
+  public void testAppendRangePartitionedSegmentsToRangePartitionedDatasourceSuccessfullyAppend() throws Exception
   {
     int targetRowsPerSegment = NUM_ROW / DIM_FILE_CARDINALITY / NUM_PARTITION;
     final Set<DataSegment> publishedSegments = new HashSet<>();
     publishedSegments.addAll(
         runTestTask(
             PARSE_SPEC,
-            Intervals.of("%s/%s", YEAR, YEAR + 1),
+            INTERVAL_TO_INDEX,
             inputDir,
             TEST_FILE_NAME_PREFIX + "*",
             new SingleDimensionPartitionsSpec(
@@ -237,7 +237,7 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
     publishedSegments.addAll(
         runTestTask(
             PARSE_SPEC,
-            Intervals.of("%s/%s", YEAR, YEAR + 1),
+            INTERVAL_TO_INDEX,
             inputDir,
             TEST_FILE_NAME_PREFIX + "*",
             new SingleDimensionPartitionsSpec(
@@ -328,12 +328,11 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
     List<String> expectedValues = intervalToDims.get(interval)
                                                 .stream()
                                                 .map(d -> (String) d.get(0))
-                                                .sorted(Comparators.naturalNullsFirst())
                                                 .collect(Collectors.toList());
     if (appended) {
-      //noinspection SSBasedInspection
-      expectedValues.addAll(ImmutableList.copyOf(expectedValues));
+      expectedValues.addAll(new ArrayList<>(expectedValues));
     }
+    expectedValues.sort(Comparators.naturalNullsFirst());
     actualValues.sort(Comparators.naturalNullsFirst());
     Assert.assertEquals(interval.toString(), expectedValues, actualValues);
   }
