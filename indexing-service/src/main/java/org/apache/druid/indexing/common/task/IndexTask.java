@@ -296,7 +296,8 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         getDataSource(),
         taskActionClient,
         intervals,
-        ingestionSchema.ioConfig.firehoseFactory
+        ingestionSchema.ioConfig.firehoseFactory,
+        ingestionSchema.ioConfig.inputSource
     );
   }
 

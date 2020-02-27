@@ -30,6 +30,7 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Numbers;
 
 import javax.annotation.Nullable;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,6 +42,15 @@ import java.util.stream.Collectors;
 public class SingleDimensionShardSpec implements ShardSpec
 {
   public static final short UNKNOWN_NUM_BUCKETS = -1;
+  public static final Comparator<SingleDimensionShardSpec> COMPARATOR = (s1, s2) -> {
+    if (s1.start == null) {
+      return -1;
+    } else if (s2.start == null) {
+      return 1;
+    } else {
+      return s1.start.compareTo(s2.start);
+    }
+  };
 
   private final String dimension;
   @Nullable
@@ -115,15 +125,7 @@ public class SingleDimensionShardSpec implements ShardSpec
     final List<SingleDimensionShardSpec> sortedSpecs = shardSpecs
         .stream()
         .map(shardSpec -> (SingleDimensionShardSpec) shardSpec)
-        .sorted((s1, s2) -> {
-          if (s1.start == null) {
-            return -1;
-          } else if (s2.start == null) {
-            return 1;
-          } else {
-            return s1.start.compareTo(s2.start);
-          }
-        })
+        .sorted(COMPARATOR)
         .collect(Collectors.toList());
     final PartitionBoundaries partitionBoundaries = PartitionBoundaries.fromSortedShardSpecs(sortedSpecs);
     return (timestamp, row) -> {

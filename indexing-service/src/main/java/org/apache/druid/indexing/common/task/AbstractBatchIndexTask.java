@@ -23,6 +23,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.FirehoseFactory;
+import org.apache.druid.data.input.InputSource;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
@@ -36,6 +37,7 @@ import org.apache.druid.indexing.common.task.IndexTask.IndexIOConfig;
 import org.apache.druid.indexing.common.task.IndexTask.IndexTuningConfig;
 import org.apache.druid.indexing.firehose.IngestSegmentFirehoseFactory;
 import org.apache.druid.indexing.firehose.WindowedSegmentId;
+import org.apache.druid.indexing.input.DruidInputSource;
 import org.apache.druid.indexing.overlord.Segments;
 import org.apache.druid.java.util.common.JodaUtils;
 import org.apache.druid.java.util.common.granularity.Granularity;
@@ -189,10 +191,8 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
    * This method respects the value of 'forceTimeChunkLock' in task context.
    * If it's set to false or missing, this method checks if this task can use segmentLock.
    */
-  protected boolean determineLockGranularityAndTryLock(
-      TaskActionClient client,
-      GranularitySpec granularitySpec
-  ) throws IOException
+  protected boolean determineLockGranularityAndTryLock(TaskActionClient client, GranularitySpec granularitySpec)
+      throws IOException
   {
     final List<Interval> intervals = granularitySpec.bucketIntervals().isPresent()
                                      ? new ArrayList<>(granularitySpec.bucketIntervals().get())
@@ -404,46 +404,85 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
       String dataSource,
       TaskActionClient actionClient,
       List<Interval> intervalsToRead,
-      FirehoseFactory firehoseFactory
+      @Nullable FirehoseFactory firehoseFactory,
+      @Nullable InputSource inputSource
   ) throws IOException
   {
     if (firehoseFactory instanceof IngestSegmentFirehoseFactory) {
       // intervalsToRead is ignored here.
-      final List<WindowedSegmentId> inputSegments = ((IngestSegmentFirehoseFactory) firehoseFactory).getSegments();
-      if (inputSegments == null) {
-        final Interval inputInterval = Preconditions.checkNotNull(
-            ((IngestSegmentFirehoseFactory) firehoseFactory).getInterval(),
-            "input interval"
-        );
-
-        return ImmutableList.copyOf(
-            actionClient.submit(
-                new RetrieveUsedSegmentsAction(dataSource, inputInterval, null, Segments.ONLY_VISIBLE)
-            )
-        );
-      } else {
-        final List<String> inputSegmentIds =
-            inputSegments.stream().map(WindowedSegmentId::getSegmentId).collect(Collectors.toList());
-        final Collection<DataSegment> dataSegmentsInIntervals = actionClient.submit(
-            new RetrieveUsedSegmentsAction(
-                dataSource,
-                null,
-                inputSegments.stream()
-                             .flatMap(windowedSegmentId -> windowedSegmentId.getIntervals().stream())
-                             .collect(Collectors.toSet()),
-                Segments.ONLY_VISIBLE
-            )
-        );
-        return dataSegmentsInIntervals.stream()
-                                      .filter(segment -> inputSegmentIds.contains(segment.getId().toString()))
-                                      .collect(Collectors.toList());
-      }
+      return findReindexSegments(
+          dataSource,
+          actionClient,
+          (IngestSegmentFirehoseFactory) firehoseFactory,
+          null
+      );
+    } else if (inputSource instanceof DruidInputSource) {
+      // intervalsToRead is ignored here.
+      return findReindexSegments(
+          dataSource,
+          actionClient,
+          null,
+          (DruidInputSource) inputSource
+      );
     } else {
       return ImmutableList.copyOf(
           actionClient.submit(
               new RetrieveUsedSegmentsAction(dataSource, null, intervalsToRead, Segments.ONLY_VISIBLE)
           )
       );
+    }
+  }
+
+  private static List<DataSegment> findReindexSegments(
+      String dataSource,
+      TaskActionClient actionClient,
+      @Nullable IngestSegmentFirehoseFactory firehoseFactory,
+      @Nullable DruidInputSource inputSource
+  ) throws IOException
+  {
+    Preconditions.checkArgument(
+        firehoseFactory != null || inputSource != null,
+        "Either firehoseFactory or inputSource should not be null"
+    );
+    final Interval interval;
+    final List<WindowedSegmentId> windowedSegmentIds;
+    if (firehoseFactory != null) {
+      interval = firehoseFactory.getInterval();
+      windowedSegmentIds = firehoseFactory.getSegments();
+    } else {
+      interval = inputSource.getInterval();
+      windowedSegmentIds = inputSource.getSegmentIds();
+    }
+
+    if (windowedSegmentIds == null) {
+      return ImmutableList.copyOf(
+          actionClient.submit(
+              new RetrieveUsedSegmentsAction(
+                  dataSource,
+                  Preconditions.checkNotNull(interval, "input interval"),
+                  null,
+                  Segments.ONLY_VISIBLE
+              )
+          )
+      );
+    } else {
+      final List<String> inputSegmentIds = windowedSegmentIds
+          .stream()
+          .map(WindowedSegmentId::getSegmentId)
+          .collect(Collectors.toList());
+      final Collection<DataSegment> dataSegmentsInIntervals = actionClient.submit(
+          new RetrieveUsedSegmentsAction(
+              dataSource,
+              null,
+              windowedSegmentIds.stream()
+                                .flatMap(windowedSegmentId -> windowedSegmentId.getIntervals().stream())
+                                .collect(Collectors.toSet()),
+              Segments.ONLY_VISIBLE
+          )
+      );
+      return dataSegmentsInIntervals.stream()
+                                    .filter(segment -> inputSegmentIds.contains(segment.getId().toString()))
+                                    .collect(Collectors.toList());
     }
   }
 

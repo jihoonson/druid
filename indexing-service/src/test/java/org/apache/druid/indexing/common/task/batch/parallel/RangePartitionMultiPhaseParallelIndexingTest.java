@@ -30,6 +30,7 @@ import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.TaskState;
+import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.java.util.common.Intervals;
@@ -251,7 +252,122 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
             true
         )
     );
-    assertRangePartitions(publishedSegments, true);
+    if (!useMultivalueDim) {
+      assertRangePartitions(publishedSegments, true);
+    }
+  }
+
+  @Test
+  public void testAppendRangePartitionedSegmentsToRangePartitionedDatasourceWithDifferentTargetRowsPerSegmentSuccessfullyAppend()
+      throws Exception
+  {
+    int targetRowsPerSegment = NUM_ROW / DIM_FILE_CARDINALITY / NUM_PARTITION;
+    final Set<DataSegment> publishedSegments = new HashSet<>();
+    publishedSegments.addAll(
+        runTestTask(
+            PARSE_SPEC,
+            INTERVAL_TO_INDEX,
+            inputDir,
+            TEST_FILE_NAME_PREFIX + "*",
+            new SingleDimensionPartitionsSpec(
+                targetRowsPerSegment,
+                null,
+                DIM1,
+                false
+            ),
+            maxNumConcurrentSubTasks,
+            TaskState.SUCCESS
+        )
+    );
+    publishedSegments.addAll(
+        runTestTask(
+            PARSE_SPEC,
+            INTERVAL_TO_INDEX,
+            inputDir,
+            TEST_FILE_NAME_PREFIX + "*",
+            new SingleDimensionPartitionsSpec(
+                targetRowsPerSegment + 100,
+                null,
+                DIM1,
+                false
+            ),
+            maxNumConcurrentSubTasks,
+            TaskState.SUCCESS,
+            true
+        )
+    );
+    if (!useMultivalueDim) {
+      assertRangePartitions(publishedSegments, true);
+    }
+  }
+
+  @Test
+  public void testAppendRangePartitionedSegmentsToRangePartitionedDatasourceWithDifferentPartitionKeySuccessfullyAppend()
+      throws Exception
+  {
+
+  }
+
+  @Test
+  public void testAppendRangePartitionedSegmentsToLinearlyPartitionedDatasourceFailToAppend()
+  {
+    int targetRowsPerSegment = NUM_ROW / DIM_FILE_CARDINALITY / NUM_PARTITION;
+    runTestTask(
+        PARSE_SPEC,
+        INTERVAL_TO_INDEX,
+        inputDir,
+        TEST_FILE_NAME_PREFIX + "*",
+        new DynamicPartitionsSpec(2, null),
+        maxNumConcurrentSubTasks,
+        TaskState.SUCCESS,
+        true
+    );
+    runTestTask(
+        PARSE_SPEC,
+        INTERVAL_TO_INDEX,
+        inputDir,
+        TEST_FILE_NAME_PREFIX + "*",
+        new SingleDimensionPartitionsSpec(
+            targetRowsPerSegment,
+            null,
+            DIM1,
+            false
+        ),
+        maxNumConcurrentSubTasks,
+        TaskState.FAILED,
+        true
+    );
+  }
+
+  @Test
+  public void testAppendLinearlyPartitionedSegmentsToRangePartitionedDatasourceFailToAppend()
+  {
+    int targetRowsPerSegment = NUM_ROW / DIM_FILE_CARDINALITY / NUM_PARTITION;
+    runTestTask(
+        PARSE_SPEC,
+        INTERVAL_TO_INDEX,
+        inputDir,
+        TEST_FILE_NAME_PREFIX + "*",
+        new SingleDimensionPartitionsSpec(
+            targetRowsPerSegment,
+            null,
+            DIM1,
+            false
+        ),
+        maxNumConcurrentSubTasks,
+        TaskState.FAILED,
+        true
+    );
+    runTestTask(
+        PARSE_SPEC,
+        INTERVAL_TO_INDEX,
+        inputDir,
+        TEST_FILE_NAME_PREFIX + "*",
+        new DynamicPartitionsSpec(2, null),
+        maxNumConcurrentSubTasks,
+        TaskState.SUCCESS,
+        true
+    );
   }
 
   private void assertRangePartitions(Set<DataSegment> publishedSegments, boolean appended)

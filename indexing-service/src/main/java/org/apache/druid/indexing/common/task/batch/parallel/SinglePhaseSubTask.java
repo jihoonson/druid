@@ -249,7 +249,8 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
         getDataSource(),
         taskActionClient,
         intervals,
-        ingestionSchema.getIOConfig().getFirehoseFactory()
+        ingestionSchema.getIOConfig().getFirehoseFactory(),
+        ingestionSchema.getIOConfig().getInputSource()
     );
   }
 

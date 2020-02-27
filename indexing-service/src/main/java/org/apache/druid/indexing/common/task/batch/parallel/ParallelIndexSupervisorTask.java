@@ -28,6 +28,8 @@ import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import org.apache.druid.client.indexing.IndexingServiceClient;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
@@ -45,6 +47,7 @@ import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
+import org.apache.druid.indexing.common.actions.RetrieveUsedSegmentsAction;
 import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.actions.TimeChunkLockTryAcquireAction;
@@ -62,12 +65,14 @@ import org.apache.druid.indexing.common.task.batch.parallel.ParallelIndexTaskRun
 import org.apache.druid.indexing.common.task.batch.parallel.distribution.StringDistribution;
 import org.apache.druid.indexing.common.task.batch.parallel.distribution.StringDistributionMerger;
 import org.apache.druid.indexing.common.task.batch.parallel.distribution.StringSketchMerger;
+import org.apache.druid.indexing.overlord.Segments;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.UOE;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
+import org.apache.druid.segment.SegmentUtils;
 import org.apache.druid.segment.indexing.TuningConfig;
 import org.apache.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
@@ -83,6 +88,7 @@ import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.PartitionBoundaries;
+import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
 import org.apache.druid.utils.CollectionUtils;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.joda.time.DateTime;
@@ -147,7 +153,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
    * the segment granularity of existing segments until the task reads all data because we don't know what segments
    * are going to be overwritten. As a result, we assume that segment granularity is going to be changed if intervals
    * are missing and force to use timeChunk lock.
-   *
+   * <p>
    * This variable is initialized in the constructor and used in {@link #run} to log that timeChunk lock was enforced
    * in the task logs.
    */
@@ -328,13 +334,13 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   )
   {
     return new PartialRangeSegmentGenerateParallelIndexTaskRunner(
-       toolbox,
-       getId(),
-       getGroupId(),
-       ingestionSchema,
-       getContext(),
-       indexingServiceClient,
-       intervalToPartitions
+        toolbox,
+        getId(),
+        getGroupId(),
+        ingestionSchema,
+        getContext(),
+        indexingServiceClient,
+        intervalToPartitions
     );
   }
 
@@ -388,7 +394,8 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
         getDataSource(),
         taskActionClient,
         intervals,
-        ingestionSchema.getIOConfig().getFirehoseFactory()
+        ingestionSchema.getIOConfig().getFirehoseFactory(),
+        ingestionSchema.getIOConfig().getInputSource()
     );
   }
 
@@ -536,10 +543,8 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   private TaskStatus runHashPartitionMultiPhaseParallel(TaskToolbox toolbox) throws Exception
   {
     // 1. Partial segment generation phase
-    ParallelIndexTaskRunner<PartialHashSegmentGenerateTask, GeneratedHashPartitionsReport> indexingRunner = createRunner(
-        toolbox,
-        this::createPartialHashSegmentGenerateRunner
-    );
+    ParallelIndexTaskRunner<PartialHashSegmentGenerateTask, GeneratedHashPartitionsReport> indexingRunner =
+        createRunner(toolbox, this::createPartialHashSegmentGenerateRunner);
 
     TaskState state = runNextPhase(indexingRunner);
     if (state.isFailure()) {
@@ -571,23 +576,12 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   private TaskStatus runRangePartitionMultiPhaseParallel(TaskToolbox toolbox) throws Exception
   {
-    ParallelIndexTaskRunner<PartialDimensionDistributionTask, DimensionDistributionReport> distributionRunner =
-        createRunner(
-            toolbox,
-            this::createPartialDimensionDistributionRunner
-        );
-
-    TaskState distributionState = runNextPhase(distributionRunner);
-    if (distributionState.isFailure()) {
+    Map<Interval, PartitionBoundaries> intervalToPartitions = determineAllRangePartitions(toolbox);
+    if (intervalToPartitions == null) {
       return TaskStatus.failure(getId(), PartialDimensionDistributionTask.TYPE + " failed");
-    }
-
-    Map<Interval, PartitionBoundaries> intervalToPartitions =
-        determineAllRangePartitions(distributionRunner.getReports().values());
-
-    if (intervalToPartitions.isEmpty()) {
+    } else if (intervalToPartitions.isEmpty()) {
       String msg = "No valid rows for single dimension partitioning."
-          + " All rows may have invalid timestamps or multiple dimension values.";
+                   + " All rows may have invalid timestamps or multiple dimension values.";
       LOG.warn(msg);
       return TaskStatus.success(getId(), msg);
     }
@@ -620,7 +614,81 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     return TaskStatus.fromCode(getId(), mergeState);
   }
 
-  private Map<Interval, PartitionBoundaries> determineAllRangePartitions(Collection<DimensionDistributionReport> reports)
+  @Nullable
+  private Map<Interval, PartitionBoundaries> determineAllRangePartitions(TaskToolbox toolbox) throws Exception
+  {
+    if (ingestionSchema.getIOConfig().isAppendToExisting()) {
+      Collection<DataSegment> segments = toolbox
+          .getTaskActionClient()
+          .submit(
+              new RetrieveUsedSegmentsAction(
+                  getDataSource(),
+                  null,
+                  getIngestionSchema().getDataSchema().getGranularitySpec().inputIntervals(),
+                  Segments.ONLY_VISIBLE
+              )
+          );
+      Map<Interval, List<DataSegment>> intervalToSegments = new HashMap<>();
+      segments.forEach(
+          segment -> intervalToSegments.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>()).add(segment)
+      );
+      Map<Interval, PartitionBoundaries> intervalToBoundaries = Maps.newHashMapWithExpectedSize(
+          intervalToSegments.size()
+      );
+      intervalToSegments.forEach((interval, segmentsInInterval) -> {
+        if (!(segmentsInInterval.get(0).getShardSpec() instanceof SingleDimensionShardSpec)) {
+          throw new ISE(
+              "Segment[%s] has a different shardSpec other than %s",
+              segmentsInInterval.get(0).getId(),
+              SingleDimensionShardSpec.class.getName()
+          );
+        }
+        SingleDimensionShardSpec firstShardSpec = (SingleDimensionShardSpec) segmentsInInterval.get(0).getShardSpec();
+        List<SingleDimensionShardSpec> shardSpecsOfExistingSegments = Lists.newArrayListWithExpectedSize(
+            segmentsInInterval.size()
+        );
+        for (DataSegment segment : segmentsInInterval) {
+          if (!(segment.getShardSpec() instanceof SingleDimensionShardSpec)) {
+            throw new ISE(
+                "Segment[%s] has a different shardSpec other than %s",
+                segment.getId(),
+                SingleDimensionShardSpec.class.getName()
+            );
+          }
+          SingleDimensionShardSpec eachShardSpec = (SingleDimensionShardSpec) segment.getShardSpec();
+          if (!firstShardSpec.getDimension().equals(eachShardSpec.getDimension())
+              || firstShardSpec.getNumBuckets() != eachShardSpec.getNumBuckets()) {
+            throw new ISE(
+                "Segments[%s] have different shardSpecs. Cannot append any more data to them.",
+                SegmentUtils.commaSeparatedIdentifiers(segmentsInInterval)
+            );
+          }
+          shardSpecsOfExistingSegments.add(eachShardSpec);
+        }
+        shardSpecsOfExistingSegments.sort(SingleDimensionShardSpec.COMPARATOR);
+        PartitionBoundaries boundaries = PartitionBoundaries.fromSortedShardSpecs(shardSpecsOfExistingSegments);
+        intervalToBoundaries.put(interval, boundaries);
+      });
+      return intervalToBoundaries;
+    } else {
+      ParallelIndexTaskRunner<PartialDimensionDistributionTask, DimensionDistributionReport> distributionRunner =
+          createRunner(
+              toolbox,
+              this::createPartialDimensionDistributionRunner
+          );
+
+      TaskState distributionState = runNextPhase(distributionRunner);
+      if (distributionState.isFailure()) {
+        return null;
+      }
+
+      return determineAllRangePartitionsFromReports(distributionRunner.getReports().values());
+    }
+  }
+
+  private Map<Interval, PartitionBoundaries> determineAllRangePartitionsFromReports(
+      Collection<DimensionDistributionReport> reports
+  )
   {
     Multimap<Interval, StringDistribution> intervalToDistributions = ArrayListMultimap.create();
     reports.forEach(report -> {
@@ -688,7 +756,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   }
 
   private static <S extends PartitionStat, L extends PartitionLocation>
-        Map<Pair<Interval, Integer>, List<L>> groupPartitionLocationsPerPartition(
+  Map<Pair<Interval, Integer>, List<L>> groupPartitionLocationsPerPartition(
       Map<String, ? extends GeneratedPartitionsReport<S>> subTaskIdToReport,
       BiFunction<String, S, L> createPartitionLocationFunction
   )

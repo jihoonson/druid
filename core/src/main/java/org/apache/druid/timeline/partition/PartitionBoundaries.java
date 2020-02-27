@@ -134,6 +134,9 @@ public class PartitionBoundaries
       return 0;
     }
 
+    if (boundaries[1] == null || boundaries[boundaries.length - 2] == null) {
+      System.out.println("what?");
+    }
     final int index = Arrays.binarySearch(boundaries, 1, boundaries.length - 1, key);
     if (index < 0) {
       return -(index + 1) - 1;

@@ -129,9 +129,6 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
   @Test
   public void testAppendHashPartitionedSegmensToHashPartitionedDatasourceSuccessfullyAppend() throws Exception
   {
-    if (getLockGranularity() == LockGranularity.SEGMENT) {
-      return;
-    }
     final Set<DataSegment> publishedSegments = new HashSet<>();
     publishedSegments.addAll(
         runTestTask(
@@ -162,9 +159,6 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
   @Test
   public void testAppendHashPartitionedSegmensToDifferentlyHashPartitionedDatasourceSuccessfullyAppend() throws Exception
   {
-    if (getLockGranularity() == LockGranularity.SEGMENT) {
-      return;
-    }
     final Set<DataSegment> publishedSegments = new HashSet<>();
     publishedSegments.addAll(
         runTestTask(
@@ -195,9 +189,6 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
   @Test
   public void testAppendHashPartitionedSegmensToLinearlyPartitionedDatasourceFailToAppend()
   {
-    if (getLockGranularity() == LockGranularity.SEGMENT) {
-      return;
-    }
     runTestTask(
         PARSE_SPEC,
         INTERVAL_TO_INDEX,
@@ -223,9 +214,6 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
   @Test
   public void testAppendLinearlyPartitionedSegmensToHashPartitionedDatasourceFailToAppend()
   {
-    if (getLockGranularity() == LockGranularity.SEGMENT) {
-      return;
-    }
     runTestTask(
         PARSE_SPEC,
         INTERVAL_TO_INDEX,
