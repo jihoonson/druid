@@ -51,7 +51,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
@@ -112,29 +111,6 @@ class OvershadowableManager<T extends Overshadowable<T>>
     this.standbyGroups = new TreeMap<>(other.standbyGroups);
     this.visibleGroupPerRange = new TreeMap<>(other.visibleGroupPerRange);
     this.overshadowedGroups = new TreeMap<>(other.overshadowedGroups);
-  }
-
-  private OvershadowableManager(List<AtomicUpdateGroup<T>> groups)
-  {
-    this();
-    buildFromGroups(groups);
-  }
-
-  private void buildFromGroups(List<AtomicUpdateGroup<T>> groups)
-  {
-    for (AtomicUpdateGroup<T> group : groups) {
-      for (PartitionChunk<T> chunk : group.getChunks()) {
-        knownPartitionChunks.put(chunk.getChunkNumber(), chunk);
-      }
-
-      final RootPartitionRange partitionRange = RootPartitionRange.of(group);
-      final boolean overshadowed = isOvershadowedByVisibleGroup(partitionRange, group.getMinorVersion());
-      if (overshadowed) {
-        addAtomicUpdateGroupWithState(group, State.OVERSHADOWED, true);
-      } else {
-        addAtomicUpdateGroupWithState(group, State.STANDBY, true);
-      }
-    }
   }
 
   private TreeMap<RootPartitionRange, Short2ObjectSortedMap<AtomicUpdateGroup<T>>> getStateMap(State state)
@@ -772,15 +748,27 @@ class OvershadowableManager<T extends Overshadowable<T>>
       return Collections.emptyList();
     }
 
-    final OvershadowableManager<T> manager = new OvershadowableManager<>(groups);
-    if (!manager.standbyGroups.isEmpty()) {
-      throw new ISE("This method should be called only when there is no fully available group in the given state.");
+    final TreeMap<RootPartitionRange, AtomicUpdateGroup<T>> rangeToGroup = new TreeMap<>();
+    for (AtomicUpdateGroup<T> group : groups) {
+      rangeToGroup.put(RootPartitionRange.of(group), group);
     }
-
     final List<AtomicUpdateGroup<T>> visibles = new ArrayList<>();
-    for (Short2ObjectSortedMap<AtomicUpdateGroup<T>> map : manager.visibleGroupPerRange.values()) {
-      visibles.addAll(map.values());
+    // rangeToGroup is sorted by RootPartitionRange which means, the groups of the wider range will appear later
+    // in the rangeToGroup map. Since the wider groups have higer minor versions than narrower groups,
+    // we iterate the rangeToGroup from the last entry in descending order.
+    Entry<RootPartitionRange, AtomicUpdateGroup<T>> currEntry = rangeToGroup.lastEntry();
+    while (currEntry != null) {
+      final Entry<RootPartitionRange, AtomicUpdateGroup<T>> lowerEntry = rangeToGroup.lowerEntry(currEntry.getKey());
+      if (lowerEntry != null) {
+        if (lowerEntry.getKey().endPartitionId != currEntry.getKey().startPartitionId) {
+          return Collections.emptyList();
+        }
+      }
+      visibles.add(currEntry.getValue());
+      currEntry = lowerEntry;
     }
+    // visibles should be sorted.
+    visibles.sort(Comparator.comparing(RootPartitionRange::of));
     return visibles;
   }
 
@@ -795,7 +783,8 @@ class OvershadowableManager<T extends Overshadowable<T>>
         State.OVERSHADOWED
     );
 
-    NavigableMap<RootPartitionRange, AtomicUpdateGroup<T>> fullGroups = new TreeMap<>();
+    // Filter out non-fully available groups.
+    final TreeMap<RootPartitionRange, AtomicUpdateGroup<T>> fullGroups = new TreeMap<>();
     for (AtomicUpdateGroup<T> group : FluentIterable.from(overshadowedGroups).filter(AtomicUpdateGroup::isFull)) {
       fullGroups.put(RootPartitionRange.of(group), group);
     }
@@ -807,25 +796,23 @@ class OvershadowableManager<T extends Overshadowable<T>>
       return Collections.emptyList();
     }
 
+    // Find latest fully available groups.
     final List<AtomicUpdateGroup<T>> visibles = new ArrayList<>();
-    while (!fullGroups.isEmpty()) {
-      final Entry<RootPartitionRange, AtomicUpdateGroup<T>> lastEntry = fullGroups.lastEntry();
-      final RootPartitionRange lowFench = new RootPartitionRange((short) 0, (short) 0);
-      NavigableMap<RootPartitionRange, AtomicUpdateGroup<T>> nextGroups = fullGroups.subMap(
-          lowFench,
-          false,
-          lastEntry.getKey(),
-          false
-      );
-      if (!nextGroups.isEmpty()) {
-        if (nextGroups.lastKey().endPartitionId != lastEntry.getKey().startPartitionId) {
+    // fullGroups is sorted by RootPartitionRange which means, the groups of the wider range will appear later
+    // in the fullGroups map. Since the wider groups have higer minor versions than narrower groups,
+    // we iterate the fullGroups from the last entry in descending order.
+    Entry<RootPartitionRange, AtomicUpdateGroup<T>> currEntry = fullGroups.lastEntry();
+    while (currEntry != null) {
+      final Entry<RootPartitionRange, AtomicUpdateGroup<T>> lowerEntry = fullGroups.lowerEntry(currEntry.getKey());
+      if (lowerEntry != null) {
+        if (lowerEntry.getKey().endPartitionId != currEntry.getKey().startPartitionId) {
           return Collections.emptyList();
         }
       }
-      // visibles should be sorted.
-      visibles.add(lastEntry.getValue());
-      fullGroups = nextGroups;
+      visibles.add(currEntry.getValue());
+      currEntry = lowerEntry;
     }
+    // visibles should be sorted.
     visibles.sort(Comparator.comparing(RootPartitionRange::of));
     return visibles;
   }
