@@ -45,11 +45,13 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
@@ -115,9 +117,22 @@ class OvershadowableManager<T extends Overshadowable<T>>
   private OvershadowableManager(List<AtomicUpdateGroup<T>> groups)
   {
     this();
-    for (AtomicUpdateGroup<T> entry : groups) {
-      for (PartitionChunk<T> chunk : entry.getChunks()) {
-        addChunk(chunk);
+    buildFromGroups(groups);
+  }
+
+  private void buildFromGroups(List<AtomicUpdateGroup<T>> groups)
+  {
+    for (AtomicUpdateGroup<T> group : groups) {
+      for (PartitionChunk<T> chunk : group.getChunks()) {
+        knownPartitionChunks.put(chunk.getChunkNumber(), chunk);
+      }
+
+      final RootPartitionRange partitionRange = RootPartitionRange.of(group);
+      final boolean overshadowed = isOvershadowedByVisibleGroup(partitionRange, group.getMinorVersion());
+      if (overshadowed) {
+        addAtomicUpdateGroupWithState(group, State.OVERSHADOWED, true);
+      } else {
+        addAtomicUpdateGroupWithState(group, State.STANDBY, true);
       }
     }
   }
@@ -779,27 +794,39 @@ class OvershadowableManager<T extends Overshadowable<T>>
         minorVersion,
         State.OVERSHADOWED
     );
-    if (overshadowedGroups.isEmpty()) {
+
+    NavigableMap<RootPartitionRange, AtomicUpdateGroup<T>> fullGroups = new TreeMap<>();
+    for (AtomicUpdateGroup<T> group : FluentIterable.from(overshadowedGroups).filter(AtomicUpdateGroup::isFull)) {
+      fullGroups.put(RootPartitionRange.of(group), group);
+    }
+    if (fullGroups.isEmpty()) {
+      return Collections.emptyList();
+    }
+    if (fullGroups.firstKey().startPartitionId != rangeOfAug.startPartitionId
+        || fullGroups.lastKey().endPartitionId != rangeOfAug.endPartitionId) {
       return Collections.emptyList();
     }
 
-    final OvershadowableManager<T> manager = new OvershadowableManager<>(overshadowedGroups);
     final List<AtomicUpdateGroup<T>> visibles = new ArrayList<>();
-    for (Short2ObjectSortedMap<AtomicUpdateGroup<T>> map : manager.visibleGroupPerRange.values()) {
-      final SingleEntryShort2ObjectSortedMap<AtomicUpdateGroup<T>> singleMap =
-          (SingleEntryShort2ObjectSortedMap<AtomicUpdateGroup<T>>) map;
-      if (!singleMap.val.isFull()) {
-        return Collections.emptyList();
+    while (!fullGroups.isEmpty()) {
+      final Entry<RootPartitionRange, AtomicUpdateGroup<T>> lastEntry = fullGroups.lastEntry();
+      final RootPartitionRange lowFench = new RootPartitionRange((short) 0, (short) 0);
+      NavigableMap<RootPartitionRange, AtomicUpdateGroup<T>> nextGroups = fullGroups.subMap(
+          lowFench,
+          false,
+          lastEntry.getKey(),
+          false
+      );
+      if (!nextGroups.isEmpty()) {
+        if (nextGroups.lastKey().endPartitionId != lastEntry.getKey().startPartitionId) {
+          return Collections.emptyList();
+        }
       }
-      visibles.add(singleMap.val);
+      // visibles should be sorted.
+      visibles.add(lastEntry.getValue());
+      fullGroups = nextGroups;
     }
-    final RootPartitionRange foundRange = RootPartitionRange.of(
-        visibles.get(0).getStartRootPartitionId(),
-        visibles.get(visibles.size() - 1).getEndRootPartitionId()
-    );
-    if (!rangeOfAug.equals(foundRange)) {
-      return Collections.emptyList();
-    }
+    visibles.sort(Comparator.comparing(RootPartitionRange::of));
     return visibles;
   }
 
