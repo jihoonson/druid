@@ -64,7 +64,7 @@ public class VersionedIntervalTimelineBenchmark
   private static final double NEW_ROOT_GEN_SEGMENTS_RATIO_AFTER_COMPACTION = 0.1;
   private static final double COMPACTED_SEGMENTS_RATIO_TO_INITIAL_SEGMENTS = 0.5;
 
-  @Param({"10", "100", "1000"})
+  @Param({"10", "100"})
   private int numInitialRootGenSegmentsPerInterval;
 
   @Param({"1", "2"})
