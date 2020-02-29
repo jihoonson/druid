@@ -19,11 +19,20 @@
 
 package org.apache.druid.query.aggregation;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import org.apache.druid.data.gen.TestColumnSchema;
 import org.apache.druid.data.gen.TestDataGenerator;
 import org.apache.druid.data.input.impl.DimensionSchema.ValueType;
+import org.apache.druid.java.util.common.granularity.Granularity;
+import org.apache.druid.segment.ColumnValueSelector;
+import org.apache.druid.segment.DimensionSelector;
+import org.apache.druid.segment.incremental.IncrementalIndex;
+import org.apache.druid.segment.incremental.IncrementalIndexSchema;
+import org.apache.druid.segment.incremental.OnheapIncrementalIndex;
+import org.joda.time.Interval;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class AggregatorTestBase
@@ -34,19 +43,80 @@ public class AggregatorTestBase
   // get as dimension selector
   // get as column value selector
 
-  public AggregatorTestBase(int numRows, double nullRatio)
+  public static final String FLOAT_COLUMN = "floatColumn";
+  public static final String DOUBLE_COLUMN = "doubleColumn";
+  public static final String LONG_COLUMN = "longColumn";
+  public static final String SINGLE_VALUE_STRING_COLUMN = "singleValueStringColumn";
+  public static final String MULTI_VALUE_STRING_COLUMN = "multiValueStringColumn";
+
+
+  public AggregatorTestBase(Interval interval, Granularity segmentGranularity, int numRows, double nullRatio)
   {
-    final List<TestColumnSchema> columnSchemas = new ArrayList<>();
-    columnSchemas.add(
+    final List<TestColumnSchema> columnSchemas = ImmutableList.of(
         TestColumnSchema.makeSequential(
-            "floatsWithoutNulls",
+            FLOAT_COLUMN,
             ValueType.FLOAT,
             false,
             1,
             nullRatio,
             -(numRows / 2),
             numRows / 2
+        ),
+        TestColumnSchema.makeSequential(
+            DOUBLE_COLUMN,
+            ValueType.DOUBLE,
+            false,
+            1,
+            nullRatio,
+            -(numRows / 2),
+            numRows / 2
+        ),
+        TestColumnSchema.makeSequential(
+            LONG_COLUMN,
+            ValueType.LONG,
+            false,
+            1,
+            nullRatio,
+            -(numRows / 2),
+            numRows / 2
+        ),
+        TestColumnSchema.makeEnumeratedSequential(
+            SINGLE_VALUE_STRING_COLUMN,
+            ValueType.STRING,
+            false,
+            1,
+            nullRatio,
+            Arrays.asList("Apple", "Orange", "Xylophone", "Corundum", null)
+        ),
+        TestColumnSchema.makeEnumeratedSequential(
+            MULTI_VALUE_STRING_COLUMN,
+            ValueType.STRING,
+            false,
+            4,
+            nullRatio,
+            Arrays.asList("Apple", "Orange", "Xylophone", "Corundum", null)
         )
     );
+
+    final int numTimePartitions = Iterables.size(segmentGranularity.getIterable(interval));
+    final int numRowsPerTimePartition = numRows / numTimePartitions;
+    final TestDataGenerator dataGenerator = new TestDataGenerator(columnSchemas, 0, interval, numRowsPerTimePartition);
+
+    IncrementalIndex<Aggregator> incrementalIndex = new IncrementalIndex.Builder()
+        .setIndexSchema(
+            new IncrementalIndexSchema.Builder()
+            .withDimensionsSpec(columnSchemas)
+        )
+        .buildOnheap();
+  }
+
+  public DimensionSelector createDimensionSelector(String columnName)
+  {
+
+  }
+
+  public ColumnValueSelector<?> createColumnValueSelector(String columnName)
+  {
+
   }
 }
