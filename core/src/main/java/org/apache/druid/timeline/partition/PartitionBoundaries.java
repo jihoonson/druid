@@ -73,10 +73,11 @@ public class PartitionBoundaries
     return new PartitionBoundaries(dedupedBoundaries.toArray(new String[0]));
   }
 
-  public static PartitionBoundaries fromSortedShardSpecs(List<SingleDimensionShardSpec> sortedShardSpecs)
+  public static PartitionBoundaries fromShardSpecs(List<SingleDimensionShardSpec> sortedShardSpecs)
   {
     final List<String> boundaries = sortedShardSpecs
         .stream()
+        .sorted(SingleDimensionShardSpec.COMPARATOR)
         .map(SingleDimensionShardSpec::getStart)
         .collect(Collectors.toList());
     boundaries.add(null);
@@ -125,7 +126,6 @@ public class PartitionBoundaries
     return boundaries.length == 0;
   }
 
-  // TODO: unit test
   public int bucketFor(@Nullable String key)
   {
     Preconditions.checkState(boundaries.length > 0, "Cannot find index for key[%s] from empty boundaries", key);
@@ -134,9 +134,6 @@ public class PartitionBoundaries
       return 0;
     }
 
-    if (boundaries[1] == null || boundaries[boundaries.length - 2] == null) {
-      System.out.println("what?");
-    }
     final int index = Arrays.binarySearch(boundaries, 1, boundaries.length - 1, key);
     if (index < 0) {
       return -(index + 1) - 1;

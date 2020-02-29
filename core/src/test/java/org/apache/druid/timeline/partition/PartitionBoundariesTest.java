@@ -35,8 +35,8 @@ public class PartitionBoundariesTest
   @Before
   public void setup()
   {
-    values = new String[]{"a", "dup", "dup", "z"};
-    expected = new String[]{null, "dup", null};
+    values = new String[]{"a", "dup", "dup", "k", "z"};
+    expected = new String[]{null, "dup", "k", null};
     target = PartitionBoundaries.fromNonNullBoundaries(values);
   }
 
@@ -80,12 +80,29 @@ public class PartitionBoundariesTest
   @Test
   public void testGetNumBucketsOfNonEmptyPartitionBoundariesReturningCorrectSize()
   {
-    Assert.assertEquals(2, target.getNumBuckets());
+    Assert.assertEquals(3, target.getNumBuckets());
   }
 
   @Test
   public void testEqualsContract()
   {
     EqualsVerifier.forClass(PartitionBoundaries.class).withNonnullFields("boundaries").usingGetClass().verify();
+  }
+
+  @Test
+  public void testBucketForNullKeyReturningFirstBucket()
+  {
+    Assert.assertEquals(0, target.bucketFor(null));
+  }
+
+  @Test
+  public void testBucketForNonNullKeysReturningProperBuckets()
+  {
+    Assert.assertEquals(0, target.bucketFor("b"));
+    Assert.assertEquals(0, target.bucketFor("bbb"));
+    Assert.assertEquals(1, target.bucketFor("dup"));
+    Assert.assertEquals(1, target.bucketFor("e"));
+    Assert.assertEquals(2, target.bucketFor("k"));
+    Assert.assertEquals(2, target.bucketFor("z"));
   }
 }

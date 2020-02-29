@@ -665,8 +665,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
           }
           shardSpecsOfExistingSegments.add(eachShardSpec);
         }
-        shardSpecsOfExistingSegments.sort(SingleDimensionShardSpec.COMPARATOR);
-        PartitionBoundaries boundaries = PartitionBoundaries.fromSortedShardSpecs(shardSpecsOfExistingSegments);
+        PartitionBoundaries boundaries = PartitionBoundaries.fromShardSpecs(shardSpecsOfExistingSegments);
         intervalToBoundaries.put(interval, boundaries);
       });
       return intervalToBoundaries;

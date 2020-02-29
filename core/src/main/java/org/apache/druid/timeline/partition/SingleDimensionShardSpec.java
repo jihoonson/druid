@@ -125,9 +125,8 @@ public class SingleDimensionShardSpec implements ShardSpec
     final List<SingleDimensionShardSpec> sortedSpecs = shardSpecs
         .stream()
         .map(shardSpec -> (SingleDimensionShardSpec) shardSpec)
-        .sorted(COMPARATOR)
         .collect(Collectors.toList());
-    final PartitionBoundaries partitionBoundaries = PartitionBoundaries.fromSortedShardSpecs(sortedSpecs);
+    final PartitionBoundaries partitionBoundaries = PartitionBoundaries.fromShardSpecs(sortedSpecs);
     return (timestamp, row) -> {
       if (partitionBoundaries.isEmpty()) {
         throw new ISE("row[%s] doesn't fit in any shard[%s]", row, sortedSpecs);

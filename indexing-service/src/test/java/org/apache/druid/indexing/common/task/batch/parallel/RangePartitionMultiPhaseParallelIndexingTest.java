@@ -355,7 +355,7 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
             false
         ),
         maxNumConcurrentSubTasks,
-        TaskState.FAILED,
+        TaskState.SUCCESS,
         true
     );
     runTestTask(
@@ -365,7 +365,7 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
         TEST_FILE_NAME_PREFIX + "*",
         new DynamicPartitionsSpec(2, null),
         maxNumConcurrentSubTasks,
-        TaskState.SUCCESS,
+        TaskState.FAILED,
         true
     );
   }
