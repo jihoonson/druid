@@ -11777,6 +11777,28 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   }
 
   @Test
+  public void testTest() throws Exception
+  {
+    testQuery(
+        "SELECT ARRAY[1, 2, 4] FROM druid.numfoo where mv_contains(dim3, ARRAY[1, dim1 + 2])",
+        ImmutableList.of(
+            newScanQueryBuilder()
+                .dataSource(CalciteTests.DATASOURCE3)
+                .intervals(querySegmentSpec(Filtration.eternity()))
+                .filters(expressionFilter("array_contains(\"dim3\",array('a','b'))"))
+                .columns("dim3")
+                .resultFormat(ScanQuery.ResultFormat.RESULT_FORMAT_COMPACTED_LIST)
+                .limit(5)
+                .context(QUERY_CONTEXT_DEFAULT)
+                .build()
+        ),
+        ImmutableList.of(
+            new Object[]{"1, 5, 4]"}
+        )
+    );
+  }
+
+  @Test
   public void testMultiValueStringSlice() throws Exception
   {
     testQuery(
