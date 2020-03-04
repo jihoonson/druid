@@ -20,11 +20,15 @@
 package org.apache.druid;
 
 import com.google.common.collect.FluentIterable;
+import org.apache.druid.java.util.common.guava.Sequences;
+import org.apache.druid.java.util.common.guava.Yielder;
+import org.apache.druid.java.util.common.guava.Yielders;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -34,15 +38,16 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @State(Scope.Benchmark)
 @Fork(value = 1, jvmArgsAppend = {"-XX:+UseG1GC"})
 @Warmup(iterations = 10)
 @Measurement(iterations = 10)
-@BenchmarkMode({Mode.Throughput})
+@BenchmarkMode({Mode.AverageTime})
+@OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class StreamBenchmark
 {
   private static final int NUM_INTEGERS = 10000;
@@ -76,6 +81,26 @@ public class StreamBenchmark
   }
 
   @Benchmark
+  public void flatMapSequenceYielder(Blackhole blackhole)
+  {
+    Yielder<Integer> yielder = Yielders.each(Sequences.simple(integersSet).flatMap(Sequences::simple));
+    while (!yielder.isDone()) {
+      final int val = yielder.get();
+      blackhole.consume(val);
+      yielder = yielder.next(null);
+    }
+  }
+
+  @Benchmark
+  public void flatMapSequenceAccumulate(Blackhole blackhole)
+  {
+    Sequences.simple(integersSet).flatMap(Sequences::simple).accumulate(null, (accumulated, in) -> {
+      blackhole.consume(in);
+      return null;
+    });
+  }
+
+  @Benchmark
   public void sumStream(Blackhole blackhole)
   {
     blackhole.consume(integersSet.stream().flatMap(Collection::stream).mapToInt(i -> i).sum());
@@ -84,11 +109,29 @@ public class StreamBenchmark
   @Benchmark
   public void sumIterator(Blackhole blackhole)
   {
+    int totalSum = 0;
+    for (Integers integers : integersSet) {
+      for (Integer i : integers) {
+        totalSum += i;
+      }
+    }
+    blackhole.consume(totalSum);
+  }
+
+  @Benchmark
+  public void sumIteratorFlatMap(Blackhole blackhole)
+  {
     int sum = 0;
     for (Integer i : FluentIterable.from(integersSet).transformAndConcat(is -> is)) {
       sum += i;
     }
     blackhole.consume(sum);
+  }
+
+  @Benchmark
+  public void sumSequence(Blackhole blackhole)
+  {
+    blackhole.consume(Sequences.simple(integersSet).flatMap(Sequences::simple).accumulate(0, Integer::sum));
   }
 
   @Benchmark
@@ -101,6 +144,12 @@ public class StreamBenchmark
   public void fluentIteratorToList(Blackhole blackhole)
   {
     blackhole.consume(FluentIterable.from(integersSet).transformAndConcat(integers -> integers).toList());
+  }
+
+  @Benchmark
+  public void sequenceToList(Blackhole blackhole)
+  {
+    blackhole.consume(Sequences.simple(integersSet).flatMap(Sequences::simple).toList());
   }
 
   private static class Integers extends ArrayList<Integer>
