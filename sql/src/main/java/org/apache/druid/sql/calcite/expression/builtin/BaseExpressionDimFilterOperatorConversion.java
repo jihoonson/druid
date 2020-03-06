@@ -19,19 +19,15 @@
 
 package org.apache.druid.sql.calcite.expression.builtin;
 
-import org.apache.calcite.rex.RexCall;
-import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.druid.query.filter.DimFilter;
 import org.apache.druid.query.filter.ExpressionDimFilter;
+import org.apache.druid.query.filter.SelectorDimFilter;
 import org.apache.druid.sql.calcite.expression.DirectOperatorConversion;
 import org.apache.druid.sql.calcite.expression.DruidExpression;
-import org.apache.druid.sql.calcite.expression.Expressions;
+import org.apache.druid.sql.calcite.expression.SimpleExtraction;
 import org.apache.druid.sql.calcite.planner.PlannerContext;
-import org.apache.druid.sql.calcite.rel.VirtualColumnRegistry;
-import org.apache.druid.sql.calcite.table.RowSignature;
 
-import javax.annotation.Nullable;
 import java.util.List;
 
 public abstract class BaseExpressionDimFilterOperatorConversion extends DirectOperatorConversion
@@ -42,28 +38,6 @@ public abstract class BaseExpressionDimFilterOperatorConversion extends DirectOp
   )
   {
     super(operator, druidFunctionName);
-  }
-
-  @Override
-  public DimFilter toDruidFilter(
-      final PlannerContext plannerContext,
-      RowSignature rowSignature,
-      @Nullable VirtualColumnRegistry virtualColumnRegistry,
-      final RexNode rexNode
-  )
-  {
-    final List<RexNode> operands = ((RexCall) rexNode).getOperands();
-    final List<DruidExpression> druidExpressions = Expressions.toDruidExpressions(
-        plannerContext,
-        rowSignature,
-        operands
-    );
-    final String filterExpr = DruidExpression.functionCall(getDruidFunctionName(), druidExpressions);
-
-    return new ExpressionDimFilter(
-        filterExpr,
-        plannerContext.getExprMacroTable()
-    );
   }
 
   protected static DimFilter toExpressionFilter(
@@ -77,6 +51,19 @@ public abstract class BaseExpressionDimFilterOperatorConversion extends DirectOp
     return new ExpressionDimFilter(
         filterExpr,
         plannerContext.getExprMacroTable()
+    );
+  }
+
+  protected static SelectorDimFilter newSelectorDimFilter(
+      SimpleExtraction simpleExtraction,
+      String value
+  )
+  {
+    return new SelectorDimFilter(
+        simpleExtraction.getColumn(),
+        value,
+        simpleExtraction.getExtractionFn(),
+        null
     );
   }
 }

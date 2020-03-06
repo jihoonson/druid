@@ -26,6 +26,7 @@ import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeFamily;
 import org.apache.druid.math.expr.Expr;
+import org.apache.druid.math.expr.ExprEval;
 import org.apache.druid.math.expr.Parser;
 import org.apache.druid.query.filter.AndDimFilter;
 import org.apache.druid.query.filter.DimFilter;
@@ -37,8 +38,9 @@ import org.apache.druid.sql.calcite.rel.VirtualColumnRegistry;
 import org.apache.druid.sql.calcite.table.RowSignature;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class ArrayContainsOperatorConversion extends BaseExpressionDimFilterOperatorConversion
 {
@@ -91,20 +93,32 @@ public class ArrayContainsOperatorConversion extends BaseExpressionDimFilterOper
 
     if (leftExpr.isSimpleExtraction()) {
       Expr expr = Parser.parse(rightExpr.getExpression(), plannerContext.getExprMacroTable());
-
-
-      // if there is more than one elements
-      // otherwise
-//      new SelectorDimFilter(
-//          leftExpr.getSimpleExtraction().getColumn(),
-//          ,
-//          leftExpr.getSimpleExtraction().getExtractionFn()
-//      )
-      final List<DimFilter> selectFilters = new ArrayList<>();
-
-      return new AndDimFilter(selectFilters);
-    } else {
-      return toExpressionFilter(plannerContext, getDruidFunctionName(), druidExpressions);
+      // To convert this expression filter into an And of Selector filters, we need to extract all array elements.
+      // For now, we can optimize only when rightExpr is a literal because there is no way to extract the array elements
+      // by traversing the Expr. Note that all implementations of Expr are defined as package-private classes in a
+      // different package.
+      if (expr.isLiteral()) {
+        // Evaluate the expression to get out the array elements.
+        // We can safely pass null if the expression is literal.
+        ExprEval<?> exprEval = expr.eval(null);
+        String[] arrayElements = exprEval.asStringArray();
+        if (arrayElements == null || arrayElements.length == 0) {
+          // If arrayElements is empty which means rightExpr is an empty array,
+          // it is technically more correct to return a TrueDimFiler here.
+          // However, since both Calcite's SqlMultisetValueConstructor and Druid's ArrayConstructorFunction don't allow
+          // to create an empty array with no argument, we just return null.
+          return null;
+        } else if (arrayElements.length == 1) {
+          return newSelectorDimFilter(leftExpr.getSimpleExtraction(), arrayElements[0]);
+        } else {
+          final List<DimFilter> selectFilters = Arrays
+              .stream(arrayElements)
+              .map(val -> newSelectorDimFilter(leftExpr.getSimpleExtraction(), val))
+              .collect(Collectors.toList());
+          return new AndDimFilter(selectFilters);
+        }
+      }
     }
+    return toExpressionFilter(plannerContext, getDruidFunctionName(), druidExpressions);
   }
 }
