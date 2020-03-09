@@ -88,6 +88,7 @@ public class ArrayContainsOperatorConversion extends BaseExpressionDimFilterOper
       return null;
     }
 
+    // Converts array_contains() function into an AND of Selector filters if possible.
     final DruidExpression leftExpr = druidExpressions.get(0);
     final DruidExpression rightExpr = druidExpressions.get(1);
 

@@ -87,6 +87,7 @@ public class ArrayOverlapOperatorConversion extends BaseExpressionDimFilterOpera
       return null;
     }
 
+    // Converts array_overlaps() function into an OR of Selector filters if possible.
     final boolean leftSimpleExtractionExpr = druidExpressions.get(0).isSimpleExtraction();
     final boolean rightSimpleExtractionExpr = druidExpressions.get(1).isSimpleExtraction();
     final DruidExpression simpleExtractionExpr;
@@ -111,7 +112,7 @@ public class ArrayOverlapOperatorConversion extends BaseExpressionDimFilterOpera
       ExprEval<?> exprEval = expr.eval(null);
       String[] arrayElements = exprEval.asStringArray();
       if (arrayElements == null || arrayElements.length == 0) {
-        // If arrayElements is empty which means rightExpr is an empty array,
+        // If arrayElements is empty which means complexExpr is an empty array,
         // it is technically more correct to return a TrueDimFiler here.
         // However, since both Calcite's SqlMultisetValueConstructor and Druid's ArrayConstructorFunction don't allow
         // to create an empty array with no argument, we just return null.
