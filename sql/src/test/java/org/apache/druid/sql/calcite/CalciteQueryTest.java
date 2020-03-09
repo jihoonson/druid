@@ -2336,7 +2336,7 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   }
 
   @Test
-  @Ignore // Disabled since GROUP BY alias can confuse the validator; see DruidConformance::isGroupByAlias
+  @Ignore("Disabled since GROUP BY alias can confuse the validator; see DruidConformance::isGroupByAlias")
   public void testGroupByAndOrderByAlias() throws Exception
   {
     testQuery(
@@ -10674,12 +10674,9 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
     );
   }
 
-  /**
-   * In Calcite 1.17, this test worked, but after upgrading to Calcite 1.21, this query fails with:
-   *  org.apache.calcite.sql.validate.SqlValidatorException: Column 'dim1' is ambiguous
-   */
   @Test
-  @Ignore
+  @Ignore("In Calcite 1.17, this test worked, but after upgrading to Calcite 1.21, this query fails with:"
+          + " org.apache.calcite.sql.validate.SqlValidatorException: Column 'dim1' is ambiguous")
   public void testProjectAfterSort3() throws Exception
   {
     testQuery(
