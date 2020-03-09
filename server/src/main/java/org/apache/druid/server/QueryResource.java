@@ -36,8 +36,6 @@ import org.apache.druid.guice.annotations.Json;
 import org.apache.druid.guice.annotations.Smile;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.Sequence;
-import org.apache.druid.java.util.common.guava.Yielder;
-import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.GenericQueryMetricsFactory;
 import org.apache.druid.query.Query;
@@ -216,8 +214,6 @@ public class QueryResource implements QueryCountStatsProvider
         return Response.notModified().build();
       }
 
-      final Yielder<?> yielder = Yielders.each(results);
-
       try {
         boolean shouldFinalize = QueryContexts.isFinalize(query, true);
         boolean serializeDateTimeAsLong =
@@ -242,7 +238,7 @@ public class QueryResource implements QueryCountStatsProvider
                     CountingOutputStream os = new CountingOutputStream(outputStream);
                     try {
                       // json serializer will always close the yielder
-                      jsonWriter.writeValue(os, yielder);
+                      jsonWriter.writeValue(os, results);
 
                       os.flush(); // Some types of OutputStream suppress flush errors in the .close() method.
                       os.close();
@@ -296,8 +292,6 @@ public class QueryResource implements QueryCountStatsProvider
             .build();
       }
       catch (Exception e) {
-        // make sure to close yielder if anything happened before starting to serialize the response.
-        yielder.close();
         throw new RuntimeException(e);
       }
       finally {
