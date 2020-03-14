@@ -20,6 +20,7 @@
 package org.apache.druid.benchmark.datagen;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.druid.data.gen.TestSchemaInfo;
 import org.apache.druid.data.gen.TestColumnSchema;
 import org.apache.druid.data.input.impl.DimensionSchema.ValueType;
 import org.apache.druid.java.util.common.Intervals;
@@ -41,7 +42,7 @@ import java.util.Map;
 
 public class BenchmarkSchemas
 {
-  public static final Map<String, BenchmarkSchemaInfo> SCHEMA_MAP = new LinkedHashMap<>();
+  public static final Map<String, TestSchemaInfo> SCHEMA_MAP = new LinkedHashMap<>();
 
   static { // basic schema
     List<TestColumnSchema> basicSchemaColumns = ImmutableList.of(
@@ -97,14 +98,14 @@ public class BenchmarkSchemas
 
     Interval basicSchemaDataInterval = Intervals.of("2000-01-01/P1D");
 
-    BenchmarkSchemaInfo basicSchema = new BenchmarkSchemaInfo(
+    TestSchemaInfo basicSchema = new TestSchemaInfo(
         basicSchemaColumns,
         basicSchemaIngestAggs,
         basicSchemaDataInterval,
         true
     );
 
-    BenchmarkSchemaInfo basicSchemaExpression = new BenchmarkSchemaInfo(
+    TestSchemaInfo basicSchemaExpression = new TestSchemaInfo(
         basicSchemaColumns,
         basicSchemaIngestAggsExpression,
         basicSchemaDataInterval,
@@ -126,7 +127,7 @@ public class BenchmarkSchemas
 
     Interval basicSchemaDataInterval = Intervals.utc(0, 1000000);
 
-    BenchmarkSchemaInfo basicSchema = new BenchmarkSchemaInfo(
+    TestSchemaInfo basicSchema = new TestSchemaInfo(
         basicSchemaColumns,
         basicSchemaIngestAggs,
         basicSchemaDataInterval,
@@ -147,7 +148,7 @@ public class BenchmarkSchemas
 
     Interval basicSchemaDataInterval = Intervals.utc(0, 1000000);
 
-    BenchmarkSchemaInfo basicSchema = new BenchmarkSchemaInfo(
+    TestSchemaInfo basicSchema = new TestSchemaInfo(
         basicSchemaColumns,
         basicSchemaIngestAggs,
         basicSchemaDataInterval,
@@ -168,7 +169,7 @@ public class BenchmarkSchemas
 
     Interval basicSchemaDataInterval = Intervals.utc(0, 1000000);
 
-    BenchmarkSchemaInfo basicSchema = new BenchmarkSchemaInfo(
+    TestSchemaInfo basicSchema = new TestSchemaInfo(
         basicSchemaColumns,
         basicSchemaIngestAggs,
         basicSchemaDataInterval,
@@ -218,7 +219,7 @@ public class BenchmarkSchemas
 
     Interval basicSchemaDataInterval = Intervals.utc(0, 1000000);
 
-    BenchmarkSchemaInfo rolloSchema = new BenchmarkSchemaInfo(
+    TestSchemaInfo rolloSchema = new TestSchemaInfo(
         rolloColumns,
         rolloSchemaIngestAggs,
         basicSchemaDataInterval,
@@ -246,7 +247,7 @@ public class BenchmarkSchemas
 
     Interval nullsSchemaDataInterval = Intervals.of("2000-01-01/P1D");
 
-    BenchmarkSchemaInfo nullsSchema = new BenchmarkSchemaInfo(
+    TestSchemaInfo nullsSchema = new TestSchemaInfo(
         nullsSchemaColumns,
         simpleNullsSchemaIngestAggs,
         nullsSchemaDataInterval,
@@ -286,7 +287,7 @@ public class BenchmarkSchemas
 
     Interval nullsSchemaDataInterval = Intervals.of("2000-01-01/P1D");
 
-    BenchmarkSchemaInfo nullsSchema = new BenchmarkSchemaInfo(
+    TestSchemaInfo nullsSchema = new TestSchemaInfo(
         nullsSchemaColumns,
         simpleNullsSchemaIngestAggs,
         nullsSchemaDataInterval,

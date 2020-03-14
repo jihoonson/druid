@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.apache.druid.benchmark.datagen;
+package org.apache.druid.data.gen;
 
-import org.apache.druid.data.gen.TestColumnSchema;
 import org.apache.druid.data.input.impl.DimensionSchema;
 import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.query.aggregation.AggregatorFactory;
@@ -28,14 +27,14 @@ import org.joda.time.Interval;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class BenchmarkSchemaInfo
+public class TestSchemaInfo
 {
   private List<TestColumnSchema> columnSchemas;
   private List<AggregatorFactory> aggs;
   private Interval dataInterval;
   private boolean withRollup;
 
-  public BenchmarkSchemaInfo(
+  public TestSchemaInfo(
       List<TestColumnSchema> columnSchemas,
       List<AggregatorFactory> aggs,
       Interval dataInterval,

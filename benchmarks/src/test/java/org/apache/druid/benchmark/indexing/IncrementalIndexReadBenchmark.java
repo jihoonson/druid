@@ -20,7 +20,7 @@
 package org.apache.druid.benchmark.indexing;
 
 import org.apache.druid.data.gen.TestDataGenerator;
-import org.apache.druid.benchmark.datagen.BenchmarkSchemaInfo;
+import org.apache.druid.data.gen.TestSchemaInfo;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemas;
 import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.data.input.InputRow;
@@ -91,7 +91,7 @@ public class IncrementalIndexReadBenchmark
 
   private IncrementalIndex incIndex;
 
-  private BenchmarkSchemaInfo schemaInfo;
+  private TestSchemaInfo schemaInfo;
 
   @Setup
   public void setup() throws IOException

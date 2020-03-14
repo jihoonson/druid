@@ -21,6 +21,7 @@ package org.apache.druid.benchmark.datagen;
 
 import com.google.common.hash.Hashing;
 import org.apache.druid.common.config.NullHandling;
+import org.apache.druid.data.gen.TestSchemaInfo;
 import org.apache.druid.data.gen.TestDataGenerator;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.java.util.common.FileUtils;
@@ -101,7 +102,7 @@ public class SegmentGenerator implements Closeable
 
   public QueryableIndex generate(
       final DataSegment dataSegment,
-      final BenchmarkSchemaInfo schemaInfo,
+      final TestSchemaInfo schemaInfo,
       final Granularity granularity,
       final int numRows
   )

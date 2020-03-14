@@ -22,7 +22,7 @@ package org.apache.druid.benchmark;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import org.apache.druid.data.gen.TestDataGenerator;
-import org.apache.druid.benchmark.datagen.BenchmarkSchemaInfo;
+import org.apache.druid.data.gen.TestSchemaInfo;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemas;
 import org.apache.druid.benchmark.query.QueryBenchmarkUtil;
 import org.apache.druid.common.config.NullHandling;
@@ -125,7 +125,7 @@ public class FilteredAggregatorBenchmark
   private DimFilter filter;
   private List<InputRow> inputRows;
   private QueryRunnerFactory factory;
-  private BenchmarkSchemaInfo schemaInfo;
+  private TestSchemaInfo schemaInfo;
   private TimeseriesQuery query;
   private File tmpDir;
 
@@ -202,7 +202,7 @@ public class FilteredAggregatorBenchmark
         QueryBenchmarkUtil.NOOP_QUERYWATCHER
     );
 
-    BenchmarkSchemaInfo basicSchema = BenchmarkSchemas.SCHEMA_MAP.get("basic");
+    TestSchemaInfo basicSchema = BenchmarkSchemas.SCHEMA_MAP.get("basic");
     QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(Collections.singletonList(basicSchema.getDataInterval()));
     List<AggregatorFactory> queryAggs = new ArrayList<>();
     queryAggs.add(filteredMetrics[0]);

@@ -21,7 +21,7 @@ package org.apache.druid.benchmark.indexing;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.druid.data.gen.TestDataGenerator;
-import org.apache.druid.benchmark.datagen.BenchmarkSchemaInfo;
+import org.apache.druid.data.gen.TestSchemaInfo;
 import org.apache.druid.benchmark.datagen.BenchmarkSchemas;
 import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.data.input.InputRow;
@@ -92,7 +92,7 @@ public class IndexPersistBenchmark
 
   private IncrementalIndex incIndex;
   private ArrayList<InputRow> rows;
-  private BenchmarkSchemaInfo schemaInfo;
+  private TestSchemaInfo schemaInfo;
 
   @Setup
   public void setup()
