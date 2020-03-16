@@ -26,7 +26,9 @@ import org.apache.druid.common.utils.UUIDUtils;
 import org.apache.druid.data.gen.TestColumnSchema;
 import org.apache.druid.data.gen.TestDataGenerator;
 import org.apache.druid.data.gen.TestSchemaInfo;
+import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.impl.DimensionSchema.ValueType;
+import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Sequence;
@@ -47,7 +49,10 @@ import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
 import org.apache.druid.segment.incremental.IncrementalIndexStorageAdapter;
+import org.apache.druid.testing.InitializedNullHandlingTest;
 import org.joda.time.Interval;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
@@ -57,17 +62,48 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class AggregatorTestBase
+public class AggregatorTestBase extends InitializedNullHandlingTest
 {
   // float, double, long, single-valued string, multi-valued string w/o nulls
   // custom column value selector for complex type
 
   // get as dimension selector
   // get as column value selector
+
+  public enum TestColumn
+  {
+    FLOAT_COLUMN("floatColumn", ValueType.FLOAT),
+    DOUBLE_COLUMN("doubleColumn", ValueType.DOUBLE),
+    LONG_COLUMN("longColumn", ValueType.LONG),
+    SINGLE_VALUED_STRING_COLUMN("singleValuedStringColumn", ValueType.STRING),
+    MULTI_VALUED_STRING_COLUMN("multiValuedStringColumn", ValueType.STRING);
+
+    private final String name;
+    private final ValueType valueType;
+
+    TestColumn(String name, ValueType valueType)
+    {
+      this.name = name;
+      this.valueType = valueType;
+    }
+
+    public String getName()
+    {
+      return name;
+    }
+
+    public ValueType getValueType()
+    {
+      return valueType;
+    }
+  }
 
   public static final String FLOAT_COLUMN = "floatColumn";
   public static final String DOUBLE_COLUMN = "doubleColumn";
@@ -78,18 +114,32 @@ public class AggregatorTestBase
   @Rule
   public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-  private final IndexStuff indexStuff;
+  private final boolean persist;
+  private final TestDataGenerator dataGenerator;
+  private final TestSchemaInfo testSchemaInfo;
+  private final int numTimePartitions;
+  private final int numRowsPerTimePartition;
+  private final boolean rollup;
+
+  private IndexStuff indexStuff;
 
   public AggregatorTestBase(
       Interval interval,
       Granularity segmentGranularity,
-      int numRows,
+      int numSegmentsPerTimePartition,
+      int numRowsPerSegment,
       double nullRatio,
-      List<AggregatorFactory> aggregatorFactories,
+      @Nullable List<AggregatorFactory> aggregatorFactories,
       boolean rollup,
       boolean persist
   )
   {
+    this.rollup = rollup;
+    this.persist = persist;
+    this.numTimePartitions = Iterables.size(segmentGranularity.getIterable(interval));
+    this.numRowsPerTimePartition = numSegmentsPerTimePartition;
+
+    final int numRows = numRowsPerSegment * numRowsPerTimePartition * numTimePartitions;
     final List<TestColumnSchema> columnSchemas = ImmutableList.of(
         TestColumnSchema.makeSequential(
             FLOAT_COLUMN,
@@ -136,16 +186,18 @@ public class AggregatorTestBase
         )
     );
 
-    final int numTimePartitions = Iterables.size(segmentGranularity.getIterable(interval));
-    final int numRowsPerTimePartition = numRows / numTimePartitions;
-    final TestSchemaInfo testSchemaInfo = new TestSchemaInfo(
+    this.testSchemaInfo = new TestSchemaInfo(
         columnSchemas,
-        aggregatorFactories,
+        aggregatorFactories == null ? Collections.emptyList() : aggregatorFactories,
         interval,
         rollup
     );
-    final TestDataGenerator dataGenerator = new TestDataGenerator(columnSchemas, 0, interval, numRowsPerTimePartition);
+    this.dataGenerator = new TestDataGenerator(columnSchemas, 0, interval, numRowsPerTimePartition);
+  }
 
+  @Before // TODO: per class
+  public void setupTestBase()
+  {
     if (persist) {
       indexStuff = new QueryableIndexStuff(
           new ProcessingTestToolbox(),
@@ -174,7 +226,43 @@ public class AggregatorTestBase
     }
   }
 
-  public <T> T aggregate(String columnName, AggregatorFactory aggregatorFactory, Interval interval)
+  @After
+  public void tearDownTestBase() throws IOException
+  {
+    if (indexStuff != null) {
+      indexStuff.close();
+    }
+  }
+
+  public <T, R> R compute(
+      String columnName,
+      Interval interval,
+      Function<T, R> function,
+      BiFunction<R, R, R> accumulateFunction,
+      T replaceNullForT,
+      R replaceNullForR
+  )
+  {
+    return indexStuff.createCursorSequence(interval)
+              .map(cursor -> {
+                ColumnSelectorFactory columnSelectorFactory = cursor.getColumnSelectorFactory();
+                ColumnValueSelector<T> columnValueSelector = columnSelectorFactory.makeColumnValueSelector(columnName);
+                R accumulcated = replaceNullForR;
+                while (!cursor.isDone()) {
+                  T val = columnValueSelector.getObject();
+                  R converted = function.apply(val == null ? replaceNullForT : val);
+                  accumulcated = accumulateFunction.apply(
+                      accumulcated == null ? replaceNullForR : accumulcated,
+                      converted == null ? replaceNullForR : converted
+                  );
+                  cursor.advance();
+                }
+                return accumulcated;
+              })
+              .accumulate(replaceNullForR, (accumulateFunction::apply));
+  }
+
+  public <T> T aggregate(AggregatorFactory aggregatorFactory, Interval interval)
   {
     SettableColumnValueSelector columnValueSelector = new SettableColumnValueSelector();
     Aggregator combiner = aggregatorFactory.getCombiningFactory().factorize(
@@ -318,6 +406,9 @@ public class AggregatorTestBase
       Consumer<IncrementalIndex<?>> consumer
   )
   {
+    TestColumn[] columns = TestColumn.values();
+    Boolean[] includeNulls = new Boolean[columns.length];
+    Arrays.fill(includeNulls, false);
     for (int i = 0; i < numTimePartitions; i++) {
       IncrementalIndex<Aggregator> incrementalIndex = new IncrementalIndex.Builder()
           .setIndexSchema(
@@ -332,13 +423,23 @@ public class AggregatorTestBase
 
       try {
         for (int j = 0; j < numRowsPerTimePartition; j++) {
-          incrementalIndex.add(dataGenerator.nextRow());
+          InputRow inputRow = dataGenerator.nextRow();
+          for (int k = 0; k < columns.length; k++) {
+            includeNulls[k] |= inputRow.getRaw(columns[k].getName()) == null;
+          }
+          incrementalIndex.add(inputRow);
         }
         consumer.accept(incrementalIndex);
       }
       catch (IOException e) {
         throw new RuntimeException(e);
       }
+    }
+    if (!Arrays.stream(includeNulls).allMatch(includeNull -> includeNull)) {
+      throw new ISE(
+          "Found columns with no null value. It may be because of too small number of rows to create. "
+          + "Try increasing numRows or nullRatio."
+      );
     }
   }
 
