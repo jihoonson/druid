@@ -71,4 +71,24 @@ public class LongSumAggregatorTest2 extends AggregatorTestBase
         aggregate(aggregatorFactory, INTERVAL)
     );
   }
+
+  @Test
+  public void testBufferAggregate()
+  {
+    final LongSumAggregatorFactory aggregatorFactory = new LongSumAggregatorFactory(
+        TestColumn.LONG_COLUMN.getName(),
+        TestColumn.LONG_COLUMN.getName()
+    );
+    Assert.assertEquals(
+        compute(
+            TestColumn.LONG_COLUMN.getName(),
+            INTERVAL,
+            Function.identity(),
+            Long::sum,
+            0L,
+            0L
+        ),
+        bufferAggregate(aggregatorFactory, INTERVAL)
+    );
+  }
 }

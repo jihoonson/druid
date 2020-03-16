@@ -60,6 +60,7 @@ import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -72,11 +73,6 @@ import java.util.function.Supplier;
 public class AggregatorTestBase extends InitializedNullHandlingTest
 {
   // float, double, long, single-valued string, multi-valued string w/o nulls
-  // custom column value selector for complex type
-
-  // get as dimension selector
-  // get as column value selector
-
   public enum TestColumn
   {
     FLOAT_COLUMN("floatColumn", ValueType.FLOAT),
@@ -105,12 +101,6 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
     }
   }
 
-  public static final String FLOAT_COLUMN = "floatColumn";
-  public static final String DOUBLE_COLUMN = "doubleColumn";
-  public static final String LONG_COLUMN = "longColumn";
-  public static final String SINGLE_VALUE_STRING_COLUMN = "singleValueStringColumn";
-  public static final String MULTI_VALUE_STRING_COLUMN = "multiValueStringColumn";
-
   @Rule
   public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
@@ -129,6 +119,7 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
       int numSegmentsPerTimePartition,
       int numRowsPerSegment,
       double nullRatio,
+      // custom aggregators for indexing. can be used for testing rollup
       @Nullable List<AggregatorFactory> aggregatorFactories,
       boolean rollup,
       boolean persist
@@ -142,8 +133,8 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
     final int numRows = numRowsPerSegment * numRowsPerTimePartition * numTimePartitions;
     final List<TestColumnSchema> columnSchemas = ImmutableList.of(
         TestColumnSchema.makeSequential(
-            FLOAT_COLUMN,
-            ValueType.FLOAT,
+            TestColumn.FLOAT_COLUMN.getName(),
+            TestColumn.FLOAT_COLUMN.getValueType(),
             false,
             1,
             nullRatio,
@@ -151,8 +142,8 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
             numRows / 2
         ),
         TestColumnSchema.makeSequential(
-            DOUBLE_COLUMN,
-            ValueType.DOUBLE,
+            TestColumn.DOUBLE_COLUMN.getName(),
+            TestColumn.DOUBLE_COLUMN.getValueType(),
             false,
             1,
             nullRatio,
@@ -160,8 +151,8 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
             numRows / 2
         ),
         TestColumnSchema.makeSequential(
-            LONG_COLUMN,
-            ValueType.LONG,
+            TestColumn.LONG_COLUMN.getName(),
+            TestColumn.LONG_COLUMN.getValueType(),
             false,
             1,
             nullRatio,
@@ -169,16 +160,16 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
             numRows / 2
         ),
         TestColumnSchema.makeEnumeratedSequential(
-            SINGLE_VALUE_STRING_COLUMN,
-            ValueType.STRING,
+            TestColumn.SINGLE_VALUED_STRING_COLUMN.getName(),
+            TestColumn.SINGLE_VALUED_STRING_COLUMN.getValueType(),
             false,
             1,
             nullRatio,
             Arrays.asList("Apple", "Orange", "Xylophone", "Corundum", null)
         ),
         TestColumnSchema.makeEnumeratedSequential(
-            MULTI_VALUE_STRING_COLUMN,
-            ValueType.STRING,
+            TestColumn.MULTI_VALUED_STRING_COLUMN.getName(),
+            TestColumn.MULTI_VALUED_STRING_COLUMN.getValueType(),
             false,
             4,
             nullRatio,
@@ -244,22 +235,23 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
   )
   {
     return indexStuff.createCursorSequence(interval)
-              .map(cursor -> {
-                ColumnSelectorFactory columnSelectorFactory = cursor.getColumnSelectorFactory();
-                ColumnValueSelector<T> columnValueSelector = columnSelectorFactory.makeColumnValueSelector(columnName);
-                R accumulcated = replaceNullForR;
-                while (!cursor.isDone()) {
-                  T val = columnValueSelector.getObject();
-                  R converted = function.apply(val == null ? replaceNullForT : val);
-                  accumulcated = accumulateFunction.apply(
-                      accumulcated == null ? replaceNullForR : accumulcated,
-                      converted == null ? replaceNullForR : converted
-                  );
-                  cursor.advance();
-                }
-                return accumulcated;
-              })
-              .accumulate(replaceNullForR, (accumulateFunction::apply));
+                     .map(cursor -> {
+                       ColumnSelectorFactory columnSelectorFactory = cursor.getColumnSelectorFactory();
+                       ColumnValueSelector<T> columnValueSelector = columnSelectorFactory.makeColumnValueSelector(
+                           columnName);
+                       R accumulcated = replaceNullForR;
+                       while (!cursor.isDone()) {
+                         T val = columnValueSelector.getObject();
+                         R converted = function.apply(val == null ? replaceNullForT : val);
+                         accumulcated = accumulateFunction.apply(
+                             accumulcated == null ? replaceNullForR : accumulcated,
+                             converted == null ? replaceNullForR : converted
+                         );
+                         cursor.advance();
+                       }
+                       return accumulcated;
+                     })
+                     .accumulate(replaceNullForR, (accumulateFunction::apply));
   }
 
   public <T> T aggregate(AggregatorFactory aggregatorFactory, Interval interval)
@@ -268,7 +260,7 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
     Aggregator combiner = aggregatorFactory.getCombiningFactory().factorize(
         new SettableColumnSelectorFactory(columnValueSelector)
     );
-    return (T) indexStuff.createCursorSequence(interval)
+    T result = indexStuff.createCursorSequence(interval)
                          .map(cursor -> {
                            Aggregator aggregator = aggregatorFactory.factorize(cursor.getColumnSelectorFactory());
                            while (!cursor.isDone()) {
@@ -281,8 +273,39 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
                          .accumulate(null, (accumulated, val) -> {
                            columnValueSelector.setVal(val);
                            combiner.aggregate();
-                           return combiner.get();
+                           return (T) combiner.get();
                          });
+    combiner.close();
+    return result;
+  }
+
+  public <T> T bufferAggregate(AggregatorFactory aggregatorFactory, Interval interval)
+  {
+    SettableColumnValueSelector columnValueSelector = new SettableColumnValueSelector();
+    BufferAggregator combiner = aggregatorFactory.getCombiningFactory().factorizeBuffered(
+        new SettableColumnSelectorFactory(columnValueSelector)
+    );
+    ByteBuffer combineBuffer = ByteBuffer.allocate(aggregatorFactory.getMaxIntermediateSizeWithNulls());
+    combiner.init(combineBuffer, 0);
+    T result = indexStuff.createCursorSequence(interval)
+                         .map(cursor -> {
+                           BufferAggregator aggregator = aggregatorFactory.factorizeBuffered(cursor.getColumnSelectorFactory());
+                           ByteBuffer buffer = ByteBuffer.allocate(aggregatorFactory.getMaxIntermediateSizeWithNulls());
+                           aggregator.init(buffer, 0);
+                           while (!cursor.isDone()) {
+                             aggregator.aggregate(buffer, 0);
+                             cursor.advance();
+                           }
+                           aggregator.close();
+                           return aggregator.get(buffer, 0);
+                         })
+                         .accumulate(null, (accumulated, val) -> {
+                           columnValueSelector.setVal(val);
+                           combiner.aggregate(combineBuffer, 0);
+                           return (T) combiner.get(combineBuffer, 0);
+                         });
+    combiner.close();
+    return result;
   }
 
   private interface IndexStuff extends Closeable
