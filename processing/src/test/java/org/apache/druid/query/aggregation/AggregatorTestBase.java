@@ -286,6 +286,7 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
           R accumulcated = replaceNullForR;
           while (!cursor.isDone()) {
             T val = columnValueSelector.getObject();
+            // TODO: probably null handling should be done in the function
             R converted = function.apply(val == null ? replaceNullForT : val);
             accumulcated = accumulateFunction.apply(
                 accumulcated == null ? replaceNullForR : accumulcated,

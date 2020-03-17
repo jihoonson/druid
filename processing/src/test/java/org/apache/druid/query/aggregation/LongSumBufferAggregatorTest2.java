@@ -27,7 +27,7 @@ import java.util.function.Function;
 public class LongSumBufferAggregatorTest2 extends LongSumAggregatorTestBase
 {
   @Test
-  public void testBufferAggregate()
+  public void testAggregate()
   {
     Assert.assertEquals(
         compute(
