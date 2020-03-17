@@ -28,20 +28,20 @@ import org.apache.druid.data.gen.TestDataGenerator;
 import org.apache.druid.data.gen.TestSchemaInfo;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.impl.DimensionSchema.ValueType;
+import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.io.Closer;
+import org.apache.druid.query.dimension.DefaultDimensionSpec;
 import org.apache.druid.query.dimension.DimensionSpec;
-import org.apache.druid.query.monomorphicprocessing.RuntimeShapeInspector;
 import org.apache.druid.segment.ColumnSelectorFactory;
 import org.apache.druid.segment.ColumnValueSelector;
 import org.apache.druid.segment.Cursor;
 import org.apache.druid.segment.DimensionSelector;
 import org.apache.druid.segment.IndexSpec;
-import org.apache.druid.segment.ObjectColumnSelector;
 import org.apache.druid.segment.QueryableIndex;
 import org.apache.druid.segment.QueryableIndexStorageAdapter;
 import org.apache.druid.segment.VirtualColumns;
@@ -49,6 +49,11 @@ import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
 import org.apache.druid.segment.incremental.IncrementalIndexStorageAdapter;
+import org.apache.druid.segment.selector.settable.SettableColumnValueSelector;
+import org.apache.druid.segment.selector.settable.SettableDoubleColumnValueSelector;
+import org.apache.druid.segment.selector.settable.SettableFloatColumnValueSelector;
+import org.apache.druid.segment.selector.settable.SettableLongColumnValueSelector;
+import org.apache.druid.segment.selector.settable.SettableObjectColumnValueSelector;
 import org.apache.druid.testing.InitializedNullHandlingTest;
 import org.joda.time.Interval;
 import org.junit.After;
@@ -75,11 +80,41 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
   // float, double, long, single-valued string, multi-valued string w/o nulls
   public enum TestColumn
   {
-    FLOAT_COLUMN("floatColumn", ValueType.FLOAT),
-    DOUBLE_COLUMN("doubleColumn", ValueType.DOUBLE),
-    LONG_COLUMN("longColumn", ValueType.LONG),
-    SINGLE_VALUED_STRING_COLUMN("singleValuedStringColumn", ValueType.STRING),
-    MULTI_VALUED_STRING_COLUMN("multiValuedStringColumn", ValueType.STRING);
+    FLOAT_COLUMN("floatColumn", ValueType.FLOAT) {
+          @Override
+          public SettableColumnValueSelector<Float> createSettableColumnValueSelector()
+          {
+            return new SettableFloatColumnValueSelector();
+          }
+        },
+    DOUBLE_COLUMN("doubleColumn", ValueType.DOUBLE) {
+      @Override
+      public SettableColumnValueSelector<Double> createSettableColumnValueSelector()
+      {
+        return new SettableDoubleColumnValueSelector();
+      }
+    },
+    LONG_COLUMN("longColumn", ValueType.LONG) {
+      @Override
+      public SettableColumnValueSelector<Long> createSettableColumnValueSelector()
+      {
+        return new SettableLongColumnValueSelector();
+      }
+    },
+    SINGLE_VALUED_STRING_COLUMN("singleValuedStringColumn", ValueType.STRING) {
+      @Override
+      public SettableColumnValueSelector<String> createSettableColumnValueSelector()
+      {
+        return new SettableObjectColumnValueSelector<>();
+      }
+    },
+    MULTI_VALUED_STRING_COLUMN("multiValuedStringColumn", ValueType.STRING) {
+      @Override
+      public SettableColumnValueSelector<List<String>> createSettableColumnValueSelector()
+      {
+        return new SettableObjectColumnValueSelector<>();
+      }
+    };
 
     private final String name;
     private final ValueType valueType;
@@ -98,6 +133,16 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
     public ValueType getValueType()
     {
       return valueType;
+    }
+
+    public abstract SettableColumnValueSelector<?> createSettableColumnValueSelector();
+
+    public static TestColumn getColumn(String columnName)
+    {
+      return Arrays.stream(TestColumn.values())
+                   .filter(col -> columnName.equals(col.getName()))
+                   .findFirst()
+                   .orElseThrow(() -> new IAE("Unknown column: %s", columnName));
     }
   }
 
@@ -226,7 +271,7 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
   }
 
   public <T, R> R compute(
-      String columnName,
+      TestColumn column,
       Interval interval,
       Function<T, R> function,
       BiFunction<R, R, R> accumulateFunction,
@@ -234,78 +279,77 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
       R replaceNullForR
   )
   {
-    return indexStuff.createCursorSequence(interval)
-                     .map(cursor -> {
-                       ColumnSelectorFactory columnSelectorFactory = cursor.getColumnSelectorFactory();
-                       ColumnValueSelector<T> columnValueSelector = columnSelectorFactory.makeColumnValueSelector(
-                           columnName);
-                       R accumulcated = replaceNullForR;
-                       while (!cursor.isDone()) {
-                         T val = columnValueSelector.getObject();
-                         R converted = function.apply(val == null ? replaceNullForT : val);
-                         accumulcated = accumulateFunction.apply(
-                             accumulcated == null ? replaceNullForR : accumulcated,
-                             converted == null ? replaceNullForR : converted
-                         );
-                         cursor.advance();
-                       }
-                       return accumulcated;
-                     })
-                     .accumulate(replaceNullForR, (accumulateFunction::apply));
+    return createCursorSequence(interval)
+        .map(cursor -> {
+          ColumnSelectorFactory columnSelectorFactory = cursor.getColumnSelectorFactory();
+          ColumnValueSelector<T> columnValueSelector = columnSelectorFactory.makeColumnValueSelector(column.getName());
+          R accumulcated = replaceNullForR;
+          while (!cursor.isDone()) {
+            T val = columnValueSelector.getObject();
+            R converted = function.apply(val == null ? replaceNullForT : val);
+            accumulcated = accumulateFunction.apply(
+                accumulcated == null ? replaceNullForR : accumulcated,
+                converted == null ? replaceNullForR : converted
+            );
+            cursor.advance();
+          }
+          return accumulcated;
+        })
+        .accumulate(replaceNullForR, (accumulateFunction::apply));
   }
 
   public <T> T aggregate(AggregatorFactory aggregatorFactory, Interval interval)
   {
-    SettableColumnValueSelector columnValueSelector = new SettableColumnValueSelector();
-    Aggregator combiner = aggregatorFactory.getCombiningFactory().factorize(
-        new SettableColumnSelectorFactory(columnValueSelector)
-    );
-    T result = indexStuff.createCursorSequence(interval)
-                         .map(cursor -> {
-                           Aggregator aggregator = aggregatorFactory.factorize(cursor.getColumnSelectorFactory());
-                           while (!cursor.isDone()) {
-                             aggregator.aggregate();
-                             cursor.advance();
-                           }
-                           aggregator.close();
-                           return aggregator.get();
-                         })
-                         .accumulate(null, (accumulated, val) -> {
-                           columnValueSelector.setVal(val);
-                           combiner.aggregate();
-                           return (T) combiner.get();
-                         });
-    combiner.close();
-    return result;
+    return createCursorSequence(interval)
+        .map(cursor -> {
+          Aggregator aggregator = aggregatorFactory.factorize(cursor.getColumnSelectorFactory());
+          while (!cursor.isDone()) {
+            aggregator.aggregate();
+            cursor.advance();
+          }
+          aggregator.close();
+          return aggregator.get();
+        })
+        .accumulate(null, (accumulated, val) -> (T) aggregatorFactory.combine(accumulated, val));
   }
 
   public <T> T bufferAggregate(AggregatorFactory aggregatorFactory, Interval interval)
   {
-    SettableColumnValueSelector columnValueSelector = new SettableColumnValueSelector();
-    BufferAggregator combiner = aggregatorFactory.getCombiningFactory().factorizeBuffered(
-        new SettableColumnSelectorFactory(columnValueSelector)
-    );
-    ByteBuffer combineBuffer = ByteBuffer.allocate(aggregatorFactory.getMaxIntermediateSizeWithNulls());
-    combiner.init(combineBuffer, 0);
-    T result = indexStuff.createCursorSequence(interval)
-                         .map(cursor -> {
-                           BufferAggregator aggregator = aggregatorFactory.factorizeBuffered(cursor.getColumnSelectorFactory());
-                           ByteBuffer buffer = ByteBuffer.allocate(aggregatorFactory.getMaxIntermediateSizeWithNulls());
-                           aggregator.init(buffer, 0);
-                           while (!cursor.isDone()) {
-                             aggregator.aggregate(buffer, 0);
-                             cursor.advance();
-                           }
-                           aggregator.close();
-                           return aggregator.get(buffer, 0);
-                         })
-                         .accumulate(null, (accumulated, val) -> {
-                           columnValueSelector.setVal(val);
-                           combiner.aggregate(combineBuffer, 0);
-                           return (T) combiner.get(combineBuffer, 0);
-                         });
-    combiner.close();
-    return result;
+    return createCursorSequence(interval)
+        .map(cursor -> {
+          BufferAggregator aggregator = aggregatorFactory.factorizeBuffered(cursor.getColumnSelectorFactory());
+          ByteBuffer buffer = ByteBuffer.allocate(aggregatorFactory.getMaxIntermediateSizeWithNulls());
+          aggregator.init(buffer, 0);
+          while (!cursor.isDone()) {
+            aggregator.aggregate(buffer, 0);
+            cursor.advance();
+          }
+          aggregator.close();
+          return aggregator.get(buffer, 0);
+        })
+        .accumulate(null, (accumulated, val) -> (T) aggregatorFactory.combine(accumulated, val));
+  }
+
+  public Sequence<Cursor> createCursorSequence(Interval interval)
+  {
+    return indexStuff.createCursorSequence(interval);
+  }
+
+  public DimensionSelector createDimensionSelector(Cursor cursor, String columnName)
+  {
+    return cursor.getColumnSelectorFactory()
+                 .makeDimensionSelector(
+                     new DefaultDimensionSpec(
+                         columnName,
+                         columnName,
+                         convertType(TestColumn.getColumn(columnName).getValueType())
+                     )
+                 );
+  }
+
+  public <T> ColumnValueSelector<T> createColumnValueSelector(Cursor cursor, String columnName)
+  {
+    return cursor.getColumnSelectorFactory().makeColumnValueSelector(columnName);
   }
 
   private interface IndexStuff extends Closeable
@@ -466,11 +510,11 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
     }
   }
 
-  private static class SettableColumnSelectorFactory implements ColumnSelectorFactory
+  static class SettableColumnSelectorFactory implements ColumnSelectorFactory
   {
     private final ColumnValueSelector columnValueSelector;
 
-    private SettableColumnSelectorFactory(SettableColumnValueSelector columnValueSelector)
+    SettableColumnSelectorFactory(ColumnValueSelector columnValueSelector)
     {
       this.columnValueSelector = columnValueSelector;
     }
@@ -495,31 +539,8 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
     }
   }
 
-  private static class SettableColumnValueSelector extends ObjectColumnSelector<Object>
+  private static org.apache.druid.segment.column.ValueType convertType(ValueType valueType)
   {
-    private Object val;
-
-    public void setVal(Object val)
-    {
-      this.val = val;
-    }
-
-    @Override
-    public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-    {
-    }
-
-    @Nullable
-    @Override
-    public Object getObject()
-    {
-      return val;
-    }
-
-    @Override
-    public Class<? extends Object> classOfObject()
-    {
-      return val.getClass();
-    }
+    return org.apache.druid.segment.column.ValueType.fromString(valueType.name());
   }
 }

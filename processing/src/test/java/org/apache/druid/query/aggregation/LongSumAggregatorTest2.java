@@ -19,49 +19,20 @@
 
 package org.apache.druid.query.aggregation;
 
-import org.apache.druid.java.util.common.Intervals;
-import org.apache.druid.java.util.common.granularity.Granularities;
-import org.apache.druid.java.util.common.granularity.Granularity;
-import org.joda.time.Interval;
+import org.apache.druid.segment.selector.settable.SettableLongColumnValueSelector;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.function.Function;
 
-public class LongSumAggregatorTest2 extends AggregatorTestBase
+public class LongSumAggregatorTest2 extends LongSumAggregatorTestBase
 {
-  private static final Interval INTERVAL = Intervals.of("2020-01-01/P1D");
-  private static final Granularity SEGMENT_GRANULARITY = Granularities.HOUR;
-  private static final int NUM_SEGMENT_PER_TIME_PARTITION = 2;
-  private static final int NUM_ROWS_PER_SEGMENT = 10;
-  private static final double NULL_RATIO = 0.2;
-  private static final boolean ROLL_UP = true; // another class?
-  private static final boolean PERSIST = true; // paramterized
-
-  public LongSumAggregatorTest2()
-  {
-    super(
-        INTERVAL,
-        SEGMENT_GRANULARITY,
-        NUM_SEGMENT_PER_TIME_PARTITION,
-        NUM_ROWS_PER_SEGMENT,
-        NULL_RATIO,
-        null,
-        ROLL_UP,
-        PERSIST
-    );
-  }
-
   @Test
   public void testAggregate()
   {
-    final LongSumAggregatorFactory aggregatorFactory = new LongSumAggregatorFactory(
-        TestColumn.LONG_COLUMN.getName(),
-        TestColumn.LONG_COLUMN.getName()
-    );
     Assert.assertEquals(
         compute(
-            TestColumn.LONG_COLUMN.getName(),
+            TestColumn.LONG_COLUMN,
             INTERVAL,
             Function.identity(),
             Long::sum,
@@ -73,22 +44,33 @@ public class LongSumAggregatorTest2 extends AggregatorTestBase
   }
 
   @Test
-  public void testBufferAggregate()
+  public void testGet()
   {
-    final LongSumAggregatorFactory aggregatorFactory = new LongSumAggregatorFactory(
-        TestColumn.LONG_COLUMN.getName(),
-        TestColumn.LONG_COLUMN.getName()
-    );
-    Assert.assertEquals(
-        compute(
-            TestColumn.LONG_COLUMN.getName(),
-            INTERVAL,
-            Function.identity(),
-            Long::sum,
-            0L,
-            0L
-        ),
-        bufferAggregate(aggregatorFactory, INTERVAL)
-    );
+    SettableLongColumnValueSelector columnValueSelector = new SettableLongColumnValueSelector();
+    SettableColumnSelectorFactory columnSelectorFactory = new SettableColumnSelectorFactory(columnValueSelector);
+    Aggregator aggregator = aggregatorFactory.factorize(columnSelectorFactory);
+    columnValueSelector.setValue(1);
+    aggregator.aggregate();
+    Assert.assertEquals(1L, aggregator.get());
+    Assert.assertEquals(1L, aggregator.getLong());
+    Assert.assertEquals(1., aggregator.getDouble(), 0);
+    Assert.assertEquals(1., aggregator.getFloat(), 0);
+  }
+
+  @Test
+  public void testGetNull()
+  {
+    SettableLongColumnValueSelector columnValueSelector = new SettableLongColumnValueSelector();
+    SettableColumnSelectorFactory columnSelectorFactory = new SettableColumnSelectorFactory(columnValueSelector);
+    Aggregator aggregator = aggregatorFactory.factorize(columnSelectorFactory);
+    columnValueSelector.setNull(true);
+    aggregator.aggregate();
+    Assert.assertTrue(aggregator.isNull());
+    Assert.assertNull(aggregator.get());
+
+    // TODO: check exceptions
+    aggregator.getLong();
+    Assert.assertEquals(1., aggregator.getDouble(), 0);
+    Assert.assertEquals(1., aggregator.getFloat(), 0);
   }
 }

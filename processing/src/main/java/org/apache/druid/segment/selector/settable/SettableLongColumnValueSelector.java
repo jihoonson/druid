@@ -45,6 +45,11 @@ public class SettableLongColumnValueSelector implements SettableColumnValueSelec
     this.value = value;
   }
 
+  public void setNull(boolean isNull)
+  {
+    this.isNull = isNull;
+  }
+
   @Override
   public long getLong()
   {
