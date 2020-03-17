@@ -22,6 +22,7 @@ package org.apache.druid.query.aggregation;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.druid.common.ProcessingTestToolbox;
+import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.common.utils.UUIDUtils;
 import org.apache.druid.data.gen.TestColumnSchema;
 import org.apache.druid.data.gen.TestDataGenerator;
@@ -148,6 +149,8 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
 
   @Rule
   public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+  final boolean replaceNullWithDefault = NullHandling.replaceWithDefault();
 
   private final boolean persist;
   private final TestDataGenerator dataGenerator;
