@@ -65,8 +65,13 @@ public class LongSumAggregatorTest2 extends LongSumAggregatorTestBase
     Aggregator aggregator = aggregatorFactory.factorize(columnSelectorFactory);
     columnValueSelector.setNull(true);
     aggregator.aggregate();
-    Assert.assertTrue(aggregator.isNull());
-    Assert.assertNull(aggregator.get());
+    if (replaceNullWithDefault) {
+      Assert.assertFalse(aggregator.isNull());
+      Assert.assertEquals(0L, aggregator.get());
+    } else {
+      Assert.assertTrue(aggregator.isNull());
+      Assert.assertNull(aggregator.get());
+    }
 
     // TODO: check exceptions
 //    aggregator.getLong();

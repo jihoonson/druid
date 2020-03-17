@@ -36,7 +36,6 @@ import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.io.Closer;
-import org.apache.druid.query.dimension.DefaultDimensionSpec;
 import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.segment.ColumnSelectorFactory;
 import org.apache.druid.segment.ColumnValueSelector;
@@ -337,23 +336,6 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
   public Sequence<Cursor> createCursorSequence(Interval interval)
   {
     return indexStuff.createCursorSequence(interval);
-  }
-
-  public DimensionSelector createDimensionSelector(Cursor cursor, String columnName)
-  {
-    return cursor.getColumnSelectorFactory()
-                 .makeDimensionSelector(
-                     new DefaultDimensionSpec(
-                         columnName,
-                         columnName,
-                         convertType(TestColumn.getColumn(columnName).getValueType())
-                     )
-                 );
-  }
-
-  public <T> ColumnValueSelector<T> createColumnValueSelector(Cursor cursor, String columnName)
-  {
-    return cursor.getColumnSelectorFactory().makeColumnValueSelector(columnName);
   }
 
   private interface IndexStuff extends Closeable

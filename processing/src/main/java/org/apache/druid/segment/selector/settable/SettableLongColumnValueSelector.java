@@ -19,6 +19,7 @@
 
 package org.apache.druid.segment.selector.settable;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.segment.ColumnValueSelector;
 import org.apache.druid.segment.LongColumnSelector;
@@ -45,6 +46,7 @@ public class SettableLongColumnValueSelector implements SettableColumnValueSelec
     this.value = value;
   }
 
+  @VisibleForTesting
   public void setNull(boolean isNull)
   {
     this.isNull = isNull;
