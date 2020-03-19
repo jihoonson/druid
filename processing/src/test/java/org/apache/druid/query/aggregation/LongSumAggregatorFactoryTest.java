@@ -19,6 +19,7 @@
 
 package org.apache.druid.query.aggregation;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.druid.query.aggregation.AggregatorTestBase.SettableColumnSelectorFactory;
 import org.apache.druid.query.aggregation.AggregatorTestBase.TestColumn;
 import org.apache.druid.query.dimension.DimensionSpec;
@@ -36,16 +37,40 @@ import org.apache.druid.testing.InitializedNullHandlingTest;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import javax.annotation.Nullable;
+import java.util.Collection;
 
+@RunWith(Parameterized.class)
 public class LongSumAggregatorFactoryTest extends InitializedNullHandlingTest
 {
   private ColumnValueSelector<Long> columnValueSelector;
   private ColumnSelectorFactory columnSelectorFactory;
   private VectorColumnSelectorFactory vectorColumnSelectorFactory;
-  private LongSumAggregatorFactory aggregatorFactory;
-  private LongSumAggregatorFactory aggregatorFactoryWithExpr;
+  private final LongSumAggregatorFactory aggregatorFactory;
+
+  @Parameterized.Parameters
+  public static Collection<Object[]> constructorFeeder()
+  {
+    return ImmutableList.of(
+        new Object[]{new LongSumAggregatorFactory(TestColumn.LONG_COLUMN.getName(), TestColumn.LONG_COLUMN.getName())},
+        new Object[]{
+            new LongSumAggregatorFactory(
+                TestColumn.LONG_COLUMN.getName(),
+                null,
+                "expression",
+                TestExprMacroTable.INSTANCE
+            )
+        }
+    );
+  }
+
+  public LongSumAggregatorFactoryTest(LongSumAggregatorFactory aggregatorFactory)
+  {
+    this.aggregatorFactory = aggregatorFactory;
+  }
 
   @Before
   public void setup()
@@ -53,16 +78,6 @@ public class LongSumAggregatorFactoryTest extends InitializedNullHandlingTest
     columnValueSelector = new SettableLongColumnValueSelector();
     columnSelectorFactory = new SettableColumnSelectorFactory(columnValueSelector);
     vectorColumnSelectorFactory = new NoopVectorColumnSelectorFactory();
-    aggregatorFactory = new LongSumAggregatorFactory(
-        TestColumn.LONG_COLUMN.getName(),
-        TestColumn.LONG_COLUMN.getName()
-    );
-    aggregatorFactoryWithExpr = new LongSumAggregatorFactory(
-        TestColumn.LONG_COLUMN.getName(),
-        null,
-        "expression",
-        TestExprMacroTable.INSTANCE
-    );
   }
 
   @Test
@@ -92,22 +107,18 @@ public class LongSumAggregatorFactoryTest extends InitializedNullHandlingTest
   @Test
   public void testFactorizeVector()
   {
-    Assert.assertSame(
-        LongSumVectorAggregator.class,
-        aggregatorFactory.factorizeVector(vectorColumnSelectorFactory).getClass()
-    );
+    if (aggregatorFactory.canVectorize()) {
+      Assert.assertSame(
+          LongSumVectorAggregator.class,
+          aggregatorFactory.factorizeVector(vectorColumnSelectorFactory).getClass()
+      );
+    }
   }
 
   @Test
   public void testCanVectorize()
   {
-    Assert.assertTrue(aggregatorFactory.canVectorize());
-  }
-
-  @Test
-  public void testCanVectorizeWithExpression()
-  {
-    Assert.assertFalse(aggregatorFactoryWithExpr.canVectorize());
+    Assert.assertEquals(aggregatorFactory.getExpression() == null, aggregatorFactory.canVectorize());
   }
 
   @Test
@@ -119,7 +130,18 @@ public class LongSumAggregatorFactoryTest extends InitializedNullHandlingTest
   @Test
   public void testCombine()
   {
+    Assert.assertEquals(3L, aggregatorFactory.combine(1L, 2L));
+    Assert.assertEquals(3L, aggregatorFactory.combine(1., 2.));
+    Assert.assertEquals(3L, aggregatorFactory.combine(1.f, 2.f));
+    Assert.assertEquals(3L, aggregatorFactory.combine(1.1, 2.1));
+  }
 
+  @Test
+  public void testCombineWithNull()
+  {
+    Assert.assertEquals(1L, aggregatorFactory.combine(1L, null));
+    Assert.assertEquals(2L, aggregatorFactory.combine(null, 2L));
+    Assert.assertNull(aggregatorFactory.combine(null, null));
   }
 
   private static class NoopVectorColumnSelectorFactory implements VectorColumnSelectorFactory
