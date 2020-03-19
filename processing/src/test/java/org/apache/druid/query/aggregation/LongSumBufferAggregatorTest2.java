@@ -36,11 +36,16 @@ import java.util.function.Function;
 public class LongSumBufferAggregatorTest2 extends LongSumAggregatorTestBase
 {
   private ByteBuffer buffer;
+  private SettableLongColumnValueSelector columnValueSelector;
+  private SimpleLongBufferAggregator aggregator;
 
   @Before
   public void setup()
   {
     buffer = ByteBuffer.allocate(aggregatorFactory.getMaxIntermediateSizeWithNulls());
+    columnValueSelector = new SettableLongColumnValueSelector();
+    SettableColumnSelectorFactory columnSelectorFactory = new SettableColumnSelectorFactory(columnValueSelector);
+    aggregator = (SimpleLongBufferAggregator) aggregatorFactory.factorizeBuffered(columnSelectorFactory);
   }
 
   @Test
@@ -73,9 +78,6 @@ public class LongSumBufferAggregatorTest2 extends LongSumAggregatorTestBase
   @Test
   public void testGet()
   {
-    SettableLongColumnValueSelector columnValueSelector = new SettableLongColumnValueSelector();
-    SettableColumnSelectorFactory columnSelectorFactory = new SettableColumnSelectorFactory(columnValueSelector);
-    BufferAggregator aggregator = aggregatorFactory.factorizeBuffered(columnSelectorFactory);
     columnValueSelector.setValue(1);
     aggregator.init(buffer, 0);
     aggregator.aggregate(buffer, 0);
@@ -88,9 +90,6 @@ public class LongSumBufferAggregatorTest2 extends LongSumAggregatorTestBase
   @Test
   public void testIsNull()
   {
-    SettableLongColumnValueSelector columnValueSelector = new SettableLongColumnValueSelector();
-    SettableColumnSelectorFactory columnSelectorFactory = new SettableColumnSelectorFactory(columnValueSelector);
-    BufferAggregator aggregator = aggregatorFactory.factorizeBuffered(columnSelectorFactory);
     columnValueSelector.setNull(true);
     aggregator.init(buffer, 0);
     aggregator.aggregate(buffer, 0);
@@ -124,9 +123,6 @@ public class LongSumBufferAggregatorTest2 extends LongSumAggregatorTestBase
   @Test
   public void testInspectRuntimeShape()
   {
-    SettableLongColumnValueSelector columnValueSelector = new SettableLongColumnValueSelector();
-    SimpleLongBufferAggregator aggregator = new LongSumBufferAggregator(columnValueSelector);
-
     RecordingRuntimeShapeInspector runtimeShapeInspector = new RecordingRuntimeShapeInspector();
     aggregator.inspectRuntimeShape(runtimeShapeInspector);
     Assert.assertEquals(1, runtimeShapeInspector.visited.size());
