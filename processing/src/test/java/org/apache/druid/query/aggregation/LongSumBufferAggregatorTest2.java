@@ -19,12 +19,18 @@
 
 package org.apache.druid.query.aggregation;
 
+import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.query.monomorphicprocessing.HotLoopCallee;
+import org.apache.druid.query.monomorphicprocessing.RuntimeShapeInspector;
 import org.apache.druid.segment.selector.settable.SettableLongColumnValueSelector;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 
 public class LongSumBufferAggregatorTest2 extends LongSumAggregatorTestBase
@@ -113,5 +119,54 @@ public class LongSumBufferAggregatorTest2 extends LongSumAggregatorTestBase
   public void testRelocate()
   {
     // relocate does nothing
+  }
+
+  @Test
+  public void testInspectRuntimeShape()
+  {
+    SettableLongColumnValueSelector columnValueSelector = new SettableLongColumnValueSelector();
+    SimpleLongBufferAggregator aggregator = new LongSumBufferAggregator(columnValueSelector);
+
+    RecordingRuntimeShapeInspector runtimeShapeInspector = new RecordingRuntimeShapeInspector();
+    aggregator.inspectRuntimeShape(runtimeShapeInspector);
+    Assert.assertEquals(1, runtimeShapeInspector.visited.size());
+    Pair<String, Object> visited = runtimeShapeInspector.visited.get(0);
+    Assert.assertEquals("selector", visited.lhs);
+    Assert.assertEquals(aggregator.selector, visited.rhs);
+  }
+
+  private static class RecordingRuntimeShapeInspector implements RuntimeShapeInspector
+  {
+    private final List<Pair<String, Object>> visited = new ArrayList<>();
+
+    @Override
+    public void visit(String fieldName, @Nullable HotLoopCallee value)
+    {
+      visited.add(Pair.of(fieldName, value));
+    }
+
+    @Override
+    public void visit(String fieldName, @Nullable Object value)
+    {
+      visited.add(Pair.of(fieldName, value));
+    }
+
+    @Override
+    public <T> void visit(String fieldName, T[] values)
+    {
+      visited.add(Pair.of(fieldName, values));
+    }
+
+    @Override
+    public void visit(String flagName, boolean flagValue)
+    {
+      visited.add(Pair.of(flagName, flagName));
+    }
+
+    @Override
+    public void visit(String key, String runtimeShape)
+    {
+      visited.add(Pair.of(key, runtimeShape));
+    }
   }
 }
