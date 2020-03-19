@@ -80,7 +80,7 @@ public class LongSumBufferAggregatorTest2 extends LongSumAggregatorTestBase
   }
 
   @Test
-  public void testGetNull()
+  public void testIsNull()
   {
     SettableLongColumnValueSelector columnValueSelector = new SettableLongColumnValueSelector();
     SettableColumnSelectorFactory columnSelectorFactory = new SettableColumnSelectorFactory(columnValueSelector);
@@ -101,5 +101,17 @@ public class LongSumBufferAggregatorTest2 extends LongSumAggregatorTestBase
 //    aggregator.getLong();
 //    Assert.assertEquals(1., aggregator.getDouble(), 0);
 //    Assert.assertEquals(1., aggregator.getFloat(), 0);
+  }
+
+  @Test
+  public void testClose()
+  {
+    // close does nothing
+  }
+
+  @Test
+  public void testRelocate()
+  {
+    // relocate does nothing
   }
 }
