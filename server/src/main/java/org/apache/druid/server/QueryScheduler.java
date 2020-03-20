@@ -55,8 +55,8 @@ import java.util.Set;
  */
 public class QueryScheduler implements QueryWatcher
 {
-  private static final int NO_CAPACITY = -1;
-  static final String TOTAL = "default";
+  public static final int UNAVAILABLE = -1;
+  public static final String TOTAL = "total";
   private final int totalCapacity;
   private final QueryPrioritizationStrategy prioritizationStrategy;
   private final QueryLaningStrategy laningStrategy;
@@ -173,7 +173,7 @@ public class QueryScheduler implements QueryWatcher
   {
     return laneRegistry.getConfiguration(TOTAL)
                        .map(config -> laneRegistry.bulkhead(TOTAL, config).getMetrics().getAvailableConcurrentCalls())
-                       .orElse(NO_CAPACITY);
+                       .orElse(UNAVAILABLE);
   }
 
   /**
@@ -184,7 +184,7 @@ public class QueryScheduler implements QueryWatcher
   {
     return laneRegistry.getConfiguration(lane)
                        .map(config -> laneRegistry.bulkhead(lane, config).getMetrics().getAvailableConcurrentCalls())
-                       .orElse(NO_CAPACITY);
+                       .orElse(UNAVAILABLE);
   }
 
   /**
