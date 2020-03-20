@@ -75,7 +75,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class AggregatorTestBase extends InitializedNullHandlingTest
+public class AggregateTestBase extends InitializedNullHandlingTest
 {
   // float, double, long, single-valued string, multi-valued string w/o nulls
   public enum TestColumn
@@ -149,8 +149,6 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
   @Rule
   public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-  final boolean replaceNullWithDefault = NullHandling.replaceWithDefault();
-
   private final boolean persist;
   private final TestDataGenerator dataGenerator;
   private final TestSchemaInfo testSchemaInfo;
@@ -160,7 +158,7 @@ public class AggregatorTestBase extends InitializedNullHandlingTest
 
   private IndexStuff indexStuff;
 
-  public AggregatorTestBase(
+  public AggregateTestBase(
       Interval interval,
       Granularity segmentGranularity,
       int numSegmentsPerTimePartition,

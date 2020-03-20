@@ -23,7 +23,15 @@ import org.apache.druid.common.config.NullHandling;
 
 public class InitializedNullHandlingTest
 {
+  private final static boolean REPLACE_NULL_WITH_DEFAULT;
+
   static {
     NullHandling.initializeForTests();
+    REPLACE_NULL_WITH_DEFAULT = NullHandling.replaceWithDefault();
+  }
+
+  public static boolean isReplaceNullWithDefault()
+  {
+    return REPLACE_NULL_WITH_DEFAULT;
   }
 }

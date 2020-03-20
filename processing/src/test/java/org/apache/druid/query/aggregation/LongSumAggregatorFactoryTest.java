@@ -20,12 +20,13 @@
 package org.apache.druid.query.aggregation;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.druid.query.aggregation.AggregatorTestBase.SettableColumnSelectorFactory;
-import org.apache.druid.query.aggregation.AggregatorTestBase.TestColumn;
+import org.apache.druid.query.aggregation.AggregateTestBase.SettableColumnSelectorFactory;
+import org.apache.druid.query.aggregation.AggregateTestBase.TestColumn;
 import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.expression.TestExprMacroTable;
 import org.apache.druid.segment.ColumnSelectorFactory;
 import org.apache.druid.segment.ColumnValueSelector;
+import org.apache.druid.segment.ListBasedSingleColumnCursor;
 import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.selector.settable.SettableLongColumnValueSelector;
 import org.apache.druid.segment.vector.MultiValueDimensionVectorSelector;
@@ -42,6 +43,7 @@ import org.junit.runners.Parameterized;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Comparator;
 
 @RunWith(Parameterized.class)
 public class LongSumAggregatorFactoryTest extends InitializedNullHandlingTest
@@ -125,6 +127,29 @@ public class LongSumAggregatorFactoryTest extends InitializedNullHandlingTest
   public void testGetComparator()
   {
     Assert.assertSame(LongSumAggregator.COMPARATOR, aggregatorFactory.getComparator());
+  }
+
+  @Test
+  public void testComparator()
+  {
+    final ListBasedSingleColumnCursor<Long> cursor = new ListBasedSingleColumnCursor<>(
+        Long.class,
+        ImmutableList.of(18293L)
+    );
+    final ColumnValueSelector<Long> selector = cursor.getColumnSelectorFactory().makeColumnValueSelector(
+        TestColumn.LONG_COLUMN.getName()
+    );
+    LongSumAggregator agg = new LongSumAggregator(selector);
+
+    Object first = agg.get();
+    agg.aggregate();
+
+    Comparator comp = aggregatorFactory.getComparator();
+
+    Assert.assertEquals(-1, comp.compare(first, agg.get()));
+    Assert.assertEquals(0, comp.compare(first, first));
+    Assert.assertEquals(0, comp.compare(agg.get(), agg.get()));
+    Assert.assertEquals(1, comp.compare(agg.get(), first));
   }
 
   @Test

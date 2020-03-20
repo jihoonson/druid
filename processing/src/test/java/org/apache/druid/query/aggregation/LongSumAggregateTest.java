@@ -19,27 +19,46 @@
 
 package org.apache.druid.query.aggregation;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.joda.time.Interval;
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
-public abstract class LongSumAggregatorTestBase extends AggregatorTestBase
+import java.util.Collection;
+import java.util.function.Function;
+
+@RunWith(Parameterized.class)
+public class LongSumAggregateTest extends AggregateTestBase
 {
   static final Interval INTERVAL = Intervals.of("2020-01-01/P1D");
   static final Granularity SEGMENT_GRANULARITY = Granularities.HOUR;
   static final int NUM_SEGMENT_PER_TIME_PARTITION = 2;
   static final int NUM_ROWS_PER_SEGMENT = 10;
   static final double NULL_RATIO = 0.2;
-  static final boolean ROLL_UP = true; // another class?
-  static final boolean PERSIST = true; // paramterized
 
   final LongSumAggregatorFactory aggregatorFactory = new LongSumAggregatorFactory(
       TestColumn.LONG_COLUMN.getName(),
       TestColumn.LONG_COLUMN.getName()
   );
 
-  LongSumAggregatorTestBase()
+  @Parameters
+  public static Collection<Object[]> constructorFeeder()
+  {
+    return ImmutableList.of(
+        new Object[]{false, false},
+        new Object[]{true, false},
+        new Object[]{false, true},
+        new Object[]{true, true}
+    );
+  }
+
+  public LongSumAggregateTest(boolean rollup, boolean persist)
   {
     super(
         INTERVAL,
@@ -48,8 +67,40 @@ public abstract class LongSumAggregatorTestBase extends AggregatorTestBase
         NUM_ROWS_PER_SEGMENT,
         NULL_RATIO,
         null,
-        ROLL_UP,
-        PERSIST
+        rollup,
+        persist
+    );
+  }
+
+  @Test
+  public void testAggregate()
+  {
+    Assert.assertEquals(
+        compute(
+            TestColumn.LONG_COLUMN,
+            INTERVAL,
+            Function.identity(),
+            Long::sum,
+            0L,
+            0L
+        ),
+        aggregate(aggregatorFactory, INTERVAL)
+    );
+  }
+
+  @Test
+  public void testBufferAggregate()
+  {
+    Assert.assertEquals(
+        compute(
+            TestColumn.LONG_COLUMN,
+            INTERVAL,
+            Function.identity(),
+            Long::sum,
+            0L,
+            0L
+        ),
+        bufferAggregate(aggregatorFactory, INTERVAL)
     );
   }
 }
