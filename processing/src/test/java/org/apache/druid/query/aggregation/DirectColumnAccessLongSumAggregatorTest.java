@@ -30,9 +30,6 @@ import org.junit.rules.ExpectedException;
 import javax.annotation.Nullable;
 import java.util.Collections;
 
-/**
- *
- */
 public class DirectColumnAccessLongSumAggregatorTest extends InitializedNullHandlingTest
 {
   @Rule
