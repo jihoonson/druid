@@ -56,6 +56,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * This class iterates all segments of the dataSources configured for compaction from the newest to the oldest.
@@ -240,9 +241,9 @@ public class NewestSegmentFirstIterator implements CompactionSegmentIterator
       if (holders.isEmpty()) {
         throw new NoSuchElementException();
       }
-      return FluentIterable.from(holders.remove(holders.size() - 1).getObject())
-                           .transform(PartitionChunk::getObject)
-                           .toList();
+      return StreamSupport.stream(holders.remove(holders.size() - 1).getObject().spliterator(), false)
+                          .map(PartitionChunk::getObject)
+                          .collect(Collectors.toList());
     }
   }
 
