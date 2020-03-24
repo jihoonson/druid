@@ -24,7 +24,7 @@ import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.query.aggregation.AggregateTestBase.TestColumn;
 import org.apache.druid.query.expression.TestExprMacroTable;
 import org.apache.druid.segment.ListBasedSingleColumnCursor;
-import org.apache.druid.testing.InitializedNullHandlingTest.AssumingReplaceNullWithDefaultMode;
+import org.apache.druid.testing.InitializedNullHandlingTest;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -38,7 +38,7 @@ import java.util.Collections;
 import java.util.function.LongFunction;
 
 @RunWith(Parameterized.class)
-public class LongSumAggregatorReplaceNullModeTest
+public class LongSumAggregatorReplaceNullModeTest extends InitializedNullHandlingTest
 {
   @ClassRule
   public static AssumingReplaceNullWithDefaultMode ASSUMING_REPLACE_NULL_WITH_DEFAULT_MODE

@@ -19,31 +19,74 @@
 
 package org.apache.druid.query.aggregation;
 
-import org.apache.druid.java.util.common.Pair;
+import com.google.common.collect.ImmutableList;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.query.aggregation.AggregateTestBase.TestColumn;
+import org.apache.druid.query.expression.TestExprMacroTable;
 import org.apache.druid.segment.ListBasedSingleColumnCursor;
 import org.apache.druid.testing.InitializedNullHandlingTest;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.function.LongFunction;
+import java.util.stream.Collectors;
 
-public class DirectColumnAccessLongSumBufferAggregatorTest extends InitializedNullHandlingTest
+@RunWith(Parameterized.class)
+public class LongSumBufferAggregatorReplaceNullModeTest extends InitializedNullHandlingTest
 {
+  @ClassRule
+  public static AssumingReplaceNullWithDefaultMode ASSUMING_REPLACE_NULL_WITH_DEFAULT_MODE
+      = new AssumingReplaceNullWithDefaultMode();
+
+  @Parameters
+  public static Collection<Object[]> constructorFeeder()
+  {
+    return ImmutableList.of(
+        new Object[]{
+            new LongSumAggregatorFactory(TestColumn.LONG_COLUMN.getName(), TestColumn.LONG_COLUMN.getName()),
+            (LongFunction<Number>) val -> val
+        },
+        new Object[]{
+            new LongSumAggregatorFactory(
+                TestColumn.LONG_COLUMN.getName(),
+                null,
+                StringUtils.format("%s + 1", TestColumn.LONG_COLUMN.getName()),
+                TestExprMacroTable.INSTANCE
+            ),
+            (LongFunction<Number>) val -> val + 1
+        }
+    );
+  }
+
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
 
-  private final LongSumAggregatorFactory aggregatorFactory = new LongSumAggregatorFactory(
-      TestColumn.LONG_COLUMN.getName(),
-      TestColumn.LONG_COLUMN.getName()
-  );
+  private final LongSumAggregatorFactory aggregatorFactory;
+  private final LongFunction<Number> expectedResultCalculator;
 
   private ByteBuffer buffer;
+
+  public LongSumBufferAggregatorReplaceNullModeTest(
+      LongSumAggregatorFactory aggregatorFactory,
+      LongFunction<Number> expectedResultCalculator
+  )
+  {
+    this.aggregatorFactory = aggregatorFactory;
+    this.expectedResultCalculator = expectedResultCalculator;
+  }
 
   @Before
   public void setup()
@@ -58,75 +101,33 @@ public class DirectColumnAccessLongSumBufferAggregatorTest extends InitializedNu
     buffer.putLong(0, 10L);
     try (BufferAggregator aggregator = createAggregatorForValue(null)) {
       aggregator.init(buffer, 0);
-      Assert.assertEquals(isReplaceNullWithDefault() ? 0L : 72057594037927936L, buffer.getLong(0));
+      Assert.assertEquals(0L, buffer.getLong(0));
     }
   }
 
   @Test
   public void testGet()
   {
+    final long val = 1L;
+    final Number expectedResult = expectedResultCalculator.apply(val);
     try (BufferAggregator aggregator = createAggregatorForValue(1L)) {
       aggregator.init(buffer, 0);
       aggregator.aggregate(buffer, 0);
-      Assert.assertEquals(1L, aggregator.get(buffer, 0));
-      Assert.assertEquals(1L, aggregator.getLong(buffer, 0));
-      Assert.assertEquals(1., aggregator.getDouble(buffer, 0), 0);
-      Assert.assertEquals(1., aggregator.getFloat(buffer, 0), 0);
+      Assert.assertEquals(expectedResult, aggregator.get(buffer, 0));
+      Assert.assertEquals(expectedResult.longValue(), aggregator.getLong(buffer, 0));
+      Assert.assertEquals(expectedResult.doubleValue(), aggregator.getDouble(buffer, 0), 0);
+      Assert.assertEquals(expectedResult.floatValue(), aggregator.getFloat(buffer, 0), 0);
     }
   }
 
   @Test
-  public void testIsNull()
+  public void testGetReplacedNull()
   {
-    if (!isReplaceNullWithDefault()) {
-      try (BufferAggregator aggregator = createAggregatorForValue(null)) {
-        aggregator.init(buffer, 0);
-        aggregator.aggregate(buffer, 0);
-        Assert.assertTrue(aggregator.isNull(buffer, 0));
-        Assert.assertNull(aggregator.get(buffer, 0));
-      }
-    }
-  }
-
-  @Test
-  public void testGetLongWithNull()
-  {
-    if (!isReplaceNullWithDefault()) {
-      try (BufferAggregator aggregator = createAggregatorForValue(null)) {
-        aggregator.init(buffer, 0);
-        aggregator.aggregate(buffer, 0);
-        expectedException.expect(IllegalStateException.class);
-        expectedException.expectMessage("Cannot return long for Null Value");
-        aggregator.getLong(buffer, 0);
-      }
-    }
-  }
-
-  @Test
-  public void testGetDoubleWithNull()
-  {
-    if (!isReplaceNullWithDefault()) {
-      try (BufferAggregator aggregator = createAggregatorForValue(null)) {
-        aggregator.init(buffer, 0);
-        aggregator.aggregate(buffer, 0);
-        expectedException.expect(IllegalStateException.class);
-        expectedException.expectMessage("Cannot return double for Null Value");
-        aggregator.getDouble(buffer, 0);
-      }
-    }
-  }
-
-  @Test
-  public void testGetFloatWithNull()
-  {
-    if (!isReplaceNullWithDefault()) {
-      try (BufferAggregator aggregator = createAggregatorForValue(null)) {
-        aggregator.init(buffer, 0);
-        aggregator.aggregate(buffer, 0);
-        expectedException.expect(IllegalStateException.class);
-        expectedException.expectMessage("Cannot return float for Null Value");
-        aggregator.getFloat(buffer, 0);
-      }
+    try (BufferAggregator aggregator = createAggregatorForValue(0L)) {
+      aggregator.init(buffer, 0);
+      aggregator.aggregate(buffer, 0);
+      Assert.assertFalse(aggregator.isNull(buffer, 0));
+      Assert.assertEquals(expectedResultCalculator.apply(0L), aggregator.get(buffer, 0));
     }
   }
 
@@ -154,19 +155,22 @@ public class DirectColumnAccessLongSumBufferAggregatorTest extends InitializedNu
     try (BufferAggregator aggregator = createAggregatorForValue(1L)) {
       RecordingRuntimeShapeInspector runtimeShapeInspector = new RecordingRuntimeShapeInspector();
       aggregator.inspectRuntimeShape(runtimeShapeInspector);
-      if (isReplaceNullWithDefault()) {
-        Assert.assertEquals(1, runtimeShapeInspector.getVisited().size());
-        Pair<String, Object> visited = runtimeShapeInspector.getVisited().get(0);
-        Assert.assertEquals("selector", visited.lhs);
+
+      final List<String> expectedVisited = new ArrayList<>();
+      if (aggregatorFactory.getExpression() == null) {
+        expectedVisited.add("selector");
       } else {
-        Assert.assertEquals(3, runtimeShapeInspector.getVisited().size());
-        Pair<String, Object> visited = runtimeShapeInspector.getVisited().get(0);
-        Assert.assertEquals("delegate", visited.lhs);
-        visited = runtimeShapeInspector.getVisited().get(1);
-        Assert.assertEquals("selector", visited.lhs);
-        visited = runtimeShapeInspector.getVisited().get(2);
-        Assert.assertEquals("nullSelector", visited.lhs);
+        expectedVisited.add("selector");
+        expectedVisited.add("baseSelector");
+        expectedVisited.add("expression");
+        expectedVisited.add("bindings");
       }
+      final List<String> actualVisited = runtimeShapeInspector
+          .getVisited()
+          .stream()
+          .map(pair -> pair.lhs)
+          .collect(Collectors.toList());
+      Assert.assertEquals(expectedVisited, actualVisited);
     }
   }
 
