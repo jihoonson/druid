@@ -22,7 +22,6 @@ package org.apache.druid.query.aggregation;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.druid.common.ProcessingTestToolbox;
-import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.common.utils.UUIDUtils;
 import org.apache.druid.data.gen.TestColumnSchema;
 import org.apache.druid.data.gen.TestDataGenerator;
@@ -231,7 +230,7 @@ public class AggregateTestBase extends InitializedNullHandlingTest
     this.dataGenerator = new TestDataGenerator(columnSchemas, 0, interval, numRowsPerTimePartition);
   }
 
-  @Before // TODO: per class
+  @Before
   public void setupTestBase()
   {
     if (persist) {
@@ -275,28 +274,22 @@ public class AggregateTestBase extends InitializedNullHandlingTest
       Interval interval,
       Function<T, R> function,
       BiFunction<R, R, R> accumulateFunction,
-      T replaceNullForT,
-      R replaceNullForR
+      @Nullable R initialValue
   )
   {
     return createCursorSequence(interval)
         .map(cursor -> {
           ColumnSelectorFactory columnSelectorFactory = cursor.getColumnSelectorFactory();
           ColumnValueSelector<T> columnValueSelector = columnSelectorFactory.makeColumnValueSelector(column.getName());
-          R accumulcated = replaceNullForR;
+          R accumulated = initialValue;
           while (!cursor.isDone()) {
             T val = columnValueSelector.getObject();
-            // TODO: probably null handling should be done in the function
-            R converted = function.apply(val == null ? replaceNullForT : val);
-            accumulcated = accumulateFunction.apply(
-                accumulcated == null ? replaceNullForR : accumulcated,
-                converted == null ? replaceNullForR : converted
-            );
+            accumulated = accumulateFunction.apply(accumulated, function.apply(val));
             cursor.advance();
           }
-          return accumulcated;
+          return accumulated;
         })
-        .accumulate(replaceNullForR, (accumulateFunction::apply));
+        .accumulate(initialValue, accumulateFunction::apply);
   }
 
   public <T> T aggregate(AggregatorFactory aggregatorFactory, Interval interval)

@@ -31,6 +31,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import java.util.Collection;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 @RunWith(Parameterized.class)
@@ -79,10 +80,9 @@ public class LongSumAggregateTest extends AggregateTestBase
         compute(
             TestColumn.LONG_COLUMN,
             INTERVAL,
-            Function.identity(),
-            Long::sum,
-            0L,
-            0L
+            valueExtractFunction(),
+            accumulateFunction(),
+            isReplaceNullWithDefault() ? 0L : null
         ),
         aggregate(aggregatorFactory, INTERVAL)
     );
@@ -95,12 +95,40 @@ public class LongSumAggregateTest extends AggregateTestBase
         compute(
             TestColumn.LONG_COLUMN,
             INTERVAL,
-            Function.identity(),
-            Long::sum,
-            0L,
-            0L
+            valueExtractFunction(),
+            accumulateFunction(),
+            isReplaceNullWithDefault() ? 0L : null
         ),
         bufferAggregate(aggregatorFactory, INTERVAL)
     );
+  }
+
+  private static Function<Long, Long> valueExtractFunction()
+  {
+    return val -> {
+      if (val == null) {
+        return isReplaceNullWithDefault() ? 0L : null;
+      } else {
+        return val;
+      }
+    };
+  }
+
+  private static BiFunction<Long, Long, Long> accumulateFunction()
+  {
+    return (v1, v2) -> {
+      if (isReplaceNullWithDefault()) {
+        // v1 and v2 cannot be null
+        return v1 + v2;
+      } else {
+        if (v1 == null) {
+          return v2;
+        } else if (v2 == null) {
+          return v1;
+        } else {
+          return v1 + v2;
+        }
+      }
+    };
   }
 }
