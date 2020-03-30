@@ -33,6 +33,7 @@ import org.apache.druid.js.JavaScriptConfig;
 import org.apache.druid.query.aggregation.BufferAggregator;
 import org.apache.druid.query.aggregation.DoubleSumAggregatorFactory;
 import org.apache.druid.query.aggregation.JavaScriptAggregatorFactory;
+import org.apache.druid.query.aggregation.PolyglotJsAggregatorFactory;
 import org.apache.druid.query.expression.TestExprMacroTable;
 import org.apache.druid.query.monomorphicprocessing.RuntimeShapeInspector;
 import org.apache.druid.segment.BaseFloatColumnValueSelector;
@@ -65,7 +66,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 @State(Scope.Benchmark)
-@Fork(value = 1)
+@Fork(value = 1, jvmArgs = {"-XX:+UnlockExperimentalVMOptions", "-XX:+EnableJVMCI", "--module-path=/Users/jihoonson/.m2/repository/org/graalvm/compiler/compiler/19.3.1", "--upgrade-module-path=/Users/jihoonson/.m2/repository/org/graalvm/compiler/compiler/19.3.1/compiler-19.3.1.jar", "-XX:+UseJVMCICompiler"})
 @Warmup(iterations = 15)
 @Measurement(iterations = 30)
 @BenchmarkMode(Mode.AverageTime)
@@ -82,6 +83,7 @@ public class ExpressionAggregationBenchmark
   private QueryableIndex index;
   private JavaScriptAggregatorFactory javaScriptAggregatorFactory;
   private DoubleSumAggregatorFactory expressionAggregatorFactory;
+  private PolyglotJsAggregatorFactory polyglotJsAggregatorFactory;
   private ByteBuffer aggregationBuffer = ByteBuffer.allocate(Double.BYTES);
   private Closer closer;
 
@@ -126,6 +128,12 @@ public class ExpressionAggregationBenchmark
         "if(x>0,1.0+x,y+1)",
         TestExprMacroTable.INSTANCE
     );
+    this.polyglotJsAggregatorFactory = new PolyglotJsAggregatorFactory(
+        "name",
+        ImmutableList.of("x", "y"),
+        "(current,x,y) => x > 0 ? current + x + 1 : current + y + 1",
+        "() => 0"
+    );
   }
 
   @TearDown(Level.Trial)
@@ -138,6 +146,13 @@ public class ExpressionAggregationBenchmark
   public void queryUsingJavaScript(Blackhole blackhole)
   {
     final Double result = compute(javaScriptAggregatorFactory::factorizeBuffered);
+    blackhole.consume(result);
+  }
+
+  @Benchmark
+  public void queryUsingPolyglotJs(Blackhole blackhole)
+  {
+    final Double result = compute(polyglotJsAggregatorFactory::factorizeBuffered);
     blackhole.consume(result);
   }
 
