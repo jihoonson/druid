@@ -30,7 +30,7 @@
 
     <groupId>org.apache.druid</groupId>
     <artifactId>druid</artifactId>
-    <version>0.18.0-SNAPSHOT</version>
+    <version>0.19.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Druid</name>
@@ -67,7 +67,7 @@
         <connection>scm:git:ssh://git@github.com/apache/druid.git</connection>
         <developerConnection>scm:git:ssh://git@github.com/apache/druid.git</developerConnection>
         <url>https://github.com/apache/druid.git</url>
-        <tag>0.18.0-SNAPSHOT</tag>
+        <tag>0.19.0-SNAPSHOT</tag>
     </scm>
 
     <properties>
@@ -76,9 +76,11 @@
         <java.version>8</java.version>
         <project.build.resourceEncoding>UTF-8</project.build.resourceEncoding>
         <aether.version>0.9.0.M2</aether.version>
-        <apache.curator.version>4.1.0</apache.curator.version>
+        <apache.curator.version>4.3.0</apache.curator.version>
         <apache.curator.test.version>2.12.0</apache.curator.test.version>
         <apache.kafka.version>2.2.2</apache.kafka.version>
+        <apache.ranger.version>2.0.0</apache.ranger.version>
+        <apache.ranger.gson.version>2.2.4</apache.ranger.gson.version>
         <avatica.version>1.15.0</avatica.version>
         <avro.version>1.9.2</avro.version>
         <calcite.version>1.21.0</calcite.version>
@@ -93,7 +95,9 @@
         <jackson.version>2.10.2</jackson.version>
         <codehaus.jackson.version>1.9.13</codehaus.jackson.version>
         <log4j.version>2.8.2</log4j.version>
+        <mysql.version>5.1.48</mysql.version>
         <netty3.version>3.10.6.Final</netty3.version>
+        <resilience4j.version>1.3.1</resilience4j.version>
         <!-- Spark updated in https://github.com/apache/spark/pull/19884 -->
         <netty4.version>4.1.45.Final</netty4.version>
         <node.version>v10.14.2</node.version>
@@ -141,6 +145,7 @@
         <module>extensions-core/datasketches</module>
         <module>extensions-core/druid-bloom-filter</module>
         <module>extensions-core/druid-kerberos</module>
+        <module>extensions-core/druid-pac4j</module>
         <module>extensions-core/hdfs-storage</module>
         <module>extensions-core/histogram</module>
         <module>extensions-core/stats</module>
@@ -159,6 +164,7 @@
         <module>extensions-core/simple-client-sslcontext</module>
         <module>extensions-core/druid-basic-security</module>
         <module>extensions-core/google-extensions</module>
+        <module>extensions-core/druid-ranger-security</module>
         <!-- Community extensions -->
         <module>extensions-contrib/influx-extensions</module>
         <module>extensions-contrib/cassandra-storage</module>
@@ -1181,6 +1187,11 @@
                     </exclusion>
                 </exclusions>
             </dependency>
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-bulkhead</artifactId>
+                <version>${resilience4j.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>org.testng</groupId>
@@ -1870,6 +1881,7 @@
                                 <exclude>codestyle/*-forbidden-apis.txt</exclude>
                                 <exclude>conf/**</exclude>
                                 <exclude>docker/*.conf</exclude>
+                                <exclude>docker/service-supervisords/*.conf</exclude>
                                 <exclude>target/**</exclude>
                                 <exclude>licenses/**</exclude>
                                 <exclude>**/test/resources/**</exclude>

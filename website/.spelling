@@ -218,11 +218,14 @@ dbcp
 denormalization
 denormalize
 denormalized
+deprioritization
+deprioritizes
 dequeued
 deserialization
 deserialize
 deserialized
 downtimes
+druid
 e.g.
 encodings
 endian
@@ -260,6 +263,7 @@ javadoc
 kerberos
 keystore
 keytab
+laning
 lifecycle
 localhost
 log4j
@@ -642,6 +646,11 @@ maximumSize
 onHeapPolling
 pollPeriod
 reverseLoadingCacheSpec
+ - ../docs/development/extensions-core/druid-pac4j.md
+OAuth
+Okta
+OpenID
+pac4j
  - ../docs/development/extensions-core/google.md
 GCS
 StaticGoogleBlobStoreFirehose
@@ -1714,3 +1723,10 @@ isUnpatrolled
 metroCode
 regionIsoCode
 regionName
+ - ../docs/development/extensions-core/druid-ranger-security.md
+json
+metastore
+UserGroupInformation
+CVE-2019-17571
+CVE-2019-12399
+CVE-2018-17196
