@@ -19,37 +19,29 @@
 
 package org.apache.druid.testing.utils;
 
-import org.apache.druid.java.util.common.DateTimes;
-import org.joda.time.DateTime;
+import com.fasterxml.jackson.annotation.JacksonInject;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.druid.guice.annotations.Json;
 
-import java.util.UUID;
+import java.util.Map;
 
-public class StreamVerifierEventGenerator extends SyntheticStreamGenerator
+public class JsonEventSerializer implements EventSerializer
 {
-  public StreamVerifierEventGenerator(int eventsPerSeconds, long cyclePaddingMs)
+  public static final String TYPE = "json";
+
+  private final ObjectMapper jsonMapper;
+
+  @JsonCreator
+  public JsonEventSerializer(@JacksonInject @Json ObjectMapper jsonMapper)
   {
-    super(eventsPerSeconds, cyclePaddingMs);
+    this.jsonMapper = jsonMapper;
   }
 
   @Override
-  Object getEvent(int i, DateTime timestamp)
+  public byte[] serialize(Map<String, Object> event) throws JsonProcessingException
   {
-    return StreamVerifierSyntheticEvent.of(
-        UUID.randomUUID().toString(),
-        timestamp.getMillis(),
-        DateTimes.nowUtc().getMillis(),
-        i,
-        i == getEventsPerSecond() ? getSumOfEventSequence(getEventsPerSecond()) : null,
-        i == 1
-    );
-  }
-
-
-  /**
-   * Assumes the first number in the sequence is 1, incrementing by 1, until numEvents.
-   */
-  private long getSumOfEventSequence(int numEvents)
-  {
-    return (numEvents * (1 + numEvents)) / 2;
+    return jsonMapper.writeValueAsBytes(event);
   }
 }

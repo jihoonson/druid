@@ -23,6 +23,7 @@ import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -30,13 +31,13 @@ public class WikipediaStreamEventStreamGenerator extends SyntheticStreamGenerato
 {
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
 
-  public WikipediaStreamEventStreamGenerator(int eventsPerSeconds, long cyclePaddingMs)
+  public WikipediaStreamEventStreamGenerator(EventSerializer serializer, int eventsPerSeconds, long cyclePaddingMs)
   {
-    super(eventsPerSeconds, cyclePaddingMs);
+    super(serializer, eventsPerSeconds, cyclePaddingMs);
   }
 
   @Override
-  Object getEvent(int i, DateTime timestamp)
+  Map<String, Object> newEvent(int i, DateTime timestamp)
   {
     Map<String, Object> event = new HashMap<>();
     event.put("page", "Gypsy Danger");
@@ -55,6 +56,6 @@ public class WikipediaStreamEventStreamGenerator extends SyntheticStreamGenerato
     event.put("added", i);
     event.put("deleted", 0);
     event.put("delta", i);
-    return event;
+    return Collections.unmodifiableMap(event);
   }
 }

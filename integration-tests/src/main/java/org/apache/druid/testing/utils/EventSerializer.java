@@ -19,11 +19,19 @@
 
 package org.apache.druid.testing.utils;
 
-import org.joda.time.DateTime;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 
-public interface StreamGenerator
+import java.io.IOException;
+import java.util.Map;
+
+@JsonTypeInfo(use = Id.NAME, property = "type")
+@JsonSubTypes(value = {
+    @Type(name = JsonEventSerializer.TYPE, value = JsonEventSerializer.class)
+})
+public interface EventSerializer
 {
-  void run(String streamTopic, StreamEventWriter streamEventWriter, int totalNumberOfSeconds);
-
-  void run(String streamTopic, StreamEventWriter streamEventWriter, int totalNumberOfSeconds, DateTime overrrideFirstEventTime);
+  byte[] serialize(Map<String, Object> event) throws IOException;
 }

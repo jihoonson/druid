@@ -17,13 +17,25 @@
  * under the License.
  */
 
-package org.apache.druid.testing.utils;
+package org.apache.druid.tests.indexer;
 
-import org.joda.time.DateTime;
-
-public interface StreamGenerator
+public enum TestDataFormat
 {
-  void run(String streamTopic, StreamEventWriter streamEventWriter, int totalNumberOfSeconds);
+  CSV("csv"),
+  TSV("tsv"),
+  JSON("json"),
+  AVRO("avro"),
+  PROTOBUF("protobuf");
 
-  void run(String streamTopic, StreamEventWriter streamEventWriter, int totalNumberOfSeconds, DateTime overrrideFirstEventTime);
+  private final String jsonType;
+
+  TestDataFormat(String jsonType)
+  {
+    this.jsonType = jsonType;
+  }
+
+  public String getJsonType()
+  {
+    return jsonType;
+  }
 }

@@ -42,15 +42,19 @@ public abstract class AbstractKafkaIndexingServiceTest extends AbstractStreamInd
   }
 
   @Override
-  public StreamEventWriter createStreamEventWriter(IntegrationTestingConfig config)
+  public StreamEventWriter createStreamEventWriter(IntegrationTestingConfig config, boolean transactionEnabled)
   {
-    return new KafkaEventWriter(config, isKafkaWriterTransactionalEnabled());
+    return new KafkaEventWriter(config, transactionEnabled);
   }
 
   @Override
-  Function<String, String> generateStreamIngestionPropsTransform(String streamName,
-                                                                 String fullDatasourceName,
-                                                                 IntegrationTestingConfig config)
+  Function<String, String> generateStreamIngestionPropsTransform(
+      String streamName,
+      String fullDatasourceName,
+      String parserType,
+      String parserOrInputFormat,
+      IntegrationTestingConfig config
+  )
   {
     final Map<String, Object> consumerConfigs = KafkaConsumerConfigs.getConsumerProperties();
     final Properties consumerProperties = new Properties();
@@ -78,6 +82,29 @@ public abstract class AbstractKafkaIndexingServiceTest extends AbstractStreamInd
             "%%TOPIC_VALUE%%",
             streamName
         );
+        if (AbstractStreamIndexingTest.INPUT_FORMAT.equals(parserType)) {
+          spec = StringUtils.replace(
+              spec,
+              "%%INPUT_FORMAT%%",
+              parserOrInputFormat
+          );
+          spec = StringUtils.replace(
+              spec,
+              "%%PARSER%%",
+              "null"
+          );
+        } else if (AbstractStreamIndexingTest.INPUT_ROW_PARSER.equals(parserType)) {
+          spec = StringUtils.replace(
+              spec,
+              "%%PARSER%%",
+              parserOrInputFormat
+          );
+          spec = StringUtils.replace(
+              spec,
+              "%%INPUT_FORMAT%%",
+              "null"
+          );
+        }
         spec = StringUtils.replace(
             spec,
             "%%USE_EARLIEST_KEY%%",
