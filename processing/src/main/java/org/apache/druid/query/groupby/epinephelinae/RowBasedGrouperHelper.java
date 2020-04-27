@@ -41,6 +41,7 @@ import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.granularity.AllGranularity;
 import org.apache.druid.java.util.common.guava.Accumulator;
 import org.apache.druid.java.util.common.guava.Comparators;
+import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.query.BaseQuery;
 import org.apache.druid.query.ColumnSelectorPlus;
 import org.apache.druid.query.aggregation.AggregatorFactory;
@@ -520,6 +521,46 @@ public class RowBasedGrouperHelper
         };
       }
     }
+  }
+
+  public static Sequence<ResultRow> makeGrouperSequence(
+      final Grouper<RowBasedKey> grouper,
+      final GroupByQuery query,
+      final Closeable closeable
+  )
+  {
+    final boolean includeTimestamp = query.getResultRowHasTimestamp();
+    final int resultRowDimensionStart = query.getResultRowDimensionStart();
+
+    return grouper
+        .toSequence(true)
+        .map(entry -> {
+          final ResultRow resultRow = ResultRow.create(query.getResultRowSizeWithoutPostAggregators());
+
+          // Add timestamp, maybe.
+          if (includeTimestamp) {
+            final DateTime timestamp = query.getGranularity().toDateTime(((long) (entry.getKey().getKey()[0])));
+            resultRow.set(0, timestamp.getMillis());
+          }
+
+          // Add dimensions.
+          for (int i = resultRowDimensionStart; i < entry.getKey().getKey().length; i++) {
+            final Object dimVal = entry.getKey().getKey()[i];
+            resultRow.set(
+                i,
+                dimVal instanceof String ? NullHandling.emptyToNullIfNeeded((String) dimVal) : dimVal
+            );
+          }
+
+          // Add aggregations.
+          final int resultRowAggregatorStart = query.getResultRowAggregatorStart();
+          for (int i = 0; i < entry.getValues().length; i++) {
+            resultRow.set(resultRowAggregatorStart + i, entry.getValues()[i]);
+          }
+
+          return resultRow;
+        })
+        .withBaggage(closeable);
   }
 
   public static CloseableGrouperIterator<RowBasedKey, ResultRow> makeGrouperIterator(

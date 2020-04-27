@@ -29,9 +29,10 @@ import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
-import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.logger.Logger;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.ColumnSelectorPlus;
 import org.apache.druid.query.QueryConfig;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
@@ -69,9 +70,7 @@ import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
-import java.io.Closeable;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
@@ -194,62 +193,53 @@ public class GroupByQueryEngineV2
     );
 
     return cursors.flatMap(
-        cursor -> new BaseSequence<>(
-            new BaseSequence.IteratorMaker<ResultRow, GroupByEngineIterator<?>>()
-            {
-              @Override
-              public GroupByEngineIterator make()
-              {
-                final ColumnSelectorFactory columnSelectorFactory = cursor.getColumnSelectorFactory();
-                final ColumnSelectorPlus<GroupByColumnSelectorStrategy>[] selectorPlus = DimensionHandlerUtils
-                    .createColumnSelectorPluses(
-                        STRATEGY_FACTORY,
-                        query.getDimensions(),
-                        columnSelectorFactory
-                    );
-                final GroupByColumnSelectorPlus[] dims = createGroupBySelectorPlus(
-                    selectorPlus,
-                    query.getResultRowDimensionStart()
-                );
+        cursor -> {
+          final ColumnSelectorFactory columnSelectorFactory = cursor.getColumnSelectorFactory();
+          final ColumnSelectorPlus<GroupByColumnSelectorStrategy>[] selectorPlus = DimensionHandlerUtils
+              .createColumnSelectorPluses(
+                  STRATEGY_FACTORY,
+                  query.getDimensions(),
+                  columnSelectorFactory
+              );
+          final GroupByColumnSelectorPlus[] dims = createGroupBySelectorPlus(
+              selectorPlus,
+              query.getResultRowDimensionStart()
+          );
 
-                final int cardinalityForArrayAggregation = getCardinalityForArrayAggregation(
-                    querySpecificConfig,
+          final int cardinalityForArrayAggregation = getCardinalityForArrayAggregation(
+              querySpecificConfig,
+              query,
+              storageAdapter,
+              processingBuffer
+          );
+
+          if (cardinalityForArrayAggregation >= 0) {
+            return Sequences.fromCloseableIterator(
+                new ArrayAggregateIterator(
                     query,
-                    storageAdapter,
-                    processingBuffer
-                );
-
-                if (cardinalityForArrayAggregation >= 0) {
-                  return new ArrayAggregateIterator(
-                      query,
-                      querySpecificConfig,
-                      cursor,
-                      processingBuffer,
-                      fudgeTimestamp,
-                      dims,
-                      isAllSingleValueDims(columnSelectorFactory::getColumnCapabilities, query.getDimensions(), false),
-                      cardinalityForArrayAggregation
-                  );
-                } else {
-                  return new HashAggregateIterator(
-                      query,
-                      querySpecificConfig,
-                      cursor,
-                      processingBuffer,
-                      fudgeTimestamp,
-                      dims,
-                      isAllSingleValueDims(columnSelectorFactory::getColumnCapabilities, query.getDimensions(), false)
-                  );
-                }
-              }
-
-              @Override
-              public void cleanup(GroupByEngineIterator iterFromMake)
-              {
-                iterFromMake.close();
-              }
-            }
-        )
+                    querySpecificConfig,
+                    cursor,
+                    processingBuffer,
+                    fudgeTimestamp,
+                    dims,
+                    isAllSingleValueDims(columnSelectorFactory::getColumnCapabilities, query.getDimensions(), false),
+                    cardinalityForArrayAggregation
+                )
+            );
+          } else {
+            return Sequences.fromCloseableIterator(
+                new HashAggregateIterator(
+                    query,
+                    querySpecificConfig,
+                    cursor,
+                    processingBuffer,
+                    fudgeTimestamp,
+                    dims,
+                    isAllSingleValueDims(columnSelectorFactory::getColumnCapabilities, query.getDimensions(), false)
+                )
+            );
+          }
+        }
     );
   }
 
@@ -416,7 +406,7 @@ public class GroupByQueryEngineV2
     }
   }
 
-  private abstract static class GroupByEngineIterator<KeyType> implements Iterator<ResultRow>, Closeable
+  private abstract static class GroupByEngineIterator<KeyType> implements CloseableIterator<ResultRow>
   {
     protected final GroupByQuery query;
     protected final GroupByQueryConfig querySpecificConfig;
@@ -562,7 +552,6 @@ public class GroupByQueryEngineV2
       Preconditions.checkArgument(indexedInts.size() < 2, "should be single value");
       return indexedInts.size() == 1 ? indexedInts.get(0) : GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE;
     }
-
   }
 
   private static class HashAggregateIterator extends GroupByEngineIterator<ByteBuffer>

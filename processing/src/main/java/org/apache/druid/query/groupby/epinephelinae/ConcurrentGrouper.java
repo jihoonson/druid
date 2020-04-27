@@ -24,12 +24,17 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.guava.ParallelMergeCombiningSequence;
+import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Sequences;
+import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.AbstractPrioritizedCallable;
 import org.apache.druid.query.QueryInterruptedException;
@@ -48,9 +53,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 
 /**
@@ -90,6 +97,7 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
   private final long maxDictionarySizeForCombiner;
   @Nullable
   private final ParallelCombiner<KeyType> parallelCombiner;
+  private final boolean parallelMerge;
 
   private volatile boolean initialized = false;
 
@@ -132,7 +140,8 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
         hasQueryTimeout,
         queryTimeoutAt,
         groupByQueryConfig.getIntermediateCombineDegree(),
-        groupByQueryConfig.getNumParallelCombineThreads()
+        groupByQueryConfig.getNumParallelCombineThreads(),
+        groupByQueryConfig.isParallelMerge()
     );
   }
 
@@ -156,7 +165,8 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       final boolean hasQueryTimeout,
       final long queryTimeoutAt,
       final int intermediateCombineDegree,
-      final int numParallelCombineThreads
+      final int numParallelCombineThreads,
+      final boolean parallelMerge
   )
   {
     Preconditions.checkArgument(concurrencyHint > 0, "concurrencyHint > 0");
@@ -188,6 +198,7 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
     this.hasQueryTimeout = hasQueryTimeout;
     this.queryTimeoutAt = queryTimeoutAt;
     this.maxDictionarySizeForCombiner = combineKeySerdeFactory.getMaxDictionarySize();
+    this.parallelMerge = parallelMerge;
 
     if (numParallelCombineThreads > 1) {
       this.parallelCombiner = new ParallelCombiner<>(
@@ -329,6 +340,61 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
     return sorted ?
            CloseableIterators.mergeSorted(sortedIterators, keyObjComparator) :
            CloseableIterators.concat(sortedIterators);
+  }
+
+  @Override
+  public Sequence<Entry<KeyType>> toSequence(final boolean sorted)
+  {
+    if (!initialized) {
+      throw new ISE("Grouper is not initialized");
+    }
+
+    if (closed) {
+      throw new ISE("Grouper is closed");
+    }
+
+    final List<CloseableIterator<Entry<KeyType>>> sortedIterators = sorted && isParallelizable() ?
+                                                                    parallelSortAndGetGroupersIterator() :
+                                                                    getGroupersIterator(sorted);
+
+    if (sorted && parallelMerge) { // TODO: spilling?
+      final Closer closer = Closer.create();
+      closer.registerAll(sortedIterators);
+
+      return new ParallelMergeCombiningSequence<>(
+          ForkJoinPool.commonPool(),
+          sortedIterators.stream().map(Sequences::fromCloseableIterator).collect(Collectors.toList()),
+          Ordering.from(keyObjComparator),
+          new BinaryOperator<Entry<KeyType>>()
+          {
+            @Override
+            public Entry<KeyType> apply(Entry<KeyType> e1, Entry<KeyType> e2)
+            {
+              if (e1 == null) {
+                return e2;
+              } else if (e2 == null) {
+                return e1;
+              }
+              assert keyObjComparator.compare(e1, e2) == 0;
+              final Object[] newValues = new Object[e1.values.length];
+              for (int i = 0; i < aggregatorFactories.length; i++) {
+                newValues[i] = aggregatorFactories[i].combine(e1.values[i], e2.values[i]);
+              }
+              return new Entry<>(e1.key, newValues);
+            }
+          },
+          hasQueryTimeout,
+          queryTimeoutAt - System.currentTimeMillis(),
+          priority,
+          concurrencyHint,
+          16384,
+          4096,
+          100,
+          metrics -> {}
+      );
+    } else {
+      return Sequences.fromCloseableIterator(CloseableIterators.concat(sortedIterators));
+    }
   }
 
   private boolean isParallelizable()

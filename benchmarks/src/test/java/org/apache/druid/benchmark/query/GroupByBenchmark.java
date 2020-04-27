@@ -121,11 +121,11 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 25)
 public class GroupByBenchmark
 {
-  @Param({"4"})
+  @Param({"8"})
   private int numSegments;
 
-  @Param({"2", "4"})
-  private int numProcessingThreads;
+  //@Param({"2", "4"})
+  private int numProcessingThreads = 4;
 
   @Param({"-1"})
   private int initialBuckets;
@@ -133,17 +133,20 @@ public class GroupByBenchmark
   @Param({"100000"})
   private int rowsPerSegment;
 
-  @Param({"basic.A", "basic.nested"})
-  private String schemaAndQuery;
+  //@Param({"basic.A", "basic.nested"})
+  private String schemaAndQuery = "basic.A";
 
-  @Param({"v1", "v2"})
-  private String defaultStrategy;
+  //@Param({"v1", "v2"})
+  private String defaultStrategy = "v2";
 
-  @Param({"all", "day"})
-  private String queryGranularity;
+  //@Param({"all", "day"})
+  private String queryGranularity = "all";
 
-  @Param({"force", "false"})
-  private String vectorize;
+  //@Param({"force", "false"})
+  private String vectorize = "false";
+
+  @Param({"true", "false"})
+  private String parallelMerge;
 
   private static final Logger log = new Logger(GroupByBenchmark.class);
   private static final int RNG_SEED = 9999;
@@ -529,6 +532,12 @@ public class GroupByBenchmark
       {
         return 1_000_000_000L;
       }
+
+      @Override
+      public boolean isParallelMerge()
+      {
+        return Boolean.parseBoolean(parallelMerge);
+      }
     };
     config.setSingleThreaded(false);
     config.setMaxIntermediateRows(Integer.MAX_VALUE);
@@ -627,7 +636,7 @@ public class GroupByBenchmark
     return theRunner.run(QueryPlus.wrap(query), ResponseContext.createEmpty());
   }
 
-  @Benchmark
+  //@Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void querySingleIncrementalIndex(Blackhole blackhole)
@@ -647,7 +656,7 @@ public class GroupByBenchmark
     blackhole.consume(lastRow);
   }
 
-  @Benchmark
+  //@Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void querySingleQueryableIndex(Blackhole blackhole)

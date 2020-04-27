@@ -331,8 +331,8 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
     v1SingleThreadedConfig.setMaxIntermediateRows(10000);
 
     return ImmutableList.of(
-        v1Config,
-        v1SingleThreadedConfig,
+  //        v1Config,
+  //        v1SingleThreadedConfig,
         v2Config,
         v2SmallBufferConfig,
         v2SmallDictionaryConfig,

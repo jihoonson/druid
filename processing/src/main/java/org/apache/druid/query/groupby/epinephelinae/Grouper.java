@@ -22,6 +22,7 @@ package org.apache.druid.query.groupby.epinephelinae;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
+import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 
@@ -121,6 +122,11 @@ public interface Grouper<KeyType> extends Closeable
    * @return entry iterator
    */
   CloseableIterator<Entry<KeyType>> iterator(boolean sorted);
+
+  default Sequence<Entry<KeyType>> toSequence(boolean sorted)
+  {
+    throw new UnsupportedOperationException();
+  }
 
   class Entry<T>
   {

@@ -97,6 +97,9 @@ public class GroupByQueryConfig
   @JsonProperty
   private boolean vectorize = false;
 
+  @JsonProperty
+  private boolean parallelMerge = false;
+
   public String getDefaultStrategy()
   {
     return defaultStrategy;
@@ -192,6 +195,11 @@ public class GroupByQueryConfig
     return forcePushDownNestedQuery;
   }
 
+  public boolean isParallelMerge()
+  {
+    return parallelMerge;
+  }
+
   public GroupByQueryConfig withOverrides(final GroupByQuery query)
   {
     final GroupByQueryConfig newConfig = new GroupByQueryConfig();
@@ -244,6 +252,7 @@ public class GroupByQueryConfig
         getNumParallelCombineThreads()
     );
     newConfig.vectorize = query.getContextBoolean(CTX_KEY_VECTORIZE, isVectorize());
+    newConfig.parallelMerge = query.getContextBoolean("parallelMerge", isParallelMerge());
     return newConfig;
   }
 

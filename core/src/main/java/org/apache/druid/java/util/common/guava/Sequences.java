@@ -22,8 +22,11 @@ package org.apache.druid.java.util.common.guava;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
+import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -52,7 +55,31 @@ public class Sequences
           @Override
           public void cleanup(Iterator<T> iterFromMake)
           {
+          }
+        }
+    );
+  }
 
+  public static <T> Sequence<T> fromCloseableIterator(final CloseableIterator<T> iterator)
+  {
+    return new BaseSequence<>(
+        new IteratorMaker<T, CloseableIterator<T>>()
+        {
+          @Override
+          public CloseableIterator<T> make()
+          {
+            return iterator;
+          }
+
+          @Override
+          public void cleanup(CloseableIterator<T> iterFromMake)
+          {
+            try {
+              iterFromMake.close();
+            }
+            catch (IOException e) {
+              throw new RuntimeException(e);
+            }
           }
         }
     );

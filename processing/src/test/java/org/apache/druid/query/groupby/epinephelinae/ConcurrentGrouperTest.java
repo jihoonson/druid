@@ -129,7 +129,8 @@ public class ConcurrentGrouperTest
         false,
         0,
         4,
-        8
+        8,
+        true
     );
     grouper.init();
 

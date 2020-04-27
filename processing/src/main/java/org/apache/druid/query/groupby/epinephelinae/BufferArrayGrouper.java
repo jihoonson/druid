@@ -26,6 +26,8 @@ import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
 import org.apache.druid.query.aggregation.AggregatorFactory;
@@ -367,5 +369,11 @@ public class BufferArrayGrouper implements VectorGrouper, IntGrouper
         return -1;
       }
     };
+  }
+
+  @Override
+  public Sequence<Entry<Integer>> toSequence(boolean sorted)
+  {
+    return Sequences.fromCloseableIterator(iterator(sorted));
   }
 }
