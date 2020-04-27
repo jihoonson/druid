@@ -66,8 +66,8 @@ public abstract class AbstractStreamIndexingTest extends AbstractIndexerTest
   private static final long WAIT_TIME_MILLIS = 3 * 60 * 1000L;
   private static final long CYCLE_PADDING_MS = 100;
 
-//  private static final String INDEXER_FILE_LEGACY_PARSER = "/stream/data/json/parser/stream_supervisor_spec_legacy_parser.json";
-//  private static final String INDEXER_FILE_INPUT_FORMAT = "/stream/data/json/input_format/stream_supervisor_spec_input_format.json";
+//  private static final String INDEXER_FILE_LEGACY_PARSER = "/stream/data/json/parser/input_row_parser.json";
+//  private static final String INDEXER_FILE_INPUT_FORMAT = "/stream/data/json/input_format/input_format.json";
   private static final String QUERIES_FILE = "/stream/queries/stream_index_queries.json";
 
   protected static final String DATA_RESOURCE_ROOT = "/stream/data";
@@ -518,12 +518,14 @@ public abstract class AbstractStreamIndexingTest extends AbstractIndexerTest
 
   private void doMethodTeardown(GeneratedTestConfig generatedTestConfig)
   {
-    try {
-      indexer.shutdownSupervisor(generatedTestConfig.getSupervisorId());
-    }
-    catch (Exception e) {
-      // Best effort cleanup as the supervisor may have already been cleanup
-      LOG.warn(e, "Failed to cleanup supervisor. This might be expected depending on the test method");
+    if (generatedTestConfig.getSupervisorId() != null) {
+      try {
+        indexer.shutdownSupervisor(generatedTestConfig.getSupervisorId());
+      }
+      catch (Exception e) {
+        // Best effort cleanup as the supervisor may have already been cleanup
+        LOG.warn(e, "Failed to cleanup supervisor. This might be expected depending on the test method");
+      }
     }
     try {
       unloader(generatedTestConfig.getFullDatasourceName());

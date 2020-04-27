@@ -3,7 +3,7 @@
   "dataSchema": {
     "dataSource": "%%DATASOURCE%%",
     "parser": %%PARSER%%,
-    "timestampSpec",: {
+    "timestampSpec": {
       "column": "timestamp",
       "format": "auto"
     },

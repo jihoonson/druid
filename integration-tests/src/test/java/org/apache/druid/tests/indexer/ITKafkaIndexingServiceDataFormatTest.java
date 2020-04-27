@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.druid.tests.parallelized;
+package org.apache.druid.tests.indexer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.Inject;
@@ -25,8 +25,6 @@ import org.apache.druid.guice.annotations.Json;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.testing.guice.DruidTestModuleFactory;
 import org.apache.druid.tests.TestNGGroup;
-import org.apache.druid.tests.indexer.AbstractKafkaIndexingServiceTest;
-import org.apache.druid.tests.indexer.AbstractStreamIndexingTest;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Guice;
@@ -84,7 +82,13 @@ public class ITKafkaIndexingServiceDataFormatTest extends AbstractKafkaIndexingS
       throws Exception
   {
     LOG.info("serializerPath: %s, parserType: %s, specType: %s", serializerPath, parserType, specPath);
-    doTestIndexDataStableState(transactionEnabled, serializerPath, parserType, specPath);
+    try {
+      doTestIndexDataStableState(transactionEnabled, serializerPath, parserType, specPath);
+    }
+    catch (Exception e) {
+      LOG.error(e, "error in test");
+      throw e;
+    }
   }
 
   @Override

@@ -130,12 +130,11 @@ public abstract class AbstractIndexerTest
     return ITRealtimeIndexTaskTest.class.getResourceAsStream(resource);
   }
 
-  public static List<String> listResources(String path) throws IOException {
+  public static List<String> listResources(String dir) throws IOException {
     List<String> resources = new ArrayList<>();
 
-    LOG.info("path: %s", path);
     try (
-        InputStream in = getResourceAsStream(path);
+        InputStream in = getResourceAsStream(dir);
         BufferedReader br = new BufferedReader(new InputStreamReader(in, StringUtils.UTF8_STRING))
     ) {
       String resource;
