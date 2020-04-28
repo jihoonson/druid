@@ -35,7 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Test(groups = TestNGGroup.KAFKA_INDEX)
+@Test(groups = "format-test")
 @Guice(moduleFactory = DruidTestModuleFactory.class)
 public class ITKafkaIndexingServiceDataFormatTest extends AbstractKafkaIndexingServiceTest
 {

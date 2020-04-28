@@ -24,14 +24,16 @@ import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes(value = {
-    @Type(name = JsonEventSerializer.TYPE, value = JsonEventSerializer.class)
+    @Type(name = JsonEventSerializer.TYPE, value = JsonEventSerializer.class),
+    @Type(name = DelimitedEventSerializer.TYPE, value = DelimitedEventSerializer.class)
 })
-public interface EventSerializer
+public interface EventSerializer extends Closeable
 {
   byte[] serialize(Map<String, Object> event) throws IOException;
 }

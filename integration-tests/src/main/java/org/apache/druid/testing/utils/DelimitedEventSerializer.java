@@ -19,34 +19,36 @@
 
 package org.apache.druid.testing.utils;
 
-import com.fasterxml.jackson.annotation.JacksonInject;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.guice.annotations.Json;
+import com.opencsv.CSVWriter;
 
+import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-public class JsonEventSerializer implements EventSerializer
+public class DelimitedEventSerializer implements EventSerializer
 {
-  public static final String TYPE = "json";
+  public static final String TYPE = "tsv";
 
-  private final ObjectMapper jsonMapper;
+  private final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+  private final CSVWriter writer = new CSVWriter(
+      new BufferedWriter(new OutputStreamWriter(bos, StandardCharsets.UTF_8))
+  );
 
-  @JsonCreator
-  public JsonEventSerializer(@JacksonInject @Json ObjectMapper jsonMapper)
+  @Override
+  public byte[] serialize(Map<String, Object> event)
   {
-    this.jsonMapper = jsonMapper;
+    writer.writeNext(event.values().stream().map(Object::toString).toArray(String[]::new));
+    final byte[] serialized = bos.toByteArray();
+    bos.reset();
+    return serialized;
   }
 
   @Override
-  public byte[] serialize(Map<String, Object> event) throws JsonProcessingException
+  public void close() throws IOException
   {
-    return jsonMapper.writeValueAsBytes(event);
-  }
-
-  @Override
-  public void close()
-  {
+    writer.close();
   }
 }

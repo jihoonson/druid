@@ -19,34 +19,20 @@
 
 package org.apache.druid.testing.utils;
 
-import com.fasterxml.jackson.annotation.JacksonInject;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.guice.annotations.Json;
-
+import java.io.IOException;
 import java.util.Map;
 
-public class JsonEventSerializer implements EventSerializer
+public class CsvEventSerializer implements EventSerializer
 {
-  public static final String TYPE = "json";
-
-  private final ObjectMapper jsonMapper;
-
-  @JsonCreator
-  public JsonEventSerializer(@JacksonInject @Json ObjectMapper jsonMapper)
+  @Override
+  public byte[] serialize(Map<String, Object> event) throws IOException
   {
-    this.jsonMapper = jsonMapper;
+    return new byte[0];
   }
 
   @Override
-  public byte[] serialize(Map<String, Object> event) throws JsonProcessingException
+  public void close() throws IOException
   {
-    return jsonMapper.writeValueAsBytes(event);
-  }
 
-  @Override
-  public void close()
-  {
   }
 }

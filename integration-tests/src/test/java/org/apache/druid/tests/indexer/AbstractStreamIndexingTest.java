@@ -492,6 +492,8 @@ public abstract class AbstractStreamIndexingTest extends AbstractIndexerTest
     this.queryHelper.testQueriesFromString(querySpec, 2);
     LOG.info("Shutting down supervisor");
     indexer.shutdownSupervisor(generatedTestConfig.getSupervisorId());
+    // Clear supervisor ID to not shutdown again.
+    generatedTestConfig.setSupervisorId(null);
     // wait for all indexing tasks to finish
     LOG.info("Waiting for all indexing tasks to finish");
     ITRetryUtil.retryUntilTrue(
