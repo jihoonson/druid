@@ -67,9 +67,9 @@ public abstract class AbstractStreamIndexingTest extends AbstractIndexerTest
   private static final long CYCLE_PADDING_MS = 100;
 
   private static final String QUERIES_FILE = "/stream/queries/stream_index_queries.json";
+  private static final String SUPERVISOR_SPEC_TEMPLATE_FILE = "supervisor_spec_template.json";
 
   protected static final String DATA_RESOURCE_ROOT = "/stream/data";
-  private static final String SUPERVISOR_SPEC_TEMPLATE_FILE = "supervisor_spec_template.json";
   protected static final String SUPERVISOR_SPEC_TEMPLATE_PATH =
       String.join("/", DATA_RESOURCE_ROOT, SUPERVISOR_SPEC_TEMPLATE_FILE);
   protected static final String SERIALIZER_SPEC_DIR = "serializer";
@@ -350,8 +350,7 @@ public abstract class AbstractStreamIndexingTest extends AbstractIndexerTest
           generatedTestConfig.getStreamName(),
           streamEventWriter,
           secondsToGenerateRemaining,
-          FIRST_EVENT_TIME.plusSeconds(secondsToGenerateFirstRound
-                                       + secondsToGenerateSecondRound)
+          FIRST_EVENT_TIME.plusSeconds(secondsToGenerateFirstRound + secondsToGenerateSecondRound)
       );
       // Verify supervisor is healthy
       ITRetryUtil.retryUntil(
@@ -435,8 +434,7 @@ public abstract class AbstractStreamIndexingTest extends AbstractIndexerTest
           generatedTestConfig.getStreamName(),
           streamEventWriter,
           secondsToGenerateRemaining,
-          FIRST_EVENT_TIME.plusSeconds(secondsToGenerateFirstRound
-                                       + secondsToGenerateSecondRound)
+          FIRST_EVENT_TIME.plusSeconds(secondsToGenerateFirstRound + secondsToGenerateSecondRound)
       );
       // Verify supervisor is healthy after resahrding
       ITRetryUtil.retryUntil(

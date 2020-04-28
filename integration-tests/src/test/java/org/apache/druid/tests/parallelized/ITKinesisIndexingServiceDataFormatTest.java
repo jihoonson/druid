@@ -24,7 +24,7 @@ import com.google.inject.Inject;
 import org.apache.druid.guice.annotations.Json;
 import org.apache.druid.testing.guice.DruidTestModuleFactory;
 import org.apache.druid.tests.TestNGGroup;
-import org.apache.druid.tests.indexer.AbstractKafkaIndexingServiceTest;
+import org.apache.druid.tests.indexer.AbstractKinesisIndexingServiceTest;
 import org.apache.druid.tests.indexer.AbstractStreamIndexingTest;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
@@ -36,13 +36,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Test(groups = TestNGGroup.KAFKA_DATA_FORMAT)
+@Test(groups = TestNGGroup.KINESIS_INDEX)
 @Guice(moduleFactory = DruidTestModuleFactory.class)
-public class ITKafkaIndexingServiceDataFormatTest extends AbstractKafkaIndexingServiceTest
+public class ITKinesisIndexingServiceDataFormatTest extends AbstractKinesisIndexingServiceTest
 {
-  private static final boolean TRANSACTION_DISABLED = false;
-  private static final boolean TRANSACTION_ENABLED = true;
-
   /**
    * Generates test parameters based on the given resources. The resources should be structured as
    *
@@ -66,8 +63,7 @@ public class ITKafkaIndexingServiceDataFormatTest extends AbstractKafkaIndexingS
       final String serializerPath = spec.get(AbstractStreamIndexingTest.SERIALIZER);
       spec.forEach((k, path) -> {
         if (!AbstractStreamIndexingTest.SERIALIZER.equals(k)) {
-          resources.add(new Object[]{TRANSACTION_DISABLED, serializerPath, k, path});
-          resources.add(new Object[]{TRANSACTION_ENABLED, serializerPath, k, path});
+          resources.add(new Object[]{serializerPath, k, path});
         }
       });
     }
@@ -76,7 +72,8 @@ public class ITKafkaIndexingServiceDataFormatTest extends AbstractKafkaIndexingS
   }
 
   @Inject
-  private @Json ObjectMapper jsonMapper;
+  private @Json
+  ObjectMapper jsonMapper;
 
   @BeforeClass
   public void beforeClass() throws Exception
@@ -85,15 +82,15 @@ public class ITKafkaIndexingServiceDataFormatTest extends AbstractKafkaIndexingS
   }
 
   @Test(dataProvider = "resources")
-  public void testIndexData(boolean transactionEnabled, String serializerPath, String parserType, String specPath)
+  public void testIndexData(String serializerPath, String parserType, String specPath)
       throws Exception
   {
-    doTestIndexDataStableState(transactionEnabled, serializerPath, parserType, specPath);
+    doTestIndexDataStableState(false, serializerPath, parserType, specPath);
   }
 
   @Override
   public String getTestNamePrefix()
   {
-    return "kafka_data_format";
+    return "kinesis_data_format";
   }
 }

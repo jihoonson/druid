@@ -29,6 +29,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * EventSerializer is for serializing an event into a byte array.
+ * This interface is used to write generated events on stream processing systems such as Kafka or Kinesis
+ * in integration tests.
+ *
+ * @see SyntheticStreamGenerator
+ * @see StreamEventWriter
+ */
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes(value = {
     @Type(name = JsonEventSerializer.TYPE, value = JsonEventSerializer.class),
