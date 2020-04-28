@@ -30,12 +30,6 @@ import org.testng.annotations.Test;
 public class ITKafkaIndexingServiceTransactionalSerializedTest extends AbstractKafkaIndexingServiceTest
 {
   @Override
-  protected boolean isKafkaWriterTransactionalEnabled()
-  {
-    return true;
-  }
-
-  @Override
   public String getTestNamePrefix()
   {
     return "kafka_transactional_serialized";

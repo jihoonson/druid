@@ -33,8 +33,6 @@ import java.util.function.Function;
 
 public abstract class AbstractKafkaIndexingServiceTest extends AbstractStreamIndexingTest
 {
-  protected abstract boolean isKafkaWriterTransactionalEnabled();
-
   @Override
   StreamAdminClient createStreamAdminClient(IntegrationTestingConfig config)
   {

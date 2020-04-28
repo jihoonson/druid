@@ -73,12 +73,6 @@ public class ITKafkaIndexingServiceDataFormatTest extends AbstractKafkaIndexingS
     doBeforeClass();
   }
 
-  @Override
-  protected boolean isKafkaWriterTransactionalEnabled()
-  {
-    return false;
-  }
-
   @Test(dataProvider = "resources")
   public void testIndexData(boolean transactionEnabled, String serializerPath, String parserType, String specPath)
       throws Exception

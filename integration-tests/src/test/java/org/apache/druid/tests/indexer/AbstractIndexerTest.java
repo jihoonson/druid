@@ -126,11 +126,13 @@ public abstract class AbstractIndexerTest
     }
   }
 
-  public static InputStream getResourceAsStream(String resource) {
+  public static InputStream getResourceAsStream(String resource)
+  {
     return ITRealtimeIndexTaskTest.class.getResourceAsStream(resource);
   }
 
-  public static List<String> listResources(String dir) throws IOException {
+  public static List<String> listResources(String dir) throws IOException
+  {
     List<String> resources = new ArrayList<>();
 
     try (

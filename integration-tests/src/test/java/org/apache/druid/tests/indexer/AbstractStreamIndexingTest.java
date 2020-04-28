@@ -66,8 +66,6 @@ public abstract class AbstractStreamIndexingTest extends AbstractIndexerTest
   private static final long WAIT_TIME_MILLIS = 3 * 60 * 1000L;
   private static final long CYCLE_PADDING_MS = 100;
 
-//  private static final String INDEXER_FILE_LEGACY_PARSER = "/stream/data/json/parser/input_row_parser.json";
-//  private static final String INDEXER_FILE_INPUT_FORMAT = "/stream/data/json/input_format/input_format.json";
   private static final String QUERIES_FILE = "/stream/queries/stream_index_queries.json";
 
   protected static final String DATA_RESOURCE_ROOT = "/stream/data";
@@ -194,33 +192,6 @@ public abstract class AbstractStreamIndexingTest extends AbstractIndexerTest
       verifyIngestedData(generatedTestConfig);
     }
   }
-
-//  protected void doTestIndexDataWithInputFormatStableState() throws Exception
-//  {
-//    StreamEventWriter streamEventWriter = createStreamEventWriter(config);
-//    final GeneratedTestConfig generatedTestConfig = new GeneratedTestConfig();
-//    try (
-//        final Closeable ignored1 = unloader(generatedTestConfig.getFullDatasourceName())
-//    ) {
-//      final String taskSpec = generatedTestConfig.getStreamIngestionPropsTransform()
-//                                                 .apply(getResourceAsString(INDEXER_FILE_INPUT_FORMAT));
-//      LOG.info("supervisorSpec: [%s]\n", taskSpec);
-//      // Start supervisor
-//      generatedTestConfig.setSupervisorId(indexer.submitSupervisor(taskSpec));
-//      LOG.info("Submitted supervisor");
-//      // Start data generator
-//      wikipediaStreamEventGenerator.run(
-//          generatedTestConfig.getStreamName(),
-//          streamEventWriter,
-//          TOTAL_NUMBER_OF_SECOND,
-//          FIRST_EVENT_TIME
-//      );
-//      verifyIngestedData(generatedTestConfig);
-//    }
-//    finally {
-//      doMethodTeardown(generatedTestConfig, streamEventWriter);
-//    }
-//  }
 
   void doTestIndexDataWithLosingCoordinator(boolean transactionEnabled) throws Exception
   {
