@@ -23,8 +23,11 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Maps;
 import org.apache.druid.guice.annotations.Json;
+import org.apache.druid.java.util.common.Pair;
 
+import java.util.List;
 import java.util.Map;
 
 public class JsonEventSerializer implements EventSerializer
@@ -40,9 +43,11 @@ public class JsonEventSerializer implements EventSerializer
   }
 
   @Override
-  public byte[] serialize(Map<String, Object> event) throws JsonProcessingException
+  public byte[] serialize(List<Pair<String, Object>> event) throws JsonProcessingException
   {
-    return jsonMapper.writeValueAsBytes(event);
+    Map<String, Object> map = Maps.newHashMapWithExpectedSize(event.size());
+    event.forEach(pair -> map.put(pair.lhs, pair.rhs));
+    return jsonMapper.writeValueAsBytes(map);
   }
 
   @Override

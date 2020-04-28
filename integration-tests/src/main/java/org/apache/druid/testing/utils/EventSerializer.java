@@ -23,17 +23,20 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import org.apache.druid.java.util.common.Pair;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Map;
+import java.util.List;
 
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes(value = {
     @Type(name = JsonEventSerializer.TYPE, value = JsonEventSerializer.class),
-    @Type(name = DelimitedEventSerializer.TYPE, value = DelimitedEventSerializer.class)
+    @Type(name = CsvEventSerializer.TYPE, value = CsvEventSerializer.class),
+    @Type(name = DelimitedEventSerializer.TYPE, value = DelimitedEventSerializer.class),
+    @Type(name = AvroEventSerializer.TYPE, value = AvroEventSerializer.class)
 })
 public interface EventSerializer extends Closeable
 {
-  byte[] serialize(Map<String, Object> event) throws IOException;
+  byte[] serialize(List<Pair<String, Object>> event) throws IOException;
 }

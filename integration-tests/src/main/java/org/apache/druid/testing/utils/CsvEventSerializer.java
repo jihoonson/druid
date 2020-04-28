@@ -19,20 +19,39 @@
 
 package org.apache.druid.testing.utils;
 
+import com.opencsv.CSVWriter;
+import org.apache.druid.java.util.common.Pair;
+
+import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.Map;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 public class CsvEventSerializer implements EventSerializer
 {
+  public static final String TYPE = "csv";
+
+  private final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+  private final CSVWriter writer = new CSVWriter(
+      new BufferedWriter(new OutputStreamWriter(bos, StandardCharsets.UTF_8))
+  );
+
   @Override
-  public byte[] serialize(Map<String, Object> event) throws IOException
+  public byte[] serialize(List<Pair<String, Object>> event) throws IOException
   {
-    return new byte[0];
+    //noinspection ConstantConditions
+    writer.writeNext(event.stream().map(pair -> pair.rhs.toString()).toArray(String[]::new));
+    writer.flush();
+    final byte[] serialized = bos.toByteArray();
+    bos.reset();
+    return serialized;
   }
 
   @Override
   public void close() throws IOException
   {
-
+    writer.close();
   }
 }

@@ -20,10 +20,11 @@
 package org.apache.druid.testing.utils;
 
 import org.apache.druid.java.util.common.DateTimes;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.joda.time.DateTime;
 
-import java.util.Map;
+import java.util.List;
 
 public abstract class SyntheticStreamGenerator implements StreamGenerator
 {
@@ -44,7 +45,7 @@ public abstract class SyntheticStreamGenerator implements StreamGenerator
     this.cyclePaddingMs = cyclePaddingMs;
   }
 
-  abstract Map<String, Object> newEvent(int row, DateTime timestamp);
+  abstract List<Pair<String, Object>> newEvent(int row, DateTime timestamp);
 
   @Override
   public void run(String streamTopic, StreamEventWriter streamEventWriter, int totalNumberOfSeconds)

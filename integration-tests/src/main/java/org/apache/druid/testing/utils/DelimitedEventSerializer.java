@@ -19,36 +19,25 @@
 
 package org.apache.druid.testing.utils;
 
-import com.opencsv.CSVWriter;
+import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.StringUtils;
 
-import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class DelimitedEventSerializer implements EventSerializer
 {
   public static final String TYPE = "tsv";
 
-  private final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-  private final CSVWriter writer = new CSVWriter(
-      new BufferedWriter(new OutputStreamWriter(bos, StandardCharsets.UTF_8))
-  );
-
   @Override
-  public byte[] serialize(Map<String, Object> event)
+  public byte[] serialize(List<Pair<String, Object>> event)
   {
-    writer.writeNext(event.values().stream().map(Object::toString).toArray(String[]::new));
-    final byte[] serialized = bos.toByteArray();
-    bos.reset();
-    return serialized;
+    //noinspection ConstantConditions
+    return StringUtils.toUtf8(event.stream().map(pair -> pair.rhs.toString()).collect(Collectors.joining("|")));
   }
 
   @Override
-  public void close() throws IOException
+  public void close()
   {
-    writer.close();
   }
 }

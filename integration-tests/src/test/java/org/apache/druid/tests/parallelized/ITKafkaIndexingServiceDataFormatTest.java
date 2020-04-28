@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.druid.tests.indexer;
+package org.apache.druid.tests.parallelized;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.Inject;
@@ -25,6 +25,8 @@ import org.apache.druid.guice.annotations.Json;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.testing.guice.DruidTestModuleFactory;
 import org.apache.druid.tests.TestNGGroup;
+import org.apache.druid.tests.indexer.AbstractKafkaIndexingServiceTest;
+import org.apache.druid.tests.indexer.AbstractStreamIndexingTest;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Guice;
@@ -35,7 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Test(groups = "format-test")
+@Test(groups = TestNGGroup.KAFKA_DATA_FORMAT)
 @Guice(moduleFactory = DruidTestModuleFactory.class)
 public class ITKafkaIndexingServiceDataFormatTest extends AbstractKafkaIndexingServiceTest
 {
@@ -43,7 +45,7 @@ public class ITKafkaIndexingServiceDataFormatTest extends AbstractKafkaIndexingS
   private static final boolean TRANSACTION_DISABLED = false;
   private static final boolean TRANSACTION_ENABLED = true;
 
-  @DataProvider
+  @DataProvider(parallel = true)
   public static Object[][] resources() throws IOException
   {
     final List<Object[]> resources = new ArrayList<>();
