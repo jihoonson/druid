@@ -122,8 +122,8 @@ public interface ShardSpec
   @JsonIgnore
   boolean isCompatible(Class<? extends ShardSpec> other);
 
-  default boolean sharePartitionSpace(Class<? extends ShardSpec> other)
+  default boolean sharePartitionSpace(PartialShardSpec partialShardSpec)
   {
-    return getClass() == other;
+    return !partialShardSpec.isPartiallyOverwriteTimeChunk();
   }
 }

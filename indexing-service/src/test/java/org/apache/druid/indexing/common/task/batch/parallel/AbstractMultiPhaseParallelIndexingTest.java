@@ -184,7 +184,7 @@ abstract class AbstractMultiPhaseParallelIndexingTest extends AbstractParallelIn
         null,
         null,
         null,
-        true,
+        !appendToExisting,
         null,
         null,
         null,

@@ -62,4 +62,9 @@ public interface PartialShardSpec
    */
   @JsonIgnore
   Class<? extends ShardSpec> getShardSpecClass();
+
+  default boolean isPartiallyOverwriteTimeChunk()
+  {
+    return false;
+  }
 }
