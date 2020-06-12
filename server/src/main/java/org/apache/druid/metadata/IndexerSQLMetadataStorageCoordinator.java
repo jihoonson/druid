@@ -810,16 +810,7 @@ public class IndexerSQLMetadataStorageCoordinator implements IndexerMetadataStor
       return null;
 
     } else {
-      //noinspection ConstantConditions
-//      if (FluentIterable
-//          .from(existingChunks)
-//          .transformAndConcat(TimelineObjectHolder::getObject)
-//          .anyMatch(chunk -> !chunk.getObject().getShardSpec().isCompatible(partialShardSpec.getShardSpecClass()))) {
-//        // All existing segments should have a compatible shardSpec with partialShardSpec.
-//        return null;
-//      }
-
-      // max partitionId of the SAME shardSpec
+      // max partitionId of the shardSpecs which share the same partition space.
       SegmentIdWithShardSpec maxId = null;
 
       if (!existingChunks.isEmpty()) {

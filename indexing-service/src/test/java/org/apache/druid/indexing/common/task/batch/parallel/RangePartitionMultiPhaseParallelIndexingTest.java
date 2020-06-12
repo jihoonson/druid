@@ -355,7 +355,7 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
           Assert.assertEquals(rangedSegment.getVersion(), linearSegment.getVersion());
           final NumberedShardSpec numberedShardSpec = (NumberedShardSpec) linearSegment.getShardSpec();
           Assert.assertEquals(rangeShardSpec.getNumCorePartitions(), numberedShardSpec.getNumCorePartitions());
-          Assert.assertNotEquals(rangeShardSpec.getPartitionNum(), numberedShardSpec.getPartitionNum());
+          Assert.assertTrue(rangeShardSpec.getPartitionNum() < numberedShardSpec.getPartitionNum());
         }
       }
     }

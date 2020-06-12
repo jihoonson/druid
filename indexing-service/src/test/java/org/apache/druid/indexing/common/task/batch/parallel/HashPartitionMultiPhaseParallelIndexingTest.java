@@ -247,7 +247,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
           Assert.assertEquals(hashedSegment.getVersion(), linearSegment.getVersion());
           final NumberedShardSpec numberedShardSpec = (NumberedShardSpec) linearSegment.getShardSpec();
           Assert.assertEquals(hashShardSpec.getNumCorePartitions(), numberedShardSpec.getNumCorePartitions());
-          Assert.assertNotEquals(hashShardSpec.getPartitionNum(), numberedShardSpec.getPartitionNum());
+          Assert.assertTrue(hashShardSpec.getPartitionNum() < numberedShardSpec.getPartitionNum());
         }
       }
     }
