@@ -48,7 +48,7 @@ public class SingleDimensionShardSpecTest
   {
     Map<SingleDimensionShardSpec, List<Pair<Boolean, Map<String, String>>>> tests = ImmutableMap.<SingleDimensionShardSpec, List<Pair<Boolean, Map<String, String>>>>builder()
         .put(
-            makeSpec(null, null),
+            makeSpec(null, null, 1),
             makeListOfPairs(
                 true, null,
                 true, "a",
@@ -58,7 +58,7 @@ public class SingleDimensionShardSpecTest
             )
         )
         .put(
-            makeSpec(null, "m"),
+            makeSpec(null, "m", 2),
             makeListOfPairs(
                 true, null,
                 true, "a",
@@ -68,7 +68,7 @@ public class SingleDimensionShardSpecTest
             )
         )
         .put(
-            makeSpec("a", "h"),
+            makeSpec("a", "h", 3),
             makeListOfPairs(
                 false, null,
                 true, "a",
@@ -78,7 +78,7 @@ public class SingleDimensionShardSpecTest
             )
         )
         .put(
-            makeSpec("d", "u"),
+            makeSpec("d", "u", 3),
             makeListOfPairs(
                 false, null,
                 false, "a",
@@ -88,7 +88,7 @@ public class SingleDimensionShardSpecTest
             )
         )
         .put(
-            makeSpec("h", null),
+            makeSpec("h", null, 2),
             makeListOfPairs(
                 false, null,
                 false, "a",
@@ -119,13 +119,13 @@ public class SingleDimensionShardSpecTest
     Map<String, RangeSet<String>> domain2 = ImmutableMap.of("dim1", rangeSet(ImmutableList.of(Range.singleton("e"))),
                                                             "dim2", rangeSet(ImmutableList.of(Range.singleton("na")))
     );
-    ShardSpec shard1 = makeSpec("dim1", null, "abc");
-    ShardSpec shard2 = makeSpec("dim1", "abc", "def");
-    ShardSpec shard3 = makeSpec("dim1", "def", null);
-    ShardSpec shard4 = makeSpec("dim2", null, "hello");
-    ShardSpec shard5 = makeSpec("dim2", "hello", "jk");
-    ShardSpec shard6 = makeSpec("dim2", "jk", "na");
-    ShardSpec shard7 = makeSpec("dim2", "na", null);
+    ShardSpec shard1 = makeSpec("dim1", null, "abc", 3);
+    ShardSpec shard2 = makeSpec("dim1", "abc", "def", 3);
+    ShardSpec shard3 = makeSpec("dim1", "def", null, 3);
+    ShardSpec shard4 = makeSpec("dim2", null, "hello", 4);
+    ShardSpec shard5 = makeSpec("dim2", "hello", "jk", 4);
+    ShardSpec shard6 = makeSpec("dim2", "jk", "na", 4);
+    ShardSpec shard7 = makeSpec("dim2", "na", null, 4);
     Assert.assertTrue(shard1.possibleInDomain(domain1));
     Assert.assertFalse(shard2.possibleInDomain(domain1));
     Assert.assertFalse(shard3.possibleInDomain(domain1));
@@ -151,14 +151,14 @@ public class SingleDimensionShardSpecTest
     return builder.build();
   }
 
-  private SingleDimensionShardSpec makeSpec(String start, String end)
+  private SingleDimensionShardSpec makeSpec(String start, String end, int numCorePartitions)
   {
-    return makeSpec("billy", start, end);
+    return makeSpec("billy", start, end, numCorePartitions);
   }
 
-  private SingleDimensionShardSpec makeSpec(String dimension, String start, String end)
+  private SingleDimensionShardSpec makeSpec(String dimension, String start, String end, int numCorePartitions)
   {
-    return new SingleDimensionShardSpec(dimension, start, end, 0);
+    return new SingleDimensionShardSpec(dimension, start, end, 0, numCorePartitions);
   }
 
   private Map<String, String> makeMap(String value)

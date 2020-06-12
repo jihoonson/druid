@@ -32,12 +32,14 @@ import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.data.input.impl.ParseSpec;
 import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.TaskState;
+import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.query.scan.ScanResultValue;
 import org.apache.druid.timeline.DataSegment;
+import org.apache.druid.timeline.partition.NumberedShardSpec;
 import org.apache.druid.timeline.partition.SingleDimensionShardSpec;
 import org.hamcrest.Matchers;
 import org.joda.time.Interval;
@@ -59,8 +61,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -242,6 +248,116 @@ public class RangePartitionMultiPhaseParallelIndexingTest extends AbstractMultiP
 
     if (!useMultivalueDim) {
       assertRangePartitions(publishedSegments);
+    }
+  }
+
+  @Test
+  public void testAppendLinearlyPartitionedSegmensToHashPartitionedDatasourceSuccessfullyAppend()
+  {
+    if (useMultivalueDim) {
+      return;
+    }
+    final int targetRowsPerSegment = NUM_ROW / DIM_FILE_CARDINALITY / NUM_PARTITION;
+    final Set<DataSegment> publishedSegments = new HashSet<>();
+    if (isUseInputFormatApi()) {
+      publishedSegments.addAll(
+          runTestTask(
+              TIMESTAMP_SPEC,
+              DIMENSIONS_SPEC,
+              INPUT_FORMAT,
+              null,
+              INTERVAL_TO_INDEX,
+              inputDir,
+              "test_*",
+              new SingleDimensionPartitionsSpec(
+                  targetRowsPerSegment,
+                  null,
+                  DIM1,
+                  false
+              ),
+              maxNumConcurrentSubTasks,
+              TaskState.SUCCESS,
+              false
+          )
+      );
+      publishedSegments.addAll(
+          runTestTask(
+              TIMESTAMP_SPEC,
+              DIMENSIONS_SPEC,
+              INPUT_FORMAT,
+              null,
+              INTERVAL_TO_INDEX,
+              inputDir,
+              "test_*",
+              new DynamicPartitionsSpec(5, null),
+              maxNumConcurrentSubTasks,
+              TaskState.SUCCESS,
+              true
+          )
+      );
+    } else {
+      publishedSegments.addAll(
+          runTestTask(
+              null,
+              null,
+              null,
+              PARSE_SPEC,
+              INTERVAL_TO_INDEX,
+              inputDir,
+              "test_*",
+              new SingleDimensionPartitionsSpec(
+                  targetRowsPerSegment,
+                  null,
+                  DIM1,
+                  false
+              ),
+              maxNumConcurrentSubTasks,
+              TaskState.SUCCESS,
+              false
+          )
+      );
+      publishedSegments.addAll(
+          runTestTask(
+              null,
+              null,
+              null,
+              PARSE_SPEC,
+              INTERVAL_TO_INDEX,
+              inputDir,
+              "test_*",
+              new DynamicPartitionsSpec(5, null),
+              maxNumConcurrentSubTasks,
+              TaskState.SUCCESS,
+              true
+          )
+      );
+    }
+
+    final Map<Interval, List<DataSegment>> intervalToSegments = new HashMap<>();
+    publishedSegments.forEach(
+        segment -> intervalToSegments.computeIfAbsent(segment.getInterval(), k -> new ArrayList<>()).add(segment)
+    );
+    for (Entry<Interval, List<DataSegment>> entry : intervalToSegments.entrySet()) {
+      final List<DataSegment> segments = entry.getValue();
+      final List<DataSegment> rangedSegments = segments
+          .stream()
+          .filter(segment -> segment.getShardSpec().getClass() == SingleDimensionShardSpec.class)
+          .collect(Collectors.toList());
+      final List<DataSegment> linearSegments = segments
+          .stream()
+          .filter(segment -> segment.getShardSpec().getClass() == NumberedShardSpec.class)
+          .collect(Collectors.toList());
+
+      for (DataSegment rangedSegment : rangedSegments) {
+        final SingleDimensionShardSpec rangeShardSpec = (SingleDimensionShardSpec) rangedSegment.getShardSpec();
+        for (DataSegment linearSegment : linearSegments) {
+          Assert.assertEquals(rangedSegment.getInterval(), linearSegment.getInterval());
+          Assert.assertEquals(rangedSegment.getVersion(), linearSegment.getVersion());
+          final NumberedShardSpec numberedShardSpec = (NumberedShardSpec) linearSegment.getShardSpec();
+          Assert.assertEquals(rangeShardSpec.getNumCorePartitions(), numberedShardSpec.getNumCorePartitions());
+          Assert.assertNotEquals(rangeShardSpec.getPartitionNum(), numberedShardSpec.getPartitionNum());
+        }
+      }
     }
   }
 

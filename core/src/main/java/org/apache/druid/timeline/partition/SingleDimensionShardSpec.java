@@ -38,12 +38,14 @@ import java.util.Objects;
  */
 public class SingleDimensionShardSpec implements ShardSpec
 {
+  public static final int UNKNOWN_NUM_CORE_PARTITIONS = -1;
   private final String dimension;
   @Nullable
   private final String start;
   @Nullable
   private final String end;
   private final int partitionNum;
+  private final int numCorePartitions;
 
   /**
    * @param dimension    partition dimension
@@ -56,7 +58,8 @@ public class SingleDimensionShardSpec implements ShardSpec
       @JsonProperty("dimension") String dimension,
       @JsonProperty("start") @Nullable String start,
       @JsonProperty("end") @Nullable String end,
-      @JsonProperty("partitionNum") int partitionNum
+      @JsonProperty("partitionNum") int partitionNum,
+      @JsonProperty("numCorePartitions") @Nullable Integer numCorePartitions // nullable for backward compatibility
   )
   {
     Preconditions.checkArgument(partitionNum >= 0, "partitionNum >= 0");
@@ -64,6 +67,7 @@ public class SingleDimensionShardSpec implements ShardSpec
     this.start = start;
     this.end = end;
     this.partitionNum = partitionNum;
+    this.numCorePartitions = numCorePartitions == null ? UNKNOWN_NUM_CORE_PARTITIONS : numCorePartitions;
   }
 
   @JsonProperty("dimension")
@@ -91,6 +95,13 @@ public class SingleDimensionShardSpec implements ShardSpec
   public int getPartitionNum()
   {
     return partitionNum;
+  }
+
+  @Override
+  @JsonProperty
+  public int getNumCorePartitions()
+  {
+    return numCorePartitions;
   }
 
   @Override
@@ -140,7 +151,13 @@ public class SingleDimensionShardSpec implements ShardSpec
   @Override
   public boolean isCompatible(Class<? extends ShardSpec> other)
   {
-    return other == SingleDimensionShardSpec.class;
+    return other == SingleDimensionShardSpec.class || other == NumberedShardSpec.class;
+  }
+
+  @Override
+  public boolean sharePartitionSpace(Class<? extends ShardSpec> other)
+  {
+    return other == SingleDimensionShardSpec.class || other == NumberedShardSpec.class;
   }
 
   @Override
@@ -176,17 +193,6 @@ public class SingleDimensionShardSpec implements ShardSpec
   }
 
   @Override
-  public String toString()
-  {
-    return "SingleDimensionShardSpec{" +
-           "dimension='" + dimension + '\'' +
-           ", start='" + start + '\'' +
-           ", end='" + end + '\'' +
-           ", partitionNum=" + partitionNum +
-           '}';
-  }
-
-  @Override
   public boolean equals(Object o)
   {
     if (this == o) {
@@ -195,16 +201,29 @@ public class SingleDimensionShardSpec implements ShardSpec
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    SingleDimensionShardSpec that = (SingleDimensionShardSpec) o;
-    return partitionNum == that.partitionNum &&
-           Objects.equals(dimension, that.dimension) &&
-           Objects.equals(start, that.start) &&
-           Objects.equals(end, that.end);
+    SingleDimensionShardSpec shardSpec = (SingleDimensionShardSpec) o;
+    return partitionNum == shardSpec.partitionNum &&
+           numCorePartitions == shardSpec.numCorePartitions &&
+           Objects.equals(dimension, shardSpec.dimension) &&
+           Objects.equals(start, shardSpec.start) &&
+           Objects.equals(end, shardSpec.end);
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(dimension, start, end, partitionNum);
+    return Objects.hash(dimension, start, end, partitionNum, numCorePartitions);
+  }
+
+  @Override
+  public String toString()
+  {
+    return "SingleDimensionShardSpec{" +
+           "dimension='" + dimension + '\'' +
+           ", start='" + start + '\'' +
+           ", end='" + end + '\'' +
+           ", partitionNum=" + partitionNum +
+           ", numCorePartitions=" + numCorePartitions +
+           '}';
   }
 }

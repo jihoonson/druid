@@ -104,6 +104,7 @@ public class HashPartitionCachingLocalSegmentAllocatorTest
     );
     BuildingHashBasedNumberedShardSpec shardSpec = (BuildingHashBasedNumberedShardSpec) segmentIdWithShardSpec.getShardSpec();
     Assert.assertEquals(PARTITION_DIMENSIONS, shardSpec.getPartitionDimensions());
+    Assert.assertEquals(NUM_PARTITONS, shardSpec.getNumCorePartitions());
     Assert.assertEquals(NUM_PARTITONS, shardSpec.getNumBuckets());
     Assert.assertEquals(PARTITION_NUM, shardSpec.getPartitionNum());
   }

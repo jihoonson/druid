@@ -106,7 +106,8 @@ public class SingleDimensionPartialShardSpec implements PartialShardSpec
         partitionDimension,
         start,
         end,
-        partitionId
+        partitionId,
+        numBuckets
     );
   }
 

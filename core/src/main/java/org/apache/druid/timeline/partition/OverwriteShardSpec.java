@@ -34,4 +34,10 @@ public interface OverwriteShardSpec extends ShardSpec
   }
 
   OverwriteShardSpec withAtomicUpdateGroupSize(short atomicUpdateGroupSize);
+
+  @Override
+  default int getNumCorePartitions()
+  {
+    return 0;
+  }
 }

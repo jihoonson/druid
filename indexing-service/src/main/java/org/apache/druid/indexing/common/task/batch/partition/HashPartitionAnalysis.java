@@ -107,6 +107,7 @@ public class HashPartitionAnalysis implements CompletePartitionAnalysis<Integer,
           IntStream.range(0, numBuckets)
                    .mapToObj(i -> {
                      final BuildingHashBasedNumberedShardSpec shardSpec = new BuildingHashBasedNumberedShardSpec(
+                         i, // TODO: lazy partitionId allocation
                          i,
                          numBuckets,
                          partitionsSpec.getPartitionDimensions(),
