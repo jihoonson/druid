@@ -576,7 +576,7 @@ public class IndexGeneratorJobTest
             shardInfo[0],
             shardInfo[1],
             partitionNum++,
-            SingleDimensionShardSpec.UNKNOWN_NUM_CORE_PARTITIONS // TODO
+            shardInfoForEachShard.length
         ));
       }
     } else {

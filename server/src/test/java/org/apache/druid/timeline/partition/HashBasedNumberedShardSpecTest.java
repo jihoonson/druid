@@ -72,6 +72,7 @@ public class HashBasedNumberedShardSpecTest
     );
     Assert.assertEquals(1, spec.getPartitionNum());
     Assert.assertEquals(2, spec.getNumCorePartitions());
+    Assert.assertEquals(1, ((HashBasedNumberedShardSpec) spec).getBucketId());
     Assert.assertEquals(3, ((HashBasedNumberedShardSpec) spec).getNumBuckets());
     Assert.assertEquals(ImmutableList.of("visitor_id"), ((HashBasedNumberedShardSpec) spec).getPartitionDimensions());
   }

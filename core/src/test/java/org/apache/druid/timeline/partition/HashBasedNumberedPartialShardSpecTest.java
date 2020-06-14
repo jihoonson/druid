@@ -71,6 +71,7 @@ public class HashBasedNumberedPartialShardSpecTest
     Assert.assertEquals(4, map.size());
     Assert.assertEquals(HashBasedNumberedPartialShardSpec.TYPE, map.get("type"));
     Assert.assertEquals(expected.getPartitionDimensions(), map.get("partitionDimensions"));
+    Assert.assertEquals(expected.getBucketId(), map.get("bucketId"));
     Assert.assertEquals(expected.getNumBuckets(), map.get("numPartitions"));
     Assert.assertEquals(expected.getBucketId(), map.get("bucketId"));
   }

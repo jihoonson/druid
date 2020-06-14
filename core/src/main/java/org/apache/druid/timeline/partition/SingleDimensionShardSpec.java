@@ -39,6 +39,7 @@ import java.util.Objects;
 public class SingleDimensionShardSpec implements ShardSpec
 {
   public static final int UNKNOWN_NUM_CORE_PARTITIONS = -1;
+
   private final String dimension;
   @Nullable
   private final String start;
@@ -68,6 +69,17 @@ public class SingleDimensionShardSpec implements ShardSpec
     this.end = end;
     this.partitionNum = partitionNum;
     this.numCorePartitions = numCorePartitions == null ? UNKNOWN_NUM_CORE_PARTITIONS : numCorePartitions;
+  }
+
+  public SingleDimensionShardSpec withNumCorePartitions(int numCorePartitions)
+  {
+    return new SingleDimensionShardSpec(
+        dimension,
+        start,
+        end,
+        partitionNum,
+        numCorePartitions
+    );
   }
 
   @JsonProperty("dimension")
@@ -105,7 +117,12 @@ public class SingleDimensionShardSpec implements ShardSpec
   }
 
   @Override
-  public ShardSpecLookup getLookup(final List<ShardSpec> shardSpecs)
+  public ShardSpecLookup getLookup(final List<? extends ShardSpec> shardSpecs)
+  {
+    return createLookup(shardSpecs);
+  }
+
+  static ShardSpecLookup createLookup(List<? extends ShardSpec> shardSpecs)
   {
     return (long timestamp, InputRow row) -> {
       for (ShardSpec spec : shardSpecs) {
@@ -157,22 +174,20 @@ public class SingleDimensionShardSpec implements ShardSpec
   @Override
   public <T> PartitionChunk<T> createChunk(T obj)
   {
-    return new StringPartitionChunk<T>(start, end, partitionNum, obj);
+    if (numCorePartitions == UNKNOWN_NUM_CORE_PARTITIONS) {
+      return new StringPartitionChunk<>(start, end, partitionNum, obj);
+    } else {
+      return new NumberedPartitionChunk<>(partitionNum, numCorePartitions, obj);
+    }
   }
 
   @Override
   public boolean isInChunk(long timestamp, InputRow inputRow)
   {
-    final List<String> values = inputRow.getDimension(dimension);
-
-    if (values == null || values.size() != 1) {
-      return checkValue(null);
-    } else {
-      return checkValue(values.get(0));
-    }
+    return isInChunk(dimension, start, end, inputRow);
   }
 
-  private boolean checkValue(String value)
+  private static boolean checkValue(@Nullable String start, @Nullable String end, String value)
   {
     if (value == null) {
       return start == null;
@@ -184,6 +199,22 @@ public class SingleDimensionShardSpec implements ShardSpec
 
     return value.compareTo(start) >= 0 &&
            (end == null || value.compareTo(end) < 0);
+  }
+
+  public static boolean isInChunk(
+      String dimension,
+      @Nullable String start,
+      @Nullable String end,
+      InputRow inputRow
+  )
+  {
+    final List<String> values = inputRow.getDimension(dimension);
+
+    if (values == null || values.size() != 1) {
+      return checkValue(start, end, null);
+    } else {
+      return checkValue(start, end, values.get(0));
+    }
   }
 
   @Override

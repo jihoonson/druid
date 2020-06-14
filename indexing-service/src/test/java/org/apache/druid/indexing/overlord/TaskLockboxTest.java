@@ -972,7 +972,7 @@ public class TaskLockboxTest
     lockbox.add(task);
 
     allocateSegmentsAndAssert(task, "seq", 3, new HashBasedNumberedPartialShardSpec(null, 1, 3));
-    allocateSegmentsAndAssert(task, "seq2", 5, new HashBasedNumberedPartialShardSpec(null, 2, 5));
+    allocateSegmentsAndAssert(task, "seq2", 5, new HashBasedNumberedPartialShardSpec(null, 3, 5));
   }
 
   private void allocateSegmentsAndAssert(

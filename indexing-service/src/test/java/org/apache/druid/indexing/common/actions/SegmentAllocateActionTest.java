@@ -1029,10 +1029,7 @@ public class SegmentAllocateActionTest
 
     if (expected.getShardSpec().getClass() == NumberedShardSpec.class
         && actual.getShardSpec().getClass() == NumberedShardSpec.class) {
-      Assert.assertEquals(
-          expected.getShardSpec().getNumCorePartitions(),
-          actual.getShardSpec().getNumCorePartitions()
-      );
+      Assert.assertEquals(expected.getShardSpec().getNumCorePartitions(), actual.getShardSpec().getNumCorePartitions());
     } else if (expected.getShardSpec().getClass() == LinearShardSpec.class
                && actual.getShardSpec().getClass() == LinearShardSpec.class) {
       // do nothing

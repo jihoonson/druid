@@ -80,24 +80,31 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
       false,
       0
   );
-  private static final int MAX_NUM_CONCURRENT_SUB_TASKS = 2;
   private static final Interval INTERVAL_TO_INDEX = Intervals.of("2017-12/P1M");
 
   @Parameterized.Parameters(name = "{0}, useInputFormatApi={1}")
   public static Iterable<Object[]> constructorFeeder()
   {
     return ImmutableList.of(
-        new Object[]{LockGranularity.TIME_CHUNK, false},
-        new Object[]{LockGranularity.TIME_CHUNK, true},
-        new Object[]{LockGranularity.SEGMENT, true}
+        new Object[]{LockGranularity.TIME_CHUNK, false, 2},
+        new Object[]{LockGranularity.TIME_CHUNK, true, 2},
+        new Object[]{LockGranularity.TIME_CHUNK, true, 1},
+        new Object[]{LockGranularity.SEGMENT, true, 2}
     );
   }
 
+  private final int maxNumConcurrentSubTasks;
+
   private File inputDir;
 
-  public HashPartitionMultiPhaseParallelIndexingTest(LockGranularity lockGranularity, boolean useInputFormatApi)
+  public HashPartitionMultiPhaseParallelIndexingTest(
+      LockGranularity lockGranularity,
+      boolean useInputFormatApi,
+      int maxNumConcurrentSubTasks
+  )
   {
     super(lockGranularity, useInputFormatApi);
+    this.maxNumConcurrentSubTasks = maxNumConcurrentSubTasks;
   }
 
   @Before
@@ -137,7 +144,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
           inputDir,
           "test_*",
           new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
-          MAX_NUM_CONCURRENT_SUB_TASKS,
+          maxNumConcurrentSubTasks,
           TaskState.SUCCESS
       );
     } else {
@@ -150,7 +157,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
           inputDir,
           "test_*",
           new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
-          MAX_NUM_CONCURRENT_SUB_TASKS,
+          maxNumConcurrentSubTasks,
           TaskState.SUCCESS
       );
     }
@@ -172,7 +179,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
               inputDir,
               "test_*",
               new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
-              MAX_NUM_CONCURRENT_SUB_TASKS,
+              maxNumConcurrentSubTasks,
               TaskState.SUCCESS,
               false
           )
@@ -187,7 +194,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
               inputDir,
               "test_*",
               new DynamicPartitionsSpec(5, null),
-              MAX_NUM_CONCURRENT_SUB_TASKS,
+              maxNumConcurrentSubTasks,
               TaskState.SUCCESS,
               true
           )
@@ -203,7 +210,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
               inputDir,
               "test_*",
               new HashedPartitionsSpec(null, 2, ImmutableList.of("dim1", "dim2")),
-              MAX_NUM_CONCURRENT_SUB_TASKS,
+              maxNumConcurrentSubTasks,
               TaskState.SUCCESS,
               false
           )
@@ -218,7 +225,7 @@ public class HashPartitionMultiPhaseParallelIndexingTest extends AbstractMultiPh
               inputDir,
               "test_*",
               new DynamicPartitionsSpec(5, null),
-              MAX_NUM_CONCURRENT_SUB_TASKS,
+              maxNumConcurrentSubTasks,
               TaskState.SUCCESS,
               true
           )

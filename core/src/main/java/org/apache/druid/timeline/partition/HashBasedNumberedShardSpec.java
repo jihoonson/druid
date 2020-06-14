@@ -63,7 +63,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   )
   {
     super(partitionNum, partitions);
-    // Assume partitionId = bucketId if bucketId is missing.
+    // Use partitionId as bucketId if it's missing.
     this.bucketId = bucketId == null ? partitionNum : bucketId;
     // If numBuckets is missing, assume that any hash bucket is not empty.
     // Use the core partition set size as the number of buckets.
@@ -117,7 +117,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     return hash(jsonMapper, partitionDimensions, timestamp, inputRow);
   }
 
-  private static int hash(ObjectMapper jsonMapper, List<String> partitionDimensions, long timestamp, InputRow inputRow)
+  public static int hash(ObjectMapper jsonMapper, List<String> partitionDimensions, long timestamp, InputRow inputRow)
   {
     final List<Object> groupKey = getGroupKey(partitionDimensions, timestamp, inputRow);
     try {
@@ -145,7 +145,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   }
 
   @Override
-  public ShardSpecLookup getLookup(final List<ShardSpec> shardSpecs)
+  public ShardSpecLookup getLookup(final List<? extends ShardSpec> shardSpecs)
   {
     return createHashLookup(jsonMapper, partitionDimensions, shardSpecs, numBuckets);
   }
@@ -153,7 +153,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   static ShardSpecLookup createHashLookup(
       ObjectMapper jsonMapper,
       List<String> partitionDimensions,
-      List<ShardSpec> shardSpecs,
+      List<? extends ShardSpec> shardSpecs,
       int numBuckets
   )
   {
