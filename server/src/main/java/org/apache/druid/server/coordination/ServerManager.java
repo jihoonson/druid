@@ -65,6 +65,7 @@ import org.apache.druid.timeline.SegmentId;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
+import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
 import java.util.Collections;
@@ -260,8 +261,15 @@ public class ServerManager implements QuerySegmentWalker
       final AtomicLong cpuTimeAccumulator
   )
   {
-    SpecificSegmentSpec segmentSpec = new SpecificSegmentSpec(segmentDescriptor);
-    SegmentId segmentId = segment.getId();
+    final SpecificSegmentSpec segmentSpec = new SpecificSegmentSpec(segmentDescriptor);
+    final SegmentId segmentId = segment.getId();
+    final DateTime segmentIntervalStart = segment.getDataInterval().getStart();
+    // ReferenceCountingSegment can return null for ID or interval if it's already closed.
+    // Here, we check one more time if the segment is closed.
+    // If the segment is closed after this line, ReferenceCountingSegmentQueryRunner will handle and do the right thing.
+    if (segmentId == null || segmentIntervalStart == null) {
+      return new ReportTimelineMissingSegmentQueryRunner<>(segmentDescriptor);
+    }
     String segmentIdString = segmentId.toString();
 
     MetricsEmittingQueryRunner<T> metricsEmittingQueryRunnerInner = new MetricsEmittingQueryRunner<>(
@@ -285,7 +293,7 @@ public class ServerManager implements QuerySegmentWalker
 
     BySegmentQueryRunner<T> bySegmentQueryRunner = new BySegmentQueryRunner<>(
         segmentId,
-        segment.getDataInterval().getStart(),
+        segmentIntervalStart,
         cachingQueryRunner
     );
 
