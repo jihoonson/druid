@@ -21,23 +21,24 @@ package org.apache.druid.query;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Iterables;
 import org.apache.druid.java.util.common.guava.MergeSequence;
+import org.apache.druid.java.util.common.guava.MergingYielderIterator;
 import org.apache.druid.java.util.common.guava.Sequence;
-import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.guava.Yielder;
+import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.java.util.common.guava.YieldingAccumulator;
 import org.apache.druid.java.util.common.guava.YieldingSequenceBase;
-import org.apache.druid.java.util.emitter.EmittingLogger;
+import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.segment.SegmentMissingException;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class RetryQueryRunner<T> implements QueryRunner<T>
 {
-  private static final EmittingLogger log = new EmittingLogger(RetryQueryRunner.class);
+  private static final Logger LOG = new Logger(RetryQueryRunner.class);
 
   private final QueryRunner<T> baseRunner;
   private final RetryQueryRunnerConfig config;
@@ -57,42 +58,41 @@ public class RetryQueryRunner<T> implements QueryRunner<T>
   @Override
   public Sequence<T> run(final QueryPlus<T> queryPlus, final ResponseContext context)
   {
-    final List<Sequence<T>> listOfSequences = new ArrayList<>();
-    listOfSequences.add(baseRunner.run(queryPlus, context));
+    final Sequence<T> baseSequence = baseRunner.run(queryPlus, context);
 
     return new YieldingSequenceBase<T>()
     {
       @Override
       public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
       {
+        final List<Yielder<T>> yielders = new ArrayList<>();
+        yielders.add(Yielders.each(baseSequence));
+
         List<SegmentDescriptor> missingSegments = getMissingSegments(context);
 
         if (!missingSegments.isEmpty()) {
-          for (int i = 0; i < config.getNumTries(); i++) {
-            log.info("[%,d] missing segments found. Retry attempt [%,d]", missingSegments.size(), i);
+          for (int i = 0; i < config.getNumTries() && !missingSegments.isEmpty(); i++) {
+            LOG.info("[%,d] missing segments found. Retry attempt [%,d]", missingSegments.size(), i);
 
             context.put(ResponseContext.Key.MISSING_SEGMENTS, new ArrayList<>());
             final QueryPlus<T> retryQueryPlus = queryPlus.withQuery(
                 Queries.withSpecificSegments(queryPlus.getQuery(), missingSegments)
             );
             Sequence<T> retrySequence = baseRunner.run(retryQueryPlus, context);
-            listOfSequences.add(retrySequence);
+            yielders.add(Yielders.each(retrySequence));
             missingSegments = getMissingSegments(context);
-            if (missingSegments.isEmpty()) {
-              break;
-            }
           }
 
           final List<SegmentDescriptor> finalMissingSegs = getMissingSegments(context);
           if (!config.isReturnPartialResults() && !finalMissingSegs.isEmpty()) {
             throw new SegmentMissingException("No results found for segments[%s]", finalMissingSegs);
           }
-
-          return new MergeSequence<>(queryPlus.getQuery().getResultOrdering(), Sequences.simple(listOfSequences))
-              .toYielder(initValue, accumulator);
-        } else {
-          return Iterables.getOnlyElement(listOfSequences).toYielder(initValue, accumulator);
         }
+        return MergeSequence.makeYielder(
+            new MergingYielderIterator<>(queryPlus.getQuery().getResultOrdering(), yielders),
+            initValue,
+            accumulator
+        );
       }
     };
   }
@@ -101,7 +101,7 @@ public class RetryQueryRunner<T> implements QueryRunner<T>
   {
     final Object maybeMissingSegments = context.get(ResponseContext.Key.MISSING_SEGMENTS);
     if (maybeMissingSegments == null) {
-      return new ArrayList<>();
+      return Collections.emptyList();
     }
 
     return jsonMapper.convertValue(

@@ -20,6 +20,8 @@
 package org.apache.druid.java.util.common.guava;
 
 import com.google.common.base.Throwables;
+import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.IOException;
 
@@ -79,5 +81,67 @@ public class Yielders
         }
       }
     };
+  }
+
+  public static <T> Sequence<T> toSequence(final Yielder<T> yielder, final T initValue)
+  {
+    return new BaseSequence<>(
+        new IteratorMaker<T, YielderBasedIterator<T>>()
+        {
+          @Override
+          public YielderBasedIterator<T> make()
+          {
+            return new YielderBasedIterator<>(yielder, initValue);
+          }
+
+          @Override
+          public void cleanup(YielderBasedIterator<T> iterFromMake)
+          {
+            try {
+              iterFromMake.close();
+            }
+            catch (IOException e) {
+              throw new RuntimeException(e);
+            }
+          }
+        }
+    );
+  }
+
+  private static class YielderBasedIterator<T> implements CloseableIterator<T>
+  {
+    private final T initValue;
+
+    private Yielder<T> current;
+
+    private YielderBasedIterator(Yielder<T> yielder, T initValue)
+    {
+      this.initValue = initValue;
+      this.current = yielder;
+    }
+
+    @Override
+    public boolean hasNext()
+    {
+      return !current.isDone();
+    }
+
+    @Override
+    public T next()
+    {
+      final T val = current.get();
+      if (!current.isDone()) {
+        current = current.next(initValue);
+      }
+      return val;
+    }
+
+    @Override
+    public void close() throws IOException
+    {
+      if (current != null) {
+        current.close();
+      }
+    }
   }
 }

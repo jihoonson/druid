@@ -1047,7 +1047,6 @@ public class RunRulesTest
         .withDatabaseRuleManager(databaseRuleManager)
         .withSegmentReplicantLookup(SegmentReplicantLookup.make(new DruidCluster()))
         .withBalancerStrategy(balancerStrategy)
-        .withBalancerReferenceTimestamp(DateTimes.of("2013-01-01"))
         .withDynamicConfigs(CoordinatorDynamicConfig.builder().withMaxSegmentsToMove(5).build())
         .build();
 
