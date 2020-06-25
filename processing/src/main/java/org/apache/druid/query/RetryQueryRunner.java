@@ -59,40 +59,11 @@ public class RetryQueryRunner<T> implements QueryRunner<T>
   @Override
   public Sequence<T> run(final QueryPlus<T> queryPlus, final ResponseContext context)
   {
-//    final List<Sequence<T>> listOfSequences = new ArrayList<>();
-//    listOfSequences.add(baseRunner.run(queryPlus, context));
-
     return new YieldingSequenceBase<T>()
     {
       @Override
       public <OutType> Yielder<OutType> toYielder(OutType initValue, YieldingAccumulator<OutType, T> accumulator)
       {
-//        List<SegmentDescriptor> missingSegments = getMissingSegments(context);
-//
-//        if (!missingSegments.isEmpty()) {
-//          for (int i = 0; i < config.getNumTries() && !missingSegments.isEmpty(); i++) {
-//            LOG.info("[%,d] missing segments found. Retry attempt [%,d]", missingSegments.size(), i);
-//
-//            context.put(ResponseContext.Key.MISSING_SEGMENTS, new ArrayList<>());
-//            final QueryPlus<T> retryQueryPlus = queryPlus.withQuery(
-//                Queries.withSpecificSegments(queryPlus.getQuery(), missingSegments)
-//            );
-//            Sequence<T> retrySequence = baseRunner.run(retryQueryPlus, context);
-//            listOfSequences.add(retrySequence);
-//            missingSegments = getMissingSegments(context);
-//          }
-//
-//          final List<SegmentDescriptor> finalMissingSegs = getMissingSegments(context);
-//          if (!config.isReturnPartialResults() && !finalMissingSegs.isEmpty()) {
-//            throw new SegmentMissingException("No results found for segments[%s]", finalMissingSegs);
-//          }
-//
-//          return new MergeSequence<>(queryPlus.getQuery().getResultOrdering(), Sequences.simple(listOfSequences))
-//              .toYielder(initValue, accumulator);
-//        } else {
-//          return Iterables.getOnlyElement(listOfSequences).toYielder(initValue, accumulator);
-//        }
-
         final Sequence<Sequence<T>> sequence = new BaseSequence<>(
             new IteratorMaker<Sequence<T>, LazySequenceIterator>()
             {
@@ -108,7 +79,8 @@ public class RetryQueryRunner<T> implements QueryRunner<T>
               }
             }
         );
-        return new MergeSequence<>(queryPlus.getQuery().getResultOrdering(), sequence).toYielder(initValue, accumulator);
+        return new MergeSequence<>(queryPlus.getQuery().getResultOrdering(), sequence)
+            .toYielder(initValue, accumulator);
       }
     };
   }
@@ -151,8 +123,12 @@ public class RetryQueryRunner<T> implements QueryRunner<T>
         final List<SegmentDescriptor> missingSegments = getMissingSegments(context);
         if (missingSegments.isEmpty()) {
           return false;
-        } else if (retryCount >= config.getNumTries() && !config.isReturnPartialResults()) {
-          throw new SegmentMissingException("No results found for segments[%s]", missingSegments);
+        } else if (retryCount >= config.getNumTries()) {
+          if (!config.isReturnPartialResults()) {
+            throw new SegmentMissingException("No results found for segments[%s]", missingSegments);
+          } else {
+            return false;
+          }
         } else {
           LOG.info("[%,d] missing segments found. Retry attempt [%,d]", missingSegments.size(), retryCount++);
 
