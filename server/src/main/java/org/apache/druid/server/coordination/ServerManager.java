@@ -65,7 +65,9 @@ import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
 import org.joda.time.Interval;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
@@ -89,6 +91,7 @@ public class ServerManager implements QuerySegmentWalker
   private final SegmentManager segmentManager;
   private final JoinableFactory joinableFactory;
   private final ServerConfig serverConfig;
+  private final RetryTestConfig retryTestConfig;
 
   @Inject
   public ServerManager(
@@ -101,7 +104,8 @@ public class ServerManager implements QuerySegmentWalker
       CacheConfig cacheConfig,
       SegmentManager segmentManager,
       JoinableFactory joinableFactory,
-      ServerConfig serverConfig
+      ServerConfig serverConfig,
+      RetryTestConfig retryTestConfig
   )
   {
     this.conglomerate = conglomerate;
@@ -116,6 +120,8 @@ public class ServerManager implements QuerySegmentWalker
     this.segmentManager = segmentManager;
     this.joinableFactory = joinableFactory;
     this.serverConfig = serverConfig;
+
+    this.retryTestConfig = retryTestConfig;
   }
 
   @Override
@@ -199,6 +205,8 @@ public class ServerManager implements QuerySegmentWalker
         analysis.getBaseQuery().orElse(query)
     );
 
+    final List<SegmentDescriptor> ignoredSegments = new ArrayList<>(retryTestConfig.getNumSegmentsToIgnore());
+
     FunctionalIterable<QueryRunner<T>> queryRunners = FunctionalIterable
         .create(specs)
         .transformCat(
@@ -214,6 +222,11 @@ public class ServerManager implements QuerySegmentWalker
 
               final PartitionChunk<ReferenceCountingSegment> chunk = entry.getChunk(descriptor.getPartitionNumber());
               if (chunk == null) {
+                return Collections.singletonList(new ReportTimelineMissingSegmentQueryRunner<>(descriptor));
+              }
+
+              if (retryTestConfig.getNumSegmentsToIgnore() > 0 && descriptor.getPartitionNumber() == 0) {
+                //ignoredSegments.add(descriptor);
                 return Collections.singletonList(new ReportTimelineMissingSegmentQueryRunner<>(descriptor));
               }
 

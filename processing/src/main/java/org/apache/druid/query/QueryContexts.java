@@ -54,6 +54,8 @@ public class QueryContexts
   public static final String JOIN_FILTER_REWRITE_MAX_SIZE_KEY = "joinFilterRewriteMaxSize";
   public static final String USE_FILTER_CNF_KEY = "useFilterCNF";
   public static final String SHOULD_FAIL_ON_TRUNCATED_RESPONSE_CONTEXT_KEY = "shouldFailOnTruncatedResponseContext";
+  public static final String NUM_RETRIES_ON_MISSING_SEGMENTS_KEY = "numRetriesOnMissingSegments";
+  public static final String RETURN_PARTIAL_RESULTS_KEY = "returnPartialResults";
 
   public static final boolean DEFAULT_BY_SEGMENT = false;
   public static final boolean DEFAULT_POPULATE_CACHE = true;
@@ -357,6 +359,16 @@ public class QueryContexts
         SHOULD_FAIL_ON_TRUNCATED_RESPONSE_CONTEXT_KEY,
         DEFAULT_SHOULD_FAIL_ON_TRUNCATED_RESPONSE_CONTEXT
     );
+  }
+
+  public static <T> int getNumRetriesOnMissingSegments(Query<T> query, int defaultValue)
+  {
+    return query.getContextValue(NUM_RETRIES_ON_MISSING_SEGMENTS_KEY, defaultValue);
+  }
+
+  public static <T> boolean allowReturnPartialResults(Query<T> query, boolean defaultValue)
+  {
+    return query.getContextBoolean(RETURN_PARTIAL_RESULTS_KEY, defaultValue);
   }
 
   static <T> long parseLong(Query<T> query, String key, long defaultValue)

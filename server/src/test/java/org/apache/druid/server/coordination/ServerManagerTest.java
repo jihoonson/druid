@@ -159,7 +159,8 @@ public class ServerManagerTest
         new CacheConfig(),
         segmentManager,
         NoopJoinableFactory.INSTANCE,
-        new ServerConfig()
+        new ServerConfig(),
+        new RetryTestConfig()
     );
 
     loadQueryable("test", "1", Intervals.of("P1d/2011-04-01"));
