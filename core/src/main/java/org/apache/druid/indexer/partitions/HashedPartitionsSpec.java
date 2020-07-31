@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.apache.druid.indexer.Checks;
 import org.apache.druid.indexer.Property;
+import org.apache.druid.timeline.partition.HashPartitionFunction;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
@@ -44,10 +45,11 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
   @Nullable
   private final Integer numShards;
   private final List<String> partitionDimensions;
+  private final HashPartitionFunction hashPartitionFunction;
 
   public static HashedPartitionsSpec defaultSpec()
   {
-    return new HashedPartitionsSpec(null, null, null, null, null);
+    return new HashedPartitionsSpec(null, null, null, null, null, null);
   }
 
   @JsonCreator
@@ -55,6 +57,7 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
       @JsonProperty(DimensionBasedPartitionsSpec.TARGET_ROWS_PER_SEGMENT) @Nullable Integer targetRowsPerSegment,
       @JsonProperty(NUM_SHARDS) @Nullable Integer numShards,
       @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
+      @JsonProperty("hashPartitionFunction") @Nullable HashPartitionFunction hashPartitionFunction,
 
       // Deprecated properties preserved for backward compatibility:
       @Deprecated @JsonProperty(DimensionBasedPartitionsSpec.TARGET_PARTITION_SIZE) @Nullable
@@ -84,6 +87,7 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
     Checks.checkAtMostOneNotNull(target, new Property<>(NUM_SHARDS, adjustedNumShards));
 
     this.partitionDimensions = partitionDimensions == null ? Collections.emptyList() : partitionDimensions;
+    this.hashPartitionFunction = hashPartitionFunction;
     this.numShards = adjustedNumShards;
 
     // Supply default for targetRowsPerSegment if needed
@@ -113,7 +117,7 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
       @Nullable List<String> partitionDimensions
   )
   {
-    this(null, numShards, partitionDimensions, null, maxRowsPerSegment);
+    this(null, numShards, partitionDimensions, null, maxRowsPerSegment, null);
   }
 
   @Nullable
@@ -157,6 +161,13 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
     return partitionDimensions;
   }
 
+  @Nullable
+  @JsonProperty
+  public HashPartitionFunction getHashPartitionFunction()
+  {
+    return hashPartitionFunction;
+  }
+
   @Override
   public String getForceGuaranteedRollupIncompatiblityReason()
   {
@@ -175,13 +186,14 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
     HashedPartitionsSpec that = (HashedPartitionsSpec) o;
     return Objects.equals(maxRowsPerSegment, that.maxRowsPerSegment) &&
            Objects.equals(numShards, that.numShards) &&
-           Objects.equals(partitionDimensions, that.partitionDimensions);
+           Objects.equals(partitionDimensions, that.partitionDimensions) &&
+           hashPartitionFunction == that.hashPartitionFunction;
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(maxRowsPerSegment, numShards, partitionDimensions);
+    return Objects.hash(maxRowsPerSegment, numShards, partitionDimensions, hashPartitionFunction);
   }
 
   @Override
@@ -191,6 +203,7 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
            "maxRowsPerSegment=" + maxRowsPerSegment +
            ", numShards=" + numShards +
            ", partitionDimensions=" + partitionDimensions +
+           ", hashPartitionFunction=" + hashPartitionFunction +
            '}';
   }
 }

@@ -40,6 +40,7 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
   private final int bucketId;
   private final int numBuckets;
   private final List<String> partitionDimensions;
+  private final HashPartitionFunction hashPartitionFunction;
   private final ObjectMapper jsonMapper;
 
   @JsonCreator
@@ -47,6 +48,7 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
       @JsonProperty("bucketId") int bucketId,
       @JsonProperty("numBuckets") int numBuckets,
       @JsonProperty("partitionDimensions") List<String> partitionDimensions,
+      @JsonProperty("hashPartitionFunction") HashPartitionFunction hashPartitionFunction,
       @JacksonInject ObjectMapper jsonMapper
   )
   {
@@ -55,6 +57,9 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
     this.partitionDimensions = partitionDimensions == null
                                ? HashBasedNumberedShardSpec.DEFAULT_PARTITION_DIMENSIONS
                                : partitionDimensions;
+    this.hashPartitionFunction = hashPartitionFunction == null
+                                 ? HashBasedNumberedShardSpec.DEFAULT_HASH_PARTITION_FUNCTION
+                                 : hashPartitionFunction;
     this.jsonMapper = jsonMapper;
   }
 
@@ -77,10 +82,23 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
     return partitionDimensions;
   }
 
+  @JsonProperty
+  public HashPartitionFunction getHashPartitionFunction()
+  {
+    return hashPartitionFunction;
+  }
+
   @Override
   public BuildingHashBasedNumberedShardSpec convert(int partitionId)
   {
-    return new BuildingHashBasedNumberedShardSpec(partitionId, bucketId, numBuckets, partitionDimensions, jsonMapper);
+    return new BuildingHashBasedNumberedShardSpec(
+        partitionId,
+        bucketId,
+        numBuckets,
+        partitionDimensions,
+        hashPartitionFunction,
+        jsonMapper
+    );
   }
 
   @Override
@@ -93,7 +111,13 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
   @Override
   public ShardSpecLookup getLookup(List<? extends ShardSpec> shardSpecs)
   {
-    return HashBasedNumberedShardSpec.createHashLookup(jsonMapper, partitionDimensions, shardSpecs, numBuckets);
+    return HashBasedNumberedShardSpec.createHashLookup(
+        hashPartitionFunction,
+        jsonMapper,
+        partitionDimensions,
+        shardSpecs,
+        numBuckets
+    );
   }
 
   @Override
@@ -108,22 +132,24 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
     HashBucketShardSpec that = (HashBucketShardSpec) o;
     return bucketId == that.bucketId &&
            numBuckets == that.numBuckets &&
-           Objects.equals(partitionDimensions, that.partitionDimensions);
+           Objects.equals(partitionDimensions, that.partitionDimensions) &&
+           hashPartitionFunction == that.hashPartitionFunction;
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(bucketId, numBuckets, partitionDimensions);
+    return Objects.hash(bucketId, numBuckets, partitionDimensions, hashPartitionFunction);
   }
 
   @Override
   public String toString()
   {
-    return "HashBucket{" +
-           ", bucketId=" + bucketId +
+    return "HashBucketShardSpec{" +
+           "bucketId=" + bucketId +
            ", numBuckets=" + numBuckets +
            ", partitionDimensions=" + partitionDimensions +
+           ", hashPartitionFunction=" + hashPartitionFunction +
            '}';
   }
 }
