@@ -45,7 +45,8 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
   @Nullable
   private final Integer numShards;
   private final List<String> partitionDimensions;
-  private final HashPartitionFunction hashPartitionFunction;
+  @Nullable
+  private final HashPartitionFunction partitionFunction;
 
   public static HashedPartitionsSpec defaultSpec()
   {
@@ -57,7 +58,7 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
       @JsonProperty(DimensionBasedPartitionsSpec.TARGET_ROWS_PER_SEGMENT) @Nullable Integer targetRowsPerSegment,
       @JsonProperty(NUM_SHARDS) @Nullable Integer numShards,
       @JsonProperty("partitionDimensions") @Nullable List<String> partitionDimensions,
-      @JsonProperty("hashPartitionFunction") @Nullable HashPartitionFunction hashPartitionFunction,
+      @JsonProperty("partitionFunction") @Nullable HashPartitionFunction partitionFunction,
 
       // Deprecated properties preserved for backward compatibility:
       @Deprecated @JsonProperty(DimensionBasedPartitionsSpec.TARGET_PARTITION_SIZE) @Nullable
@@ -87,7 +88,7 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
     Checks.checkAtMostOneNotNull(target, new Property<>(NUM_SHARDS, adjustedNumShards));
 
     this.partitionDimensions = partitionDimensions == null ? Collections.emptyList() : partitionDimensions;
-    this.hashPartitionFunction = hashPartitionFunction;
+    this.partitionFunction = partitionFunction;
     this.numShards = adjustedNumShards;
 
     // Supply default for targetRowsPerSegment if needed
@@ -163,9 +164,9 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
 
   @Nullable
   @JsonProperty
-  public HashPartitionFunction getHashPartitionFunction()
+  public HashPartitionFunction getPartitionFunction()
   {
-    return hashPartitionFunction;
+    return partitionFunction;
   }
 
   @Override
@@ -187,13 +188,13 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
     return Objects.equals(maxRowsPerSegment, that.maxRowsPerSegment) &&
            Objects.equals(numShards, that.numShards) &&
            Objects.equals(partitionDimensions, that.partitionDimensions) &&
-           hashPartitionFunction == that.hashPartitionFunction;
+           partitionFunction == that.partitionFunction;
   }
 
   @Override
   public int hashCode()
   {
-    return Objects.hash(maxRowsPerSegment, numShards, partitionDimensions, hashPartitionFunction);
+    return Objects.hash(maxRowsPerSegment, numShards, partitionDimensions, partitionFunction);
   }
 
   @Override
@@ -203,7 +204,7 @@ public class HashedPartitionsSpec implements DimensionBasedPartitionsSpec
            "maxRowsPerSegment=" + maxRowsPerSegment +
            ", numShards=" + numShards +
            ", partitionDimensions=" + partitionDimensions +
-           ", hashPartitionFunction=" + hashPartitionFunction +
+           ", partitionFunction=" + partitionFunction +
            '}';
   }
 }

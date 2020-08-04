@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BoundType;
@@ -46,7 +45,6 @@ import java.util.Set;
 public class HashBasedNumberedShardSpec extends NumberedShardSpec
 {
   static final List<String> DEFAULT_PARTITION_DIMENSIONS = ImmutableList.of();
-  static final HashPartitionFunction DEFAULT_HASH_PARTITION_FUNCTION = HashPartitionFunction.MURMUR3_32;
 
   private final int bucketId;
   /**
@@ -56,6 +54,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   private final ObjectMapper jsonMapper;
   @JsonIgnore
   private final List<String> partitionDimensions;
+  @Nullable
   private final HashPartitionFunction hashPartitionFunction;
 
   @JsonCreator
@@ -75,9 +74,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     // If numBuckets is missing, assume that any hash bucket is not empty.
     // Use the core partition set size as the number of buckets.
     this.numBuckets = numBuckets == null ? partitions : numBuckets;
-    this.hashPartitionFunction = hashPartitionFunction == null
-                                  ? DEFAULT_HASH_PARTITION_FUNCTION
-                                  : hashPartitionFunction;
+    this.hashPartitionFunction = hashPartitionFunction;
     this.jsonMapper = jsonMapper;
     this.partitionDimensions = partitionDimensions == null ? DEFAULT_PARTITION_DIMENSIONS : partitionDimensions;
   }
@@ -100,6 +97,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     return partitionDimensions;
   }
 
+  @Nullable
   @JsonProperty
   public HashPartitionFunction getHashPartitionFunction()
   {
@@ -110,12 +108,6 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   public List<String> getDomainDimensions()
   {
     return partitionDimensions;
-  }
-
-  @Override
-  public boolean isInChunk(long timestamp, InputRow inputRow)
-  {
-    return getBucketIndex(hash(timestamp, inputRow), numBuckets) == bucketId % numBuckets;
   }
 
   /**
@@ -133,12 +125,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
         partitionDimensions,
         o -> Collections.singletonList(partitionDimensionsValues.get(o))
     );
-    try {
-      return getBucketIndex(hash(hashPartitionFunction, jsonMapper, groupKey), numBuckets) == bucketId % numBuckets;
-    }
-    catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
+    return hashPartitionFunction.hash(jsonMapper, groupKey, numBuckets) == bucketId;
   }
 
   /**
@@ -153,44 +140,21 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
    */
   protected int hash(long timestamp, InputRow inputRow)
   {
-    return hash(hashPartitionFunction, jsonMapper, partitionDimensions, timestamp, inputRow);
-  }
-
-  public static int hash(
-      HashPartitionFunction hashPartitionFunction,
-      ObjectMapper jsonMapper,
-      List<String> partitionDimensions,
-      long timestamp,
-      InputRow inputRow
-  )
-  {
-    final List<Object> groupKey = getGroupKey(partitionDimensions, timestamp, inputRow);
-    try {
-      return hash(hashPartitionFunction, jsonMapper, groupKey);
-    }
-    catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
+    return hashPartitionFunction.hash(jsonMapper, getGroupKey(partitionDimensions, timestamp, inputRow), numBuckets);
   }
 
   @VisibleForTesting
-  static List<Object> getGroupKey(final List<String> partitionDimensions, final long timestamp, final InputRow inputRow)
+  public static List<Object> getGroupKey(
+      final List<String> partitionDimensions,
+      final long timestamp,
+      final InputRow inputRow
+  )
   {
     if (partitionDimensions.isEmpty()) {
       return Rows.toGroupKey(timestamp, inputRow);
     } else {
       return Lists.transform(partitionDimensions, inputRow::getDimension);
     }
-  }
-
-  @VisibleForTesting
-  public static int hash(
-      HashPartitionFunction hashPartitionFunction,
-      ObjectMapper jsonMapper,
-      List<Object> objects
-  ) throws JsonProcessingException
-  {
-    return hashPartitionFunction.hash(jsonMapper.writeValueAsBytes(objects));
   }
 
   @Override
@@ -208,8 +172,9 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   )
   {
     return (long timestamp, InputRow row) -> {
-      int index = getBucketIndex(
-          hash(hashPartitionFunction, jsonMapper, partitionDimensions, timestamp, row),
+      int index = hashPartitionFunction.hash(
+          jsonMapper,
+          getGroupKey(partitionDimensions, timestamp, row),
           numBuckets
       );
       return shardSpecs.get(index);
@@ -318,10 +283,5 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     }
 
     return false;
-  }
-
-  private static int getBucketIndex(int hash, int numBuckets)
-  {
-    return Math.abs(hash % numBuckets);
   }
 }

@@ -23,8 +23,8 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.druid.data.input.InputRow;
 
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 
@@ -48,7 +48,7 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
       @JsonProperty("bucketId") int bucketId,
       @JsonProperty("numBuckets") int numBuckets,
       @JsonProperty("partitionDimensions") List<String> partitionDimensions,
-      @JsonProperty("hashPartitionFunction") HashPartitionFunction hashPartitionFunction,
+      @JsonProperty("hashPartitionFunction") @Nullable HashPartitionFunction hashPartitionFunction,
       @JacksonInject ObjectMapper jsonMapper
   )
   {
@@ -57,9 +57,7 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
     this.partitionDimensions = partitionDimensions == null
                                ? HashBasedNumberedShardSpec.DEFAULT_PARTITION_DIMENSIONS
                                : partitionDimensions;
-    this.hashPartitionFunction = hashPartitionFunction == null
-                                 ? HashBasedNumberedShardSpec.DEFAULT_HASH_PARTITION_FUNCTION
-                                 : hashPartitionFunction;
+    this.hashPartitionFunction = hashPartitionFunction;
     this.jsonMapper = jsonMapper;
   }
 
@@ -99,13 +97,6 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
         hashPartitionFunction,
         jsonMapper
     );
-  }
-
-  @Override
-  public boolean isInChunk(long timestamp, InputRow inputRow)
-  {
-    // not in use
-    throw new UnsupportedOperationException();
   }
 
   @Override

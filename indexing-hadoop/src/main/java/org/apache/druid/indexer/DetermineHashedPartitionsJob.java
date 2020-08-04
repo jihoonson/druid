@@ -199,6 +199,7 @@ public class DetermineHashedPartitionsJob implements Jobby
                         i,
                         numberOfShards,
                         null,
+                        null, // TODO
                         HadoopDruidIndexerConfig.JSON_MAPPER
                     ),
                     shardCount++
