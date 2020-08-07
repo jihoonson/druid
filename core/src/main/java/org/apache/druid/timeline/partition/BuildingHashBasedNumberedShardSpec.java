@@ -41,6 +41,7 @@ public class BuildingHashBasedNumberedShardSpec implements BuildingShardSpec<Has
   private final int bucketId;
   private final int numBuckets;
   private final List<String> partitionDimensions;
+  @Nullable
   private final HashPartitionFunction hashPartitionFunction;
   private final ObjectMapper jsonMapper;
 
@@ -91,6 +92,7 @@ public class BuildingHashBasedNumberedShardSpec implements BuildingShardSpec<Has
   }
 
   @JsonProperty
+  @Nullable
   public HashPartitionFunction getHashPartitionFunction()
   {
     return hashPartitionFunction;

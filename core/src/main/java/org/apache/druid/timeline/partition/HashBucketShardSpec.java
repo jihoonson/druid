@@ -40,6 +40,7 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
   private final int bucketId;
   private final int numBuckets;
   private final List<String> partitionDimensions;
+  @Nullable
   private final HashPartitionFunction hashPartitionFunction;
   private final ObjectMapper jsonMapper;
 
@@ -81,6 +82,7 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
   }
 
   @JsonProperty
+  @Nullable
   public HashPartitionFunction getHashPartitionFunction()
   {
     return hashPartitionFunction;
@@ -103,7 +105,7 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
   public ShardSpecLookup getLookup(List<? extends ShardSpec> shardSpecs)
   {
     return HashBasedNumberedShardSpec.createHashLookup(
-        hashPartitionFunction,
+        hashPartitionFunction == null ? HashPartitionFunction.V1 : hashPartitionFunction,
         jsonMapper,
         partitionDimensions,
         shardSpecs,

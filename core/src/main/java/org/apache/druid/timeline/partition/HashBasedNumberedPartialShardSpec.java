@@ -72,6 +72,7 @@ public class HashBasedNumberedPartialShardSpec implements PartialShardSpec
   }
 
   @JsonProperty
+  @Nullable
   public HashPartitionFunction getHashPartitionFunction()
   {
     return hashPartitionFunction;

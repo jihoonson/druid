@@ -30,6 +30,7 @@ import java.util.List;
 
 public enum HashPartitionFunction
 {
+  // TODO: name?
   V1 {
     @Override
     public int hash(ObjectMapper jsonMapper, List<Object> partitionKeys, int numBuckets)
@@ -45,6 +46,7 @@ public enum HashPartitionFunction
     }
   };
 
+  // TODO: javadoc
   abstract public int hash(ObjectMapper jsonMapper, List<Object> partitionKeys, int numBuckets);
 
   @JsonCreator
