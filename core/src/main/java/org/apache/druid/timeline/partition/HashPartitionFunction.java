@@ -21,33 +21,33 @@ package org.apache.druid.timeline.partition;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.hash.Hashing;
 import org.apache.druid.java.util.common.StringUtils;
 
-import java.util.List;
+import java.nio.ByteBuffer;
 
 public enum HashPartitionFunction
 {
   // TODO: name?
-  V1 {
+  MURMUR3_32_ABS {
     @Override
-    public int hash(ObjectMapper jsonMapper, List<Object> partitionKeys, int numBuckets)
+    public int hash(byte[] serializedRow, int numBuckets)
     {
-      try {
-        return Math.abs(
-            Hashing.murmur3_32().hashBytes(jsonMapper.writeValueAsBytes(partitionKeys)).asInt() % numBuckets
-        );
-      }
-      catch (JsonProcessingException e) {
-        throw new RuntimeException(e);
-      }
+      return Math.abs(
+          Hashing.murmur3_32().hashBytes(serializedRow).asInt() % numBuckets
+      );
+    }
+  },
+  FOR_TESTING { // TODO?
+    @Override
+    public int hash(byte[] serializedRow, int numBuckets)
+    {
+      return Math.abs(ByteBuffer.wrap(serializedRow).getInt() % numBuckets);
     }
   };
 
   // TODO: javadoc
-  abstract public int hash(ObjectMapper jsonMapper, List<Object> partitionKeys, int numBuckets);
+  abstract public int hash(byte[] serializedRow, int numBuckets);
 
   @JsonCreator
   public static HashPartitionFunction fromString(String type)

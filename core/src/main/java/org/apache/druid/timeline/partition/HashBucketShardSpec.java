@@ -104,13 +104,12 @@ public class HashBucketShardSpec implements BucketNumberedShardSpec<BuildingHash
   @Override
   public ShardSpecLookup getLookup(List<? extends ShardSpec> shardSpecs)
   {
-    return HashBasedNumberedShardSpec.createHashLookup(
-        hashPartitionFunction == null ? HashPartitionFunction.V1 : hashPartitionFunction,
+    return new HashPartitioner(
         jsonMapper,
+        hashPartitionFunction,
         partitionDimensions,
-        shardSpecs,
         numBuckets
-    );
+    ).createHashLookup(shardSpecs);
   }
 
   @Override

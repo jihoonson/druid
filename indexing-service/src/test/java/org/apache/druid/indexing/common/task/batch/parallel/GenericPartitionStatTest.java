@@ -47,7 +47,7 @@ public class GenericPartitionStatTest
             ParallelIndexTestingFactory.PARTITION_ID,
             ParallelIndexTestingFactory.PARTITION_ID + 1,
             Collections.singletonList("dim"),
-            HashPartitionFunction.V1,
+            HashPartitionFunction.MURMUR3_32_ABS,
             new ObjectMapper()
         ),
         ParallelIndexTestingFactory.NUM_ROWS,

@@ -48,7 +48,7 @@ public class HashBasedNumberedPartialShardSpecTest
         ImmutableList.of("dim1", "dim2"),
         1,
         3,
-        HashPartitionFunction.V1
+        HashPartitionFunction.MURMUR3_32_ABS
     );
     final byte[] json = MAPPER.writeValueAsBytes(expected);
     final HashBasedNumberedPartialShardSpec fromJson = (HashBasedNumberedPartialShardSpec) MAPPER.readValue(
@@ -65,7 +65,7 @@ public class HashBasedNumberedPartialShardSpecTest
         ImmutableList.of("dim1", "dim2"),
         1,
         3,
-        HashPartitionFunction.V1
+        HashPartitionFunction.MURMUR3_32_ABS
     );
     final byte[] json = MAPPER.writeValueAsBytes(expected);
     //noinspection unchecked

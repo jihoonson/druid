@@ -23,16 +23,13 @@ import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.BoundType;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
-import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.Rows;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
@@ -111,65 +108,15 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     return partitionDimensions;
   }
 
-  /**
-   * This method calculates the hash based on whether {@param partitionDimensions} is null or not.
-   * If yes, then both {@param timestamp} and dimension columns in {@param inputRow} are used {@link Rows#toGroupKey}
-   * Or else, columns in {@param partitionDimensions} are used
-   *
-   * @param timestamp should be bucketed with query granularity
-   * @param inputRow  row from input data
-   *
-   * @return hash value
-   */
-  // TODO: remove
-  protected int hash(long timestamp, InputRow inputRow)
-  {
-    return hashPartitionFunction.hash(jsonMapper, getGroupKey(partitionDimensions, timestamp, inputRow), numBuckets);
-  }
-
-  @VisibleForTesting
-  public static List<Object> getGroupKey(
-      final List<String> partitionDimensions,
-      final long timestamp,
-      final InputRow inputRow
-  )
-  {
-    if (partitionDimensions.isEmpty()) {
-      return Rows.toGroupKey(timestamp, inputRow);
-    } else {
-      return Lists.transform(partitionDimensions, inputRow::getDimension);
-    }
-  }
-
   @Override
   public ShardSpecLookup getLookup(final List<? extends ShardSpec> shardSpecs)
   {
-    return createHashLookup(
-        hashPartitionFunction == null ? HashPartitionFunction.V1 : hashPartitionFunction,
+    return new HashPartitioner(
         jsonMapper,
+        hashPartitionFunction,
         partitionDimensions,
-        shardSpecs,
         numBuckets
-    );
-  }
-
-  static ShardSpecLookup createHashLookup(
-      HashPartitionFunction hashPartitionFunction,
-      ObjectMapper jsonMapper,
-      List<String> partitionDimensions,
-      List<? extends ShardSpec> shardSpecs,
-      int numBuckets
-  )
-  {
-    Preconditions.checkNotNull(hashPartitionFunction, "hashPartitionFunction");
-    return (long timestamp, InputRow row) -> {
-      int index = hashPartitionFunction.hash(
-          jsonMapper,
-          getGroupKey(partitionDimensions, timestamp, row),
-          numBuckets
-      );
-      return shardSpecs.get(index);
-    };
+    ).createHashLookup(shardSpecs);
   }
 
   @Override
@@ -260,7 +207,17 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
         partitionDimensions,
         o -> Collections.singletonList(partitionDimensionsValues.get(o))
     );
-    return hashPartitionFunction.hash(jsonMapper, groupKey, numBuckets) == bucketId;
+    return hashPartitionFunction.hash(serializeGroupKey(jsonMapper, groupKey), numBuckets) == bucketId;
+  }
+
+  public static byte[] serializeGroupKey(ObjectMapper jsonMapper, List<Object> partitionKeys)
+  {
+    try {
+      return jsonMapper.writeValueAsBytes(partitionKeys);
+    }
+    catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override

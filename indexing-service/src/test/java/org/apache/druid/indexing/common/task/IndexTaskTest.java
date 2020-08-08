@@ -562,13 +562,18 @@ public class IndexTaskTest extends IngestionTestBase
           false,
           null
       );
+      final HashPartitionFunction hashPartitionFunction = hashBasedNumberedShardSpec.getHashPartitionFunction() == null
+                                                          ? HashPartitionFunction.MURMUR3_32_ABS
+                                                          : hashBasedNumberedShardSpec.getHashPartitionFunction();
       final List<Integer> hashes = cursorSequence
           .map(cursor -> {
             final DimensionSelector selector = cursor.getColumnSelectorFactory()
                                                      .makeDimensionSelector(new DefaultDimensionSpec("dim", "dim"));
-            final int hash = HashPartitionFunction.V1.hash(
-                jsonMapper,
-                Collections.singletonList(selector.getObject()),
+            final int hash = hashPartitionFunction.hash(
+                HashBasedNumberedShardSpec.serializeGroupKey(
+                    jsonMapper,
+                    Collections.singletonList(selector.getObject())
+                ),
                 hashBasedNumberedShardSpec.getNumBuckets()
             );
             cursor.advance();

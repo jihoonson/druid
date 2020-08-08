@@ -32,11 +32,11 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.MapBasedInputRow;
 import org.apache.druid.data.input.Row;
 import org.apache.druid.java.util.common.DateTimes;
-import org.apache.druid.java.util.common.ISE;
 import org.joda.time.DateTime;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -150,32 +150,51 @@ public class HashBasedNumberedShardSpecTest
     Assert.assertFalse(chunks.get(2).abuts(chunks.get(2)));
   }
 
+  private HashPartitioner createHashPartitionerForHashInputRow(int numBuckets)
+  {
+    return new HashPartitioner(
+        objectMapper,
+        HashPartitionFunction.FOR_TESTING,
+        ImmutableList.of(),
+        numBuckets
+    )
+    {
+      @Override
+      byte[] getSerializedGroupKey(final long timestamp, final InputRow inputRow)
+      {
+        return ByteBuffer.allocate(4).putInt(inputRow.hashCode()).array();
+      }
+    };
+  }
+
   @Test
   public void testIsInChunk()
   {
-    List<HashOverridenShardSpec> specs = new ArrayList<>();
+    List<HashBasedNumberedShardSpec> specs = new ArrayList<>();
     for (int i = 0; i < 3; i++) {
-      specs.add(new HashOverridenShardSpec(i, 3));
+      specs.add(newShardSpecForTesting(i, 3));
     }
+    final HashPartitioner hashPartitioner = createHashPartitionerForHashInputRow(3);
 
-    assertExistsInOneSpec(specs, new HashInputRow(Integer.MIN_VALUE));
-    assertExistsInOneSpec(specs, new HashInputRow(Integer.MAX_VALUE));
-    assertExistsInOneSpec(specs, new HashInputRow(0));
-    assertExistsInOneSpec(specs, new HashInputRow(1000));
-    assertExistsInOneSpec(specs, new HashInputRow(-1000));
+    Assert.assertTrue(existsInOneSpec(specs, hashPartitioner, new HashInputRow(Integer.MIN_VALUE)));
+    Assert.assertTrue(existsInOneSpec(specs, hashPartitioner, new HashInputRow(Integer.MAX_VALUE)));
+    Assert.assertTrue(existsInOneSpec(specs, hashPartitioner, new HashInputRow(0)));
+    Assert.assertTrue(existsInOneSpec(specs, hashPartitioner, new HashInputRow(1000)));
+    Assert.assertTrue(existsInOneSpec(specs, hashPartitioner, new HashInputRow(-1000)));
   }
 
   @Test
   public void testIsInChunkWithMorePartitionsBeyondNumBucketsReturningTrue()
   {
     final int numBuckets = 3;
-    final List<HashOverridenShardSpec> specs = IntStream.range(0, 10)
-                                                        .mapToObj(i -> new HashOverridenShardSpec(i, numBuckets))
-                                                        .collect(Collectors.toList());
+    final List<HashBasedNumberedShardSpec> specs = IntStream.range(0, 10)
+                                                            .mapToObj(i -> newShardSpecForTesting(i, numBuckets))
+                                                            .collect(Collectors.toList());
+    final HashPartitioner hashPartitioner = createHashPartitionerForHashInputRow(numBuckets);
 
     for (int i = 0; i < 10; i++) {
       final InputRow row = new HashInputRow(numBuckets * 10000 + i);
-      Assert.assertTrue(isInChunk(specs.get(i), row.getTimestampFromEpoch(), row));
+      Assert.assertTrue(isInChunk(specs.get(i), hashPartitioner, row.getTimestampFromEpoch(), row));
     }
   }
 
@@ -191,16 +210,26 @@ public class HashBasedNumberedShardSpecTest
     );
     Assert.assertEquals(
         ImmutableList.of(Collections.singletonList("v1")),
-        HashBasedNumberedShardSpec.getGroupKey(partitionDimensions1, time.getMillis(), inputRow)
+        new HashPartitioner(
+            objectMapper,
+            null,
+            partitionDimensions1,
+            0 // not used
+        ).getGroupKey(time.getMillis(), inputRow)
     );
 
     Assert.assertEquals(
         ImmutableList.of(
-        time.getMillis(),
-        ImmutableMap.of("cnt", Collections.singletonList(10), "visitor_id", Collections.singletonList("v1")))
-                     .toString(),
+            time.getMillis(),
+            ImmutableMap.of("cnt", Collections.singletonList(10), "visitor_id", Collections.singletonList("v1"))
+        ).toString(),
         // empty list when partitionDimensions is null
-        HashBasedNumberedShardSpec.getGroupKey(ImmutableList.of(), time.getMillis(), inputRow).toString()
+        new HashPartitioner(
+            objectMapper,
+            null,
+            ImmutableList.of(),
+            0 // not used
+        ).getGroupKey(time.getMillis(), inputRow).toString()
     );
   }
 
@@ -223,97 +252,146 @@ public class HashBasedNumberedShardSpecTest
   }
 
   @Test
-  public void testPossibleInDomain()
+  public void testPossibleInDomainWithNullHashPartitionFunctionReturnAll()
   {
     final RangeSet<String> rangeSet = TreeRangeSet.create();
     rangeSet.add(Range.closed("123", "123"));
     final Map<String, RangeSet<String>> domain = ImmutableMap.of("visitor_id", rangeSet);
 
-    // Without partition info
-    HashBasedNumberedShardSpec shardSpec = new HashBasedNumberedShardSpec(
-        0,
-        1,
-        0,
-        1,
-        ImmutableList.of(),
-        null,
-        objectMapper
-    );
-    Assert.assertTrue(shardSpec.possibleInDomain(domain));
-
-    // With partition info and matching partition dimensions
     final int numBuckets = 3;
-    List<HashBasedNumberedShardSpec> shardSpecs = ImmutableList.of(
-        new HashBasedNumberedShardSpec(
-            0,
-            numBuckets,
-            0,
-            numBuckets,
-            ImmutableList.of("visitor_id"),
-            null,
-            objectMapper
-        ),
-        new HashBasedNumberedShardSpec(
-            1,
-            numBuckets,
-            1,
-            numBuckets,
-            ImmutableList.of("visitor_id"),
-            null,
-            objectMapper
-        ),
-        new HashBasedNumberedShardSpec(
-            2,
-            numBuckets,
-            2,
-            numBuckets,
-            ImmutableList.of("visitor_id"),
-            null,
-            objectMapper
-        )
-    );
-    Assert.assertEquals(1, shardSpecs.stream().filter(s -> s.possibleInDomain(domain)).count());
+    final List<HashBasedNumberedShardSpec> shardSpecs = new ArrayList<>();
+    for (int i = 0; i < numBuckets; i++) {
+      shardSpecs.add(
+          new HashBasedNumberedShardSpec(
+              i,
+              numBuckets,
+              i,
+              numBuckets,
+              ImmutableList.of("visitor_id"),
+              null,
+              objectMapper
+          )
+      );
+    }
+    Assert.assertEquals(numBuckets, shardSpecs.stream().filter(s -> s.possibleInDomain(domain)).count());
+  }
 
-    // Partition dimensions not match
+  @Test
+  public void testPossibleInDomainWithoutPartitionDimensionsReturnAll()
+  {
+    final RangeSet<String> rangeSet = TreeRangeSet.create();
+    rangeSet.add(Range.closed("123", "123"));
+    final Map<String, RangeSet<String>> domain = ImmutableMap.of("visitor_id", rangeSet);
+
+    final int numBuckets = 3;
+    final List<HashBasedNumberedShardSpec> shardSpecs = new ArrayList<>();
+    for (int i = 0; i < numBuckets; i++) {
+      shardSpecs.add(
+          new HashBasedNumberedShardSpec(
+              i,
+              numBuckets,
+              i,
+              numBuckets,
+              ImmutableList.of(),
+              HashPartitionFunction.MURMUR3_32_ABS,
+              objectMapper
+          )
+      );
+    }
+    Assert.assertEquals(numBuckets, shardSpecs.stream().filter(s -> s.possibleInDomain(domain)).count());
+  }
+
+  @Test
+  public void testPossibleInDomainFilterOnPartitionDimensionsReturnPrunedShards()
+  {
+    final RangeSet<String> rangeSet = TreeRangeSet.create();
+    rangeSet.add(Range.closed("123", "123"));
+    final Map<String, RangeSet<String>> domain = ImmutableMap.of("visitor_id", rangeSet);
+
+    final int numBuckets = 3;
+    final List<HashBasedNumberedShardSpec> shardSpecs = new ArrayList<>();
+    for (int i = 0; i < numBuckets; i++) {
+      shardSpecs.add(
+          new HashBasedNumberedShardSpec(
+              i,
+              numBuckets,
+              i,
+              numBuckets,
+              ImmutableList.of("visitor_id"),
+              HashPartitionFunction.MURMUR3_32_ABS,
+              objectMapper
+          )
+      );
+    }
+    Assert.assertEquals(1, shardSpecs.stream().filter(s -> s.possibleInDomain(domain)).count());
+  }
+
+  @Test
+  public void testPossibleInDomainFilterOnNonPartitionDimensionsReturnAll()
+  {
+    final RangeSet<String> rangeSet = TreeRangeSet.create();
+    rangeSet.add(Range.closed("123", "123"));
     final Map<String, RangeSet<String>> domain1 = ImmutableMap.of("vistor_id_1", rangeSet);
+    final int numBuckets = 3;
+    final List<HashBasedNumberedShardSpec> shardSpecs = new ArrayList<>();
+    for (int i = 0; i < numBuckets; i++) {
+      shardSpecs.add(
+          new HashBasedNumberedShardSpec(
+              i,
+              numBuckets,
+              i,
+              numBuckets,
+              ImmutableList.of("visitor_id"),
+              HashPartitionFunction.MURMUR3_32_ABS,
+              objectMapper
+          )
+      );
+    }
     Assert.assertEquals(shardSpecs.size(), shardSpecs.stream().filter(s -> s.possibleInDomain(domain1)).count());
   }
 
-  public boolean assertExistsInOneSpec(List<? extends HashBasedNumberedShardSpec> specs, InputRow row)
+  public boolean existsInOneSpec(
+      List<? extends HashBasedNumberedShardSpec> specs,
+      HashPartitioner hashPartitioner,
+      InputRow row
+  )
   {
     for (HashBasedNumberedShardSpec spec : specs) {
-      if (isInChunk(spec, row.getTimestampFromEpoch(), row)) {
+      if (isInChunk(spec, hashPartitioner, row.getTimestampFromEpoch(), row)) {
         return true;
       }
     }
-    throw new ISE("None of the partition matches");
+    return false;
   }
 
-  private boolean isInChunk(HashBasedNumberedShardSpec shardSpec, long timestamp, InputRow inputRow)
+  private boolean isInChunk(
+      HashBasedNumberedShardSpec shardSpec,
+      HashPartitioner hashPartitioner,
+      long timestamp,
+      InputRow inputRow
+  )
   {
     final HashPartitionFunction hashPartitionFunction = shardSpec.getHashPartitionFunction() == null
-                                                        ? HashPartitionFunction.V1
+                                                        ? HashPartitionFunction.MURMUR3_32_ABS
                                                         : shardSpec.getHashPartitionFunction();
     final int bucketId = hashPartitionFunction.hash(
-        objectMapper,
-        HashBasedNumberedShardSpec.getGroupKey(shardSpec.getPartitionDimensions(), timestamp, inputRow),
+        hashPartitioner.getSerializedGroupKey(timestamp, inputRow),
         shardSpec.getNumBuckets()
     );
     return bucketId == shardSpec.getBucketId();
   }
 
-  public class HashOverridenShardSpec extends HashBasedNumberedShardSpec
+  private HashBasedNumberedShardSpec newShardSpecForTesting(int partitionNum, int partitions)
   {
-    public HashOverridenShardSpec(int partitionNum, int partitions)
-    {
-      super(partitionNum, partitions, partitionNum, partitions, null, null, objectMapper);
-    }
-
-    @Override
-    protected int hash(long timestamp, InputRow inputRow)
-    {
-      return inputRow.hashCode();
-    }
+    return new HashBasedNumberedShardSpec(
+        partitionNum,
+        partitions,
+        partitionNum % partitions,
+        partitions,
+        null,
+        HashPartitionFunction.FOR_TESTING,
+        objectMapper
+    );
   }
 
   public static class HashInputRow implements InputRow
