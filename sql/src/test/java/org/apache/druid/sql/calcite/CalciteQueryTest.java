@@ -1566,7 +1566,10 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
                 .setContext(OUTER_LIMIT_CONTEXT)
                 .build()
         ),
-        ImmutableList.of(new Object[]{"", "a", 1L}, new Object[]{"def", "abc", 1L})
+        ImmutableList.of(
+            new Object[]{"", "a", 1L},
+            new Object[]{"1", "a", 1L}
+        )
     );
   }
 
@@ -4382,7 +4385,7 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   public void testGroupByWithGroupByEmpty() throws Exception
   {
     testQuery(
-        "SELECT COUNT(*), SUM(cnt) FROM druid.foo GROUP BY ()",
+        "SELECT COUNT(*), SUM(cnt), MIN(cnt) FROM druid.foo GROUP BY ()",
         ImmutableList.of(
             Druids.newTimeseriesQueryBuilder()
                   .dataSource(CalciteTests.DATASOURCE1)
@@ -4390,12 +4393,13 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
                   .granularity(Granularities.ALL)
                   .aggregators(aggregators(
                       new CountAggregatorFactory("a0"),
-                      new LongSumAggregatorFactory("a1", "cnt")
+                      new LongSumAggregatorFactory("a1", "cnt"),
+                      new LongMinAggregatorFactory("a2", "cnt")
                   ))
                   .context(TIMESERIES_CONTEXT_DEFAULT)
                   .build()
         ),
-        ImmutableList.of(new Object[]{6L, 6L})
+        ImmutableList.of(new Object[]{6L, 6L, 1L})
     );
   }
 
@@ -4795,6 +4799,30 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
         )
     );
   }
+
+  @Test
+  public void testSimpleLongAggregations() throws Exception
+  {
+    testQuery(
+        "SELECT  MIN(l1), MIN(cnt) FROM druid.numfoo",
+        ImmutableList.of(
+            Druids.newTimeseriesQueryBuilder()
+                .dataSource(CalciteTests.DATASOURCE3)
+                .intervals(querySegmentSpec(Filtration.eternity()))
+                .granularity(Granularities.ALL)
+                .aggregators(aggregators(
+                                new LongMinAggregatorFactory("a0", "l1"),
+                                new LongMinAggregatorFactory("a1", "cnt")
+                            ))
+                .context(TIMESERIES_CONTEXT_DEFAULT)
+                .build()
+        ),
+        ImmutableList.of(
+            new Object[]{0L, 1L}
+        )
+    );
+  }
+
 
   @Test
   public void testSimpleAggregations() throws Exception
