@@ -20,9 +20,10 @@
 package org.apache.druid.query.groupby.epinephelinae;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Ordering;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntComparators;
 import it.unimi.dsi.fastutil.ints.IntList;
+import org.apache.druid.query.groupby.epinephelinae.LimitedBufferHashGrouper.BufferGrouperOffsetHeapIndexUpdater;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,12 +35,39 @@ import java.util.Random;
 
 public class ByteBufferMinMaxOffsetHeapTest
 {
+  private final BufferGrouperOffsetHeapIndexUpdater noopHeapIndexUpdator = new BufferGrouperOffsetHeapIndexUpdater(
+      null,
+      0
+  )
+  {
+    @Override
+    public void setHashTableBuffer(ByteBuffer newTableBuffer)
+    {
+    }
+
+    @Override
+    public void updateHeapIndexForOffset(int bucketOffset, int newHeapIndex)
+    {
+    }
+
+    @Override
+    public int getHeapIndexForOffset(int bucketOffset)
+    {
+      throw new UnsupportedOperationException();
+    }
+  };
+
   @Test
   public void testSimple()
   {
     int limit = 15;
     ByteBuffer myBuffer = ByteBuffer.allocate(1000000);
-    ByteBufferMinMaxOffsetHeap heap = new ByteBufferMinMaxOffsetHeap(myBuffer, limit, Ordering.natural(), null);
+    ByteBufferMinMaxOffsetHeap heap = new ByteBufferMinMaxOffsetHeap(
+        myBuffer,
+        limit,
+        IntComparators.NATURAL_COMPARATOR,
+        noopHeapIndexUpdator
+    );
 
     //CHECKSTYLE.OFF: Regexp
     ArrayList<Integer> values = Lists.newArrayList(
@@ -93,7 +121,12 @@ public class ByteBufferMinMaxOffsetHeapTest
     ArrayList<Integer> deletedValues = new ArrayList<>();
 
     ByteBuffer myBuffer = ByteBuffer.allocate(1000000);
-    ByteBufferMinMaxOffsetHeap heap = new ByteBufferMinMaxOffsetHeap(myBuffer, limit, Ordering.natural(), null);
+    ByteBufferMinMaxOffsetHeap heap = new ByteBufferMinMaxOffsetHeap(
+        myBuffer,
+        limit,
+        IntComparators.NATURAL_COMPARATOR,
+        noopHeapIndexUpdator
+    );
 
     for (int i = 0; i < values.size(); i++) {
       int droppedOffset = heap.addOffset(values.get(i));
@@ -149,7 +182,12 @@ public class ByteBufferMinMaxOffsetHeapTest
     ArrayList<Integer> deletedValues = new ArrayList<>();
 
     ByteBuffer myBuffer = ByteBuffer.allocate(1000000);
-    ByteBufferMinMaxOffsetHeap heap = new ByteBufferMinMaxOffsetHeap(myBuffer, limit, Ordering.natural(), null);
+    ByteBufferMinMaxOffsetHeap heap = new ByteBufferMinMaxOffsetHeap(
+        myBuffer,
+        limit,
+        IntComparators.NATURAL_COMPARATOR,
+        noopHeapIndexUpdator
+    );
 
     for (int i = 0; i < values.size(); i++) {
       int droppedOffset = heap.addOffset(values.get(i));
@@ -197,12 +235,17 @@ public class ByteBufferMinMaxOffsetHeapTest
   {
     int limit = 100;
 
-    IntList values = new IntArrayList(new int[] {
+    IntList values = new IntArrayList(new int[]{
         1, 20, 1000, 2, 3, 30, 40, 10, 11, 12, 13, 300, 400, 500, 600
     });
 
     ByteBuffer myBuffer = ByteBuffer.allocate(1000000);
-    ByteBufferMinMaxOffsetHeap heap = new ByteBufferMinMaxOffsetHeap(myBuffer, limit, Ordering.natural(), null);
+    ByteBufferMinMaxOffsetHeap heap = new ByteBufferMinMaxOffsetHeap(
+        myBuffer,
+        limit,
+        IntComparators.NATURAL_COMPARATOR,
+        noopHeapIndexUpdator
+    );
 
     for (Integer value : values) {
       heap.addOffset(value);
@@ -230,13 +273,18 @@ public class ByteBufferMinMaxOffsetHeapTest
   {
     int limit = 100;
 
-    IntList values = new IntArrayList(new int[] {
+    IntList values = new IntArrayList(new int[]{
         1, 20, 1000, 2, 3, 30, 40, 10, 11, 12, 13, 300, 400, 500, 600, 4, 5,
         6, 7, 8, 9, 4, 5, 200, 250
     });
 
     ByteBuffer myBuffer = ByteBuffer.allocate(1000000);
-    ByteBufferMinMaxOffsetHeap heap = new ByteBufferMinMaxOffsetHeap(myBuffer, limit, Ordering.natural(), null);
+    ByteBufferMinMaxOffsetHeap heap = new ByteBufferMinMaxOffsetHeap(
+        myBuffer,
+        limit,
+        IntComparators.NATURAL_COMPARATOR,
+        noopHeapIndexUpdator
+    );
 
     for (Integer value : values) {
       heap.addOffset(value);

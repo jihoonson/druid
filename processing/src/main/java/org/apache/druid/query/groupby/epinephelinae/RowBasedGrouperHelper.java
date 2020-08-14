@@ -1234,19 +1234,19 @@ public class RowBasedGrouperHelper
       int keyBufferPosition = 0;
 
       for (int i = 0; i < dimCount; i++) {
-        final StringComparator stringComparator;
+        final StringComparator dimensionComparatorForOrderBy;
         if (limitSpec != null) {
           final String dimName = dimensions.get(i).getOutputName();
-          stringComparator = DefaultLimitSpec.getComparatorForDimName(limitSpec, dimName);
+          dimensionComparatorForOrderBy = DefaultLimitSpec.getComparatorForDimName(limitSpec, dimName);
         } else {
-          stringComparator = null;
+          dimensionComparatorForOrderBy = null;
         }
 
         RowBasedKeySerdeHelper helper = makeSerdeHelper(
             valueTypes.get(i),
             keyBufferPosition,
             pushLimitDown,
-            stringComparator,
+            dimensionComparatorForOrderBy,
             enableRuntimeDictionaryGeneration
         );
 
@@ -1261,7 +1261,7 @@ public class RowBasedGrouperHelper
         ValueType valueType,
         int keyBufferPosition,
         boolean pushLimitDown,
-        @Nullable StringComparator stringComparator,
+        @Nullable StringComparator dimensionComparatorForOrderBy,
         boolean enableRuntimeDictionaryGeneration
     )
     {
@@ -1271,19 +1271,24 @@ public class RowBasedGrouperHelper
             return new DynamicDictionaryStringRowBasedKeySerdeHelper(
                 keyBufferPosition,
                 pushLimitDown,
-                stringComparator
+                dimensionComparatorForOrderBy
             );
           } else {
             return new StaticDictionaryStringRowBasedKeySerdeHelper(
                 keyBufferPosition,
                 pushLimitDown,
-                stringComparator
+                dimensionComparatorForOrderBy
             );
           }
         case LONG:
         case FLOAT:
         case DOUBLE:
-          return makeNullHandlingNumericserdeHelper(valueType, keyBufferPosition, pushLimitDown, stringComparator);
+          return makeNullHandlingNumericserdeHelper(
+              valueType,
+              keyBufferPosition,
+              pushLimitDown,
+              dimensionComparatorForOrderBy
+          );
         default:
           throw new IAE("invalid type: %s", valueType);
       }
@@ -1333,26 +1338,30 @@ public class RowBasedGrouperHelper
     private abstract class AbstractStringRowBasedKeySerdeHelper implements RowBasedKeySerdeHelper
     {
       final int keyBufferPosition;
-
       final BufferComparator bufferComparator;
 
       AbstractStringRowBasedKeySerdeHelper(
           int keyBufferPosition,
           boolean pushLimitDown,
-          @Nullable StringComparator stringComparator
+          @Nullable StringComparator dimensionComparatorForOrderBy
       )
       {
         this.keyBufferPosition = keyBufferPosition;
-        if (!pushLimitDown) {
-          bufferComparator = (lhsBuffer, rhsBuffer, lhsPosition, rhsPosition) -> Ints.compare(
+        final boolean canCompareDictionary =
+            !pushLimitDown;
+            //|| (dimensionComparatorForOrderBy == null
+              //  || StringComparators.LEXICOGRAPHIC.equals(dimensionComparatorForOrderBy));
+        if (canCompareDictionary) {
+          // TODO: i can use dictionary from dimension
+          this.bufferComparator = (lhsBuffer, rhsBuffer, lhsPosition, rhsPosition) -> Ints.compare(
               rankOfDictionaryIds[lhsBuffer.getInt(lhsPosition + keyBufferPosition)],
               rankOfDictionaryIds[rhsBuffer.getInt(rhsPosition + keyBufferPosition)]
           );
         } else {
-          final StringComparator realComparator = stringComparator == null ?
-                                                  StringComparators.LEXICOGRAPHIC :
-                                                  stringComparator;
-          bufferComparator = (lhsBuffer, rhsBuffer, lhsPosition, rhsPosition) -> {
+          final StringComparator realComparator = dimensionComparatorForOrderBy == null
+                                                  ? StringComparators.LEXICOGRAPHIC
+                                                  : dimensionComparatorForOrderBy;
+          this.bufferComparator = (lhsBuffer, rhsBuffer, lhsPosition, rhsPosition) -> {
             String lhsStr = dictionary.get(lhsBuffer.getInt(lhsPosition + keyBufferPosition));
             String rhsStr = dictionary.get(rhsBuffer.getInt(rhsPosition + keyBufferPosition));
             return realComparator.compare(lhsStr, rhsStr);
@@ -1384,10 +1393,10 @@ public class RowBasedGrouperHelper
       DynamicDictionaryStringRowBasedKeySerdeHelper(
           int keyBufferPosition,
           boolean pushLimitDown,
-          @Nullable StringComparator stringComparator
+          @Nullable StringComparator dimensionComparatorForOrderBy
       )
       {
-        super(keyBufferPosition, pushLimitDown, stringComparator);
+        super(keyBufferPosition, pushLimitDown, dimensionComparatorForOrderBy);
       }
 
       @Override
@@ -1432,10 +1441,10 @@ public class RowBasedGrouperHelper
       StaticDictionaryStringRowBasedKeySerdeHelper(
           int keyBufferPosition,
           boolean pushLimitDown,
-          @Nullable StringComparator stringComparator
+          @Nullable StringComparator dimensionComparatorForOrderBy
       )
       {
-        super(keyBufferPosition, pushLimitDown, stringComparator);
+        super(keyBufferPosition, pushLimitDown, dimensionComparatorForOrderBy);
       }
 
       @Override

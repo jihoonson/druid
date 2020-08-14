@@ -23,6 +23,7 @@ import com.google.common.base.Supplier;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 import java.nio.ByteBuffer;
 
@@ -45,8 +46,8 @@ public abstract class AbstractBufferHashGrouper<KeyType> implements Grouper<KeyT
 
   // The hashTable and its buffer are not final, these are set during init() for buffer management purposes
   // See PR 3863 for details: https://github.com/apache/druid/pull/3863
+  @MonotonicNonNull
   protected ByteBufferHashTable hashTable;
-  protected ByteBuffer hashTableBuffer; // buffer for the entire hash table (total space, not individual growth)
 
   public AbstractBufferHashGrouper(
       // the buffer returned from the below supplier can have dirty bits and should be cleared during initialization

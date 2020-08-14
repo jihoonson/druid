@@ -153,6 +153,7 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
   @Override
   public Grouper.BufferComparator bufferComparator(int keyBufferPosition, @Nullable StringComparator stringComparator)
   {
+    // TODO: we can use dictionary even if it's not sorted when there is no order by
     final boolean canCompareInts =
         capabilities != null &&
         capabilities.hasBitmapIndexes() &&

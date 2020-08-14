@@ -25,8 +25,8 @@ import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
 import org.apache.druid.query.aggregation.AggregatorFactory;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
-import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.AbstractList;
 import java.util.Collections;
@@ -51,7 +51,7 @@ public class BufferHashGrouper<KeyType> extends AbstractBufferHashGrouper<KeyTyp
   // to get a comparator that uses the ordering defined by the OrderByColumnSpec of a query.
   private final boolean useDefaultSorting;
 
-  @Nullable
+  @MonotonicNonNull
   private ByteBufferIntList offsetList;
 
   public BufferHashGrouper(
@@ -89,7 +89,8 @@ public class BufferHashGrouper<KeyType> extends AbstractBufferHashGrouper<KeyTyp
           Integer.BYTES
       );
 
-      hashTableBuffer = buffer.duplicate();
+      // buffer for the entire hash table (total space, not individual growth)
+      ByteBuffer hashTableBuffer = buffer.duplicate();
       hashTableBuffer.position(0);
       hashTableBuffer.limit(hashTableSize);
       hashTableBuffer = hashTableBuffer.slice();

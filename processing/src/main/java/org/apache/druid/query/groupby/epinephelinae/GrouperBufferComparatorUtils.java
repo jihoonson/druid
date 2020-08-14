@@ -173,8 +173,9 @@ public class GrouperBufferComparatorUtils
       }
     }
 
-
-    final Grouper.BufferComparator[] adjustedSerdeHelperComparators = comparators.toArray(new Grouper.BufferComparator[0]);
+    final Grouper.BufferComparator[] adjustedSerdeHelperComparators = comparators.toArray(
+        new Grouper.BufferComparator[0]
+    );
 
     final int fieldCount = dimCount + aggCount;
 
@@ -323,7 +324,7 @@ public class GrouperBufferComparatorUtils
   private static Grouper.BufferComparator makeNumericBufferComparator(
       ValueType valueType,
       int keyBufferPosition,
-      boolean pushLimitDown,
+      boolean pushLimitDown, // TODO: what is this?
       @Nullable StringComparator stringComparator
   )
   {

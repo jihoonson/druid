@@ -20,12 +20,14 @@
 package org.apache.druid.query.groupby.epinephelinae;
 
 import com.google.common.base.Supplier;
+import it.unimi.dsi.fastutil.ints.IntComparator;
 import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
 import org.apache.druid.query.aggregation.AggregatorFactory;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
 import java.nio.ByteBuffer;
 import java.util.AbstractList;
@@ -41,23 +43,20 @@ public class LimitedBufferHashGrouper<KeyType> extends AbstractBufferHashGrouper
   private static final float DEFAULT_MAX_LOAD_FACTOR = 0.7f;
 
   // Limit to apply to results.
-  private int limit;
+  private final int limit;
 
   // Indicates if the sorting order has fields not in the grouping key, used when pushing down limit/sorting.
   // In this case, grouping key comparisons need to also compare on aggregators.
   // Additionally, results must be resorted by grouping key to allow results to merge correctly.
-  private boolean sortHasNonGroupingFields;
+  private final boolean sortHasNonGroupingFields;
 
   // Min-max heap, used for storing offsets when applying limits/sorting in the BufferHashGrouper
+  @MonotonicNonNull
   private ByteBufferMinMaxOffsetHeap offsetHeap;
-
-  // ByteBuffer slices used by the grouper
-  private ByteBuffer totalBuffer;
-  private ByteBuffer hashTableBuffer;
-  private ByteBuffer offsetHeapBuffer;
 
   // Updates the heap index field for buckets, created passed to the heap when
   // pushing down limit and the sort order includes aggregators
+  @MonotonicNonNull
   private BufferGrouperOffsetHeapIndexUpdater heapIndexUpdater;
   private boolean initialized = false;
 
@@ -93,12 +92,13 @@ public class LimitedBufferHashGrouper<KeyType> extends AbstractBufferHashGrouper
     if (initialized) {
       return;
     }
-    this.totalBuffer = bufferSupplier.get();
+    // ByteBuffer slices used by the grouper
+    final ByteBuffer totalBuffer = bufferSupplier.get();
 
     // We check this already in SpillingGrouper to ensure that LimitedBufferHashGrouper is only used when there is
     // sufficient buffer capacity. If this error occurs, something went very wrong.
     if (!validateBufferCapacity(totalBuffer.capacity())) {
-      throw new IAE("WTF? Using LimitedBufferHashGrouper with insufficient buffer capacity.");
+      throw new IAE("Using LimitedBufferHashGrouper with insufficient buffer capacity.");
     }
 
     //only store offsets up to `limit` + 1 instead of up to # of buckets, we only keep the top results
@@ -110,12 +110,12 @@ public class LimitedBufferHashGrouper<KeyType> extends AbstractBufferHashGrouper
         heapByteSize
     );
 
-    hashTableBuffer = totalBuffer.duplicate();
+    ByteBuffer hashTableBuffer = totalBuffer.duplicate();
     hashTableBuffer.position(0);
     hashTableBuffer.limit(hashTableSize);
     hashTableBuffer = hashTableBuffer.slice();
 
-    offsetHeapBuffer = totalBuffer.duplicate();
+    ByteBuffer offsetHeapBuffer = totalBuffer.duplicate();
     offsetHeapBuffer.position(hashTableSize);
     offsetHeapBuffer = offsetHeapBuffer.slice();
     offsetHeapBuffer.limit(totalBuffer.capacity() - hashTableSize);
@@ -166,6 +166,7 @@ public class LimitedBufferHashGrouper<KeyType> extends AbstractBufferHashGrouper
       if (heapIndex < 0) {
         offsetHeap.addOffset(bucketOffset);
       } else {
+        // TODO: this is necessary only when ordering by metrics
         // Since the sorting columns contain at least one aggregator, we need to remove and reinsert
         // the entries after aggregating to maintain proper ordering
         offsetHeap.removeAt(heapIndex);
@@ -331,7 +332,7 @@ public class LimitedBufferHashGrouper<KeyType> extends AbstractBufferHashGrouper
       @Override
       public Grouper.Entry<KeyType> next()
       {
-        if (curr >= initialHeapSize) {
+        if (!hasNext()) {
           throw new NoSuchElementException();
         }
         final int offset = offsetHeap.removeMin();
@@ -342,12 +343,6 @@ public class LimitedBufferHashGrouper<KeyType> extends AbstractBufferHashGrouper
       }
 
       @Override
-      public void remove()
-      {
-        throw new UnsupportedOperationException();
-      }
-
-      @Override
       public void close()
       {
         // do nothing
@@ -355,9 +350,9 @@ public class LimitedBufferHashGrouper<KeyType> extends AbstractBufferHashGrouper
     };
   }
 
-  private Comparator<Integer> makeHeapComparator()
+  private IntComparator makeHeapComparator()
   {
-    return new Comparator<Integer>()
+    return new IntComparator()
     {
       final BufferComparator bufferComparator = keySerde.bufferComparatorWithAggregators(
           aggregators.factories().toArray(new AggregatorFactory[0]),
@@ -365,7 +360,7 @@ public class LimitedBufferHashGrouper<KeyType> extends AbstractBufferHashGrouper
       );
 
       @Override
-      public int compare(Integer o1, Integer o2)
+      public int compare(int o1, int o2)
       {
         final ByteBuffer tableBuffer = hashTable.getTableBuffer();
         return bufferComparator.compare(tableBuffer, tableBuffer, o1 + HASH_SIZE, o2 + HASH_SIZE);
@@ -401,7 +396,7 @@ public class LimitedBufferHashGrouper<KeyType> extends AbstractBufferHashGrouper
     // When the current sub-buffer fills, the used bits of the other sub-buffer are cleared, entries up to the limit
     // are copied from the current full sub-buffer to the new buffer, and the active buffer (referenced by tableBuffer)
     // is swapped to the new buffer.
-    private ByteBuffer[] subHashTableBuffers;
+    private final ByteBuffer[] subHashTableBuffers;
 
     public AlternatingByteBufferHashTable(
         float maxLoadFactor,

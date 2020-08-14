@@ -96,6 +96,7 @@ public class DefaultLimitSpec implements LimitSpec
     return false;
   }
 
+  @Nullable
   public static StringComparator getComparatorForDimName(DefaultLimitSpec limitSpec, String dimName)
   {
     final OrderByColumnSpec orderBy = OrderByColumnSpec.getOrderByForDimName(limitSpec.getColumns(), dimName);

@@ -426,7 +426,6 @@ public class GroupByQueryEngineV2
     protected final GroupByQueryConfig querySpecificConfig;
     protected final Cursor cursor;
     protected final ByteBuffer buffer;
-    protected final Grouper.KeySerde<ByteBuffer> keySerde;
     protected final GroupByColumnSelectorPlus[] dims;
     protected final DateTime timestamp;
 
@@ -448,7 +447,6 @@ public class GroupByQueryEngineV2
       this.querySpecificConfig = querySpecificConfig;
       this.cursor = cursor;
       this.buffer = buffer;
-      this.keySerde = new GroupByEngineKeySerde(dims, query);
       this.dims = dims;
 
       // Time is the same for every row in the cursor
@@ -573,12 +571,13 @@ public class GroupByQueryEngineV2
   {
     private static final Logger LOGGER = new Logger(HashAggregateIterator.class);
 
+    private final Grouper.KeySerde<ByteBuffer> keySerde = new GroupByEngineKeySerde(dims, query);
     private final int[] stack;
     private final Object[] valuess;
     private final ByteBuffer keyBuffer;
 
     private int stackPointer = Integer.MIN_VALUE;
-    protected boolean currentRowWasPartiallyAggregated = false;
+    private boolean currentRowWasPartiallyAggregated = false;
 
     public HashAggregateIterator(
         GroupByQuery query,
@@ -766,6 +765,7 @@ public class GroupByQueryEngineV2
     @Override
     protected void putToRow(ByteBuffer key, ResultRow resultRow)
     {
+      // TODO: when using dictionary, we need to convert dictionary values to dim values here
       for (GroupByColumnSelectorPlus selectorPlus : dims) {
         selectorPlus.getColumnSelectorStrategy().processValueFromGroupingKey(
             selectorPlus,

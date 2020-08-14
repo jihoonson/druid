@@ -29,6 +29,7 @@ import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
 import org.apache.druid.query.aggregation.CountAggregatorFactory;
 import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
+import org.apache.druid.testing.InitializedNullHandlingTest;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -38,7 +39,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-public class LimitedBufferHashGrouperTest
+public class LimitedBufferHashGrouperTest extends InitializedNullHandlingTest
 {
   @Rule
   public ExpectedException expectedException = ExpectedException.none();
@@ -132,7 +133,7 @@ public class LimitedBufferHashGrouperTest
   public void testBufferTooSmall()
   {
     expectedException.expect(IAE.class);
-    expectedException.expectMessage("WTF? Using LimitedBufferHashGrouper with insufficient buffer capacity.");
+    expectedException.expectMessage("Using LimitedBufferHashGrouper with insufficient buffer capacity.");
     final TestColumnSelectorFactory columnSelectorFactory = GrouperTestUtil.newColumnSelectorFactory();
     makeGrouper(columnSelectorFactory, 10, 2, 100);
   }

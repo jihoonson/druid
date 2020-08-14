@@ -26,6 +26,7 @@ import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.apache.commons.lang.StringUtils;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.DefaultBlockingPool;
 import org.apache.druid.collections.NonBlockingPool;
@@ -34,6 +35,7 @@ import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.FileUtils;
+import org.apache.druid.java.util.common.Numbers;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
@@ -115,7 +117,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 @State(Scope.Benchmark)
-@Fork(value = 2)
+@Fork(value = 1, jvmArgsAppend = "-XX:+UseG1GC")
 @Warmup(iterations = 10)
 @Measurement(iterations = 25)
 public class GroupByBenchmark
@@ -123,7 +125,10 @@ public class GroupByBenchmark
   @Param({"4"})
   private int numSegments;
 
-  @Param({"2", "4"})
+  @Param({
+//      "2",
+      "4"
+  })
   private int numProcessingThreads;
 
   @Param({"-1"})
@@ -132,17 +137,64 @@ public class GroupByBenchmark
   @Param({"100000"})
   private int rowsPerSegment;
 
-  @Param({"basic.A", "basic.nested"})
-  private String schemaAndQuery;
+  // @Param({"basic.A", "basic.nested"})
+  private String schemaAndQuery = "basic.limit";
 
-  @Param({"v1", "v2"})
-  private String defaultStrategy;
+  // @Param({"v1", "v2"})
+  private String defaultStrategy = "v2";
 
-  @Param({"all", "day"})
+  @Param({
+      "all",
+//      "day"
+  })
   private String queryGranularity;
 
-  @Param({"force", "false"})
+  @Param({
+//      "force",
+//      "false"
+      "true"
+  })
   private String vectorize;
+
+  @Param({
+      "true",
+      "false"
+  })
+  public String limitPushDown;
+
+  //  @Param({
+  //      "10",
+  //      "100",
+  //      "1000",
+  //      "10000"
+  //  })
+  //  public String limit;
+  //
+  //  @Param({
+  ////      "0.01", // 40
+  //      "0.1", // 331
+  //      "1", // 987
+  //      "10", // 1000,
+  //      "100" // 78430
+  //  })
+  //  public String selectivity;
+
+  @Param({
+      "0.1_10",
+      "0.1_100",
+      "0.1_1000",
+      "1_10",
+      "1_100",
+      "1_1000",
+      "10_10",
+      "10_100",
+      "10_1000",
+      "100_10",
+      "100_100",
+      "100_1000",
+      "100_10000"
+  })
+  public String selectivityAndLimit;
 
   private static final Logger log = new Logger(GroupByBenchmark.class);
   private static final int RNG_SEED = 9999;
@@ -187,6 +239,16 @@ public class GroupByBenchmark
 
   private static final Map<String, Map<String, GroupByQuery>> SCHEMA_QUERY_MAP = new LinkedHashMap<>();
 
+  private Map<String, Object> defaultContext()
+  {
+    return ImmutableMap.of(
+        GroupByQueryConfig.CTX_KEY_VECTORIZE,
+        vectorize,
+        GroupByQueryConfig.CTX_KEY_APPLY_LIMIT_PUSH_DOWN,
+        limitPushDown
+    );
+  }
+
   private void setupQueries()
   {
     // queries for the basic schema
@@ -205,7 +267,7 @@ public class GroupByBenchmark
           .setDimensions(new DefaultDimensionSpec("dimSequential", null), new DefaultDimensionSpec("dimZipf", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(queryGranularity))
-          .setContext(ImmutableMap.of("vectorize", vectorize))
+          .setContext(defaultContext())
           .build();
 
       basicQueries.put("A", queryA);
@@ -234,9 +296,42 @@ public class GroupByBenchmark
                   100
               )
           )
+          .setContext(defaultContext())
           .build();
 
       basicQueries.put("sorted", queryA);
+    }
+
+    { // basic.limit
+      final String[] tokens = StringUtils.split(selectivityAndLimit, "_");
+      final int endFilter = (int) (100000 / 100 * Numbers.parseDoubleObject(tokens[0]));
+      //System.err.println("endFilter: " + endFilter);
+      QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(Collections.singletonList(basicSchema.getDataInterval()));
+      List<AggregatorFactory> queryAggs = new ArrayList<>();
+      queryAggs.add(new LongSumAggregatorFactory("sumLongSequential", "sumLongSequential"));
+      GroupByQuery.Builder builder = GroupByQuery
+          .builder()
+          .setDataSource("blah")
+          .setQuerySegmentSpec(intervalSpec)
+          .setDimensions(new DefaultDimensionSpec("dimSequential", null), new DefaultDimensionSpec("dimZipf", null))
+          .setAggregatorSpecs(queryAggs)
+          .setGranularity(Granularity.fromString(queryGranularity))
+          .setDimFilter(new BoundDimFilter("dimUniform", "0", String.valueOf(endFilter), true, false, null, null, StringComparators.NUMERIC))
+          .setContext(defaultContext());
+
+      if (tokens[1] != null) {
+        final int actualLimit = Numbers.parseInt(tokens[1]);
+        builder = builder.setLimitSpec(
+            new DefaultLimitSpec(
+                null,
+                actualLimit
+            )
+        );
+      }
+
+      GroupByQuery queryA = builder.build();
+
+      basicQueries.put("limit", queryA);
     }
 
     { // basic.nested
@@ -254,7 +349,7 @@ public class GroupByBenchmark
           .setDimensions(new DefaultDimensionSpec("dimSequential", null), new DefaultDimensionSpec("dimZipf", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularities.DAY)
-          .setContext(ImmutableMap.of("vectorize", vectorize))
+          .setContext(defaultContext())
           .build();
 
       GroupByQuery queryA = GroupByQuery
@@ -264,7 +359,7 @@ public class GroupByBenchmark
           .setDimensions(new DefaultDimensionSpec("dimSequential", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularities.WEEK)
-          .setContext(ImmutableMap.of("vectorize", vectorize))
+          .setContext(defaultContext())
           .build();
 
       basicQueries.put("nested", queryA);
@@ -289,7 +384,7 @@ public class GroupByBenchmark
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(queryGranularity))
           .setDimFilter(new BoundDimFilter("dimUniform", "0", "100", true, true, null, null, null))
-          .setContext(ImmutableMap.of("vectorize", vectorize))
+          .setContext(defaultContext())
           .build();
 
       basicQueries.put("filter", queryA);
@@ -313,7 +408,7 @@ public class GroupByBenchmark
           .setDimensions(new DefaultDimensionSpec("dimZipf", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(queryGranularity))
-          .setContext(ImmutableMap.of("vectorize", vectorize))
+          .setContext(defaultContext())
           .build();
 
       basicQueries.put("singleZipf", queryA);
@@ -341,7 +436,7 @@ public class GroupByBenchmark
               queryAggs
           )
           .setGranularity(Granularity.fromString(queryGranularity))
-          .setContext(ImmutableMap.of("vectorize", vectorize))
+          .setContext(defaultContext())
           .build();
 
       simpleQueries.put("A", queryA);
@@ -367,7 +462,7 @@ public class GroupByBenchmark
               queryAggs
           )
           .setGranularity(Granularity.fromString(queryGranularity))
-          .setContext(ImmutableMap.of("vectorize", vectorize))
+          .setContext(defaultContext())
           .build();
 
       simpleLongQueries.put("A", queryA);
@@ -391,7 +486,7 @@ public class GroupByBenchmark
           .setDimensions(new DefaultDimensionSpec("dimSequential", "dimSequential", ValueType.FLOAT))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(queryGranularity))
-          .setContext(ImmutableMap.of("vectorize", vectorize))
+          .setContext(defaultContext())
           .build();
 
       simpleFloatQueries.put("A", queryA);
@@ -419,7 +514,7 @@ public class GroupByBenchmark
               queryAggs
           )
           .setGranularity(Granularity.fromString(queryGranularity))
-          .setContext(ImmutableMap.of("vectorize", vectorize))
+          .setContext(defaultContext())
           .build();
 
       nullQueries.put("A", queryA);
@@ -668,7 +763,7 @@ public class GroupByBenchmark
   @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
-  public void queryMultiQueryableIndexX(Blackhole blackhole)
+  public void queryMultiQueryableIndex(Blackhole blackhole)
   {
     QueryToolChest<ResultRow, GroupByQuery> toolChest = factory.getToolchest();
     QueryRunner<ResultRow> theRunner = new FinalizeResultsQueryRunner<>(
@@ -680,10 +775,11 @@ public class GroupByBenchmark
 
     Sequence<ResultRow> queryResult = theRunner.run(QueryPlus.wrap(query), ResponseContext.createEmpty());
     List<ResultRow> results = queryResult.toList();
+//    System.err.println("results: " + results.size());
     blackhole.consume(results);
   }
 
-  @Benchmark
+  // @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void queryMultiQueryableIndexWithSpilling(Blackhole blackhole)
@@ -704,7 +800,7 @@ public class GroupByBenchmark
     blackhole.consume(results);
   }
 
-  @Benchmark
+  // @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void queryMultiQueryableIndexWithSerde(Blackhole blackhole)
