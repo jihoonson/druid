@@ -36,7 +36,6 @@ import org.joda.time.DateTime;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -154,15 +153,15 @@ public class HashBasedNumberedShardSpecTest
   {
     return new HashPartitioner(
         objectMapper,
-        HashPartitionFunction.FOR_TESTING,
+        null,
         ImmutableList.of(),
         numBuckets
     )
     {
       @Override
-      byte[] getSerializedGroupKey(final long timestamp, final InputRow inputRow)
+      int hash(final long timestamp, final InputRow inputRow)
       {
-        return ByteBuffer.allocate(4).putInt(inputRow.hashCode()).array();
+        return Math.abs(inputRow.hashCode() % numBuckets);
       }
     };
   }
@@ -199,7 +198,7 @@ public class HashBasedNumberedShardSpecTest
   }
 
   @Test
-  public void testGetGroupKey()
+  public void testExtractKeys()
   {
     final List<String> partitionDimensions1 = ImmutableList.of("visitor_id");
     final DateTime time = DateTimes.nowUtc();
@@ -215,7 +214,7 @@ public class HashBasedNumberedShardSpecTest
             null,
             partitionDimensions1,
             0 // not used
-        ).getGroupKey(time.getMillis(), inputRow)
+        ).extractKeys(time.getMillis(), inputRow)
     );
 
     Assert.assertEquals(
@@ -229,7 +228,7 @@ public class HashBasedNumberedShardSpecTest
             null,
             ImmutableList.of(),
             0 // not used
-        ).getGroupKey(time.getMillis(), inputRow).toString()
+        ).extractKeys(time.getMillis(), inputRow).toString()
     );
   }
 
@@ -371,13 +370,7 @@ public class HashBasedNumberedShardSpecTest
       InputRow inputRow
   )
   {
-    final HashPartitionFunction hashPartitionFunction = shardSpec.getHashPartitionFunction() == null
-                                                        ? HashPartitionFunction.MURMUR3_32_ABS
-                                                        : shardSpec.getHashPartitionFunction();
-    final int bucketId = hashPartitionFunction.hash(
-        hashPartitioner.getSerializedGroupKey(timestamp, inputRow),
-        shardSpec.getNumBuckets()
-    );
+    final int bucketId = hashPartitioner.hash(timestamp, inputRow);
     return bucketId == shardSpec.getBucketId();
   }
 
@@ -389,7 +382,7 @@ public class HashBasedNumberedShardSpecTest
         partitionNum % partitions,
         partitions,
         null,
-        HashPartitionFunction.FOR_TESTING,
+        null,
         objectMapper
     );
   }

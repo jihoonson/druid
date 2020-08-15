@@ -20,6 +20,7 @@
 package org.apache.druid.timeline.partition;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.apache.druid.data.input.InputRow;
@@ -29,7 +30,11 @@ import javax.annotation.Nullable;
 import java.util.List;
 
 /**
- * TODO
+ * This class is used for hash partitioning during ingestion. The {@link ShardSpecLookup} returned from
+ * {@link #createHashLookup} is used to determine what hash bucket the given input row will belong to.
+ *
+ * Note: this class must be used only for ingestion. For segment pruning at query time,
+ * {@link HashBasedNumberedShardSpec#hashPartitionFunction} should be used instead.
  */
 class HashPartitioner
 {
@@ -57,30 +62,32 @@ class HashPartitioner
   {
     Preconditions.checkNotNull(hashPartitionFunction, "hashPartitionFunction");
     return (long timestamp, InputRow row) -> {
-      int index = hashPartitionFunction.hash(
-          getSerializedGroupKey(timestamp, row),
-          numBuckets
-      );
+      int index = hash(timestamp, row);
       return shardSpecs.get(index);
     };
   }
 
-  byte[] getSerializedGroupKey(final long timestamp, final InputRow inputRow)
+  @VisibleForTesting
+  int hash(final long timestamp, final InputRow inputRow)
   {
-    return HashBasedNumberedShardSpec.serializeGroupKey(jsonMapper, getGroupKey(timestamp, inputRow));
+    return hashPartitionFunction.hash(
+        HashBasedNumberedShardSpec.serializeGroupKey(jsonMapper, extractKeys(timestamp, inputRow)),
+        numBuckets
+    );
   }
 
   /**
-   * This method calculates the hash based on whether {@param partitionDimensions} is null or not.
-   * If yes, then both {@param timestamp} and dimension columns in {@param inputRow} are used {@link Rows#toGroupKey}
-   * Or else, columns in {@param partitionDimensions} are used
+   * This method extracts keys for hash partitioning based on whether {@param partitionDimensions} is empty or not.
+   * If yes, then both {@param timestamp} and dimension values in {@param inputRow} are returned.
+   * Otherwise, values of {@param partitionDimensions} are returned.
    *
    * @param timestamp should be bucketed with query granularity
    * @param inputRow  row from input data
    *
-   * @return hash value
+   * @return a list of values of grouping keys
    */
-  List<Object> getGroupKey(final long timestamp, final InputRow inputRow)
+  @VisibleForTesting
+  List<Object> extractKeys(final long timestamp, final InputRow inputRow)
   {
     if (partitionDimensions.isEmpty()) {
       return Rows.toGroupKey(timestamp, inputRow);

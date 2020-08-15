@@ -45,6 +45,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   static final List<String> DEFAULT_PARTITION_DIMENSIONS = ImmutableList.of();
 
   private final int bucketId;
+
   /**
    * Number of hash buckets
    */
@@ -52,6 +53,13 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   private final ObjectMapper jsonMapper;
   @JsonIgnore
   private final List<String> partitionDimensions;
+
+  /**
+   * A hash function to use for pruning segments at query time. This function can be null unless it is explicitly
+   * specified in {@link org.apache.druid.indexer.partitions.HashedPartitionsSpec}. This is because the default
+   * hash function used to create segments at ingestion time can change over time, but we don't guarantee the changed
+   * hash function is backward-compatible. The query will process all segments if this function is null.
+   */
   @Nullable
   private final HashPartitionFunction hashPartitionFunction;
 
@@ -72,9 +80,9 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
     // If numBuckets is missing, assume that any hash bucket is not empty.
     // Use the core partition set size as the number of buckets.
     this.numBuckets = numBuckets == null ? partitions : numBuckets;
+    this.partitionDimensions = partitionDimensions == null ? DEFAULT_PARTITION_DIMENSIONS : partitionDimensions;
     this.hashPartitionFunction = hashPartitionFunction;
     this.jsonMapper = jsonMapper;
-    this.partitionDimensions = partitionDimensions == null ? DEFAULT_PARTITION_DIMENSIONS : partitionDimensions;
   }
 
   @JsonProperty
@@ -122,7 +130,9 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
   @Override
   public boolean possibleInDomain(Map<String, RangeSet<String>> domain)
   {
-    // TODO
+    // hashPartitionFunction should be used instead of HashPartitioner at query time.
+    // We should process all segments if hashPartitionFunction is null because we don't know what hash function
+    // was used to create segments at ingestion time.
     if (hashPartitionFunction == null) {
       return true;
     }
@@ -162,7 +172,7 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
    * Recursively enumerate all possible combinations of values for dimensions in {@link #partitionDimensions} based on
    * {@code domainSet}, test if any combination matches the current segment
    *
-   * @param hashPartitionFunction     hash function used to create buckets
+   * @param hashPartitionFunction     hash function used to create segments at ingestion time
    * @param domainSet                 The set where values of dimensions in {@link #partitionDimensions} are
    *                                  drawn from
    * @param partitionDimensionsValues A map from dimensions in {@link #partitionDimensions} to their values drawn from
@@ -197,7 +207,9 @@ public class HashBasedNumberedShardSpec extends NumberedShardSpec
    * Check if the current segment possibly holds records if the values of dimensions in {@link #partitionDimensions}
    * are of {@code partitionDimensionsValues}
    *
+   * @param hashPartitionFunction     hash function used to create segments at ingestion time
    * @param partitionDimensionsValues An instance of values of dimensions in {@link #partitionDimensions}
+   *
    * @return Whether the current segment possibly holds records for the given values of partition dimensions
    */
   private boolean isInChunk(HashPartitionFunction hashPartitionFunction, Map<String, String> partitionDimensionsValues)

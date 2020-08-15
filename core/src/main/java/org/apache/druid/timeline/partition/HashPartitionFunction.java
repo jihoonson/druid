@@ -24,11 +24,13 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.common.hash.Hashing;
 import org.apache.druid.java.util.common.StringUtils;
 
-import java.nio.ByteBuffer;
-
+/**
+ * An enum of supported hash partition functions. This enum should be updated when we want to use a new function
+ * for hash partitioning. This function is a part of {@link HashBasedNumberedShardSpec} which is stored
+ * in the metadata store.
+ */
 public enum HashPartitionFunction
 {
-  // TODO: name?
   MURMUR3_32_ABS {
     @Override
     public int hash(byte[] serializedRow, int numBuckets)
@@ -37,16 +39,11 @@ public enum HashPartitionFunction
           Hashing.murmur3_32().hashBytes(serializedRow).asInt() % numBuckets
       );
     }
-  },
-  FOR_TESTING { // TODO?
-    @Override
-    public int hash(byte[] serializedRow, int numBuckets)
-    {
-      return Math.abs(ByteBuffer.wrap(serializedRow).getInt() % numBuckets);
-    }
   };
 
-  // TODO: javadoc
+  /**
+   * Returns an ID of a hash bucket for the given {@code serializedRow}.
+   */
   abstract public int hash(byte[] serializedRow, int numBuckets);
 
   @JsonCreator
