@@ -135,33 +135,35 @@ public class GrouperBufferComparatorUtils
     Set<Integer> orderByIndices = new HashSet<>();
 
     int aggCount = 0;
-    boolean needsReverse;
-    for (OrderByColumnSpec orderSpec : limitSpec.getColumns()) {
-      needsReverse = orderSpec.getDirection() != OrderByColumnSpec.Direction.ASCENDING;
-      int dimIndex = OrderByColumnSpec.getDimIndexForOrderBy(orderSpec, dimensions);
-      if (dimIndex >= 0) {
-        comparators.add(dimComparators[dimIndex]);
-        orderByIndices.add(dimIndex);
-        needsReverses.add(needsReverse);
-      } else {
-        int aggIndex = OrderByColumnSpec.getAggIndexForOrderBy(orderSpec, Arrays.asList(aggregatorFactories));
-        if (aggIndex >= 0) {
-          final StringComparator stringComparator = orderSpec.getDimensionComparator();
-          final String typeName = aggregatorFactories[aggIndex].getTypeName();
-          final int aggOffset = aggregatorOffsets[aggIndex] - Integer.BYTES;
-
-          aggCount++;
-
-          final ValueType valueType = ValueType.fromString(typeName);
-          if (!ValueType.isNumeric(valueType)) {
-            throw new IAE("Cannot order by a non-numeric aggregator[%s]", orderSpec);
-          }
-
-          comparators.add(makeNullHandlingBufferComparatorForNumericData(
-              aggOffset,
-              makeNumericBufferComparator(valueType, aggOffset, true, stringComparator)
-          ));
+    if (limitSpec != null) {
+      boolean needsReverse;
+      for (OrderByColumnSpec orderSpec : limitSpec.getColumns()) {
+        needsReverse = orderSpec.getDirection() != OrderByColumnSpec.Direction.ASCENDING;
+        int dimIndex = OrderByColumnSpec.getDimIndexForOrderBy(orderSpec, dimensions);
+        if (dimIndex >= 0) {
+          comparators.add(dimComparators[dimIndex]);
+          orderByIndices.add(dimIndex);
           needsReverses.add(needsReverse);
+        } else {
+          int aggIndex = OrderByColumnSpec.getAggIndexForOrderBy(orderSpec, Arrays.asList(aggregatorFactories));
+          if (aggIndex >= 0) {
+            final StringComparator stringComparator = orderSpec.getDimensionComparator();
+            final String typeName = aggregatorFactories[aggIndex].getTypeName();
+            final int aggOffset = aggregatorOffsets[aggIndex] - Integer.BYTES;
+
+            aggCount++;
+
+            final ValueType valueType = ValueType.fromString(typeName);
+            if (!ValueType.isNumeric(valueType)) {
+              throw new IAE("Cannot order by a non-numeric aggregator[%s]", orderSpec);
+            }
+
+            comparators.add(makeNullHandlingBufferComparatorForNumericData(
+                aggOffset,
+                makeNumericBufferComparator(valueType, aggOffset, true, stringComparator)
+            ));
+            needsReverses.add(needsReverse);
+          }
         }
       }
     }

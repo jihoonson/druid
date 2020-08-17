@@ -120,4 +120,35 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable
       }
     };
   }
+
+  default CloseableIterator<T> limit(int limit)
+  {
+    final CloseableIterator<T> delegate = this;
+    return new CloseableIterator<T>()
+    {
+      int count = 0;
+
+      @Override
+      public void close() throws IOException
+      {
+        delegate.close();
+      }
+
+      @Override
+      public boolean hasNext()
+      {
+        return count < limit && delegate.hasNext();
+      }
+
+      @Override
+      public T next()
+      {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+        count++;
+        return delegate.next();
+      }
+    };
+  }
 }

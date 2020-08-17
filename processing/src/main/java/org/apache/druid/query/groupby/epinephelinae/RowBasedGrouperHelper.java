@@ -1348,7 +1348,8 @@ public class RowBasedGrouperHelper
       {
         this.keyBufferPosition = keyBufferPosition;
         final boolean canCompareDictionary =
-            !pushLimitDown;
+            !pushLimitDown
+            && rankOfDictionaryIds != null;
             //|| (dimensionComparatorForOrderBy == null
               //  || StringComparators.LEXICOGRAPHIC.equals(dimensionComparatorForOrderBy));
         if (canCompareDictionary) {
