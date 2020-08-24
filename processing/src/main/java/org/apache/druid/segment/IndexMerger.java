@@ -361,6 +361,7 @@ public interface IndexMerger
     };
   }
 
+  // TODO: maybe i can reuse this
   class DictionaryMergeIterator implements CloseableIterator<String>
   {
     /**

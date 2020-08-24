@@ -19,6 +19,7 @@
 
 package org.apache.druid.query;
 
+// TODO: need this per dimension
 public class DictionaryConversion
 {
   private final String val;
@@ -52,5 +53,16 @@ public class DictionaryConversion
   public int getNewDictionaryId()
   {
     return newDictionaryId;
+  }
+
+  @Override
+  public String toString()
+  {
+    return "DictionaryConversion{" +
+           "val='" + val + '\'' +
+           ", segmentId=" + segmentId +
+           ", oldDictionaryId=" + oldDictionaryId +
+           ", newDictionaryId=" + newDictionaryId +
+           '}';
   }
 }
