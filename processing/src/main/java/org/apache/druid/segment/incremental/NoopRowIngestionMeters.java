@@ -19,6 +19,7 @@
 
 package org.apache.druid.segment.incremental;
 
+import java.util.Collections;
 import java.util.Map;
 
 public class NoopRowIngestionMeters implements RowIngestionMeters
@@ -74,12 +75,12 @@ public class NoopRowIngestionMeters implements RowIngestionMeters
   @Override
   public RowIngestionMetersTotals getTotals()
   {
-    return null;
+    return new RowIngestionMetersTotals(0, 0, 0, 0);
   }
 
   @Override
   public Map<String, Object> getMovingAverages()
   {
-    return null;
+    return Collections.emptyMap();
   }
 }
