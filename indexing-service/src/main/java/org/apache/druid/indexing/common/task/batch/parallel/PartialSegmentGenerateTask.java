@@ -172,6 +172,12 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
     final SegmentAllocatorForBatch segmentAllocator = createSegmentAllocator(toolbox, taskClient);
     final SequenceNameFunction sequenceNameFunction = segmentAllocator.getSequenceNameFunction();
 
+    final ParseExceptionHandler parseExceptionHandler = new ParseExceptionHandler(
+        buildSegmentsMeters,
+        tuningConfig.isLogParseExceptions(),
+        tuningConfig.getMaxParseExceptions(),
+        tuningConfig.getMaxSavedParseExceptions()
+    );
     final Appenderator appenderator = BatchAppenderators.newAppenderator(
         getId(),
         appenderatorsManager,
@@ -181,12 +187,7 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
         tuningConfig,
         new ShuffleDataSegmentPusher(supervisorTaskId, getId(), toolbox.getIntermediaryDataManager()),
         getContextValue(Tasks.STORE_COMPACTION_STATE_KEY, Tasks.DEFAULT_STORE_COMPACTION_STATE),
-        new ParseExceptionHandler(
-            buildSegmentsMeters,
-            tuningConfig.isLogParseExceptions(),
-            tuningConfig.getMaxParseExceptions(),
-            tuningConfig.getMaxSavedParseExceptions()
-        )
+        parseExceptionHandler
     );
     boolean exceptionOccurred = false;
     try (final BatchAppenderatorDriver driver = BatchAppenderators.newDriver(appenderator, toolbox, segmentAllocator)) {
@@ -194,9 +195,6 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
 
       final InputSourceProcessor inputSourceProcessor = new InputSourceProcessor(
           buildSegmentsMeters,
-          null,
-          tuningConfig.isLogParseExceptions(),
-          tuningConfig.getMaxParseExceptions(),
           pushTimeout,
           inputRowIteratorBuilder
       );
@@ -207,7 +205,8 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
           inputSource,
           inputSource.needsFormat() ? ParallelIndexSupervisorTask.getInputFormat(ingestionSchema) : null,
           tmpDir,
-          sequenceNameFunction
+          sequenceNameFunction,
+          parseExceptionHandler
       );
 
       return pushed.getSegments();

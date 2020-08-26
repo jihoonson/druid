@@ -33,13 +33,13 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.aggregation.AggregatorFactory;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorDriverAddResult;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.SegmentsAndCommitMetadata;
-import org.apache.druid.utils.CircularBuffer;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
@@ -56,26 +56,16 @@ public class InputSourceProcessor
   private static final Logger LOG = new Logger(InputSourceProcessor.class);
 
   private final RowIngestionMeters buildSegmentsMeters;
-  @Nullable
-  private final CircularBuffer<Throwable> buildSegmentsSavedParseExceptions;
-  private final boolean logParseExceptions;
-  private final int maxParseExceptions;
   private final long pushTimeout;
   private final IndexTaskInputRowIteratorBuilder inputRowIteratorBuilder;
 
   public InputSourceProcessor(
       RowIngestionMeters buildSegmentsMeters,
-      @Nullable CircularBuffer<Throwable> buildSegmentsSavedParseExceptions,
-      boolean logParseExceptions,
-      int maxParseExceptions,
       long pushTimeout,
       IndexTaskInputRowIteratorBuilder inputRowIteratorBuilder
   )
   {
     this.buildSegmentsMeters = buildSegmentsMeters;
-    this.buildSegmentsSavedParseExceptions = buildSegmentsSavedParseExceptions;
-    this.logParseExceptions = logParseExceptions;
-    this.maxParseExceptions = maxParseExceptions;
     this.pushTimeout = pushTimeout;
     this.inputRowIteratorBuilder = inputRowIteratorBuilder;
   }
@@ -94,7 +84,8 @@ public class InputSourceProcessor
       InputSource inputSource,
       @Nullable InputFormat inputFormat,
       File tmpDir,
-      SequenceNameFunction sequenceNameFunction
+      SequenceNameFunction sequenceNameFunction,
+      ParseExceptionHandler parseExceptionHandler
   ) throws IOException, InterruptedException, ExecutionException, TimeoutException
   {
     @Nullable
@@ -106,16 +97,19 @@ public class InputSourceProcessor
     final List<String> metricsNames = Arrays.stream(dataSchema.getAggregators())
                                             .map(AggregatorFactory::getName)
                                             .collect(Collectors.toList());
-    final InputSourceReader inputSourceReader = dataSchema.getTransformSpec().decorate(
-        inputSource.reader(
-            new InputRowSchema(
-                dataSchema.getTimestampSpec(),
-                dataSchema.getDimensionsSpec(),
-                metricsNames
-            ),
-            inputFormat,
-            tmpDir
-        )
+    final InputSourceReader inputSourceReader = new ParseExceptionHandlingInputSourceReader(
+        dataSchema.getTransformSpec().decorate(
+            inputSource.reader(
+                new InputRowSchema(
+                    dataSchema.getTimestampSpec(),
+                    dataSchema.getDimensionsSpec(),
+                    metricsNames
+                ),
+                inputFormat,
+                tmpDir
+            )
+        ),
+        parseExceptionHandler
     );
     try (
         final CloseableIterator<InputRow> inputRowIterator = inputSourceReader.read();

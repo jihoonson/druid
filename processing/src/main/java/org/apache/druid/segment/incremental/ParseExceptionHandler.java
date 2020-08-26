@@ -57,18 +57,28 @@ public class ParseExceptionHandler
     if (e == null) {
       return;
     }
-    rowIngestionMeters.incrementUnparseable();
+    if (e.isFromPartiallyValidRow()) {
+      rowIngestionMeters.incrementProcessedWithError();
+    } else {
+      rowIngestionMeters.incrementUnparseable();
+    }
 
     if (logParseExceptions) {
       LOG.error(e, "Encountered parse exception");
     }
 
-    if (rowIngestionMeters.getUnparseable() > maxAllowedParseExceptions) {
-      throw new RuntimeException("Max allowed parse exceptions exceeded");
-    }
-
     if (savedParseExceptions != null) {
       savedParseExceptions.add(e);
     }
+
+    if (rowIngestionMeters.getUnparseable() > maxAllowedParseExceptions) {
+      throw new RuntimeException("Max parse exceptions exceeded");
+    }
+  }
+
+  @Nullable
+  public CircularBuffer<Throwable> getSavedParseExceptions()
+  {
+    return savedParseExceptions;
   }
 }

@@ -93,7 +93,7 @@ public class MapInputRowParser implements InputRowParser<Map<String, Object>>
     try {
       final DateTime timestamp = timestampSpec.extractTimestamp(theMap);
       if (timestamp == null) {
-        throw new ParseException("Null timestamp in input: %s", rawMapToPrint(theMap));
+        throw new ParseException("Unparseable timestamp found! Event: %s", rawMapToPrint(theMap));
       }
       if (!Intervals.ETERNITY.contains(timestamp)) {
         throw new ParseException(
