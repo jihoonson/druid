@@ -29,8 +29,6 @@ import org.apache.druid.query.aggregation.CountAggregatorFactory;
 import org.apache.druid.query.aggregation.DoubleSumAggregatorFactory;
 import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
 import org.apache.druid.segment.incremental.IncrementalIndex;
-import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
-import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Level;
@@ -131,7 +129,6 @@ public class IncrementalIndexRowTypeBenchmark
     return new IncrementalIndex.Builder()
         .setSimpleTestingIndexSchema(aggs)
         .setDeserializeComplexMetrics(false)
-        .setParseExceptionHandler(new ParseExceptionHandler(new NoopRowIngestionMeters(), false, 0, 0))
         .setMaxRowCount(MAX_ROWS)
         .buildOnheap();
   }
