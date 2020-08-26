@@ -26,6 +26,7 @@ import org.apache.druid.segment.IndexIO;
 import org.apache.druid.segment.IndexMerger;
 import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
 import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeTuningConfig;
 import org.apache.druid.segment.loading.DataSegmentPusher;
@@ -56,6 +57,7 @@ public class DefaultOfflineAppenderatorFactory implements AppenderatorFactory
   @Override
   public Appenderator build(DataSchema schema, RealtimeTuningConfig config, FireDepartmentMetrics metrics)
   {
+    final RowIngestionMeters rowIngestionMeters = new NoopRowIngestionMeters();
     return Appenderators.createOffline(
         schema.getDataSource(),
         schema,
@@ -66,8 +68,9 @@ public class DefaultOfflineAppenderatorFactory implements AppenderatorFactory
         objectMapper,
         indexIO,
         indexMerger,
+        rowIngestionMeters,
         new ParseExceptionHandler(
-            new NoopRowIngestionMeters(),
+            rowIngestionMeters,
             false,
             config.isReportParseExceptions() ? 0 : Integer.MAX_VALUE,
             0

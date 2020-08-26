@@ -903,6 +903,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         dataSchema,
         tuningConfig,
         getContextValue(Tasks.STORE_COMPACTION_STATE_KEY, Tasks.DEFAULT_STORE_COMPACTION_STATE),
+        buildSegmentsMeters,
         buildSegmentsParseExceptionHandler
     );
     boolean exceptionOccurred = false;

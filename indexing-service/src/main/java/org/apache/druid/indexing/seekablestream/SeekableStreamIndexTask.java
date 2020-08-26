@@ -46,6 +46,7 @@ import org.apache.druid.query.NoopQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
@@ -194,6 +195,7 @@ public abstract class SeekableStreamIndexTask<PartitionIdType, SequenceOffsetTyp
 
   public Appenderator newAppenderator(FireDepartmentMetrics metrics, TaskToolbox toolbox)
   {
+    final RowIngestionMeters rowIngestionMeters = rowIngestionMetersFactory.createRowIngestionMeters();
     return appenderatorsManager.createRealtimeAppenderatorForTask(
         getId(),
         dataSchema,
@@ -211,8 +213,9 @@ public abstract class SeekableStreamIndexTask<PartitionIdType, SequenceOffsetTyp
         toolbox.getCache(),
         toolbox.getCacheConfig(),
         toolbox.getCachePopulatorStats(),
+        rowIngestionMeters,
         new ParseExceptionHandler(
-            rowIngestionMetersFactory.createRowIngestionMeters(),
+            rowIngestionMeters,
             tuningConfig.isLogParseExceptions(),
             tuningConfig.getMaxParseExceptions(),
             tuningConfig.getMaxSavedParseExceptions()

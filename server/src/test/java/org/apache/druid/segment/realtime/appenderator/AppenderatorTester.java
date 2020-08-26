@@ -56,6 +56,7 @@ import org.apache.druid.segment.IndexMergerV9;
 import org.apache.druid.segment.column.ColumnConfig;
 import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
 import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeTuningConfig;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
@@ -231,6 +232,7 @@ public class AppenderatorTester implements AutoCloseable
         throw new UnsupportedOperationException();
       }
     };
+    final RowIngestionMeters rowIngestionMeters = new NoopRowIngestionMeters();
     appenderator = Appenderators.createRealtime(
         schema.getDataSource(),
         schema,
@@ -264,7 +266,8 @@ public class AppenderatorTester implements AutoCloseable
         MapCache.create(2048),
         new CacheConfig(),
         new CachePopulatorStats(),
-        new ParseExceptionHandler(new NoopRowIngestionMeters(), false, 0, 0)
+        rowIngestionMeters,
+        new ParseExceptionHandler(rowIngestionMeters, false, 0, 0)
     );
   }
 

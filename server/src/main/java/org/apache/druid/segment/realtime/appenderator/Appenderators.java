@@ -29,6 +29,7 @@ import org.apache.druid.query.QueryRunnerFactoryConglomerate;
 import org.apache.druid.segment.IndexIO;
 import org.apache.druid.segment.IndexMerger;
 import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.join.JoinableFactory;
 import org.apache.druid.segment.loading.DataSegmentPusher;
@@ -58,6 +59,7 @@ public class Appenderators
       Cache cache,
       CacheConfig cacheConfig,
       CachePopulatorStats cachePopulatorStats,
+      RowIngestionMeters rowIngestionMeters,
       ParseExceptionHandler parseExceptionHandler
   )
   {
@@ -87,6 +89,7 @@ public class Appenderators
         indexIO,
         indexMerger,
         cache,
+        rowIngestionMeters,
         parseExceptionHandler
     );
   }
@@ -101,6 +104,7 @@ public class Appenderators
       ObjectMapper objectMapper,
       IndexIO indexIO,
       IndexMerger indexMerger,
+      RowIngestionMeters rowIngestionMeters,
       ParseExceptionHandler parseExceptionHandler
   )
   {
@@ -117,6 +121,7 @@ public class Appenderators
         indexIO,
         indexMerger,
         null,
+        rowIngestionMeters,
         parseExceptionHandler
     );
   }

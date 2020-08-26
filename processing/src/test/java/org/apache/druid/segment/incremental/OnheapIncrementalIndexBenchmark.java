@@ -115,8 +115,7 @@ public class OnheapIncrementalIndexBenchmark extends AbstractBenchmark
         boolean concurrentEventAdd,
         boolean sortFacts,
         int maxRowCount,
-        long maxBytesInMemory,
-        ParseExceptionHandler parseExceptionHandler
+        long maxBytesInMemory
     )
     {
       super(
@@ -125,8 +124,7 @@ public class OnheapIncrementalIndexBenchmark extends AbstractBenchmark
           concurrentEventAdd,
           sortFacts,
           maxRowCount,
-          maxBytesInMemory,
-          parseExceptionHandler
+          maxBytesInMemory
       );
     }
 
@@ -135,8 +133,7 @@ public class OnheapIncrementalIndexBenchmark extends AbstractBenchmark
         Granularity gran,
         AggregatorFactory[] metrics,
         int maxRowCount,
-        long maxBytesInMemory,
-        ParseExceptionHandler parseExceptionHandler
+        long maxBytesInMemory
     )
     {
       super(
@@ -149,8 +146,7 @@ public class OnheapIncrementalIndexBenchmark extends AbstractBenchmark
           false,
           true,
           maxRowCount,
-          maxBytesInMemory,
-          parseExceptionHandler
+          maxBytesInMemory
       );
     }
 

@@ -79,11 +79,10 @@ public class OffheapIncrementalIndex extends IncrementalIndex<BufferAggregator>
       boolean concurrentEventAdd,
       boolean sortFacts,
       int maxRowCount,
-      NonBlockingPool<ByteBuffer> bufferPool,
-      ParseExceptionHandler parseExceptionHandler
+      NonBlockingPool<ByteBuffer> bufferPool
   )
   {
-    super(incrementalIndexSchema, deserializeComplexMetrics, concurrentEventAdd, parseExceptionHandler);
+    super(incrementalIndexSchema, deserializeComplexMetrics, concurrentEventAdd);
     this.maxRowCount = maxRowCount;
     this.bufferPool = bufferPool;
 

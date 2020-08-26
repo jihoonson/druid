@@ -134,7 +134,6 @@ public class IndexMergerV9WithSpatialIndexTest extends InitializedNullHandlingTe
                     )
                 ).build()
         )
-        .setParseExceptionHandler(PARSE_EXCEPTION_HANDLER)
         .setMaxRowCount(NUM_POINTS)
         .buildOnheap();
 
@@ -310,7 +309,6 @@ public class IndexMergerV9WithSpatialIndexTest extends InitializedNullHandlingTe
                       )
                   ).build()
           )
-          .setParseExceptionHandler(PARSE_EXCEPTION_HANDLER)
           .setMaxRowCount(1000)
           .buildOnheap();
 
@@ -338,7 +336,6 @@ public class IndexMergerV9WithSpatialIndexTest extends InitializedNullHandlingTe
                       )
                   ).build()
           )
-          .setParseExceptionHandler(PARSE_EXCEPTION_HANDLER)
           .setMaxRowCount(1000)
           .buildOnheap();
 
@@ -366,7 +363,6 @@ public class IndexMergerV9WithSpatialIndexTest extends InitializedNullHandlingTe
                       )
                   ).build()
           )
-          .setParseExceptionHandler(PARSE_EXCEPTION_HANDLER)
           .setMaxRowCount(NUM_POINTS)
           .buildOnheap();
 

@@ -364,7 +364,6 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
         .build();
     final IncrementalIndex newIndex = new IncrementalIndex.Builder()
         .setIndexSchema(indexSchema)
-        .setParseExceptionHandler(parseExceptionHandler)
         .setMaxRowCount(maxRowsInMemory)
         .setMaxBytesInMemory(maxBytesInMemory)
         .buildOnheap();

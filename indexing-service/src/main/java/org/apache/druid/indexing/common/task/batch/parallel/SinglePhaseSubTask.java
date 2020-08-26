@@ -52,6 +52,7 @@ import org.apache.druid.query.DruidMetrics;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
 import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
@@ -319,6 +320,7 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
         partitionsSpec
     );
 
+    final RowIngestionMeters rowIngestionMeters = new NoopRowIngestionMeters();
     final Appenderator appenderator = BatchAppenderators.newAppenderator(
         getId(),
         appenderatorsManager,
@@ -327,8 +329,9 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
         dataSchema,
         tuningConfig,
         getContextValue(Tasks.STORE_COMPACTION_STATE_KEY, Tasks.DEFAULT_STORE_COMPACTION_STATE),
+        rowIngestionMeters,
         new ParseExceptionHandler(
-            new NoopRowIngestionMeters(),
+            rowIngestionMeters,
             tuningConfig.isLogParseExceptions(),
             tuningConfig.getMaxParseExceptions(),
             tuningConfig.getMaxSavedParseExceptions()

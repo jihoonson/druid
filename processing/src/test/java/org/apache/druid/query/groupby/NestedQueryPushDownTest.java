@@ -77,8 +77,6 @@ import org.apache.druid.segment.QueryableIndexSegment;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
-import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
-import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.writeout.OffHeapMemorySegmentWriteOutMediumFactory;
 import org.apache.druid.timeline.SegmentId;
 import org.junit.After;
@@ -141,9 +139,6 @@ public class NestedQueryPushDownTest
                     null
                 ))
                 .build()
-        )
-        .setParseExceptionHandler(
-            new ParseExceptionHandler(new NoopRowIngestionMeters(), false, 0, 0)
         )
         .setConcurrentEventAdd(true)
         .setMaxRowCount(1000)

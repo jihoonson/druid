@@ -56,8 +56,6 @@ import org.apache.druid.segment.Segment;
 import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
-import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
-import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.writeout.SegmentWriteOutMediumFactory;
 import org.joda.time.Interval;
 import org.junit.Test;
@@ -135,7 +133,6 @@ public class SpatialFilterBonusTest
                     )
                 ).build()
         )
-        .setParseExceptionHandler(new ParseExceptionHandler(new NoopRowIngestionMeters(), false, 0, 0))
         .setMaxRowCount(NUM_POINTS)
         .buildOnheap();
 
@@ -284,7 +281,6 @@ public class SpatialFilterBonusTest
 
                   ).build()
           )
-          .setParseExceptionHandler(new ParseExceptionHandler(new NoopRowIngestionMeters(), false, 0, 0))
           .setMaxRowCount(NUM_POINTS)
           .buildOnheap();
 
@@ -307,7 +303,6 @@ public class SpatialFilterBonusTest
                       )
                   ).build()
           )
-          .setParseExceptionHandler(new ParseExceptionHandler(new NoopRowIngestionMeters(), false, 0, 0))
           .setMaxRowCount(NUM_POINTS)
           .buildOnheap();
 
@@ -331,7 +326,6 @@ public class SpatialFilterBonusTest
 
                   ).build()
           )
-          .setParseExceptionHandler(new ParseExceptionHandler(new NoopRowIngestionMeters(), false, 0, 0))
           .setMaxRowCount(NUM_POINTS)
           .buildOnheap();
 

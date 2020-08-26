@@ -32,6 +32,7 @@ import org.apache.druid.query.SegmentDescriptor;
 import org.apache.druid.segment.IndexIO;
 import org.apache.druid.segment.IndexMerger;
 import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.join.JoinableFactory;
 import org.apache.druid.segment.loading.DataSegmentPusher;
@@ -77,6 +78,7 @@ public class PeonAppenderatorsManager implements AppenderatorsManager
       Cache cache,
       CacheConfig cacheConfig,
       CachePopulatorStats cachePopulatorStats,
+      RowIngestionMeters rowIngestionMeters,
       ParseExceptionHandler parseExceptionHandler
   )
   {
@@ -102,6 +104,7 @@ public class PeonAppenderatorsManager implements AppenderatorsManager
           cache,
           cacheConfig,
           cachePopulatorStats,
+          rowIngestionMeters,
           parseExceptionHandler
       );
     }
@@ -119,6 +122,7 @@ public class PeonAppenderatorsManager implements AppenderatorsManager
       ObjectMapper objectMapper,
       IndexIO indexIO,
       IndexMerger indexMerger,
+      RowIngestionMeters rowIngestionMeters,
       ParseExceptionHandler parseExceptionHandler
   )
   {
@@ -136,6 +140,7 @@ public class PeonAppenderatorsManager implements AppenderatorsManager
           objectMapper,
           indexIO,
           indexMerger,
+          rowIngestionMeters,
           parseExceptionHandler
       );
       return batchAppenderator;

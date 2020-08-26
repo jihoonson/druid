@@ -31,6 +31,7 @@ import org.apache.druid.query.SegmentDescriptor;
 import org.apache.druid.segment.IndexIO;
 import org.apache.druid.segment.IndexMerger;
 import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.join.JoinableFactory;
 import org.apache.druid.segment.loading.DataSegmentPusher;
@@ -66,6 +67,7 @@ public class TestAppenderatorsManager implements AppenderatorsManager
       Cache cache,
       CacheConfig cacheConfig,
       CachePopulatorStats cachePopulatorStats,
+      RowIngestionMeters rowIngestionMeters,
       ParseExceptionHandler parseExceptionHandler
   )
   {
@@ -86,6 +88,7 @@ public class TestAppenderatorsManager implements AppenderatorsManager
         cache,
         cacheConfig,
         cachePopulatorStats,
+        rowIngestionMeters,
         parseExceptionHandler
     );
     return realtimeAppenderator;
@@ -102,6 +105,7 @@ public class TestAppenderatorsManager implements AppenderatorsManager
       ObjectMapper objectMapper,
       IndexIO indexIO,
       IndexMerger indexMerger,
+      RowIngestionMeters rowIngestionMeters,
       ParseExceptionHandler parseExceptionHandler
   )
   {
@@ -115,6 +119,7 @@ public class TestAppenderatorsManager implements AppenderatorsManager
         objectMapper,
         indexIO,
         indexMerger,
+        rowIngestionMeters,
         parseExceptionHandler
     );
   }

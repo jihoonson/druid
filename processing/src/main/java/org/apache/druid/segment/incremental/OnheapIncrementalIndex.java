@@ -72,11 +72,10 @@ public class OnheapIncrementalIndex extends IncrementalIndex<Aggregator>
       boolean concurrentEventAdd,
       boolean sortFacts,
       int maxRowCount,
-      long maxBytesInMemory,
-      ParseExceptionHandler parseExceptionHandler
+      long maxBytesInMemory
   )
   {
-    super(incrementalIndexSchema, deserializeComplexMetrics, concurrentEventAdd, parseExceptionHandler);
+    super(incrementalIndexSchema, deserializeComplexMetrics, concurrentEventAdd);
     this.maxRowCount = maxRowCount;
     this.maxBytesInMemory = maxBytesInMemory == 0 ? Long.MAX_VALUE : maxBytesInMemory;
     this.facts = incrementalIndexSchema.isRollup() ? new RollupFactsHolder(sortFacts, dimsComparator(), getDimensions())

@@ -256,8 +256,6 @@ public abstract class IncrementalIndex<AggregatorType> extends AbstractIndex imp
   private final ThreadLocal<InputRow> in = new ThreadLocal<>();
   private final Supplier<InputRow> rowSupplier = in::get;
 
-  private final ParseExceptionHandler parseExceptionHandler;
-
   private volatile DateTime maxIngestedEventTime;
 
 
@@ -271,15 +269,12 @@ public abstract class IncrementalIndex<AggregatorType> extends AbstractIndex imp
    * @param incrementalIndexSchema    the schema to use for incremental index
    * @param deserializeComplexMetrics flag whether or not to call ComplexMetricExtractor.extractValue() on the input
    *                                  value for aggregators that return metrics other than float.
-   * @param reportParseExceptions     flag whether or not to report ParseExceptions that occur while extracting values
-   *                                  from input rows
    * @param concurrentEventAdd        flag whether ot not adding of input rows should be thread-safe
    */
   protected IncrementalIndex(
       final IncrementalIndexSchema incrementalIndexSchema,
       final boolean deserializeComplexMetrics,
-      final boolean concurrentEventAdd,
-      final ParseExceptionHandler parseExceptionHandler
+      final boolean concurrentEventAdd
   )
   {
     this.minTimestamp = incrementalIndexSchema.getMinTimestamp();
@@ -340,8 +335,6 @@ public abstract class IncrementalIndex<AggregatorType> extends AbstractIndex imp
     if (!spatialDimensions.isEmpty()) {
       this.rowTransformers.add(new SpatialDimensionRowTransformer(spatialDimensions));
     }
-
-    this.parseExceptionHandler = parseExceptionHandler;
   }
 
   public static class Builder
@@ -353,7 +346,6 @@ public abstract class IncrementalIndex<AggregatorType> extends AbstractIndex imp
     private boolean sortFacts;
     private int maxRowCount;
     private long maxBytesInMemory;
-    private ParseExceptionHandler parseExceptionHandler;
 
     public Builder()
     {
@@ -435,13 +427,6 @@ public abstract class IncrementalIndex<AggregatorType> extends AbstractIndex imp
       return this;
     }
 
-    // TOOD: this is weird
-    public Builder setParseExceptionHandler(ParseExceptionHandler parseExceptionHandler)
-    {
-      this.parseExceptionHandler = parseExceptionHandler;
-      return this;
-    }
-
     public OnheapIncrementalIndex buildOnheap()
     {
       if (maxRowCount <= 0) {
@@ -454,8 +439,7 @@ public abstract class IncrementalIndex<AggregatorType> extends AbstractIndex imp
           concurrentEventAdd,
           sortFacts,
           maxRowCount,
-          maxBytesInMemory,
-          parseExceptionHandler
+          maxBytesInMemory
       );
     }
 
@@ -471,8 +455,7 @@ public abstract class IncrementalIndex<AggregatorType> extends AbstractIndex imp
           concurrentEventAdd,
           sortFacts,
           maxRowCount,
-          Objects.requireNonNull(bufferPool, "bufferPool is null"),
-          parseExceptionHandler
+          Objects.requireNonNull(bufferPool, "bufferPool is null")
       );
     }
   }
@@ -635,10 +618,10 @@ public abstract class IncrementalIndex<AggregatorType> extends AbstractIndex imp
         incrementalIndexRowResult.getParseExceptionMessages(),
         addToFactsResult.getParseExceptionMessages()
     );
-    parseExceptionHandler.handle(parseException);
     return new IncrementalIndexAddResult(
         addToFactsResult.getRowCount(),
-        addToFactsResult.getBytesInMemory()
+        addToFactsResult.getBytesInMemory(),
+        parseException
     );
   }
 

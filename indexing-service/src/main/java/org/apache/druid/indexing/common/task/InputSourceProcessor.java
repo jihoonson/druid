@@ -113,6 +113,7 @@ public class InputSourceProcessor
     );
     try (
         final CloseableIterator<InputRow> inputRowIterator = inputSourceReader.read();
+        // TODO: invalid row filtering iterator
         HandlingInputRowIterator iterator = inputRowIteratorBuilder
             .delegate(inputRowIterator)
             .granularitySpec(granularitySpec)
@@ -153,9 +154,6 @@ public class InputSourceProcessor
         } else {
           throw new ISE("Failed to add a row with timestamp[%s]", inputRow.getTimestamp());
         }
-
-        // TODO: see if this can be moved into AppenderatorDriver
-        buildSegmentsMeters.incrementProcessed();
       }
 
       final SegmentsAndCommitMetadata pushed = driver.pushAllAndClear(pushTimeout);
