@@ -24,7 +24,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.druid.common.utils.IdUtils;
-import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
+import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.kafka.KafkaDataSourceMetadata;

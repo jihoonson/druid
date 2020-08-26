@@ -30,6 +30,7 @@ import org.apache.druid.query.QueryRunnerFactoryConglomerate;
 import org.apache.druid.query.SegmentDescriptor;
 import org.apache.druid.segment.IndexIO;
 import org.apache.druid.segment.IndexMerger;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.join.JoinableFactory;
 import org.apache.druid.segment.loading.DataSegmentPusher;
@@ -64,7 +65,8 @@ public class TestAppenderatorsManager implements AppenderatorsManager
       JoinableFactory joinableFactory,
       Cache cache,
       CacheConfig cacheConfig,
-      CachePopulatorStats cachePopulatorStats
+      CachePopulatorStats cachePopulatorStats,
+      ParseExceptionHandler parseExceptionHandler
   )
   {
     realtimeAppenderator = Appenderators.createRealtime(
@@ -83,7 +85,8 @@ public class TestAppenderatorsManager implements AppenderatorsManager
         joinableFactory,
         cache,
         cacheConfig,
-        cachePopulatorStats
+        cachePopulatorStats,
+        parseExceptionHandler
     );
     return realtimeAppenderator;
   }
@@ -98,7 +101,8 @@ public class TestAppenderatorsManager implements AppenderatorsManager
       DataSegmentPusher dataSegmentPusher,
       ObjectMapper objectMapper,
       IndexIO indexIO,
-      IndexMerger indexMerger
+      IndexMerger indexMerger,
+      ParseExceptionHandler parseExceptionHandler
   )
   {
     return Appenderators.createOffline(
@@ -110,7 +114,8 @@ public class TestAppenderatorsManager implements AppenderatorsManager
         dataSegmentPusher,
         objectMapper,
         indexIO,
-        indexMerger
+        indexMerger,
+        parseExceptionHandler
     );
   }
 

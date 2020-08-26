@@ -62,6 +62,7 @@ import org.apache.druid.segment.QueryableIndexSegment;
 import org.apache.druid.segment.ReferenceCountingSegment;
 import org.apache.druid.segment.incremental.IncrementalIndexAddResult;
 import org.apache.druid.segment.incremental.IndexSizeExceededException;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.TuningConfigs;
 import org.apache.druid.segment.loading.DataSegmentPusher;
@@ -133,6 +134,7 @@ public class AppenderatorImpl implements Appenderator
   private final AtomicInteger rowsCurrentlyInMemory = new AtomicInteger();
   private final AtomicInteger totalRows = new AtomicInteger();
   private final AtomicLong bytesCurrentlyInMemory = new AtomicLong();
+  private final ParseExceptionHandler parseExceptionHandler;
   // Synchronize persisting commitMetadata so that multiple persist threads (if present)
   // and abandon threads do not step over each other
   private final Lock commitLock = new ReentrantLock();
@@ -172,7 +174,8 @@ public class AppenderatorImpl implements Appenderator
       @Nullable SinkQuerySegmentWalker sinkQuerySegmentWalker,
       IndexIO indexIO,
       IndexMerger indexMerger,
-      Cache cache
+      Cache cache,
+      ParseExceptionHandler parseExceptionHandler
   )
   {
     this.myId = id;
@@ -187,6 +190,7 @@ public class AppenderatorImpl implements Appenderator
     this.indexMerger = Preconditions.checkNotNull(indexMerger, "indexMerger");
     this.cache = cache;
     this.texasRanger = sinkQuerySegmentWalker;
+    this.parseExceptionHandler = parseExceptionHandler;
 
     if (sinkQuerySegmentWalker == null) {
       this.sinkTimeline = new VersionedIntervalTimeline<>(
@@ -334,7 +338,7 @@ public class AppenderatorImpl implements Appenderator
         isPersistRequired = true;
       }
     }
-    return new AppenderatorAddResult(identifier, sink.getNumRows(), isPersistRequired, addResult.getParseException());
+    return new AppenderatorAddResult(identifier, sink.getNumRows(), isPersistRequired);
   }
 
   @Override
@@ -402,8 +406,8 @@ public class AppenderatorImpl implements Appenderator
           identifier.getVersion(),
           tuningConfig.getMaxRowsInMemory(),
           maxBytesTuningConfig,
-          tuningConfig.isReportParseExceptions(),
-          null
+          null,
+          parseExceptionHandler
       );
 
       try {
@@ -1113,6 +1117,7 @@ public class AppenderatorImpl implements Appenderator
           throw new ISE("Missing hydrant [%,d] in sinkDir [%s].", hydrants.size(), sinkDir);
         }
 
+        // TODO: let's restore parseExceptionHandler here.
         Sink currSink = new Sink(
             identifier.getInterval(),
             schema,
@@ -1121,9 +1126,9 @@ public class AppenderatorImpl implements Appenderator
             identifier.getVersion(),
             tuningConfig.getMaxRowsInMemory(),
             maxBytesTuningConfig,
-            tuningConfig.isReportParseExceptions(),
             null,
-            hydrants
+            hydrants,
+            parseExceptionHandler
         );
         rowsSoFar += currSink.getNumRows();
         sinks.put(identifier, currSink);

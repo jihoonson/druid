@@ -62,7 +62,7 @@ import org.apache.druid.indexing.common.actions.RetrieveUsedSegmentsAction;
 import org.apache.druid.indexing.common.actions.TaskAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.config.TaskConfig;
-import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
+import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.CompactionTask.Builder;
 import org.apache.druid.indexing.common.task.CompactionTask.PartitionConfigurationManager;
 import org.apache.druid.indexing.common.task.CompactionTask.SegmentProvider;

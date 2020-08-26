@@ -32,7 +32,7 @@ import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.TestUtils;
 import org.apache.druid.indexing.common.stats.DropwizardRowIngestionMetersFactory;
-import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
+import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.Task;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.TestAppenderatorsManager;

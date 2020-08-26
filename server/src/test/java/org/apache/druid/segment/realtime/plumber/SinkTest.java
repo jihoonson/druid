@@ -32,6 +32,8 @@ import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.CountAggregatorFactory;
+import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeTuningConfig;
 import org.apache.druid.segment.indexing.TuningConfigs;
@@ -93,8 +95,13 @@ public class SinkTest extends InitializedNullHandlingTest
         version,
         tuningConfig.getMaxRowsInMemory(),
         TuningConfigs.getMaxBytesInMemoryOrDefault(tuningConfig.getMaxBytesInMemory()),
-        tuningConfig.isReportParseExceptions(),
-        tuningConfig.getDedupColumn()
+        tuningConfig.getDedupColumn(),
+        new ParseExceptionHandler(
+            new NoopRowIngestionMeters(),
+            true,
+            tuningConfig.isReportParseExceptions() ? 0 : Integer.MAX_VALUE,
+            0
+        )
     );
 
     sink.add(
@@ -248,8 +255,13 @@ public class SinkTest extends InitializedNullHandlingTest
         version,
         tuningConfig.getMaxRowsInMemory(),
         TuningConfigs.getMaxBytesInMemoryOrDefault(tuningConfig.getMaxBytesInMemory()),
-        tuningConfig.isReportParseExceptions(),
-        tuningConfig.getDedupColumn()
+        tuningConfig.getDedupColumn(),
+        new ParseExceptionHandler(
+            new NoopRowIngestionMeters(),
+            true,
+            tuningConfig.isReportParseExceptions() ? 0 : Integer.MAX_VALUE,
+            0
+        )
     );
 
     int rows = sink.add(new MapBasedInputRow(

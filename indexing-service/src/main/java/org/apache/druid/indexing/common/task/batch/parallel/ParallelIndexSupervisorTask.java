@@ -47,7 +47,7 @@ import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.actions.TimeChunkLockTryAcquireAction;
-import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
+import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.AbstractBatchIndexTask;
 import org.apache.druid.indexing.common.task.CurrentSubTaskHolder;
 import org.apache.druid.indexing.common.task.IndexTask;

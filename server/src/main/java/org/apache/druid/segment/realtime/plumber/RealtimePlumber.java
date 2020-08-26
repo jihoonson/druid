@@ -59,6 +59,8 @@ import org.apache.druid.segment.QueryableIndexSegment;
 import org.apache.druid.segment.ReferenceCountingSegment;
 import org.apache.druid.segment.incremental.IncrementalIndexAddResult;
 import org.apache.druid.segment.incremental.IndexSizeExceededException;
+import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeTuningConfig;
 import org.apache.druid.segment.indexing.TuningConfigs;
@@ -115,8 +117,8 @@ public class RealtimePlumber implements Plumber
       String.CASE_INSENSITIVE_ORDER
   );
   private final QuerySegmentWalker texasRanger;
-
   private final Cache cache;
+  private final ParseExceptionHandler parseExceptionHandler;
 
   private volatile long nextFlush = 0;
   private volatile boolean shuttingDown = false;
@@ -174,6 +176,12 @@ public class RealtimePlumber implements Plumber
         cacheConfig,
         cachePopulatorStats
     );
+    this.parseExceptionHandler = new ParseExceptionHandler(
+        new NoopRowIngestionMeters(),
+        false,
+        config.isReportParseExceptions() ? 0 : Integer.MAX_VALUE,
+        0
+    );
 
     log.info("Creating plumber using rejectionPolicy[%s]", getRejectionPolicy());
   }
@@ -223,10 +231,6 @@ public class RealtimePlumber implements Plumber
     }
 
     final IncrementalIndexAddResult addResult = sink.add(row, false);
-    if (config.isReportParseExceptions() && addResult.getParseException() != null) {
-      throw addResult.getParseException();
-    }
-
     if (!sink.canAppendRow() || System.currentTimeMillis() > nextFlush) {
       persist(committerSupplier.get());
     }
@@ -261,8 +265,8 @@ public class RealtimePlumber implements Plumber
           versioningPolicy.getVersion(sinkInterval),
           config.getMaxRowsInMemory(),
           TuningConfigs.getMaxBytesInMemoryOrDefault(config.getMaxBytesInMemory()),
-          config.isReportParseExceptions(),
-          config.getDedupColumn()
+          config.getDedupColumn(),
+          parseExceptionHandler
       );
       addSink(retVal);
 
@@ -726,9 +730,9 @@ public class RealtimePlumber implements Plumber
           versioningPolicy.getVersion(sinkInterval),
           config.getMaxRowsInMemory(),
           TuningConfigs.getMaxBytesInMemoryOrDefault(config.getMaxBytesInMemory()),
-          config.isReportParseExceptions(),
           config.getDedupColumn(),
-          hydrants
+          hydrants,
+          parseExceptionHandler
       );
       addSink(currSink);
     }

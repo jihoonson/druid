@@ -28,13 +28,12 @@ import org.apache.druid.data.input.InputSource;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
-import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.IndexTaskInputRowIteratorBuilder;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
-import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.query.aggregation.AggregatorFactory;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorDriverAddResult;
@@ -128,77 +127,47 @@ public class InputSourceProcessor
             .build()
     ) {
       while (iterator.hasNext()) {
-        try {
-          final InputRow inputRow = iterator.next();
-          if (inputRow == null) {
-            continue;
-          }
+        final InputRow inputRow = iterator.next();
+        if (inputRow == null) {
+          continue;
+        }
 
-          // IndexTaskInputRowIteratorBuilder.absentBucketIntervalConsumer() ensures the interval will be present here
-          Optional<Interval> optInterval = granularitySpec.bucketInterval(inputRow.getTimestamp());
-          @SuppressWarnings("OptionalGetWithoutIsPresent")
-          final Interval interval = optInterval.get();
+        // IndexTaskInputRowIteratorBuilder.absentBucketIntervalConsumer() ensures the interval will be present here
+        Optional<Interval> optInterval = granularitySpec.bucketInterval(inputRow.getTimestamp());
+        @SuppressWarnings("OptionalGetWithoutIsPresent")
+        final Interval interval = optInterval.get();
 
-          final String sequenceName = sequenceNameFunction.getSequenceName(interval, inputRow);
-          final AppenderatorDriverAddResult addResult = driver.add(inputRow, sequenceName);
+        final String sequenceName = sequenceNameFunction.getSequenceName(interval, inputRow);
+        final AppenderatorDriverAddResult addResult = driver.add(inputRow, sequenceName);
 
-          if (addResult.isOk()) {
-            // incremental segment publishment is allowed only when rollup doesn't have to be perfect.
-            if (dynamicPartitionsSpec != null) {
-              final boolean isPushRequired = addResult.isPushRequired(
-                  dynamicPartitionsSpec.getMaxRowsPerSegment(),
-                  dynamicPartitionsSpec.getMaxTotalRowsOr(DynamicPartitionsSpec.DEFAULT_MAX_TOTAL_ROWS)
-              );
-              if (isPushRequired) {
-                // There can be some segments waiting for being pushed even though no more rows will be added to them
-                // in the future.
-                // If those segments are not pushed here, the remaining available space in appenderator will be kept
-                // small which could lead to smaller segments.
-                final SegmentsAndCommitMetadata pushed = driver.pushAllAndClear(pushTimeout);
-                LOG.debugSegments(pushed.getSegments(), "Pushed segments");
-              }
+        if (addResult.isOk()) {
+          // incremental segment publishment is allowed only when rollup doesn't have to be perfect.
+          if (dynamicPartitionsSpec != null) {
+            final boolean isPushRequired = addResult.isPushRequired(
+                dynamicPartitionsSpec.getMaxRowsPerSegment(),
+                dynamicPartitionsSpec.getMaxTotalRowsOr(DynamicPartitionsSpec.DEFAULT_MAX_TOTAL_ROWS)
+            );
+            if (isPushRequired) {
+              // There can be some segments waiting for being pushed even though no more rows will be added to them
+              // in the future.
+              // If those segments are not pushed here, the remaining available space in appenderator will be kept
+              // small which could lead to smaller segments.
+              final SegmentsAndCommitMetadata pushed = driver.pushAllAndClear(pushTimeout);
+              LOG.debugSegments(pushed.getSegments(), "Pushed segments");
             }
-          } else {
-            throw new ISE("Failed to add a row with timestamp[%s]", inputRow.getTimestamp());
           }
+        } else {
+          throw new ISE("Failed to add a row with timestamp[%s]", inputRow.getTimestamp());
+        }
 
-          if (addResult.getParseException() != null) {
-            handleParseException(addResult.getParseException());
-          } else {
-            buildSegmentsMeters.incrementProcessed();
-          }
-        }
-        catch (ParseException e) {
-          handleParseException(e);
-        }
+        // TODO: see if this can be moved into AppenderatorDriver
+        buildSegmentsMeters.incrementProcessed();
       }
 
       final SegmentsAndCommitMetadata pushed = driver.pushAllAndClear(pushTimeout);
       LOG.debugSegments(pushed.getSegments(), "Pushed segments");
 
       return pushed;
-    }
-  }
-
-  private void handleParseException(ParseException e)
-  {
-    if (e.isFromPartiallyValidRow()) {
-      buildSegmentsMeters.incrementProcessedWithError();
-    } else {
-      buildSegmentsMeters.incrementUnparseable();
-    }
-
-    if (logParseExceptions) {
-      LOG.error(e, "Encountered parse exception");
-    }
-
-    if (buildSegmentsSavedParseExceptions != null) {
-      buildSegmentsSavedParseExceptions.add(e);
-    }
-
-    if (buildSegmentsMeters.getUnparseable() + buildSegmentsMeters.getProcessedWithError() > maxParseExceptions) {
-      LOG.error("Max parse exceptions exceeded, terminating task...");
-      throw new RuntimeException("Max parse exceptions exceeded, terminating task...", e);
     }
   }
 }

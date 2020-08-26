@@ -25,7 +25,6 @@ import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.stats.DropwizardRowIngestionMeters;
-import org.apache.druid.indexing.common.stats.RowIngestionMeters;
 import org.apache.druid.indexing.common.task.BatchAppenderators;
 import org.apache.druid.indexing.common.task.ClientBasedTaskInfoProvider;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
@@ -37,6 +36,8 @@ import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.IndexTaskInputRowIteratorBuilder;
 import org.apache.druid.indexing.worker.ShuffleDataSegmentPusher;
 import org.apache.druid.query.DruidMetrics;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.realtime.FireDepartment;
@@ -179,7 +180,13 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
         dataSchema,
         tuningConfig,
         new ShuffleDataSegmentPusher(supervisorTaskId, getId(), toolbox.getIntermediaryDataManager()),
-        getContextValue(Tasks.STORE_COMPACTION_STATE_KEY, Tasks.DEFAULT_STORE_COMPACTION_STATE)
+        getContextValue(Tasks.STORE_COMPACTION_STATE_KEY, Tasks.DEFAULT_STORE_COMPACTION_STATE),
+        new ParseExceptionHandler(
+            buildSegmentsMeters,
+            tuningConfig.isLogParseExceptions(),
+            tuningConfig.getMaxParseExceptions(),
+            tuningConfig.getMaxSavedParseExceptions()
+        )
     );
     boolean exceptionOccurred = false;
     try (final BatchAppenderatorDriver driver = BatchAppenderators.newDriver(appenderator, toolbox, segmentAllocator)) {

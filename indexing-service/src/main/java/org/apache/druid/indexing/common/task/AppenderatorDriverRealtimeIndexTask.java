@@ -59,8 +59,6 @@ import org.apache.druid.indexing.common.actions.TimeChunkLockAcquireAction;
 import org.apache.druid.indexing.common.config.TaskConfig;
 import org.apache.druid.indexing.common.index.RealtimeAppenderatorIngestionSpec;
 import org.apache.druid.indexing.common.index.RealtimeAppenderatorTuningConfig;
-import org.apache.druid.indexing.common.stats.RowIngestionMeters;
-import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.stats.TaskRealtimeMetricsMonitor;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
@@ -71,6 +69,9 @@ import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.NoopQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
+import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.realtime.FireDepartment;
@@ -388,11 +389,7 @@ public class AppenderatorDriverRealtimeIndexTask extends AbstractTask implements
               throw new ISE("Could not allocate segment for row with timestamp[%s]", inputRow.getTimestamp());
             }
 
-            if (addResult.getParseException() != null) {
-              handleParseException(addResult.getParseException());
-            } else {
-              rowIngestionMeters.incrementProcessed();
-            }
+            rowIngestionMeters.incrementProcessed();
           }
         }
         catch (ParseException e) {
@@ -778,7 +775,13 @@ public class AppenderatorDriverRealtimeIndexTask extends AbstractTask implements
         toolbox.getJoinableFactory(),
         toolbox.getCache(),
         toolbox.getCacheConfig(),
-        toolbox.getCachePopulatorStats()
+        toolbox.getCachePopulatorStats(),
+        new ParseExceptionHandler(
+            rowIngestionMeters,
+            tuningConfig.isLogParseExceptions(),
+            tuningConfig.getMaxParseExceptions(),
+            tuningConfig.getMaxSavedParseExceptions()
+        )
     );
   }
 

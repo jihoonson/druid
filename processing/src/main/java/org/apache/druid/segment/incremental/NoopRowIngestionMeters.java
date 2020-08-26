@@ -17,9 +17,69 @@
  * under the License.
  */
 
-package org.apache.druid.indexing.common.stats;
+package org.apache.druid.segment.incremental;
 
-public interface RowIngestionMetersFactory
+import java.util.Map;
+
+public class NoopRowIngestionMeters implements RowIngestionMeters
 {
-  RowIngestionMeters createRowIngestionMeters();
+  @Override
+  public long getProcessed()
+  {
+    return 0;
+  }
+
+  @Override
+  public void incrementProcessed()
+  {
+
+  }
+
+  @Override
+  public long getProcessedWithError()
+  {
+    return 0;
+  }
+
+  @Override
+  public void incrementProcessedWithError()
+  {
+
+  }
+
+  @Override
+  public long getUnparseable()
+  {
+    return 0;
+  }
+
+  @Override
+  public void incrementUnparseable()
+  {
+
+  }
+
+  @Override
+  public long getThrownAway()
+  {
+    return 0;
+  }
+
+  @Override
+  public void incrementThrownAway()
+  {
+
+  }
+
+  @Override
+  public RowIngestionMetersTotals getTotals()
+  {
+    return null;
+  }
+
+  @Override
+  public Map<String, Object> getMovingAverages()
+  {
+    return null;
+  }
 }

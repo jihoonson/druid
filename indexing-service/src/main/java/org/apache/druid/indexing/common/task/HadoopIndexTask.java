@@ -49,7 +49,7 @@ import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.actions.TimeChunkLockAcquireAction;
 import org.apache.druid.indexing.common.actions.TimeChunkLockTryAcquireAction;
 import org.apache.druid.indexing.common.config.TaskConfig;
-import org.apache.druid.indexing.common.stats.RowIngestionMeters;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.indexing.hadoop.OverlordActionBasedUsedSegmentsRetriever;
 import org.apache.druid.java.util.common.JodaUtils;
 import org.apache.druid.java.util.common.StringUtils;

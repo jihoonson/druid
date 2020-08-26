@@ -60,8 +60,6 @@ import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
-import org.apache.druid.indexing.common.stats.RowIngestionMeters;
-import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.stats.TaskRealtimeMetricsMonitor;
 import org.apache.druid.indexing.common.task.batch.parallel.PartialHashSegmentGenerateTask;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.DefaultIndexTaskInputRowIteratorBuilder;
@@ -83,6 +81,9 @@ import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.segment.IndexSpec;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
+import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.indexing.BatchIOConfig;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.IngestionSpec;
@@ -922,7 +923,13 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         toolbox,
         dataSchema,
         tuningConfig,
-        getContextValue(Tasks.STORE_COMPACTION_STATE_KEY, Tasks.DEFAULT_STORE_COMPACTION_STATE)
+        getContextValue(Tasks.STORE_COMPACTION_STATE_KEY, Tasks.DEFAULT_STORE_COMPACTION_STATE),
+        new ParseExceptionHandler(
+            buildSegmentsMeters,
+            tuningConfig.logParseExceptions,
+            tuningConfig.maxParseExceptions,
+            tuningConfig.maxSavedParseExceptions
+        )
     );
     boolean exceptionOccurred = false;
     try (final BatchAppenderatorDriver driver = BatchAppenderators.newDriver(appenderator, toolbox, segmentAllocator)) {

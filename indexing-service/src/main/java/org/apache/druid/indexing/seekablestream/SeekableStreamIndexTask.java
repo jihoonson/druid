@@ -34,7 +34,6 @@ import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.SegmentAllocateAction;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.config.TaskConfig;
-import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.AbstractTask;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.Tasks;
@@ -46,6 +45,8 @@ import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.NoopQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
 import org.apache.druid.segment.realtime.appenderator.Appenderator;
@@ -209,7 +210,13 @@ public abstract class SeekableStreamIndexTask<PartitionIdType, SequenceOffsetTyp
         toolbox.getJoinableFactory(),
         toolbox.getCache(),
         toolbox.getCacheConfig(),
-        toolbox.getCachePopulatorStats()
+        toolbox.getCachePopulatorStats(),
+        new ParseExceptionHandler(
+            rowIngestionMetersFactory.createRowIngestionMeters(),
+            tuningConfig.isLogParseExceptions(),
+            tuningConfig.getMaxParseExceptions(),
+            tuningConfig.getMaxSavedParseExceptions()
+        )
     );
   }
 

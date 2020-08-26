@@ -50,6 +50,8 @@ import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.query.DruidMetrics;
 import org.apache.druid.query.aggregation.AggregatorFactory;
+import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.indexing.granularity.ArbitraryGranularitySpec;
@@ -324,7 +326,13 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
         toolbox,
         dataSchema,
         tuningConfig,
-        getContextValue(Tasks.STORE_COMPACTION_STATE_KEY, Tasks.DEFAULT_STORE_COMPACTION_STATE)
+        getContextValue(Tasks.STORE_COMPACTION_STATE_KEY, Tasks.DEFAULT_STORE_COMPACTION_STATE),
+        new ParseExceptionHandler(
+            new NoopRowIngestionMeters(),
+            tuningConfig.isLogParseExceptions(),
+            tuningConfig.getMaxParseExceptions(),
+            tuningConfig.getMaxSavedParseExceptions()
+        )
     );
     final List<String> metricsNames = Arrays.stream(ingestionSchema.getDataSchema().getAggregators())
                                             .map(AggregatorFactory::getName)

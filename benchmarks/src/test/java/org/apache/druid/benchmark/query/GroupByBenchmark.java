@@ -85,6 +85,8 @@ import org.apache.druid.segment.generator.GeneratorBasicSchemas;
 import org.apache.druid.segment.generator.GeneratorSchemaInfo;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
+import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.serde.ComplexMetrics;
 import org.apache.druid.segment.writeout.OffHeapMemorySegmentWriteOutMediumFactory;
 import org.apache.druid.timeline.SegmentId;
@@ -584,7 +586,7 @@ public class GroupByBenchmark
                 .withRollup(withRollup)
                 .build()
         )
-        .setReportParseExceptions(false)
+        .setParseExceptionHandler(new ParseExceptionHandler(new NoopRowIngestionMeters(), false, 0, 0))
         .setConcurrentEventAdd(true)
         .setMaxRowCount(rowsPerSegment)
         .buildOnheap();

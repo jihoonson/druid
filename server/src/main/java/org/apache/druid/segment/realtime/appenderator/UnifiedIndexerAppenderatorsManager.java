@@ -50,6 +50,7 @@ import org.apache.druid.segment.IndexableAdapter;
 import org.apache.druid.segment.ProgressIndicator;
 import org.apache.druid.segment.QueryableIndex;
 import org.apache.druid.segment.incremental.IncrementalIndex;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.join.JoinableFactory;
 import org.apache.druid.segment.loading.DataSegmentPusher;
@@ -158,7 +159,8 @@ public class UnifiedIndexerAppenderatorsManager implements AppenderatorsManager
       JoinableFactory joinableFactory,
       Cache cache,
       CacheConfig cacheConfig,
-      CachePopulatorStats cachePopulatorStats
+      CachePopulatorStats cachePopulatorStats,
+      ParseExceptionHandler parseExceptionHandler
   )
   {
     synchronized (this) {
@@ -179,7 +181,8 @@ public class UnifiedIndexerAppenderatorsManager implements AppenderatorsManager
           datasourceBundle.getWalker(),
           indexIO,
           wrapIndexMerger(indexMerger),
-          cache
+          cache,
+          parseExceptionHandler
       );
 
       datasourceBundle.addAppenderator(taskId, appenderator);
@@ -197,7 +200,8 @@ public class UnifiedIndexerAppenderatorsManager implements AppenderatorsManager
       DataSegmentPusher dataSegmentPusher,
       ObjectMapper objectMapper,
       IndexIO indexIO,
-      IndexMerger indexMerger
+      IndexMerger indexMerger,
+      ParseExceptionHandler parseExceptionHandler
   )
   {
     synchronized (this) {
@@ -215,7 +219,8 @@ public class UnifiedIndexerAppenderatorsManager implements AppenderatorsManager
           dataSegmentPusher,
           objectMapper,
           indexIO,
-          wrapIndexMerger(indexMerger)
+          wrapIndexMerger(indexMerger),
+          parseExceptionHandler
       );
       datasourceBundle.addAppenderator(taskId, appenderator);
       return appenderator;

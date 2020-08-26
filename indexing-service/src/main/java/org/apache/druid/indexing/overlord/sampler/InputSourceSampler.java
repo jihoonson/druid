@@ -43,7 +43,6 @@ import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.LongMinAggregatorFactory;
 import org.apache.druid.segment.column.ColumnHolder;
 import org.apache.druid.segment.incremental.IncrementalIndex;
-import org.apache.druid.segment.incremental.IncrementalIndexAddResult;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
 import org.apache.druid.segment.indexing.DataSchema;
 
@@ -138,15 +137,11 @@ public class InputSourceSampler
             if (!Intervals.ETERNITY.contains(row.getTimestamp())) {
               throw new ParseException("Timestamp cannot be represented as a long: [%s]", row);
             }
-            IncrementalIndexAddResult result = index.add(new SamplerInputRow(row, counter), true);
-            if (result.getParseException() != null) {
-              throw result.getParseException();
-            } else {
-              // store the raw value; will be merged with the data from the IncrementalIndex later
-              responseRows[counter] = new SamplerResponseRow(rawColumns, null, null, null);
-              counter++;
-              numRowsIndexed++;
-            }
+            index.add(new SamplerInputRow(row, counter), true);
+            // store the raw value; will be merged with the data from the IncrementalIndex later
+            responseRows[counter] = new SamplerResponseRow(rawColumns, null, null, null);
+            counter++;
+            numRowsIndexed++;
           }
         }
         catch (ParseException e) {

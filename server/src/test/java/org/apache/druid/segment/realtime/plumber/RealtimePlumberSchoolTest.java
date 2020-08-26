@@ -46,6 +46,8 @@ import org.apache.druid.query.aggregation.CountAggregatorFactory;
 import org.apache.druid.segment.QueryableIndex;
 import org.apache.druid.segment.ReferenceCountingSegment;
 import org.apache.druid.segment.TestHelper;
+import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeTuningConfig;
 import org.apache.druid.segment.indexing.TuningConfigs;
@@ -117,6 +119,7 @@ public class RealtimePlumberSchoolTest extends InitializedNullHandlingTest
   private DataSchema schema2;
   private FireDepartmentMetrics metrics;
   private File tmpDir;
+  private ParseExceptionHandler parseExceptionHandler;
 
   public RealtimePlumberSchoolTest(
       RejectionPolicyFactory rejectionPolicy,
@@ -240,6 +243,13 @@ public class RealtimePlumberSchoolTest extends InitializedNullHandlingTest
 
     metrics = new FireDepartmentMetrics();
     plumber = (RealtimePlumber) realtimePlumberSchool.findPlumber(schema, tuningConfig, metrics);
+
+    parseExceptionHandler = new ParseExceptionHandler(
+        new NoopRowIngestionMeters(),
+        true,
+        tuningConfig.isReportParseExceptions() ? 0 : Integer.MAX_VALUE,
+        0
+    );
   }
 
   @After
@@ -280,8 +290,8 @@ public class RealtimePlumberSchoolTest extends InitializedNullHandlingTest
         DateTimes.of("2014-12-01T12:34:56.789").toString(),
         tuningConfig.getMaxRowsInMemory(),
         TuningConfigs.getMaxBytesInMemoryOrDefault(tuningConfig.getMaxBytesInMemory()),
-        tuningConfig.isReportParseExceptions(),
-        tuningConfig.getDedupColumn()
+        tuningConfig.getDedupColumn(),
+        parseExceptionHandler
     );
     plumber.getSinks().put(0L, sink);
     Assert.assertNull(plumber.startJob());
@@ -326,8 +336,8 @@ public class RealtimePlumberSchoolTest extends InitializedNullHandlingTest
         DateTimes.of("2014-12-01T12:34:56.789").toString(),
         tuningConfig.getMaxRowsInMemory(),
         TuningConfigs.getMaxBytesInMemoryOrDefault(tuningConfig.getMaxBytesInMemory()),
-        tuningConfig.isReportParseExceptions(),
-        tuningConfig.getDedupColumn()
+        tuningConfig.getDedupColumn(),
+        parseExceptionHandler
     );
     plumber.getSinks().put(0L, sink);
     plumber.startJob();
@@ -377,8 +387,8 @@ public class RealtimePlumberSchoolTest extends InitializedNullHandlingTest
         DateTimes.of("2014-12-01T12:34:56.789").toString(),
         tuningConfig.getMaxRowsInMemory(),
         TuningConfigs.getMaxBytesInMemoryOrDefault(tuningConfig.getMaxBytesInMemory()),
-        tuningConfig.isReportParseExceptions(),
-        tuningConfig.getDedupColumn()
+        tuningConfig.getDedupColumn(),
+        parseExceptionHandler
     );
     plumber2.getSinks().put(0L, sink);
     Assert.assertNull(plumber2.startJob());

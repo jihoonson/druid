@@ -17,16 +17,9 @@
  * under the License.
  */
 
-package org.apache.druid.indexing.common.stats;
+package org.apache.druid.segment.incremental;
 
-import org.apache.druid.segment.incremental.RowIngestionMeters;
-import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
-
-public class DropwizardRowIngestionMetersFactory implements RowIngestionMetersFactory
+public interface RowIngestionMetersFactory
 {
-  @Override
-  public RowIngestionMeters createRowIngestionMeters()
-  {
-    return new DropwizardRowIngestionMeters();
-  }
+  RowIngestionMeters createRowIngestionMeters();
 }

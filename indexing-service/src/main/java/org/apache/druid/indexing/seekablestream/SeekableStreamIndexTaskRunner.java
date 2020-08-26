@@ -59,8 +59,6 @@ import org.apache.druid.indexing.common.actions.CheckPointDataSourceMetadataActi
 import org.apache.druid.indexing.common.actions.ResetDataSourceMetadataAction;
 import org.apache.druid.indexing.common.actions.SegmentLockAcquireAction;
 import org.apache.druid.indexing.common.actions.TimeChunkLockAcquireAction;
-import org.apache.druid.indexing.common.stats.RowIngestionMeters;
-import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.IndexTaskUtils;
 import org.apache.druid.indexing.common.task.RealtimeIndexTask;
 import org.apache.druid.indexing.seekablestream.common.OrderedPartitionableRecord;
@@ -72,9 +70,10 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.collect.Utils;
-import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.aggregation.AggregatorFactory;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
+import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.realtime.FireDepartment;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
@@ -623,94 +622,86 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
             );
 
             if (shouldProcess) {
-              try {
-                final List<byte[]> valueBytess = record.getData();
-                final List<InputRow> rows;
-                if (valueBytess == null || valueBytess.isEmpty()) {
-                  rows = Utils.nullableListOf((InputRow) null);
-                } else {
-                  rows = parser.parse(valueBytess);
-                }
-                boolean isPersistRequired = false;
+              final List<byte[]> valueBytess = record.getData();
+              final List<InputRow> rows;
+              if (valueBytess == null || valueBytess.isEmpty()) {
+                rows = Utils.nullableListOf((InputRow) null);
+              } else {
+                rows = parser.parse(valueBytess);
+              }
+              boolean isPersistRequired = false;
 
-                final SequenceMetadata<PartitionIdType, SequenceOffsetType> sequenceToUse = sequences
-                    .stream()
-                    .filter(sequenceMetadata -> sequenceMetadata.canHandle(this, record))
-                    .findFirst()
-                    .orElse(null);
+              final SequenceMetadata<PartitionIdType, SequenceOffsetType> sequenceToUse = sequences
+                  .stream()
+                  .filter(sequenceMetadata -> sequenceMetadata.canHandle(this, record))
+                  .findFirst()
+                  .orElse(null);
 
-                if (sequenceToUse == null) {
-                  throw new ISE(
-                      "WTH?! cannot find any valid sequence for record with partition [%s] and sequenceNumber [%s]. Current sequences: %s",
-                      record.getPartitionId(),
-                      record.getSequenceNumber(),
-                      sequences
+              if (sequenceToUse == null) {
+                throw new ISE(
+                    "WTH?! cannot find any valid sequence for record with partition [%s] and sequenceNumber [%s]. Current sequences: %s",
+                    record.getPartitionId(),
+                    record.getSequenceNumber(),
+                    sequences
+                );
+              }
+
+              for (InputRow row : rows) {
+                if (row != null && task.withinMinMaxRecordTime(row)) {
+                  final AppenderatorDriverAddResult addResult = driver.add(
+                      row,
+                      sequenceToUse.getSequenceName(),
+                      committerSupplier,
+                      true,
+                      // do not allow incremental persists to happen until all the rows from this batch
+                      // of rows are indexed
+                      false
                   );
-                }
 
-                for (InputRow row : rows) {
-                  if (row != null && task.withinMinMaxRecordTime(row)) {
-                    final AppenderatorDriverAddResult addResult = driver.add(
-                        row,
-                        sequenceToUse.getSequenceName(),
-                        committerSupplier,
-                        true,
-                        // do not allow incremental persists to happen until all the rows from this batch
-                        // of rows are indexed
-                        false
+                  if (addResult.isOk()) {
+                    // If the number of rows in the segment exceeds the threshold after adding a row,
+                    // move the segment out from the active segments of BaseAppenderatorDriver to make a new segment.
+                    final boolean isPushRequired = addResult.isPushRequired(
+                        tuningConfig.getPartitionsSpec().getMaxRowsPerSegment(),
+                        tuningConfig.getPartitionsSpec()
+                                    .getMaxTotalRowsOr(DynamicPartitionsSpec.DEFAULT_MAX_TOTAL_ROWS)
                     );
-
-                    if (addResult.isOk()) {
-                      // If the number of rows in the segment exceeds the threshold after adding a row,
-                      // move the segment out from the active segments of BaseAppenderatorDriver to make a new segment.
-                      final boolean isPushRequired = addResult.isPushRequired(
-                          tuningConfig.getPartitionsSpec().getMaxRowsPerSegment(),
-                          tuningConfig.getPartitionsSpec()
-                                      .getMaxTotalRowsOr(DynamicPartitionsSpec.DEFAULT_MAX_TOTAL_ROWS)
-                      );
-                      if (isPushRequired && !sequenceToUse.isCheckpointed()) {
-                        sequenceToCheckpoint = sequenceToUse;
-                      }
-                      isPersistRequired |= addResult.isPersistRequired();
-                    } else {
-                      // Failure to allocate segment puts determinism at risk, bail out to be safe.
-                      // May want configurable behavior here at some point.
-                      // If we allow continuing, then consider blacklisting the interval for a while to avoid constant checks.
-                      throw new ISE("Could not allocate segment for row with timestamp[%s]", row.getTimestamp());
+                    if (isPushRequired && !sequenceToUse.isCheckpointed()) {
+                      sequenceToCheckpoint = sequenceToUse;
                     }
-
-                    if (addResult.getParseException() != null) {
-                      handleParseException(addResult.getParseException(), record);
-                    } else {
-                      rowIngestionMeters.incrementProcessed();
-                    }
+                    isPersistRequired |= addResult.isPersistRequired();
                   } else {
-                    rowIngestionMeters.incrementThrownAway();
+                    // Failure to allocate segment puts determinism at risk, bail out to be safe.
+                    // May want configurable behavior here at some point.
+                    // If we allow continuing, then consider blacklisting the interval for a while to avoid constant checks.
+                    throw new ISE("Could not allocate segment for row with timestamp[%s]", row.getTimestamp());
                   }
-                }
-                if (isPersistRequired) {
-                  Futures.addCallback(
-                      driver.persistAsync(committerSupplier.get()),
-                      new FutureCallback<Object>()
-                      {
-                        @Override
-                        public void onSuccess(@Nullable Object result)
-                        {
-                          log.debug("Persist completed with metadata: %s", result);
-                        }
 
-                        @Override
-                        public void onFailure(Throwable t)
-                        {
-                          log.error("Persist failed, dying");
-                          backgroundThreadException = t;
-                        }
-                      }
-                  );
+                  // TODO: consider moving this to AppenderatorDriver
+                  rowIngestionMeters.incrementProcessed();
+                } else {
+                  rowIngestionMeters.incrementThrownAway();
                 }
               }
-              catch (ParseException e) {
-                handleParseException(e, record);
+              if (isPersistRequired) {
+                Futures.addCallback(
+                    driver.persistAsync(committerSupplier.get()),
+                    new FutureCallback<Object>()
+                    {
+                      @Override
+                      public void onSuccess(@Nullable Object result)
+                      {
+                        log.debug("Persist completed with metadata: %s", result);
+                      }
+
+                      @Override
+                      public void onFailure(Throwable t)
+                      {
+                        log.error("Persist failed, dying");
+                        backgroundThreadException = t;
+                      }
+                    }
+                );
               }
 
               // in kafka, we can easily get the next offset by adding 1, but for kinesis, there's no way
@@ -1305,34 +1296,6 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
     }
 
     return false;
-  }
-
-
-  private void handleParseException(ParseException e, OrderedPartitionableRecord record)
-  {
-    if (e.isFromPartiallyValidRow()) {
-      rowIngestionMeters.incrementProcessedWithError();
-    } else {
-      rowIngestionMeters.incrementUnparseable();
-    }
-
-    if (tuningConfig.isLogParseExceptions()) {
-      log.info(
-          e,
-          "Row at partition[%s] offset[%s] was unparseable.",
-          record.getPartitionId(),
-          record.getSequenceNumber()
-      );
-    }
-
-    if (savedParseExceptions != null) {
-      savedParseExceptions.add(e);
-    }
-
-    if (rowIngestionMeters.getUnparseable() + rowIngestionMeters.getProcessedWithError()
-        > tuningConfig.getMaxParseExceptions()) {
-      throw new RuntimeException("Max parse exceptions exceeded");
-    }
   }
 
   private boolean isPaused()

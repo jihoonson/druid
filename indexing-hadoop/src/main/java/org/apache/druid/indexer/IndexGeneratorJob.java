@@ -50,6 +50,8 @@ import org.apache.druid.segment.QueryableIndex;
 import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
+import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.indexing.TuningConfigs;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
@@ -304,9 +306,16 @@ public class IndexGeneratorJob implements Jobby
 
     IncrementalIndex newIndex = new IncrementalIndex.Builder()
         .setIndexSchema(indexSchema)
-        .setReportParseExceptions(!tuningConfig.isIgnoreInvalidRows()) // only used by OffHeapIncrementalIndex
         .setMaxRowCount(tuningConfig.getRowFlushBoundary())
         .setMaxBytesInMemory(TuningConfigs.getMaxBytesInMemoryOrDefault(tuningConfig.getMaxBytesInMemory()))
+        .setParseExceptionHandler(
+            new ParseExceptionHandler(
+                new NoopRowIngestionMeters(),
+                false,
+                tuningConfig.isIgnoreInvalidRows() ? Integer.MAX_VALUE : 0,
+                0
+            )
+        )
         .buildOnheap();
 
     if (oldDimOrder != null && !indexSchema.getDimensionsSpec().hasCustomDimensions()) {

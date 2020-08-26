@@ -79,6 +79,8 @@ import org.apache.druid.segment.column.ColumnHolder;
 import org.apache.druid.segment.column.ValueType;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
+import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.virtual.ExpressionVirtualColumn;
 import org.apache.druid.segment.writeout.OffHeapMemorySegmentWriteOutMediumFactory;
 import org.apache.druid.timeline.SegmentId;
@@ -154,7 +156,14 @@ public class GroupByLimitPushDownMultiNodeMergeTest
                 .withRollup(withRollup)
                 .build()
         )
-        .setReportParseExceptions(false)
+        .setParseExceptionHandler(
+            new ParseExceptionHandler(
+                new NoopRowIngestionMeters(),
+                false,
+                0,
+                0
+            )
+        )
         .setConcurrentEventAdd(true)
         .setMaxRowCount(1000)
         .buildOnheap();

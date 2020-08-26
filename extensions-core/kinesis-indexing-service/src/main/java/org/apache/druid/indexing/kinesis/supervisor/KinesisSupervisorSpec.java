@@ -26,7 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.name.Named;
 import org.apache.druid.common.aws.AWSCredentialsConfig;
 import org.apache.druid.guice.annotations.Json;
-import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
+import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.indexing.kinesis.KinesisIndexTaskClientFactory;
 import org.apache.druid.indexing.kinesis.KinesisIndexingServiceModule;
 import org.apache.druid.indexing.overlord.IndexerMetadataStorageCoordinator;

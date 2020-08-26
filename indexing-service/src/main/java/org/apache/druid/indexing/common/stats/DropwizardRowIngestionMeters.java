@@ -21,6 +21,8 @@ package org.apache.druid.indexing.common.stats;
 
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
+import org.apache.druid.segment.incremental.RowIngestionMetersTotals;
 
 import java.util.HashMap;
 import java.util.Map;

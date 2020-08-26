@@ -21,6 +21,7 @@ package org.apache.druid.indexing.common.task;
 
 import org.apache.druid.indexing.appenderator.ActionBasedUsedSegmentChecker;
 import org.apache.druid.indexing.common.TaskToolbox;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.loading.DataSegmentPusher;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
@@ -39,7 +40,8 @@ public final class BatchAppenderators
       TaskToolbox toolbox,
       DataSchema dataSchema,
       AppenderatorConfig appenderatorConfig,
-      boolean storeCompactionState
+      boolean storeCompactionState,
+      ParseExceptionHandler parseExceptionHandler
   )
   {
     return newAppenderator(
@@ -50,7 +52,8 @@ public final class BatchAppenderators
         dataSchema,
         appenderatorConfig,
         toolbox.getSegmentPusher(),
-        storeCompactionState
+        storeCompactionState,
+        parseExceptionHandler
     );
   }
 
@@ -62,7 +65,8 @@ public final class BatchAppenderators
       DataSchema dataSchema,
       AppenderatorConfig appenderatorConfig,
       DataSegmentPusher segmentPusher,
-      boolean storeCompactionState
+      boolean storeCompactionState,
+      ParseExceptionHandler parseExceptionHandler
   )
   {
     return appenderatorsManager.createOfflineAppenderatorForTask(
@@ -74,7 +78,8 @@ public final class BatchAppenderators
         segmentPusher,
         toolbox.getJsonMapper(),
         toolbox.getIndexIO(),
-        toolbox.getIndexMergerV9()
+        toolbox.getIndexMergerV9(),
+        parseExceptionHandler
     );
   }
 

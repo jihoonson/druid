@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.druid.indexing.common.stats;
+package org.apache.druid.segment.incremental;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;

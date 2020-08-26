@@ -28,6 +28,8 @@ import org.apache.druid.segment.generator.GeneratorBasicSchemas;
 import org.apache.druid.segment.generator.GeneratorSchemaInfo;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
+import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.serde.ComplexMetrics;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -111,7 +113,7 @@ public class IndexIngestionBenchmark
                 .withRollup(rollup)
                 .build()
         )
-        .setReportParseExceptions(false)
+        .setParseExceptionHandler(new ParseExceptionHandler(new NoopRowIngestionMeters(), false, 0, 0))
         .setMaxRowCount(rowsPerSegment * 2)
         .buildOnheap();
   }

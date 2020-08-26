@@ -41,7 +41,7 @@ import org.apache.druid.indexing.common.RetryPolicyFactory;
 import org.apache.druid.indexing.common.SegmentLoaderFactory;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.TestUtils;
-import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
+import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.CompactionTask.Builder;
 import org.apache.druid.indexing.firehose.IngestSegmentFirehoseFactory;
 import org.apache.druid.indexing.overlord.Segments;

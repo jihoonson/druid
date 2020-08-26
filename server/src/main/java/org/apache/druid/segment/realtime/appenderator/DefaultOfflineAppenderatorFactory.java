@@ -24,6 +24,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.druid.segment.IndexIO;
 import org.apache.druid.segment.IndexMerger;
+import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeTuningConfig;
 import org.apache.druid.segment.loading.DataSegmentPusher;
@@ -63,7 +65,13 @@ public class DefaultOfflineAppenderatorFactory implements AppenderatorFactory
         dataSegmentPusher,
         objectMapper,
         indexIO,
-        indexMerger
+        indexMerger,
+        new ParseExceptionHandler(
+            new NoopRowIngestionMeters(),
+            false,
+            config.isReportParseExceptions() ? 0 : Integer.MAX_VALUE,
+            0
+        )
     );
   }
 }

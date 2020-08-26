@@ -55,6 +55,8 @@ import org.apache.druid.segment.Segment;
 import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
+import org.apache.druid.segment.incremental.NoopRowIngestionMeters;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.writeout.OffHeapMemorySegmentWriteOutMediumFactory;
 import org.apache.druid.testing.InitializedNullHandlingTest;
 import org.joda.time.Interval;
@@ -88,6 +90,13 @@ public class SpatialFilterTest extends InitializedNullHandlingTest
   };
 
   private static List<String> DIMS = Lists.newArrayList("dim", "lat", "long", "lat2", "long2");
+
+  private static final ParseExceptionHandler PARSE_EXCEPTION_HANDLER = new ParseExceptionHandler(
+      new NoopRowIngestionMeters(),
+      false,
+      0,
+      0
+  );
 
   @Parameterized.Parameters
   public static Collection<?> constructorFeeder() throws IOException
@@ -137,7 +146,7 @@ public class SpatialFilterTest extends InitializedNullHandlingTest
                     )
                 ).build()
         )
-        .setReportParseExceptions(false)
+        .setParseExceptionHandler(PARSE_EXCEPTION_HANDLER)
         .setMaxRowCount(NUM_POINTS)
         .buildOnheap();
 
@@ -303,7 +312,7 @@ public class SpatialFilterTest extends InitializedNullHandlingTest
                       )
                   ).build()
           )
-          .setReportParseExceptions(false)
+          .setParseExceptionHandler(PARSE_EXCEPTION_HANDLER)
           .setMaxRowCount(1000)
           .buildOnheap();
 
@@ -330,7 +339,7 @@ public class SpatialFilterTest extends InitializedNullHandlingTest
                       )
                   ).build()
           )
-          .setReportParseExceptions(false)
+          .setParseExceptionHandler(PARSE_EXCEPTION_HANDLER)
           .setMaxRowCount(1000)
           .buildOnheap();
 
@@ -357,7 +366,7 @@ public class SpatialFilterTest extends InitializedNullHandlingTest
                       )
                   ).build()
           )
-          .setReportParseExceptions(false)
+          .setParseExceptionHandler(PARSE_EXCEPTION_HANDLER)
           .setMaxRowCount(NUM_POINTS)
           .buildOnheap();
 

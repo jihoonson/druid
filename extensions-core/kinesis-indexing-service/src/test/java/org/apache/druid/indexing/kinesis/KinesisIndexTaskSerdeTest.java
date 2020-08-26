@@ -26,7 +26,7 @@ import com.google.inject.name.Names;
 import org.apache.druid.common.aws.AWSCredentialsConfig;
 import org.apache.druid.guice.GuiceInjectors;
 import org.apache.druid.indexing.common.stats.DropwizardRowIngestionMetersFactory;
-import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
+import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.TestAppenderatorsManager;
 import org.apache.druid.indexing.seekablestream.SeekableStreamEndSequenceNumbers;
 import org.apache.druid.indexing.seekablestream.SeekableStreamStartSequenceNumbers;

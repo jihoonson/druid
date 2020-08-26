@@ -32,7 +32,7 @@ import org.apache.druid.data.input.impl.NoopInputFormat;
 import org.apache.druid.data.input.impl.NoopInputSource;
 import org.apache.druid.guice.FirehoseModule;
 import org.apache.druid.indexing.common.stats.DropwizardRowIngestionMetersFactory;
-import org.apache.druid.indexing.common.stats.RowIngestionMetersFactory;
+import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
 import org.apache.druid.indexing.common.task.NoopIndexTaskClientFactory;
 import org.apache.druid.indexing.common.task.TestAppenderatorsManager;

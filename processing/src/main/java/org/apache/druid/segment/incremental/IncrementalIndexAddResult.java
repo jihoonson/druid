@@ -19,8 +19,6 @@
 
 package org.apache.druid.segment.incremental;
 
-import org.apache.druid.java.util.common.parsers.ParseException;
-
 import javax.annotation.Nullable;
 
 public class IncrementalIndexAddResult
@@ -29,30 +27,25 @@ public class IncrementalIndexAddResult
   private final long bytesInMemory;
 
   @Nullable
-  private final ParseException parseException;
-  @Nullable
   private String reasonOfNotAdded;
 
   public IncrementalIndexAddResult(
       int rowCount,
       long bytesInMemory,
-      @Nullable ParseException parseException,
       @Nullable String reasonOfNotAdded
   )
   {
     this.rowCount = rowCount;
     this.bytesInMemory = bytesInMemory;
-    this.parseException = parseException;
     this.reasonOfNotAdded = reasonOfNotAdded;
   }
 
   public IncrementalIndexAddResult(
       int rowCount,
-      long bytesInMemory,
-      @Nullable ParseException parseException
+      long bytesInMemory
   )
   {
-    this(rowCount, bytesInMemory, parseException, null);
+    this(rowCount, bytesInMemory, null);
   }
 
   public int getRowCount()
@@ -63,12 +56,6 @@ public class IncrementalIndexAddResult
   public long getBytesInMemory()
   {
     return bytesInMemory;
-  }
-
-  @Nullable
-  public ParseException getParseException()
-  {
-    return parseException;
   }
 
   @Nullable
