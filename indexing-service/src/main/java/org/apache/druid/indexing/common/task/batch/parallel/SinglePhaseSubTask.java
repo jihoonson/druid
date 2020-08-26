@@ -364,6 +364,7 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
                 "Encountered row with timestamp that cannot be represented as a long: [%s]",
                 inputRow
             );
+            // TODO: can remove
             throw new ParseException(errorMsg);
           }
 

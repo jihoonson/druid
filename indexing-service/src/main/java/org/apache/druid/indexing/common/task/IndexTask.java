@@ -775,6 +775,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
                   "Encountered row with timestamp that cannot be represented as a long: [%s]",
                   inputRow
               );
+              // TODO: can remove
               throw new ParseException(errorMsg);
             }
 

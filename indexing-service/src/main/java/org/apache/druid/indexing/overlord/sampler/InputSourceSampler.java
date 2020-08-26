@@ -134,6 +134,7 @@ public class InputSourceSampler
           }
 
           for (InputRow row : inputRowListPlusRawValues.getInputRows()) {
+            // TODO: can remove
             if (!Intervals.ETERNITY.contains(row.getTimestamp())) {
               throw new ParseException("Timestamp cannot be represented as a long: [%s]", row);
             }

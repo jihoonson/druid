@@ -771,13 +771,12 @@ public abstract class IncrementalIndex<AggregatorType> extends AbstractIndex imp
     if (numAdded == 0) {
       return null;
     }
-    ParseException pe = new ParseException(
+    return new ParseException(
+        true,
         "Found unparseable columns in row: [%s], exceptions: [%s]",
         row,
         stringBuilder.toString()
     );
-    pe.setFromPartiallyValidRow(true);
-    return pe;
   }
 
   private synchronized void updateMaxIngestedTime(DateTime eventTime)

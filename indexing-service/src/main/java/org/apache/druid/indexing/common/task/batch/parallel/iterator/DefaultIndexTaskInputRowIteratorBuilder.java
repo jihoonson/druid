@@ -143,6 +143,7 @@ public class DefaultIndexTaskInputRowIteratorBuilder implements IndexTaskInputRo
             "Encountered row with timestamp that cannot be represented as a long: [%s]",
             inputRow
         );
+        // TODO: can remove
         throw new ParseException(errorMsg);
       }
       return false;
