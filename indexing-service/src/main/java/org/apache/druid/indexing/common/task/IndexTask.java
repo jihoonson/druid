@@ -39,9 +39,7 @@ import org.apache.druid.data.input.FirehoseFactory;
 import org.apache.druid.data.input.FirehoseFactoryToInputSourceAdaptor;
 import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.InputSource;
-import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.data.input.Rows;
 import org.apache.druid.data.input.impl.InputRowParser;
 import org.apache.druid.hll.HyperLogLogCollector;
@@ -77,7 +75,6 @@ import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
-import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.segment.IndexSpec;
 import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.incremental.RowIngestionMeters;
@@ -122,7 +119,6 @@ import javax.ws.rs.core.Response;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -134,7 +130,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
+import java.util.function.Predicate;
 
 public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
 {
@@ -742,43 +738,36 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         Comparators.intervalsByStartThenEnd()
     );
     final Granularity queryGranularity = granularitySpec.getQueryGranularity();
-    final List<String> metricsNames = Arrays.stream(ingestionSchema.getDataSchema().getAggregators())
-                                            .map(AggregatorFactory::getName)
-                                            .collect(Collectors.toList());
-    final InputSourceReader inputSourceReader = new ParseExceptionHandlingInputSourceReader(
-        ingestionSchema.getDataSchema().getTransformSpec().decorate(
-            inputSource.reader(
-                new InputRowSchema(
-                    ingestionSchema.getDataSchema().getTimestampSpec(),
-                    ingestionSchema.getDataSchema().getDimensionsSpec(),
-                    metricsNames
-                ),
-                inputSource.needsFormat() ? getInputFormat(ingestionSchema) : null,
-                tmpDir
-            )
-        ),
+    final FilteringInputSourceReader inputSourceReader = Tasks.inputSourceReader(
+        tmpDir,
+        ingestionSchema.getDataSchema(),
+        inputSource,
+        inputSource.needsFormat() ? getInputFormat(ingestionSchema) : null,
+        determinePartitionsMeters,
         determinePartitionsParseExceptionHandler
     );
+    final Predicate<InputRow> rowFilter = inputRow -> {
+      if (inputRow == null) {
+        return false;
+      }
+      if (determineIntervals) {
+        return true;
+      }
+      final Optional<Interval> optInterval = granularitySpec.bucketInterval(inputRow.getTimestamp());
+      return optInterval.isPresent();
+    };
 
-    try (final CloseableIterator<InputRow> inputRowIterator = inputSourceReader.read()) {
+    try (final CloseableIterator<InputRow> inputRowIterator = inputSourceReader.read(rowFilter)) {
       while (inputRowIterator.hasNext()) {
         final InputRow inputRow = inputRowIterator.next();
-
-        // The null inputRow means the caller must skip this row.
-        if (inputRow == null) {
-          determinePartitionsMeters.incrementThrownAway();
-          continue;
-        }
 
         final Interval interval;
         if (determineIntervals) {
           interval = granularitySpec.getSegmentGranularity().bucket(inputRow.getTimestamp());
         } else {
           final Optional<Interval> optInterval = granularitySpec.bucketInterval(inputRow.getTimestamp());
-          if (!optInterval.isPresent()) {
-            determinePartitionsMeters.incrementThrownAway();
-            continue;
-          }
+          // this interval must exist since it passed the rowFilter
+          assert optInterval.isPresent();
           interval = optInterval.get();
         }
 
@@ -910,12 +899,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     try (final BatchAppenderatorDriver driver = BatchAppenderators.newDriver(appenderator, toolbox, segmentAllocator)) {
       driver.startJob();
 
-      final InputSourceProcessor inputSourceProcessor = new InputSourceProcessor(
-          buildSegmentsMeters,
-          pushTimeout,
-          new DefaultIndexTaskInputRowIteratorBuilder()
-      );
-      inputSourceProcessor.process(
+      InputSourceProcessor.process(
           dataSchema,
           driver,
           partitionsSpec,
@@ -923,7 +907,10 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
           inputSource.needsFormat() ? getInputFormat(ingestionSchema) : null,
           tmpDir,
           sequenceNameFunction,
-          buildSegmentsParseExceptionHandler
+          new DefaultIndexTaskInputRowIteratorBuilder(),
+          buildSegmentsMeters,
+          buildSegmentsParseExceptionHandler,
+          pushTimeout
       );
 
       // If we use timeChunk lock, then we don't have to specify what segments will be overwritten because

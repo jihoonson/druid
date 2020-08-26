@@ -194,12 +194,7 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
     try (final BatchAppenderatorDriver driver = BatchAppenderators.newDriver(appenderator, toolbox, segmentAllocator)) {
       driver.startJob();
 
-      final InputSourceProcessor inputSourceProcessor = new InputSourceProcessor(
-          buildSegmentsMeters,
-          pushTimeout,
-          inputRowIteratorBuilder
-      );
-      final SegmentsAndCommitMetadata pushed = inputSourceProcessor.process(
+      final SegmentsAndCommitMetadata pushed = InputSourceProcessor.process(
           dataSchema,
           driver,
           partitionsSpec,
@@ -207,7 +202,10 @@ abstract class PartialSegmentGenerateTask<T extends GeneratedPartitionsReport> e
           inputSource.needsFormat() ? ParallelIndexSupervisorTask.getInputFormat(ingestionSchema) : null,
           tmpDir,
           sequenceNameFunction,
-          parseExceptionHandler
+          inputRowIteratorBuilder,
+          buildSegmentsMeters,
+          parseExceptionHandler,
+          pushTimeout
       );
 
       return pushed.getSegments();

@@ -83,18 +83,6 @@ public class RangePartitionIndexTaskInputRowIteratorBuilder implements IndexTask
   }
 
   @Override
-  public IndexTaskInputRowIteratorBuilder nullRowRunnable(Runnable nullRowRunnable)
-  {
-    return delegate.nullRowRunnable(nullRowRunnable);
-  }
-
-  @Override
-  public IndexTaskInputRowIteratorBuilder absentBucketIntervalConsumer(Consumer<InputRow> absentBucketIntervalConsumer)
-  {
-    return delegate.absentBucketIntervalConsumer(absentBucketIntervalConsumer);
-  }
-
-  @Override
   public HandlingInputRowIterator build()
   {
     return delegate.build();

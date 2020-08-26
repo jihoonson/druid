@@ -36,7 +36,6 @@ import org.junit.runner.RunWith;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
 
 @RunWith(Enclosed.class)
 public class DefaultIndexTaskInputRowIteratorBuilderTest
@@ -45,9 +44,6 @@ public class DefaultIndexTaskInputRowIteratorBuilderTest
   {
     private static final CloseableIterator<InputRow> ITERATOR = EasyMock.mock(CloseableIterator.class);
     private static final GranularitySpec GRANULARITY_SPEC = EasyMock.mock(GranularitySpec.class);
-    private static final Runnable NULL_ROW_RUNNABLE = IndexTaskInputRowIteratorBuilder.NOOP_RUNNABLE;
-    private static final Consumer<InputRow> ABSENT_BUCKET_INTERVAL_CONSUMER =
-        IndexTaskInputRowIteratorBuilder.NOOP_CONSUMER;
 
     @Rule
     public ExpectedException exception = ExpectedException.none();
@@ -60,8 +56,6 @@ public class DefaultIndexTaskInputRowIteratorBuilderTest
 
       new DefaultIndexTaskInputRowIteratorBuilder()
           .granularitySpec(GRANULARITY_SPEC)
-          .nullRowRunnable(NULL_ROW_RUNNABLE)
-          .absentBucketIntervalConsumer(ABSENT_BUCKET_INTERVAL_CONSUMER)
           .build();
     }
 
@@ -73,8 +67,6 @@ public class DefaultIndexTaskInputRowIteratorBuilderTest
 
       new DefaultIndexTaskInputRowIteratorBuilder()
           .delegate(ITERATOR)
-          .nullRowRunnable(NULL_ROW_RUNNABLE)
-          .absentBucketIntervalConsumer(ABSENT_BUCKET_INTERVAL_CONSUMER)
           .build();
     }
 
@@ -87,7 +79,6 @@ public class DefaultIndexTaskInputRowIteratorBuilderTest
       new DefaultIndexTaskInputRowIteratorBuilder()
           .delegate(ITERATOR)
           .granularitySpec(GRANULARITY_SPEC)
-          .absentBucketIntervalConsumer(ABSENT_BUCKET_INTERVAL_CONSUMER)
           .build();
     }
 
@@ -100,7 +91,6 @@ public class DefaultIndexTaskInputRowIteratorBuilderTest
       new DefaultIndexTaskInputRowIteratorBuilder()
           .delegate(ITERATOR)
           .granularitySpec(GRANULARITY_SPEC)
-          .nullRowRunnable(NULL_ROW_RUNNABLE)
           .build();
     }
 
@@ -110,8 +100,6 @@ public class DefaultIndexTaskInputRowIteratorBuilderTest
       new DefaultIndexTaskInputRowIteratorBuilder()
           .delegate(ITERATOR)
           .granularitySpec(GRANULARITY_SPEC)
-          .nullRowRunnable(NULL_ROW_RUNNABLE)
-          .absentBucketIntervalConsumer(ABSENT_BUCKET_INTERVAL_CONSUMER)
           .build();
     }
   }

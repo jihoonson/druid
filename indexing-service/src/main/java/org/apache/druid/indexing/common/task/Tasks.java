@@ -20,17 +20,28 @@
 package org.apache.druid.indexing.common.task;
 
 import org.apache.curator.shaded.com.google.common.base.Verify;
+import org.apache.druid.data.input.InputFormat;
+import org.apache.druid.data.input.InputRowSchema;
+import org.apache.druid.data.input.InputSource;
 import org.apache.druid.java.util.common.JodaUtils;
 import org.apache.druid.java.util.common.guava.Comparators;
+import org.apache.druid.query.aggregation.AggregatorFactory;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
+import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.server.coordinator.DataSourceCompactionConfig;
 import org.apache.druid.server.coordinator.duty.CompactSegments;
 import org.joda.time.Interval;
 
+import javax.annotation.Nullable;
+import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class Tasks
 {
@@ -83,5 +94,36 @@ public class Tasks
       condensedIntervals.add(JodaUtils.umbrellaInterval(toBeAccumulated));
     }
     return condensedIntervals;
+  }
+
+  public static FilteringInputSourceReader inputSourceReader(
+      File tmpDir,
+      DataSchema dataSchema,
+      InputSource inputSource,
+      @Nullable InputFormat inputFormat,
+      RowIngestionMeters ingestionMeters,
+      ParseExceptionHandler parseExceptionHandler
+  )
+  {
+    final List<String> metricsNames = Arrays.stream(dataSchema.getAggregators())
+                                            .map(AggregatorFactory::getName)
+                                            .collect(Collectors.toList());
+    return new FilteringInputSourceReader(
+        new ParseExceptionHandlingInputSourceReader(
+            dataSchema.getTransformSpec().decorate(
+                inputSource.reader(
+                    new InputRowSchema(
+                        dataSchema.getTimestampSpec(),
+                        dataSchema.getDimensionsSpec(),
+                        metricsNames
+                    ),
+                    inputFormat,
+                    tmpDir
+                )
+            ),
+            parseExceptionHandler
+        ),
+        ingestionMeters
+    );
   }
 }

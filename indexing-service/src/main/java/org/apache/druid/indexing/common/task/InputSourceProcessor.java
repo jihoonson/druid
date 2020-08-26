@@ -23,7 +23,6 @@ import com.google.common.base.Optional;
 import org.apache.druid.data.input.HandlingInputRowIterator;
 import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.InputSource;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.indexer.partitions.DynamicPartitionsSpec;
@@ -32,7 +31,6 @@ import org.apache.druid.indexing.common.task.batch.parallel.iterator.IndexTaskIn
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
-import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.indexing.DataSchema;
@@ -45,30 +43,12 @@ import org.joda.time.Interval;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 public class InputSourceProcessor
 {
   private static final Logger LOG = new Logger(InputSourceProcessor.class);
-
-  private final RowIngestionMeters buildSegmentsMeters;
-  private final long pushTimeout;
-  private final IndexTaskInputRowIteratorBuilder inputRowIteratorBuilder;
-
-  public InputSourceProcessor(
-      RowIngestionMeters buildSegmentsMeters,
-      long pushTimeout,
-      IndexTaskInputRowIteratorBuilder inputRowIteratorBuilder
-  )
-  {
-    this.buildSegmentsMeters = buildSegmentsMeters;
-    this.pushTimeout = pushTimeout;
-    this.inputRowIteratorBuilder = inputRowIteratorBuilder;
-  }
 
   /**
    * This method opens the given {@link InputSource} and processes data via {@link InputSourceReader}.
@@ -77,7 +57,7 @@ public class InputSourceProcessor
    *
    * @return {@link SegmentsAndCommitMetadata} for the pushed segments.
    */
-  public SegmentsAndCommitMetadata process(
+  public static SegmentsAndCommitMetadata process(
       DataSchema dataSchema,
       BatchAppenderatorDriver driver,
       PartitionsSpec partitionsSpec,
@@ -85,7 +65,10 @@ public class InputSourceProcessor
       @Nullable InputFormat inputFormat,
       File tmpDir,
       SequenceNameFunction sequenceNameFunction,
-      ParseExceptionHandler parseExceptionHandler
+      IndexTaskInputRowIteratorBuilder inputRowIteratorBuilder,
+      RowIngestionMeters buildSegmentsMeters,
+      ParseExceptionHandler parseExceptionHandler,
+      long pushTimeout
   ) throws IOException, InterruptedException, ExecutionException, TimeoutException
   {
     @Nullable
@@ -93,32 +76,21 @@ public class InputSourceProcessor
                                                         ? (DynamicPartitionsSpec) partitionsSpec
                                                         : null;
     final GranularitySpec granularitySpec = dataSchema.getGranularitySpec();
-
-    final List<String> metricsNames = Arrays.stream(dataSchema.getAggregators())
-                                            .map(AggregatorFactory::getName)
-                                            .collect(Collectors.toList());
-    final InputSourceReader inputSourceReader = new ParseExceptionHandlingInputSourceReader(
-        dataSchema.getTransformSpec().decorate(
-            inputSource.reader(
-                new InputRowSchema(
-                    dataSchema.getTimestampSpec(),
-                    dataSchema.getDimensionsSpec(),
-                    metricsNames
-                ),
-                inputFormat,
-                tmpDir
-            )
-        ),
+    final FilteringInputSourceReader inputSourceReader = Tasks.inputSourceReader(
+        tmpDir,
+        dataSchema,
+        inputSource,
+        inputFormat,
+        buildSegmentsMeters,
         parseExceptionHandler
     );
     try (
-        final CloseableIterator<InputRow> inputRowIterator = inputSourceReader.read();
-        // TODO: invalid row filtering iterator
-        HandlingInputRowIterator iterator = inputRowIteratorBuilder
+        final CloseableIterator<InputRow> inputRowIterator = inputSourceReader.read(
+            AbstractBatchIndexTask.defaultRowFilter(granularitySpec)
+        );
+        final HandlingInputRowIterator iterator = inputRowIteratorBuilder
             .delegate(inputRowIterator)
             .granularitySpec(granularitySpec)
-            .nullRowRunnable(buildSegmentsMeters::incrementThrownAway)
-            .absentBucketIntervalConsumer(inputRow -> buildSegmentsMeters.incrementThrownAway())
             .build()
     ) {
       while (iterator.hasNext()) {

@@ -19,7 +19,6 @@
 
 package org.apache.druid.indexing.common.task.batch.parallel.iterator;
 
-import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import org.apache.druid.data.input.HandlingInputRowIterator;
@@ -30,7 +29,6 @@ import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
-import org.joda.time.Interval;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -62,8 +60,6 @@ public class DefaultIndexTaskInputRowIteratorBuilder implements IndexTaskInputRo
 {
   private CloseableIterator<InputRow> delegate = null;
   private GranularitySpec granularitySpec = null;
-  private HandlingInputRowIterator.InputRowHandler nullRowHandler = null;
-  private HandlingInputRowIterator.InputRowHandler absentBucketIntervalHandler = null;
   private final List<HandlingInputRowIterator.InputRowHandler> appendedInputRowHandlers = new ArrayList<>();
 
   @Override
@@ -81,46 +77,13 @@ public class DefaultIndexTaskInputRowIteratorBuilder implements IndexTaskInputRo
   }
 
   @Override
-  public DefaultIndexTaskInputRowIteratorBuilder nullRowRunnable(Runnable nullRowRunnable)
-  {
-    this.nullRowHandler = inputRow -> {
-      if (inputRow == null) {
-        nullRowRunnable.run();
-        return true;
-      }
-      return false;
-    };
-    return this;
-  }
-
-  @Override
-  public DefaultIndexTaskInputRowIteratorBuilder absentBucketIntervalConsumer(
-      Consumer<InputRow> absentBucketIntervalConsumer
-  )
-  {
-    this.absentBucketIntervalHandler = inputRow -> {
-      Optional<Interval> intervalOpt = granularitySpec.bucketInterval(inputRow.getTimestamp());
-      if (!intervalOpt.isPresent()) {
-        absentBucketIntervalConsumer.accept(inputRow);
-        return true;
-      }
-      return false;
-    };
-    return this;
-  }
-
-  @Override
   public HandlingInputRowIterator build()
   {
     Preconditions.checkNotNull(delegate, "delegate required");
     Preconditions.checkNotNull(granularitySpec, "granularitySpec required");
-    Preconditions.checkNotNull(nullRowHandler, "nullRowRunnable required");
-    Preconditions.checkNotNull(absentBucketIntervalHandler, "absentBucketIntervalConsumer required");
 
     ImmutableList.Builder<HandlingInputRowIterator.InputRowHandler> handlersBuilder = ImmutableList.<HandlingInputRowIterator.InputRowHandler>builder()
-        .add(nullRowHandler)
         .add(createInvalidTimestampHandler())
-        .add(absentBucketIntervalHandler)
         .addAll(appendedInputRowHandlers);
 
     return new HandlingInputRowIterator(delegate, handlersBuilder.build());

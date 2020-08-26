@@ -19,10 +19,12 @@
 
 package org.apache.druid.indexing.common.task;
 
+import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.FirehoseFactory;
+import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
@@ -61,6 +63,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -131,6 +134,17 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
       stopped = true;
       resourceCloserOnAbnormalExit.clean(taskConfig);
     }
+  }
+
+  protected static Predicate<InputRow> defaultRowFilter(GranularitySpec granularitySpec)
+  {
+    return inputRow -> {
+      if (inputRow == null) {
+        return false;
+      }
+      final Optional<Interval> optInterval = granularitySpec.bucketInterval(inputRow.getTimestamp());
+      return optInterval.isPresent();
+    };
   }
 
   /**

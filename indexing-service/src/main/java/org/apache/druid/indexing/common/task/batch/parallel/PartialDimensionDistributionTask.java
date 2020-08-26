@@ -44,7 +44,6 @@ import org.apache.druid.indexing.common.task.IndexTaskClientFactory;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.common.task.batch.parallel.distribution.StringDistribution;
 import org.apache.druid.indexing.common.task.batch.parallel.distribution.StringSketch;
-import org.apache.druid.indexing.common.task.batch.parallel.iterator.IndexTaskInputRowIteratorBuilder;
 import org.apache.druid.indexing.common.task.batch.parallel.iterator.RangePartitionIndexTaskInputRowIteratorBuilder;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -226,8 +225,6 @@ public class PartialDimensionDistributionTask extends PerfectRollupWorkerTask
             new RangePartitionIndexTaskInputRowIteratorBuilder(partitionDimension, SKIP_NULL)
                 .delegate(inputRowIterator)
                 .granularitySpec(granularitySpec)
-                .nullRowRunnable(IndexTaskInputRowIteratorBuilder.NOOP_RUNNABLE)
-                .absentBucketIntervalConsumer(IndexTaskInputRowIteratorBuilder.NOOP_CONSUMER)
                 .build()
     ) {
       Map<Interval, StringDistribution> distribution = determineDistribution(

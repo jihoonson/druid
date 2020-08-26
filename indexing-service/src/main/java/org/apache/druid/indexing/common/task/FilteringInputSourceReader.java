@@ -26,29 +26,24 @@ import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.segment.incremental.RowIngestionMeters;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.NoSuchElementException;
 import java.util.function.Predicate;
 
-public class InvalidRowFilteringInputSourceReader implements InputSourceReader
+public class FilteringInputSourceReader
 {
   private final InputSourceReader baseReader;
-  private final Predicate<InputRow> filter;
   private final RowIngestionMeters rowIngestionMeters;
 
-  public InvalidRowFilteringInputSourceReader(
+  public FilteringInputSourceReader(
       InputSourceReader baseReader,
-      Predicate<InputRow> filter,
       RowIngestionMeters rowIngestionMeters
   )
   {
     this.baseReader = baseReader;
-    this.filter = filter;
     this.rowIngestionMeters = rowIngestionMeters;
   }
 
-  @Override
-  public CloseableIterator<InputRow> read() throws IOException
+  public CloseableIterator<InputRow> read(Predicate<InputRow> filter) throws IOException
   {
     final CloseableIterator<InputRow> delegate = baseReader.read();
     return new CloseableIterator<InputRow>()
@@ -88,9 +83,44 @@ public class InvalidRowFilteringInputSourceReader implements InputSourceReader
     };
   }
 
-  @Override
-  public CloseableIterator<InputRowListPlusRawValues> sample() throws IOException
+  public CloseableIterator<InputRowListPlusRawValues> sample(Predicate<InputRowListPlusRawValues> filter)
+      throws IOException
   {
-    throw new UnsupportedEncodingException();
+    final CloseableIterator<InputRowListPlusRawValues> delegate = baseReader.sample();
+    return new CloseableIterator<InputRowListPlusRawValues>()
+    {
+      InputRowListPlusRawValues next;
+
+      @Override
+      public boolean hasNext()
+      {
+        while (next == null && delegate.hasNext()) {
+          final InputRowListPlusRawValues row = delegate.next();
+          if (filter.test(row)) {
+            next = row;
+          } else {
+            rowIngestionMeters.incrementThrownAway();
+          }
+        }
+        return next != null;
+      }
+
+      @Override
+      public InputRowListPlusRawValues next()
+      {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+        final InputRowListPlusRawValues row = next;
+        next = null;
+        return row;
+      }
+
+      @Override
+      public void close() throws IOException
+      {
+        delegate.close();
+      }
+    };
   }
 }
