@@ -29,11 +29,10 @@ import java.util.Map;
 
 public class DropwizardRowIngestionMeters implements RowIngestionMeters
 {
-  public static final String ONE_MINUTE_NAME = "1m";
-  public static final String FIVE_MINUTE_NAME = "5m";
-  public static final String FIFTEEN_MINUTE_NAME = "15m";
+  private static final String ONE_MINUTE_NAME = "1m";
+  private static final String FIVE_MINUTE_NAME = "5m";
+  private static final String FIFTEEN_MINUTE_NAME = "15m";
 
-  private final MetricRegistry metricRegistry;
   private final Meter processed;
   private final Meter processedWithError;
   private final Meter unparseable;
@@ -41,7 +40,7 @@ public class DropwizardRowIngestionMeters implements RowIngestionMeters
 
   public DropwizardRowIngestionMeters()
   {
-    this.metricRegistry = new MetricRegistry();
+    MetricRegistry metricRegistry = new MetricRegistry();
     this.processed = metricRegistry.meter(PROCESSED);
     this.processedWithError = metricRegistry.meter(PROCESSED_WITH_ERROR);
     this.unparseable = metricRegistry.meter(UNPARSEABLE);

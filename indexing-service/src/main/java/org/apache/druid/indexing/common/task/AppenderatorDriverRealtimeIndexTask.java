@@ -64,7 +64,6 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.CloseQuietly;
-import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.NoopQueryRunner;
 import org.apache.druid.query.Query;
@@ -363,37 +362,30 @@ public class AppenderatorDriverRealtimeIndexTask extends AbstractTask implements
 
       // Time to read data!
       while (!gracefullyStopped && firehoseDrainableByClosing && firehose.hasMore()) {
-        try {
-          InputRow inputRow = firehose.nextRow();
+        InputRow inputRow = firehose.nextRow();
 
-          if (inputRow == null) {
-            log.debug("Discarded null row, considering thrownAway.");
-            rowIngestionMeters.incrementThrownAway();
-          } else {
-            AppenderatorDriverAddResult addResult = driver.add(inputRow, sequenceName, committerSupplier);
+        if (inputRow == null) {
+          log.debug("Discarded null row, considering thrownAway.");
+          rowIngestionMeters.incrementThrownAway();
+        } else {
+          AppenderatorDriverAddResult addResult = driver.add(inputRow, sequenceName, committerSupplier);
 
-            if (addResult.isOk()) {
-              final boolean isPushRequired = addResult.isPushRequired(
-                  tuningConfig.getPartitionsSpec().getMaxRowsPerSegment(),
-                  tuningConfig.getPartitionsSpec().getMaxTotalRowsOr(DynamicPartitionsSpec.DEFAULT_MAX_TOTAL_ROWS)
-              );
-              if (isPushRequired) {
-                publishSegments(driver, publisher, committerSupplier, sequenceName);
-                sequenceNumber++;
-                sequenceName = makeSequenceName(getId(), sequenceNumber);
-              }
-            } else {
-              // Failure to allocate segment puts determinism at risk, bail out to be safe.
-              // May want configurable behavior here at some point.
-              // If we allow continuing, then consider blacklisting the interval for a while to avoid constant checks.
-              throw new ISE("Could not allocate segment for row with timestamp[%s]", inputRow.getTimestamp());
+          if (addResult.isOk()) {
+            final boolean isPushRequired = addResult.isPushRequired(
+                tuningConfig.getPartitionsSpec().getMaxRowsPerSegment(),
+                tuningConfig.getPartitionsSpec().getMaxTotalRowsOr(DynamicPartitionsSpec.DEFAULT_MAX_TOTAL_ROWS)
+            );
+            if (isPushRequired) {
+              publishSegments(driver, publisher, committerSupplier, sequenceName);
+              sequenceNumber++;
+              sequenceName = makeSequenceName(getId(), sequenceNumber);
             }
-
-            rowIngestionMeters.incrementProcessed();
+          } else {
+            // Failure to allocate segment puts determinism at risk, bail out to be safe.
+            // May want configurable behavior here at some point.
+            // If we allow continuing, then consider blacklisting the interval for a while to avoid constant checks.
+            throw new ISE("Could not allocate segment for row with timestamp[%s]", inputRow.getTimestamp());
           }
-        }
-        catch (ParseException e) {
-          handleParseException(e);
         }
       }
 
@@ -620,29 +612,6 @@ public class AppenderatorDriverRealtimeIndexTask extends AbstractTask implements
         rowIngestionMeters.getTotals()
     );
     return metricsMap;
-  }
-
-  private void handleParseException(ParseException pe)
-  {
-    if (pe.isFromPartiallyValidRow()) {
-      rowIngestionMeters.incrementProcessedWithError();
-    } else {
-      rowIngestionMeters.incrementUnparseable();
-    }
-
-    if (spec.getTuningConfig().isLogParseExceptions()) {
-      log.error(pe, "Encountered parse exception");
-    }
-
-    if (savedParseExceptions != null) {
-      savedParseExceptions.add(pe);
-    }
-
-    if (rowIngestionMeters.getUnparseable() + rowIngestionMeters.getProcessedWithError()
-        > spec.getTuningConfig().getMaxParseExceptions()) {
-      log.error("Max parse exceptions exceeded, terminating task...");
-      throw new RuntimeException("Max parse exceptions exceeded, terminating task...");
-    }
   }
 
   private void setupTimeoutAlert()

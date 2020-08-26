@@ -34,7 +34,6 @@ import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexing.overlord.sampler.SamplerResponse.SamplerResponseRow;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.FileUtils;
-import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.java.util.common.parsers.ParseException;
@@ -133,10 +132,6 @@ public class InputSourceSampler
           }
 
           for (InputRow row : inputRowListPlusRawValues.getInputRows()) {
-            // TODO: can remove
-            if (!Intervals.ETERNITY.contains(row.getTimestamp())) {
-              throw new ParseException("Timestamp cannot be represented as a long: [%s]", row);
-            }
             index.add(new SamplerInputRow(row, counter), true);
             // store the raw value; will be merged with the data from the IncrementalIndex later
             responseRows[counter] = new SamplerResponseRow(rawColumns, null, null, null);

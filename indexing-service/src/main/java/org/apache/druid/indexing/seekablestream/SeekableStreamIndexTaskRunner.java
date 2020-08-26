@@ -676,9 +676,6 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
                     // If we allow continuing, then consider blacklisting the interval for a while to avoid constant checks.
                     throw new ISE("Could not allocate segment for row with timestamp[%s]", row.getTimestamp());
                   }
-
-                  // TODO: consider moving this to AppenderatorDriver
-                  rowIngestionMeters.incrementProcessed();
                 } else {
                   rowIngestionMeters.incrementThrownAway();
                 }
