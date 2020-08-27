@@ -408,8 +408,7 @@ public class AppenderatorImpl implements Appenderator
           identifier.getVersion(),
           tuningConfig.getMaxRowsInMemory(),
           maxBytesTuningConfig,
-          null,
-          parseExceptionHandler
+          null
       );
 
       try {
@@ -1128,8 +1127,7 @@ public class AppenderatorImpl implements Appenderator
             tuningConfig.getMaxRowsInMemory(),
             maxBytesTuningConfig,
             null,
-            hydrants,
-            parseExceptionHandler
+            hydrants
         );
         rowsSoFar += currSink.getNumRows();
         sinks.put(identifier, currSink);

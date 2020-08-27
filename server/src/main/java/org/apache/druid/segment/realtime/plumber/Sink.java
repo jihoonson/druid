@@ -34,7 +34,6 @@ import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexAddResult;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
 import org.apache.druid.segment.incremental.IndexSizeExceededException;
-import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.realtime.FireHydrant;
 import org.apache.druid.timeline.DataSegment;
@@ -71,7 +70,6 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
   private final AtomicInteger numRowsExcludingCurrIndex = new AtomicInteger();
   private final String dedupColumn;
   private final Set<Long> dedupSet = new HashSet<>();
-  private final ParseExceptionHandler parseExceptionHandler;
 
   private volatile FireHydrant currHydrant;
   private volatile boolean writable = true;
@@ -83,8 +81,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
       String version,
       int maxRowsInMemory,
       long maxBytesInMemory,
-      String dedupColumn,
-      ParseExceptionHandler parseExceptionHandler
+      String dedupColumn
   )
   {
     this(
@@ -95,8 +92,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
         maxRowsInMemory,
         maxBytesInMemory,
         dedupColumn,
-        Collections.emptyList(),
-        parseExceptionHandler
+        Collections.emptyList()
     );
   }
 
@@ -108,8 +104,7 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
       int maxRowsInMemory,
       long maxBytesInMemory,
       String dedupColumn,
-      List<FireHydrant> hydrants,
-      ParseExceptionHandler parseExceptionHandler
+      List<FireHydrant> hydrants
   )
   {
     this.schema = schema;
@@ -136,7 +131,6 @@ public class Sink implements Iterable<FireHydrant>, Overshadowable<Sink>
       }
     }
     this.hydrants.addAll(hydrants);
-    this.parseExceptionHandler = parseExceptionHandler;
 
     makeNewCurrIndex(interval.getStartMillis(), schema);
   }
