@@ -28,6 +28,7 @@ import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.InputSource;
+import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
@@ -147,34 +148,35 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
     }
   }
 
-  public static FilteringInputSourceReader inputSourceReader(
+  public static FilteringCloseableInputRowIterator inputSourceReader(
       File tmpDir,
       DataSchema dataSchema,
       InputSource inputSource,
       @Nullable InputFormat inputFormat,
+      Predicate<InputRow> rowFilter,
       RowIngestionMeters ingestionMeters,
       ParseExceptionHandler parseExceptionHandler
-  )
+  ) throws IOException
   {
     final List<String> metricsNames = Arrays.stream(dataSchema.getAggregators())
                                             .map(AggregatorFactory::getName)
                                             .collect(Collectors.toList());
-    return new FilteringInputSourceReader(
-        new ParseExceptionHandlingInputSourceReader(
-            dataSchema.getTransformSpec().decorate(
-                inputSource.reader(
-                    new InputRowSchema(
-                        dataSchema.getTimestampSpec(),
-                        dataSchema.getDimensionsSpec(),
-                        metricsNames
-                    ),
-                    inputFormat,
-                    tmpDir
-                )
+    final InputSourceReader inputSourceReader = dataSchema.getTransformSpec().decorate(
+        inputSource.reader(
+            new InputRowSchema(
+                dataSchema.getTimestampSpec(),
+                dataSchema.getDimensionsSpec(),
+                metricsNames
             ),
-            parseExceptionHandler
-        ),
-        ingestionMeters
+            inputFormat,
+            tmpDir
+        )
+    );
+    return new FilteringCloseableInputRowIterator(
+        inputSourceReader.read(),
+        rowFilter,
+        ingestionMeters,
+        parseExceptionHandler
     );
   }
 

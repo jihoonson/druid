@@ -76,17 +76,15 @@ public class InputSourceProcessor
                                                         ? (DynamicPartitionsSpec) partitionsSpec
                                                         : null;
     final GranularitySpec granularitySpec = dataSchema.getGranularitySpec();
-    final FilteringInputSourceReader inputSourceReader = AbstractBatchIndexTask.inputSourceReader(
-        tmpDir,
-        dataSchema,
-        inputSource,
-        inputFormat,
-        buildSegmentsMeters,
-        parseExceptionHandler
-    );
     try (
-        final CloseableIterator<InputRow> inputRowIterator = inputSourceReader.read(
-            AbstractBatchIndexTask.defaultRowFilter(granularitySpec)
+        final CloseableIterator<InputRow> inputRowIterator = AbstractBatchIndexTask.inputSourceReader(
+            tmpDir,
+            dataSchema,
+            inputSource,
+            inputFormat,
+            AbstractBatchIndexTask.defaultRowFilter(granularitySpec),
+            buildSegmentsMeters,
+            parseExceptionHandler
         );
         final HandlingInputRowIterator iterator = inputRowIteratorBuilder
             .delegate(inputRowIterator)

@@ -711,14 +711,6 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         Comparators.intervalsByStartThenEnd()
     );
     final Granularity queryGranularity = granularitySpec.getQueryGranularity();
-    final FilteringInputSourceReader inputSourceReader = AbstractBatchIndexTask.inputSourceReader(
-        tmpDir,
-        ingestionSchema.getDataSchema(),
-        inputSource,
-        inputSource.needsFormat() ? getInputFormat(ingestionSchema) : null,
-        determinePartitionsMeters,
-        determinePartitionsParseExceptionHandler
-    );
     final Predicate<InputRow> rowFilter = inputRow -> {
       if (inputRow == null) {
         return false;
@@ -730,7 +722,15 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       return optInterval.isPresent();
     };
 
-    try (final CloseableIterator<InputRow> inputRowIterator = inputSourceReader.read(rowFilter)) {
+    try (final CloseableIterator<InputRow> inputRowIterator = AbstractBatchIndexTask.inputSourceReader(
+        tmpDir,
+        ingestionSchema.getDataSchema(),
+        inputSource,
+        inputSource.needsFormat() ? getInputFormat(ingestionSchema) : null,
+        rowFilter,
+        determinePartitionsMeters,
+        determinePartitionsParseExceptionHandler
+    )) {
       while (inputRowIterator.hasNext()) {
         final InputRow inputRow = inputRowIterator.next();
 

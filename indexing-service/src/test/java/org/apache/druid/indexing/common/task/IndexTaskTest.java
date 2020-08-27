@@ -1270,7 +1270,7 @@ public class IndexTaskTest extends IngestionTestBase
             RowIngestionMeters.PROCESSED_WITH_ERROR, 0,
             RowIngestionMeters.PROCESSED, 1,
             RowIngestionMeters.UNPARSEABLE, 3,
-            RowIngestionMeters.THROWN_AWAY, 1
+            RowIngestionMeters.THROWN_AWAY, useInputFormatApi ? 1 : 2
         )
     );
 
@@ -1383,7 +1383,7 @@ public class IndexTaskTest extends IngestionTestBase
             RowIngestionMeters.PROCESSED_WITH_ERROR, 0,
             RowIngestionMeters.PROCESSED, 1,
             RowIngestionMeters.UNPARSEABLE, 3,
-            RowIngestionMeters.THROWN_AWAY, 1
+            RowIngestionMeters.THROWN_AWAY, useInputFormatApi ? 1 : 2
         ),
         RowIngestionMeters.BUILD_SEGMENTS,
         ImmutableMap.of(

@@ -32,7 +32,6 @@ import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.task.AbstractBatchIndexTask;
 import org.apache.druid.indexing.common.task.BatchAppenderators;
 import org.apache.druid.indexing.common.task.ClientBasedTaskInfoProvider;
-import org.apache.druid.indexing.common.task.FilteringInputSourceReader;
 import org.apache.druid.indexing.common.task.IndexTask;
 import org.apache.druid.indexing.common.task.SegmentAllocators;
 import org.apache.druid.indexing.common.task.TaskResource;
@@ -321,19 +320,14 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
             tuningConfig.getMaxSavedParseExceptions()
         )
     );
-    final FilteringInputSourceReader inputSourceReader = AbstractBatchIndexTask.inputSourceReader(
-        tmpDir,
-        dataSchema,
-        inputSource,
-        inputSource.needsFormat() ? ParallelIndexSupervisorTask.getInputFormat(ingestionSchema) : null,
-        rowIngestionMeters,
-        parseExceptionHandler
-    );
-
     boolean exceptionOccurred = false;
     try (
         final BatchAppenderatorDriver driver = BatchAppenderators.newDriver(appenderator, toolbox, segmentAllocator);
-        final CloseableIterator<InputRow> inputRowIterator = inputSourceReader.read(
+        final CloseableIterator<InputRow> inputRowIterator = AbstractBatchIndexTask.inputSourceReader(
+            tmpDir,
+            dataSchema,
+            inputSource,
+            inputSource.needsFormat() ? ParallelIndexSupervisorTask.getInputFormat(ingestionSchema) : null,
             inputRow -> {
               if (inputRow == null) {
                 return false;
@@ -343,7 +337,9 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
                 return optInterval.isPresent();
               }
               return false;
-            }
+            },
+            rowIngestionMeters,
+            parseExceptionHandler
         )
     ) {
       driver.startJob();
