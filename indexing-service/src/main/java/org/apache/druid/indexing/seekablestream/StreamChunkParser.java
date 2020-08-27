@@ -20,7 +20,7 @@
 package org.apache.druid.indexing.seekablestream;
 
 import com.google.common.collect.FluentIterable;
-import org.apache.commons.compress.utils.Lists;
+import com.google.common.collect.Lists;
 import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowSchema;
