@@ -31,6 +31,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.druid.client.cache.CacheConfig;
 import org.apache.druid.client.cache.CachePopulatorStats;
 import org.apache.druid.client.cache.MapCache;
+import org.apache.druid.client.indexing.NoopIndexingServiceClient;
 import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.data.input.Firehose;
 import org.apache.druid.data.input.FirehoseFactory;
@@ -109,14 +110,11 @@ import org.apache.druid.query.timeseries.TimeseriesQueryRunnerFactory;
 import org.apache.druid.query.timeseries.TimeseriesResultValue;
 import org.apache.druid.segment.TestHelper;
 import org.apache.druid.segment.incremental.RowIngestionMeters;
-import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.join.NoopJoinableFactory;
-import org.apache.druid.segment.loading.SegmentLoaderConfig;
-import org.apache.druid.segment.loading.StorageLocationConfig;
-import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
+import org.apache.druid.segment.realtime.firehose.NoopChatHandlerProvider;
 import org.apache.druid.segment.realtime.plumber.SegmentHandoffNotifier;
 import org.apache.druid.segment.realtime.plumber.SegmentHandoffNotifierFactory;
 import org.apache.druid.segment.transform.ExpressionTransform;
@@ -144,7 +142,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -264,8 +261,6 @@ public class AppenderatorDriverRealtimeIndexTaskTest
   private TaskToolboxFactory taskToolboxFactory;
   private File baseDir;
   private File reportsFile;
-  private RowIngestionMetersFactory rowIngestionMetersFactory;
-  private AppenderatorsManager appenderatorsManager;
 
   @Before
   public void setUp() throws IOException
@@ -280,8 +275,6 @@ public class AppenderatorDriverRealtimeIndexTaskTest
     derbyConnector.createTaskTables();
     derbyConnector.createSegmentTable();
     derbyConnector.createPendingSegmentsTable();
-
-    appenderatorsManager = new TestAppenderatorsManager();
 
     baseDir = tempFolder.newFolder();
     reportsFile = File.createTempFile("KafkaIndexTaskTestReports-" + System.currentTimeMillis(), "json");
@@ -1423,11 +1416,7 @@ public class AppenderatorDriverRealtimeIndexTaskTest
         taskId,
         null,
         new RealtimeAppenderatorIngestionSpec(dataSchema, realtimeIOConfig, tuningConfig),
-        null,
-        null,
-        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
-        rowIngestionMetersFactory,
-        appenderatorsManager
+        null
     )
     {
       @Override
@@ -1569,16 +1558,6 @@ public class AppenderatorDriverRealtimeIndexTaskTest
 
     };
     final TestUtils testUtils = new TestUtils();
-    rowIngestionMetersFactory = testUtils.getRowIngestionMetersFactory();
-    SegmentLoaderConfig segmentLoaderConfig = new SegmentLoaderConfig()
-    {
-      @Override
-      public List<StorageLocationConfig> getLocations()
-      {
-        return new ArrayList<>();
-      }
-    };
-
     taskToolboxFactory = new TaskToolboxFactory(
         taskConfig,
         new DruidNode("druid/middlemanager", "localhost", false, 8091, null, true, false),
@@ -1607,6 +1586,14 @@ public class AppenderatorDriverRealtimeIndexTaskTest
         new LookupNodeService("tier"),
         new DataNodeService("tier", 1000, ServerType.INDEXER_EXECUTOR, 0),
         new SingleFileTaskReportFileWriter(reportsFile),
+        null,
+        AuthTestUtils.TEST_AUTHORIZER_MAPPER,
+        new NoopChatHandlerProvider(),
+        testUtils.getRowIngestionMetersFactory(),
+        new TestAppenderatorsManager(),
+        new NoopIndexingServiceClient(),
+        null,
+        null,
         null
     );
   }

@@ -41,7 +41,6 @@ public final class BatchAppenderators
       TaskToolbox toolbox,
       DataSchema dataSchema,
       AppenderatorConfig appenderatorConfig,
-      boolean storeCompactionState,
       RowIngestionMeters rowIngestionMeters,
       ParseExceptionHandler parseExceptionHandler
   )
@@ -54,7 +53,6 @@ public final class BatchAppenderators
         dataSchema,
         appenderatorConfig,
         toolbox.getSegmentPusher(),
-        storeCompactionState,
         rowIngestionMeters,
         parseExceptionHandler
     );
@@ -68,7 +66,6 @@ public final class BatchAppenderators
       DataSchema dataSchema,
       AppenderatorConfig appenderatorConfig,
       DataSegmentPusher segmentPusher,
-      boolean storeCompactionState,
       RowIngestionMeters rowIngestionMeters,
       ParseExceptionHandler parseExceptionHandler
   )
@@ -77,7 +74,6 @@ public final class BatchAppenderators
         taskId,
         dataSchema,
         appenderatorConfig.withBasePersistDirectory(toolbox.getPersistDir()),
-        storeCompactionState,
         metrics,
         segmentPusher,
         toolbox.getJsonMapper(),

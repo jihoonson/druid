@@ -19,9 +19,7 @@
 
 package org.apache.druid.indexing.common.task;
 
-import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -78,7 +76,6 @@ import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.segment.IndexSpec;
 import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.incremental.RowIngestionMeters;
-import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.indexing.BatchIOConfig;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.IngestionSpec;
@@ -90,19 +87,18 @@ import org.apache.druid.segment.realtime.FireDepartment;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
 import org.apache.druid.segment.realtime.appenderator.Appenderator;
 import org.apache.druid.segment.realtime.appenderator.AppenderatorConfig;
-import org.apache.druid.segment.realtime.appenderator.AppenderatorsManager;
 import org.apache.druid.segment.realtime.appenderator.BaseAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.BatchAppenderatorDriver;
 import org.apache.druid.segment.realtime.appenderator.SegmentsAndCommitMetadata;
 import org.apache.druid.segment.realtime.appenderator.TransactionalSegmentPublisher;
 import org.apache.druid.segment.realtime.firehose.ChatHandler;
-import org.apache.druid.segment.realtime.firehose.ChatHandlerProvider;
 import org.apache.druid.segment.writeout.SegmentWriteOutMediumFactory;
 import org.apache.druid.server.security.Action;
 import org.apache.druid.server.security.AuthorizerMapper;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.HashBasedNumberedShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.joda.time.Interval;
 import org.joda.time.Period;
 
@@ -130,6 +126,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
@@ -154,44 +151,35 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     }
   }
 
-  @JsonIgnore
   private final IndexIngestionSpec ingestionSchema;
 
-  @JsonIgnore
   private IngestionState ingestionState;
 
-  @JsonIgnore
-  private final AuthorizerMapper authorizerMapper;
+  @MonotonicNonNull
+  private ParseExceptionHandler determinePartitionsParseExceptionHandler;
 
-  @JsonIgnore
-  private final Optional<ChatHandlerProvider> chatHandlerProvider;
+  @MonotonicNonNull
+  private ParseExceptionHandler buildSegmentsParseExceptionHandler;
 
-  @JsonIgnore
-  private final RowIngestionMeters determinePartitionsMeters;
+  @MonotonicNonNull
+  private AuthorizerMapper authorizerMapper;
 
-  private final ParseExceptionHandler determinePartitionsParseExceptionHandler;
+  @MonotonicNonNull
+  private RowIngestionMeters determinePartitionsMeters;
 
-  @JsonIgnore
-  private final RowIngestionMeters buildSegmentsMeters;
+  @MonotonicNonNull
+  private RowIngestionMeters buildSegmentsMeters;
 
-  private final ParseExceptionHandler buildSegmentsParseExceptionHandler;
-
-  @JsonIgnore
+  @Nullable
   private String errorMsg;
 
-  @JsonIgnore
-  private final AppenderatorsManager appenderatorsManager;
 
   @JsonCreator
   public IndexTask(
       @JsonProperty("id") final String id,
       @JsonProperty("resource") final TaskResource taskResource,
       @JsonProperty("spec") final IndexIngestionSpec ingestionSchema,
-      @JsonProperty("context") final Map<String, Object> context,
-      @JacksonInject AuthorizerMapper authorizerMapper,
-      @JacksonInject ChatHandlerProvider chatHandlerProvider,
-      @JacksonInject RowIngestionMetersFactory rowIngestionMetersFactory,
-      @JacksonInject AppenderatorsManager appenderatorsManager
+      @JsonProperty("context") final Map<String, Object> context
   )
   {
     this(
@@ -200,11 +188,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         taskResource,
         ingestionSchema.dataSchema.getDataSource(),
         ingestionSchema,
-        context,
-        authorizerMapper,
-        chatHandlerProvider,
-        rowIngestionMetersFactory,
-        appenderatorsManager
+        context
     );
   }
 
@@ -214,11 +198,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       TaskResource resource,
       String dataSource,
       IndexIngestionSpec ingestionSchema,
-      Map<String, Object> context,
-      AuthorizerMapper authorizerMapper,
-      ChatHandlerProvider chatHandlerProvider,
-      RowIngestionMetersFactory rowIngestionMetersFactory,
-      AppenderatorsManager appenderatorsManager
+      Map<String, Object> context
   )
   {
     super(
@@ -229,24 +209,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         context
     );
     this.ingestionSchema = ingestionSchema;
-    this.authorizerMapper = authorizerMapper;
-    this.chatHandlerProvider = Optional.fromNullable(chatHandlerProvider);
     this.ingestionState = IngestionState.NOT_STARTED;
-    this.determinePartitionsMeters = rowIngestionMetersFactory.createRowIngestionMeters();
-    this.buildSegmentsMeters = rowIngestionMetersFactory.createRowIngestionMeters();
-    this.determinePartitionsParseExceptionHandler = new ParseExceptionHandler(
-        determinePartitionsMeters,
-        getIngestionSchema().getTuningConfig().isLogParseExceptions(),
-        getIngestionSchema().getTuningConfig().getMaxParseExceptions(),
-        getIngestionSchema().getTuningConfig().getMaxSavedParseExceptions()
-    );
-    this.buildSegmentsParseExceptionHandler = new ParseExceptionHandler(
-        buildSegmentsMeters,
-        getIngestionSchema().getTuningConfig().isLogParseExceptions(),
-        getIngestionSchema().getTuningConfig().getMaxParseExceptions(),
-        getIngestionSchema().getTuningConfig().getMaxSavedParseExceptions()
-    );
-    this.appenderatorsManager = appenderatorsManager;
   }
 
   @Override
@@ -458,21 +421,33 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
   public TaskStatus runTask(final TaskToolbox toolbox)
   {
     try {
-      if (chatHandlerProvider.isPresent()) {
-        log.debug("Found chat handler of class[%s]", chatHandlerProvider.get().getClass().getName());
+      log.debug("Found chat handler of class[%s]", toolbox.getChatHandlerProvider().getClass().getName());
 
-        if (chatHandlerProvider.get().get(getId()).isPresent()) {
-          // This is a workaround for ParallelIndexSupervisorTask to avoid double registering when it runs in the
-          // sequential mode. See ParallelIndexSupervisorTask.runSequential().
-          // Note that all HTTP endpoints are not available in this case. This works only for
-          // ParallelIndexSupervisorTask because it doesn't support APIs for live ingestion reports.
-          log.warn("Chat handler is already registered. Skipping chat handler registration.");
-        } else {
-          chatHandlerProvider.get().register(getId(), this, false);
-        }
+      if (toolbox.getChatHandlerProvider().get(getId()).isPresent()) {
+        // This is a workaround for ParallelIndexSupervisorTask to avoid double registering when it runs in the
+        // sequential mode. See ParallelIndexSupervisorTask.runSequential().
+        // Note that all HTTP endpoints are not available in this case. This works only for
+        // ParallelIndexSupervisorTask because it doesn't support APIs for live ingestion reports.
+        log.warn("Chat handler is already registered. Skipping chat handler registration.");
       } else {
-        log.warn("No chat handler detected");
+        toolbox.getChatHandlerProvider().register(getId(), this, false);
       }
+
+      this.authorizerMapper = toolbox.getAuthorizerMapper();
+      this.determinePartitionsMeters = toolbox.getRowIngestionMetersFactory().createRowIngestionMeters();
+      this.buildSegmentsMeters = toolbox.getRowIngestionMetersFactory().createRowIngestionMeters();
+      this.determinePartitionsParseExceptionHandler = new ParseExceptionHandler(
+          determinePartitionsMeters,
+          ingestionSchema.getTuningConfig().isLogParseExceptions(),
+          ingestionSchema.getTuningConfig().getMaxParseExceptions(),
+          ingestionSchema.getTuningConfig().getMaxSavedParseExceptions()
+      );
+      this.buildSegmentsParseExceptionHandler = new ParseExceptionHandler(
+          buildSegmentsMeters,
+          ingestionSchema.getTuningConfig().isLogParseExceptions(),
+          ingestionSchema.getTuningConfig().getMaxParseExceptions(),
+          ingestionSchema.getTuningConfig().getMaxSavedParseExceptions()
+      );
 
       final boolean determineIntervals = !ingestionSchema.getDataSchema()
                                                          .getGranularitySpec()
@@ -532,9 +507,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
     }
 
     finally {
-      if (chatHandlerProvider.isPresent()) {
-        chatHandlerProvider.get().unregister(getId());
-      }
+      toolbox.getChatHandlerProvider().unregister(getId());
     }
   }
 
@@ -886,12 +859,11 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
 
     final Appenderator appenderator = BatchAppenderators.newAppenderator(
         effectiveId,
-        appenderatorsManager,
+        toolbox.getAppenderatorsManager(),
         buildSegmentsFireDepartmentMetrics,
         toolbox,
         dataSchema,
         tuningConfig,
-        getContextValue(Tasks.STORE_COMPACTION_STATE_KEY, Tasks.DEFAULT_STORE_COMPACTION_STATE),
         buildSegmentsMeters,
         buildSegmentsParseExceptionHandler
     );
@@ -918,9 +890,20 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
       final Set<DataSegment> inputSegments = getTaskLockHelper().isUseSegmentLock()
                                              ? getTaskLockHelper().getLockedExistingSegments()
                                              : null;
+      final boolean storeCompactionState = getContextValue(
+          Tasks.STORE_COMPACTION_STATE_KEY,
+          Tasks.DEFAULT_STORE_COMPACTION_STATE
+      );
+      final Function<Set<DataSegment>, Set<DataSegment>> annotateFunction =
+          compactionStateAnnotateFunction(
+              storeCompactionState,
+              toolbox,
+              ingestionSchema.getTuningConfig()
+          );
+
       // Probably we can publish atomicUpdateGroup along with segments.
       final SegmentsAndCommitMetadata published =
-          awaitPublish(driver.publishAll(inputSegments, publisher), pushTimeout);
+          awaitPublish(driver.publishAll(inputSegments, publisher, annotateFunction), pushTimeout);
       appenderator.close();
 
       ingestionState = IngestionState.COMPLETED;

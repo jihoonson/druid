@@ -62,7 +62,6 @@ public class DefaultOfflineAppenderatorFactory implements AppenderatorFactory
         schema.getDataSource(),
         schema,
         config,
-        false,
         metrics,
         dataSegmentPusher,
         objectMapper,
