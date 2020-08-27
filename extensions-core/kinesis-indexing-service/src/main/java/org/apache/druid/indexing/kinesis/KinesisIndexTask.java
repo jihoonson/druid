@@ -29,7 +29,6 @@ import org.apache.druid.common.aws.AWSCredentialsConfig;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTask;
 import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner;
-import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.indexing.DataSchema;
 
 import java.util.Map;
@@ -71,7 +70,6 @@ public class KinesisIndexTask extends SeekableStreamIndexTask<String, String>
         this,
         dataSchema.getParser(),
         authorizerMapper,
-        savedParseExceptions,
         lockGranularityToUse
     );
   }

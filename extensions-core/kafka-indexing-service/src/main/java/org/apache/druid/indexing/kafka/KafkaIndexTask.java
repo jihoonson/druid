@@ -28,7 +28,6 @@ import com.google.common.base.Preconditions;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTask;
 import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner;
-import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
@@ -129,7 +128,6 @@ public class KafkaIndexTask extends SeekableStreamIndexTask<Integer, Long>
         this,
         dataSchema.getParser(),
         authorizerMapper,
-        savedParseExceptions,
         lockGranularityToUse
     );
   }

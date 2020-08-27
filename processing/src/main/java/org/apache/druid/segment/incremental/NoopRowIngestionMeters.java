@@ -24,6 +24,8 @@ import java.util.Map;
 
 public class NoopRowIngestionMeters implements RowIngestionMeters
 {
+  private static final RowIngestionMetersTotals EMPTY_TOTALS = new RowIngestionMetersTotals(0, 0, 0, 0);
+
   @Override
   public long getProcessed()
   {
@@ -75,7 +77,7 @@ public class NoopRowIngestionMeters implements RowIngestionMeters
   @Override
   public RowIngestionMetersTotals getTotals()
   {
-    return new RowIngestionMetersTotals(0, 0, 0, 0);
+    return EMPTY_TOTALS;
   }
 
   @Override

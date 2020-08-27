@@ -71,7 +71,7 @@ public class ParseExceptionHandler
       savedParseExceptions.add(e);
     }
 
-    if (rowIngestionMeters.getUnparseable() > maxAllowedParseExceptions) {
+    if (rowIngestionMeters.getUnparseable() + rowIngestionMeters.getProcessedWithError() > maxAllowedParseExceptions) {
       throw new RuntimeException("Max parse exceptions exceeded");
     }
   }

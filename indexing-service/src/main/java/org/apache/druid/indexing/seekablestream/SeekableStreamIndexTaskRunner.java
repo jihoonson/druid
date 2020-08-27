@@ -69,8 +69,10 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.collect.Utils;
+import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.query.aggregation.AggregatorFactory;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.indexing.RealtimeIOConfig;
 import org.apache.druid.segment.realtime.FireDepartment;
@@ -202,7 +204,6 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
   private final InputFormat inputFormat;
   @Nullable
   private final InputRowParser<ByteBuffer> parser;
-  private final CircularBuffer<Throwable> savedParseExceptions;
   private final String stream;
 
   private final Set<String> publishingSequences = Sets.newConcurrentHashSet();
@@ -213,6 +214,8 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
 
   @MonotonicNonNull
   private RowIngestionMeters rowIngestionMeters;
+  @MonotonicNonNull
+  private ParseExceptionHandler parseExceptionHandler;
 
   @MonotonicNonNull
   private AuthorizerMapper authorizerMapper;
@@ -235,7 +238,6 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
       final SeekableStreamIndexTask<PartitionIdType, SequenceOffsetType> task,
       @Nullable final InputRowParser<ByteBuffer> parser,
       final AuthorizerMapper authorizerMapper,
-      final CircularBuffer<Throwable> savedParseExceptions,
       final LockGranularity lockGranularityToUse
   )
   {
@@ -253,7 +255,6 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
     this.inputFormat = ioConfig.getInputFormat();
     this.parser = parser;
     this.authorizerMapper = authorizerMapper;
-    this.savedParseExceptions = savedParseExceptions;
     this.stream = ioConfig.getStartSequenceNumbers().getStream();
     this.endOffsets = new ConcurrentHashMap<>(ioConfig.getEndSequenceNumbers().getPartitionSequenceNumberMap());
     this.sequences = new CopyOnWriteArrayList<>();
@@ -375,6 +376,12 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
 
     authorizerMapper = toolbox.getAuthorizerMapper();
     rowIngestionMeters = toolbox.getRowIngestionMetersFactory().createRowIngestionMeters();
+    parseExceptionHandler = new ParseExceptionHandler(
+        rowIngestionMeters,
+        tuningConfig.isLogParseExceptions(),
+        tuningConfig.getMaxParseExceptions(),
+        tuningConfig.getMaxSavedParseExceptions()
+    );
 
     log.debug("Found chat handler of class[%s]", toolbox.getChatHandlerProvider().getClass().getName());
     toolbox.getChatHandlerProvider().register(task.getId(), this, false);
@@ -411,7 +418,7 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
         toolbox.getDataSegmentServerAnnouncer().announce();
         toolbox.getDruidNodeAnnouncer().announce(discoveryDruidNode);
       }
-      appenderator = task.newAppenderator(fireDepartmentMetrics, toolbox);
+      appenderator = task.newAppenderator(toolbox, fireDepartmentMetrics, rowIngestionMeters, parseExceptionHandler);
       driver = task.newDriver(appenderator, toolbox, fireDepartmentMetrics);
 
       // Start up, set up initial sequences.
@@ -619,7 +626,14 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
               if (valueBytess == null || valueBytess.isEmpty()) {
                 rows = Utils.nullableListOf((InputRow) null);
               } else {
-                rows = parser.parse(valueBytess);
+                try {
+                  rows = parser.parse(valueBytess);
+                }
+                catch (ParseException e) {
+                  parseExceptionHandler.handle(e);
+                  // We failed to parse the current record. Let's move on to the next one.
+                  continue;
+                }
               }
               boolean isPersistRequired = false;
 
@@ -639,7 +653,16 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
               }
 
               for (InputRow row : rows) {
-                if (row != null && task.withinMinMaxRecordTime(row)) {
+                final boolean withinMinMaxRecordTime;
+                try {
+                  withinMinMaxRecordTime = task.withinMinMaxRecordTime(row);
+                }
+                catch (ParseException e) {
+                  parseExceptionHandler.handle(e);
+                  // We failed to parse the current row. Let's move on to the next one.
+                  continue;
+                }
+                if (row != null && withinMinMaxRecordTime) {
                   final AppenderatorDriverAddResult addResult = driver.add(
                       row,
                       sequenceToUse.getSequenceName(),
@@ -1070,7 +1093,7 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
   {
     Map<String, Object> unparseableEventsMap = new HashMap<>();
     List<String> buildSegmentsParseExceptionMessages = IndexTaskUtils.getMessagesFromSavedParseExceptions(
-        savedParseExceptions
+        parseExceptionHandler.getSavedParseExceptions()
     );
     if (buildSegmentsParseExceptionMessages != null) {
       unparseableEventsMap.put(RowIngestionMeters.BUILD_SEGMENTS, buildSegmentsParseExceptionMessages);
@@ -1548,7 +1571,9 @@ public abstract class SeekableStreamIndexTaskRunner<PartitionIdType, SequenceOff
   )
   {
     authorizationCheck(req, Action.READ);
-    List<String> events = IndexTaskUtils.getMessagesFromSavedParseExceptions(savedParseExceptions);
+    List<String> events = IndexTaskUtils.getMessagesFromSavedParseExceptions(
+        parseExceptionHandler.getSavedParseExceptions()
+    );
     return Response.ok(events).build();
   }
 
