@@ -24,29 +24,17 @@ import com.google.common.collect.ImmutableList;
 import org.apache.druid.data.input.HandlingInputRowIterator;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.indexing.common.task.IndexTask;
-import org.apache.druid.java.util.common.Intervals;
-import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
-import org.apache.druid.java.util.common.parsers.ParseException;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * <pre>
  * Build a default {@link HandlingInputRowIterator} for {@link IndexTask}s. Each {@link InputRow} is
  * processed by the following handlers, in order:
- *
- *   1. Null row: If {@link InputRow} is null, invoke the null row {@link Runnable} callback.
- *
- *   2. Invalid timestamp: If {@link InputRow} has an invalid timestamp, throw a {@link ParseException}.
- *
- *   3. Absent bucket interval: If {@link InputRow} has a timestamp that does not match the
- *      {@link GranularitySpec} bucket intervals, invoke the absent bucket interval {@link Consumer}
- *      callback.
- *
+ * TODO
  *   4. Any additional handlers in the order they are added by calls to
  *      {@link #appendInputRowHandler(HandlingInputRowIterator.InputRowHandler)}.
  *
@@ -83,7 +71,6 @@ public class DefaultIndexTaskInputRowIteratorBuilder implements IndexTaskInputRo
     Preconditions.checkNotNull(granularitySpec, "granularitySpec required");
 
     ImmutableList.Builder<HandlingInputRowIterator.InputRowHandler> handlersBuilder = ImmutableList.<HandlingInputRowIterator.InputRowHandler>builder()
-        .add(createInvalidTimestampHandler())
         .addAll(appendedInputRowHandlers);
 
     return new HandlingInputRowIterator(delegate, handlersBuilder.build());
@@ -96,20 +83,5 @@ public class DefaultIndexTaskInputRowIteratorBuilder implements IndexTaskInputRo
   {
     this.appendedInputRowHandlers.add(inputRowHandler);
     return this;
-  }
-
-  private HandlingInputRowIterator.InputRowHandler createInvalidTimestampHandler()
-  {
-    return inputRow -> {
-      if (!Intervals.ETERNITY.contains(inputRow.getTimestamp())) {
-        String errorMsg = StringUtils.format(
-            "Encountered row with timestamp that cannot be represented as a long: [%s]",
-            inputRow
-        );
-        // TODO: can remove
-        throw new ParseException(errorMsg);
-      }
-      return false;
-    };
   }
 }

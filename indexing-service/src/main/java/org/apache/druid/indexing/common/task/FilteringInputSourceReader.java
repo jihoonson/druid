@@ -20,7 +20,6 @@
 package org.apache.druid.indexing.common.task;
 
 import org.apache.druid.data.input.InputRow;
-import org.apache.druid.data.input.InputRowListPlusRawValues;
 import org.apache.druid.data.input.InputSourceReader;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.segment.incremental.RowIngestionMeters;
@@ -71,47 +70,6 @@ public class FilteringInputSourceReader
           throw new NoSuchElementException();
         }
         final InputRow row = next;
-        next = null;
-        return row;
-      }
-
-      @Override
-      public void close() throws IOException
-      {
-        delegate.close();
-      }
-    };
-  }
-
-  public CloseableIterator<InputRowListPlusRawValues> sample(Predicate<InputRowListPlusRawValues> filter)
-      throws IOException
-  {
-    final CloseableIterator<InputRowListPlusRawValues> delegate = baseReader.sample();
-    return new CloseableIterator<InputRowListPlusRawValues>()
-    {
-      InputRowListPlusRawValues next;
-
-      @Override
-      public boolean hasNext()
-      {
-        while (next == null && delegate.hasNext()) {
-          final InputRowListPlusRawValues row = delegate.next();
-          if (filter.test(row)) {
-            next = row;
-          } else {
-            rowIngestionMeters.incrementThrownAway();
-          }
-        }
-        return next != null;
-      }
-
-      @Override
-      public InputRowListPlusRawValues next()
-      {
-        if (!hasNext()) {
-          throw new NoSuchElementException();
-        }
-        final InputRowListPlusRawValues row = next;
         next = null;
         return row;
       }

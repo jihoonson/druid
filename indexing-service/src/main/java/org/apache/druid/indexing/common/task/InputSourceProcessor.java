@@ -76,7 +76,7 @@ public class InputSourceProcessor
                                                         ? (DynamicPartitionsSpec) partitionsSpec
                                                         : null;
     final GranularitySpec granularitySpec = dataSchema.getGranularitySpec();
-    final FilteringInputSourceReader inputSourceReader = Tasks.inputSourceReader(
+    final FilteringInputSourceReader inputSourceReader = AbstractBatchIndexTask.inputSourceReader(
         tmpDir,
         dataSchema,
         inputSource,

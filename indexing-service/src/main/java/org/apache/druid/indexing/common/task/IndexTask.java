@@ -711,7 +711,7 @@ public class IndexTask extends AbstractBatchIndexTask implements ChatHandler
         Comparators.intervalsByStartThenEnd()
     );
     final Granularity queryGranularity = granularitySpec.getQueryGranularity();
-    final FilteringInputSourceReader inputSourceReader = Tasks.inputSourceReader(
+    final FilteringInputSourceReader inputSourceReader = AbstractBatchIndexTask.inputSourceReader(
         tmpDir,
         ingestionSchema.getDataSchema(),
         inputSource,

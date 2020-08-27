@@ -24,7 +24,10 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.apache.druid.data.input.FirehoseFactory;
+import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputRow;
+import org.apache.druid.data.input.InputRowSchema;
+import org.apache.druid.data.input.InputSource;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskLock;
@@ -43,6 +46,10 @@ import org.apache.druid.java.util.common.JodaUtils;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.granularity.GranularityType;
 import org.apache.druid.java.util.common.logger.Logger;
+import org.apache.druid.query.aggregation.AggregatorFactory;
+import org.apache.druid.segment.incremental.ParseExceptionHandler;
+import org.apache.druid.segment.incremental.RowIngestionMeters;
+import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.GranularitySpec;
 import org.apache.druid.timeline.CompactionState;
 import org.apache.druid.timeline.DataSegment;
@@ -54,8 +61,10 @@ import org.joda.time.Period;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -136,6 +145,37 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
       stopped = true;
       resourceCloserOnAbnormalExit.clean(taskConfig);
     }
+  }
+
+  public static FilteringInputSourceReader inputSourceReader(
+      File tmpDir,
+      DataSchema dataSchema,
+      InputSource inputSource,
+      @Nullable InputFormat inputFormat,
+      RowIngestionMeters ingestionMeters,
+      ParseExceptionHandler parseExceptionHandler
+  )
+  {
+    final List<String> metricsNames = Arrays.stream(dataSchema.getAggregators())
+                                            .map(AggregatorFactory::getName)
+                                            .collect(Collectors.toList());
+    return new FilteringInputSourceReader(
+        new ParseExceptionHandlingInputSourceReader(
+            dataSchema.getTransformSpec().decorate(
+                inputSource.reader(
+                    new InputRowSchema(
+                        dataSchema.getTimestampSpec(),
+                        dataSchema.getDimensionsSpec(),
+                        metricsNames
+                    ),
+                    inputFormat,
+                    tmpDir
+                )
+            ),
+            parseExceptionHandler
+        ),
+        ingestionMeters
+    );
   }
 
   protected static Predicate<InputRow> defaultRowFilter(GranularitySpec granularitySpec)

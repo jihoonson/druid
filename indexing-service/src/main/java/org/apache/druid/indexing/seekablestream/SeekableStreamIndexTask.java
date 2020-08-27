@@ -46,7 +46,6 @@ import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.segment.incremental.ParseExceptionHandler;
 import org.apache.druid.segment.incremental.RowIngestionMeters;
-import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
 import org.apache.druid.segment.realtime.appenderator.Appenderator;
@@ -256,7 +255,6 @@ public abstract class SeekableStreamIndexTask<PartitionIdType, SequenceOffsetTyp
           "Encountered row with timestamp that cannot be represented as a long: [%s]",
           row
       );
-      // TODO: can remove
       throw new ParseException(errorMsg);
     }
 

@@ -123,6 +123,7 @@ import org.apache.druid.server.DruidNode;
 import org.apache.druid.server.coordination.DataSegmentServerAnnouncer;
 import org.apache.druid.server.coordination.ServerType;
 import org.apache.druid.server.security.AuthTestUtils;
+import org.apache.druid.testing.InitializedNullHandlingTest;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.druid.timeline.partition.NumberedShardSpec;
@@ -157,7 +158,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-public class AppenderatorDriverRealtimeIndexTaskTest
+public class AppenderatorDriverRealtimeIndexTaskTest extends InitializedNullHandlingTest
 {
   private static final Logger log = new Logger(AppenderatorDriverRealtimeIndexTaskTest.class);
   private static final ServiceEmitter EMITTER = new ServiceEmitter(
@@ -683,8 +684,7 @@ public class AppenderatorDriverRealtimeIndexTaskTest
 
     // Wait for the task to finish.
     TaskStatus status = statusFuture.get();
-    Assert.assertTrue(status.getErrorMsg()
-                            .contains("java.lang.RuntimeException: Max parse exceptions exceeded, terminating task..."));
+    Assert.assertTrue(status.getErrorMsg().contains("java.lang.RuntimeException: Max parse exceptions exceeded"));
 
     IngestionStatsAndErrorsTaskReportData reportData = getTaskReportData();
 
