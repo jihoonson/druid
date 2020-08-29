@@ -336,7 +336,7 @@ public class SinglePhaseSubTask extends AbstractBatchIndexTask
                 final Optional<Interval> optInterval = granularitySpec.bucketInterval(inputRow.getTimestamp());
                 return optInterval.isPresent();
               }
-              return false;
+              return true;
             },
             rowIngestionMeters,
             parseExceptionHandler
