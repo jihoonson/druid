@@ -22,39 +22,40 @@ package org.apache.druid.query;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
-import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
-import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import com.google.common.collect.Iterables;
 import org.apache.druid.query.aggregation.MetricManipulationFn;
 import org.apache.druid.segment.Segment;
-import org.apache.druid.timeline.SegmentId;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class DictionaryMergingQueryRunnerFactory
     implements QueryRunnerFactory<DictionaryConversion[], Query<DictionaryConversion[]>>
 {
   static final int UNKNOWN_DICTIONARY_ID = -1;
-  // TODO: this factory is singleton.. what to do with this map?
-  private final Object2IntMap<SegmentId> segmentIds = new Object2IntArrayMap<>();
-  private final AtomicInteger nextId = new AtomicInteger(0);
 
   @Override
-  public QueryRunner<DictionaryConversion[]> createRunner(Segment segment)
+  public QueryRunner<DictionaryConversion[]> createRunner(SegmentIdMapper segmentIdMapper, Segment segment)
   {
     return new DictionaryScanRunner(
-        segmentIds.computeIntIfAbsent(segment.getId(), k -> nextId.getAndIncrement()),
+        segmentIdMapper.applyAsInt(segment.getId()),
         segment
     );
   }
 
   @Override
-  public QueryRunner<DictionaryConversion[]> mergeRunners(
+  public QueryRunner<DictionaryConversion[]> createRunner(Segment segment)
+  {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public DictionaryMergingQueryRunner mergeRunners(
       ExecutorService queryExecutor,
       Iterable<QueryRunner<DictionaryConversion[]>> queryRunners
   )
   {
-    return new DictionaryMergingQueryRunner(queryExecutor, queryRunners);
+    // TODO: is this good? should the size be passed as a param?
+    return new DictionaryMergingQueryRunner(queryExecutor, queryRunners, Iterables.size(queryRunners));
   }
 
   @Override

@@ -35,6 +35,7 @@ import org.apache.druid.query.aggregation.post.FieldAccessPostAggregator;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.OrderByColumnSpec;
+import org.apache.druid.query.groupby.strategy.GroupByStrategyV2;
 import org.apache.druid.query.ordering.StringComparators;
 import org.apache.druid.query.spec.MultipleIntervalSegmentSpec;
 import org.apache.druid.query.spec.QuerySegmentSpec;
@@ -50,6 +51,16 @@ import java.util.List;
 public class GroupByQueryTest
 {
   private static final ObjectMapper JSON_MAPPER = TestHelper.makeJsonMapper();
+
+  @Test
+  public void testTest()
+  {
+    int segmentId = 2;
+    int dictionaryId = Integer.MAX_VALUE;
+    long encoded = GroupByStrategyV2.identifiableDictionaryId(segmentId, dictionaryId);
+    Assert.assertEquals(segmentId, GroupByStrategyV2.segmentId(encoded));
+    Assert.assertEquals(dictionaryId, GroupByStrategyV2.dictionaryId(encoded));
+  }
 
   @Test
   public void testQuerySerialization() throws IOException

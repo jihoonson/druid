@@ -107,6 +107,7 @@ public abstract class BaseQuery<T> implements Query<T>
   }
 
   @JsonProperty("intervals")
+  @Override
   public QuerySegmentSpec getQuerySegmentSpec()
   {
     return querySegmentSpec;

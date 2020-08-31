@@ -134,6 +134,12 @@ public class SelectQuery implements Query<Object>
   }
 
   @Override
+  public QuerySegmentSpec getQuerySegmentSpec()
+  {
+    throw new RuntimeException(REMOVED_ERROR_MESSAGE);
+  }
+
+  @Override
   public Ordering<Object> getResultOrdering()
   {
     throw new RuntimeException(REMOVED_ERROR_MESSAGE);

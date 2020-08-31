@@ -64,6 +64,7 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
   {
     final int id = key.getInt(keyBufferPosition);
 
+    // TODO: set dictionary id instead of string
     // GROUP_BY_MISSING_VALUE is used to indicate empty rows, which are omitted from the result map.
     if (id != GROUP_BY_MISSING_VALUE) {
       resultRow.set(

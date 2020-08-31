@@ -25,15 +25,17 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.inject.Inject;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.query.DictionaryMergingQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryRunnerFactory;
 import org.apache.druid.query.QueryToolChest;
+import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.groupby.strategy.GroupByStrategySelector;
+import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.Segment;
-import org.apache.druid.segment.StorageAdapter;
 
 import java.util.concurrent.ExecutorService;
 
@@ -56,15 +58,30 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
   }
 
   @Override
-  public QueryRunner<ResultRow> createRunner(final Segment segment)
+  public QueryRunner<ResultRow> createRunner(SegmentIdMapper segmentIdMapper, final Segment segment)
   {
-    return new GroupByQueryRunner(segment, strategySelector);
+    return new GroupByQueryRunner(segmentIdMapper, segment, strategySelector);
+  }
+
+  @Override
+  public QueryRunner<ResultRow> createRunner(Segment segment)
+  {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public QueryRunner<ResultRow> mergeRunners(
+      ExecutorService queryExecutor, Iterable<QueryRunner<ResultRow>> queryRunners
+  )
+  {
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public QueryRunner<ResultRow> mergeRunners(
       final ExecutorService exec,
-      final Iterable<QueryRunner<ResultRow>> queryRunners
+      final Iterable<QueryRunner<ResultRow>> queryRunners,
+      final DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
     // mergeRunners should take ListeningExecutorService at some point
@@ -77,7 +94,7 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
       {
         QueryRunner<ResultRow> rowQueryRunner = strategySelector
             .strategize((GroupByQuery) queryPlus.getQuery())
-            .mergeRunners(queryExecutor, queryRunners);
+            .mergeRunners(queryExecutor, queryRunners, dictionaryMergingRunner);
         return rowQueryRunner.run(queryPlus, responseContext);
       }
     };
@@ -91,12 +108,19 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
 
   private static class GroupByQueryRunner implements QueryRunner<ResultRow>
   {
-    private final StorageAdapter adapter;
+    private final IdentifiableStorageAdapter adapter;
     private final GroupByStrategySelector strategySelector;
 
-    public GroupByQueryRunner(Segment segment, final GroupByStrategySelector strategySelector)
+    public GroupByQueryRunner(
+        SegmentIdMapper segmentIdMapper,
+        Segment segment,
+        final GroupByStrategySelector strategySelector
+    )
     {
-      this.adapter = segment.asStorageAdapter();
+      this.adapter = new IdentifiableStorageAdapter(
+          segmentIdMapper.applyAsInt(segment.getId()),
+          segment.asStorageAdapter()
+      );
       this.strategySelector = strategySelector;
     }
 

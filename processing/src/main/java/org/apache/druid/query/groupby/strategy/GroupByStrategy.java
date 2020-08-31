@@ -22,6 +22,7 @@ package org.apache.druid.query.groupby.strategy;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import org.apache.druid.java.util.common.UOE;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.query.DictionaryMergingQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryRunnerFactory;
@@ -30,6 +31,7 @@ import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryQueryToolChest;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.resource.GroupByQueryResource;
+import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.StorageAdapter;
 
 import javax.annotation.Nullable;
@@ -174,7 +176,11 @@ public interface GroupByStrategy
    *
    * @return merged query runner
    */
-  QueryRunner<ResultRow> mergeRunners(ListeningExecutorService exec, Iterable<QueryRunner<ResultRow>> queryRunners);
+  QueryRunner<ResultRow> mergeRunners(
+      ListeningExecutorService exec,
+      Iterable<QueryRunner<ResultRow>> queryRunners,
+      DictionaryMergingQueryRunner dictionaryMergingRunner
+  );
 
   /**
    * Process a groupBy query on a single {@link StorageAdapter}. This is used by
@@ -188,7 +194,7 @@ public interface GroupByStrategy
    *
    * @return result sequence for the storage adapter
    */
-  Sequence<ResultRow> process(GroupByQuery query, StorageAdapter storageAdapter);
+  Sequence<ResultRow> process(GroupByQuery query, IdentifiableStorageAdapter storageAdapter);
 
   /**
    * Returns whether this strategy supports pushing down outer queries. This is used by

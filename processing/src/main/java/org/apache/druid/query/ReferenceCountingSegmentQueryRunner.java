@@ -26,16 +26,19 @@ import org.apache.druid.segment.SegmentReference;
 
 public class ReferenceCountingSegmentQueryRunner<T> implements QueryRunner<T>
 {
+  private final SegmentIdMapper segmentIdMapper;
   private final QueryRunnerFactory<T, Query<T>> factory;
   private final SegmentReference segment;
   private final SegmentDescriptor descriptor;
 
   public ReferenceCountingSegmentQueryRunner(
+      SegmentIdMapper segmentIdMapper,
       QueryRunnerFactory<T, Query<T>> factory,
       SegmentReference segment,
       SegmentDescriptor descriptor
   )
   {
+    this.segmentIdMapper = segmentIdMapper;
     this.factory = factory;
     this.segment = segment;
     this.descriptor = descriptor;
@@ -46,7 +49,7 @@ public class ReferenceCountingSegmentQueryRunner<T> implements QueryRunner<T>
   {
     return segment.acquireReferences().map(closeable -> {
       try {
-        final Sequence<T> baseSequence = factory.createRunner(segment).run(queryPlus, responseContext);
+        final Sequence<T> baseSequence = factory.createRunner(segmentIdMapper, segment).run(queryPlus, responseContext);
         return Sequences.withBaggage(baseSequence, closeable);
       }
       catch (Throwable t) {

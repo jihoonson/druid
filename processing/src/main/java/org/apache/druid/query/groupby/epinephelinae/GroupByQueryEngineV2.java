@@ -60,6 +60,7 @@ import org.apache.druid.segment.ColumnValueSelector;
 import org.apache.druid.segment.Cursor;
 import org.apache.druid.segment.DimensionHandlerUtils;
 import org.apache.druid.segment.DimensionSelector;
+import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.StorageAdapter;
 import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.column.ValueType;
@@ -85,7 +86,7 @@ import java.util.stream.Stream;
  * This code runs on data servers, like Historicals.
  *
  * Used by
- * {@link GroupByStrategyV2#process(GroupByQuery, StorageAdapter)}.
+ * {@link GroupByStrategyV2#process(GroupByQuery, IdentifiableStorageAdapter)}.
  */
 public class GroupByQueryEngineV2
 {
@@ -112,7 +113,7 @@ public class GroupByQueryEngineV2
 
   public static Sequence<ResultRow> process(
       final GroupByQuery query,
-      @Nullable final StorageAdapter storageAdapter,
+      @Nullable final IdentifiableStorageAdapter storageAdapter,
       final NonBlockingPool<ByteBuffer> intermediateResultsBufferPool,
       final GroupByQueryConfig querySpecificConfig
   )
@@ -180,7 +181,7 @@ public class GroupByQueryEngineV2
 
   private static Sequence<ResultRow> processNonVectorized(
       final GroupByQuery query,
-      final StorageAdapter storageAdapter,
+      final IdentifiableStorageAdapter storageAdapter,
       final ByteBuffer processingBuffer,
       @Nullable final DateTime fudgeTimestamp,
       final GroupByQueryConfig querySpecificConfig,
@@ -202,7 +203,7 @@ public class GroupByQueryEngineV2
             new BaseSequence.IteratorMaker<ResultRow, GroupByEngineIterator<?>>()
             {
               @Override
-              public GroupByEngineIterator make()
+              public GroupByEngineIterator<?> make()
               {
                 final ColumnSelectorFactory columnSelectorFactory = cursor.getColumnSelectorFactory();
                 final ColumnSelectorPlus<GroupByColumnSelectorStrategy>[] selectorPlus = DimensionHandlerUtils
@@ -225,6 +226,7 @@ public class GroupByQueryEngineV2
 
                 if (cardinalityForArrayAggregation >= 0) {
                   return new ArrayAggregateIterator(
+                      storageAdapter.getId(),
                       query,
                       querySpecificConfig,
                       cursor,
@@ -236,6 +238,7 @@ public class GroupByQueryEngineV2
                   );
                 } else {
                   return new HashAggregateIterator(
+                      storageAdapter.getId(),
                       query,
                       querySpecificConfig,
                       cursor,
@@ -248,7 +251,7 @@ public class GroupByQueryEngineV2
               }
 
               @Override
-              public void cleanup(GroupByEngineIterator iterFromMake)
+              public void cleanup(GroupByEngineIterator<?> iterFromMake)
               {
                 iterFromMake.close();
               }
@@ -422,6 +425,7 @@ public class GroupByQueryEngineV2
 
   private abstract static class GroupByEngineIterator<KeyType> implements Iterator<ResultRow>, Closeable
   {
+    protected final int segmentId;
     protected final GroupByQuery query;
     protected final GroupByQueryConfig querySpecificConfig;
     protected final Cursor cursor;
@@ -435,6 +439,7 @@ public class GroupByQueryEngineV2
     protected final boolean allSingleValueDims;
 
     public GroupByEngineIterator(
+        final int segmentId,
         final GroupByQuery query,
         final GroupByQueryConfig querySpecificConfig,
         final Cursor cursor,
@@ -444,6 +449,7 @@ public class GroupByQueryEngineV2
         final boolean allSingleValueDims
     )
     {
+      this.segmentId = segmentId;
       this.query = query;
       this.querySpecificConfig = querySpecificConfig;
       this.cursor = cursor;
@@ -581,6 +587,7 @@ public class GroupByQueryEngineV2
     protected boolean currentRowWasPartiallyAggregated = false;
 
     public HashAggregateIterator(
+        int segmentId,
         GroupByQuery query,
         GroupByQueryConfig querySpecificConfig,
         Cursor cursor,
@@ -590,7 +597,7 @@ public class GroupByQueryEngineV2
         boolean allSingleValueDims
     )
     {
-      super(query, querySpecificConfig, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims);
+      super(segmentId, query, querySpecificConfig, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims);
 
       final int dimCount = query.getDimensions().size();
       stack = new int[dimCount];
@@ -789,6 +796,7 @@ public class GroupByQueryEngineV2
     private int nextValIndex;
 
     public ArrayAggregateIterator(
+        int segmentId,
         GroupByQuery query,
         GroupByQueryConfig querySpecificConfig,
         Cursor cursor,
@@ -799,7 +807,7 @@ public class GroupByQueryEngineV2
         int cardinality
     )
     {
-      super(query, querySpecificConfig, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims);
+      super(segmentId, query, querySpecificConfig, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims);
       this.cardinality = cardinality;
       if (dims.length == 1) {
         this.dim = dims[0];
@@ -888,11 +896,19 @@ public class GroupByQueryEngineV2
     @Override
     protected void putToRow(Integer key, ResultRow resultRow)
     {
+//      if (dim != null) {
+//        if (key != GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE) {
+//          resultRow.set(dim.getResultRowPosition(), ((DimensionSelector) dim.getSelector()).lookupName(key));
+//        } else {
+//          resultRow.set(dim.getResultRowPosition(), NullHandling.defaultStringValue());
+//        }
+//      }
       if (dim != null) {
+        final long val = GroupByStrategyV2.identifiableDictionaryId(segmentId, key);
         if (key != GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE) {
-          resultRow.set(dim.getResultRowPosition(), ((DimensionSelector) dim.getSelector()).lookupName(key));
+          resultRow.set(dim.getResultRowPosition(), val);
         } else {
-          resultRow.set(dim.getResultRowPosition(), NullHandling.defaultStringValue());
+          resultRow.set(dim.getResultRowPosition(), val);
         }
       }
     }

@@ -33,11 +33,22 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
 {
   private final ExecutorService exec;
   private final Iterable<QueryRunner<DictionaryConversion[]>> queryRunners;
+  private final int numQueryRunners;
 
-  public DictionaryMergingQueryRunner(ExecutorService exec, Iterable<QueryRunner<DictionaryConversion[]>> queryRunners)
+  public DictionaryMergingQueryRunner(
+      ExecutorService exec,
+      Iterable<QueryRunner<DictionaryConversion[]>> queryRunners,
+      int numQueryRunners
+  )
   {
     this.exec = exec;
     this.queryRunners = queryRunners;
+    this.numQueryRunners = numQueryRunners;
+  }
+
+  public int getNumQueryRunners()
+  {
+    return numQueryRunners;
   }
 
   @Override

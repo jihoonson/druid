@@ -39,6 +39,7 @@ import org.apache.druid.java.util.common.guava.LazySequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.query.DataSource;
+import org.apache.druid.query.DictionaryMergingQueryRunner;
 import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.InsufficientResourcesException;
 import org.apache.druid.query.Query;
@@ -66,7 +67,7 @@ import org.apache.druid.query.groupby.orderby.LimitSpec;
 import org.apache.druid.query.groupby.orderby.NoopLimitSpec;
 import org.apache.druid.query.groupby.resource.GroupByQueryResource;
 import org.apache.druid.query.spec.MultipleIntervalSegmentSpec;
-import org.apache.druid.segment.StorageAdapter;
+import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.VirtualColumns;
 
 import java.nio.ByteBuffer;
@@ -246,6 +247,8 @@ public class GroupByStrategyV2 implements GroupByStrategy
       return Sequences.map(
           mergedResults,
           row -> {
+            // TODO: decode dictionary ids to string values
+
             // This function's purpose is to apply PostAggregators.
 
             final ResultRow rowWithPostAggregations = ResultRow.create(query.getResultRowSizeWithPostAggregators());
@@ -552,7 +555,8 @@ public class GroupByStrategyV2 implements GroupByStrategy
   @Override
   public QueryRunner<ResultRow> mergeRunners(
       final ListeningExecutorService exec,
-      final Iterable<QueryRunner<ResultRow>> queryRunners
+      final Iterable<QueryRunner<ResultRow>> queryRunners,
+      final DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
     return new GroupByMergingQueryRunnerV2(
@@ -564,12 +568,13 @@ public class GroupByStrategyV2 implements GroupByStrategy
         mergeBufferPool,
         processingConfig.intermediateComputeSizeBytes(),
         spillMapper,
-        processingConfig.getTmpDir()
+        processingConfig.getTmpDir(),
+        dictionaryMergingRunner
     );
   }
 
   @Override
-  public Sequence<ResultRow> process(GroupByQuery query, StorageAdapter storageAdapter)
+  public Sequence<ResultRow> process(GroupByQuery query, IdentifiableStorageAdapter storageAdapter)
   {
     return GroupByQueryEngineV2.process(
         query,
@@ -583,5 +588,26 @@ public class GroupByStrategyV2 implements GroupByStrategy
   public boolean supportsNestedQueryPushDown()
   {
     return true;
+  }
+
+  public static long identifiableDictionaryId(int segmentId, int dictionaryId)
+  {
+    long val = segmentId;
+    val = val << 32;
+    val = val | dictionaryId;
+    return val;
+  }
+
+  public static int segmentId(long identifiableDictionaryId)
+  {
+    // TODO: maybe assert
+    return Math.toIntExact(identifiableDictionaryId >>> 32);
+  }
+
+  public static int dictionaryId(long identifiableDictionaryId)
+  {
+    // TODO: maybe assert
+//    return (int) (identifiableDictionaryId & 0xffffffff);
+    return (int) identifiableDictionaryId;
   }
 }

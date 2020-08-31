@@ -48,13 +48,10 @@ public class DictionaryBuildingStringGroupByColumnSelectorStrategy extends Strin
   private final List<String> dictionary = new ArrayList<>();
   private final Object2IntOpenHashMap<String> reverseDictionary = new Object2IntOpenHashMap<>();
 
-  {
-    reverseDictionary.defaultReturnValue(-1);
-  }
-
   public DictionaryBuildingStringGroupByColumnSelectorStrategy()
   {
     super(null, null);
+    reverseDictionary.defaultReturnValue(-1);
   }
 
   @Override

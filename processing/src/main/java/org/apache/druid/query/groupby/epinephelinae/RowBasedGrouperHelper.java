@@ -62,10 +62,10 @@ import org.apache.druid.segment.BaseFloatColumnValueSelector;
 import org.apache.druid.segment.BaseLongColumnValueSelector;
 import org.apache.druid.segment.ColumnSelectorFactory;
 import org.apache.druid.segment.ColumnValueSelector;
+import org.apache.druid.segment.DictionaryEncodedRowBasedColumnSelectorFactory;
 import org.apache.druid.segment.DimensionHandlerUtils;
 import org.apache.druid.segment.DimensionSelector;
 import org.apache.druid.segment.RowAdapter;
-import org.apache.druid.segment.RowBasedColumnSelectorFactory;
 import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.column.ValueType;
 import org.apache.druid.segment.data.IndexedInts;
@@ -132,7 +132,8 @@ public class RowBasedGrouperHelper
         UNKNOWN_THREAD_PRIORITY,
         false,
         UNKNOWN_TIMEOUT,
-        mergeBufferSize
+        mergeBufferSize,
+        null
     );
   }
 
@@ -179,7 +180,8 @@ public class RowBasedGrouperHelper
       final int priority,
       final boolean hasQueryTimeout,
       final long queryTimeoutAt,
-      final int mergeBufferSize
+      final int mergeBufferSize,
+      @Nullable final Supplier<MergedDictionary[]> mergedDictionarySupplier// TODO: make it not nullable
   )
   {
     // concurrencyHint >= 1 for concurrent groupers, -1 for single-threaded
@@ -201,7 +203,8 @@ public class RowBasedGrouperHelper
 
     ColumnSelectorFactory columnSelectorFactory = createResultRowBasedColumnSelectorFactory(
         combining ? query : subquery,
-        columnSelectorRow::get
+        columnSelectorRow::get,
+        mergedDictionarySupplier
     );
 
     // Apply virtual columns if we are in subquery (non-combining) mode.
@@ -237,7 +240,8 @@ public class RowBasedGrouperHelper
         querySpecificConfig.getMaxMergingDictionarySize() / (concurrencyHint == -1 ? 1 : concurrencyHint),
         valueTypes,
         aggregatorFactories,
-        limitSpec
+        limitSpec,
+        mergedDictionarySupplier
     );
 
     final Grouper<RowBasedKey> grouper;
@@ -265,7 +269,8 @@ public class RowBasedGrouperHelper
           querySpecificConfig.getMaxMergingDictionarySize(), // use entire dictionary space for combining key serde
           valueTypes,
           aggregatorFactories,
-          limitSpec
+          limitSpec,
+          null
       );
 
       grouper = new ConcurrentGrouper<>(
@@ -303,7 +308,7 @@ public class RowBasedGrouperHelper
       // Filters are not applied in combining mode.
       rowPredicate = row -> true;
     } else {
-      rowPredicate = getResultRowPredicate(query, subquery);
+      rowPredicate = getResultRowPredicate(query, subquery, mergedDictionarySupplier);
     }
 
     final Accumulator<AggregateResult, ResultRow> accumulator = (priorResult, row) -> {
@@ -322,8 +327,10 @@ public class RowBasedGrouperHelper
         return AggregateResult.ok();
       }
 
+      // row is (segmentId, originalDictId)
       columnSelectorRow.set(row);
 
+      // TODO: key should be newDictId
       final Comparable[] key = new Comparable[keySize];
       valueExtractFn.apply(row, key);
 
@@ -344,7 +351,8 @@ public class RowBasedGrouperHelper
    */
   public static ColumnSelectorFactory createResultRowBasedColumnSelectorFactory(
       final GroupByQuery query,
-      final Supplier<ResultRow> supplier
+      final Supplier<ResultRow> supplier,
+      final Supplier<MergedDictionary[]> mergedDictionarySupplier
   )
   {
     final RowAdapter<ResultRow> adapter =
@@ -373,11 +381,17 @@ public class RowBasedGrouperHelper
           }
         };
 
-    return RowBasedColumnSelectorFactory.create(
-        adapter,
+//    return RowBasedColumnSelectorFactory.create(
+//        adapter,
+//        supplier::get,
+//        query.getResultRowSignature(),
+//        false
+//    );
+    return new DictionaryEncodedRowBasedColumnSelectorFactory(
         supplier::get,
-        query.getResultRowSignature(),
-        false
+        adapter,
+        mergedDictionarySupplier::get,
+        query.getResultRowSignature()
     );
   }
 
@@ -388,7 +402,7 @@ public class RowBasedGrouperHelper
    * @param query    outer query
    * @param subquery inner query
    */
-  private static Predicate<ResultRow> getResultRowPredicate(final GroupByQuery query, final GroupByQuery subquery)
+  private static Predicate<ResultRow> getResultRowPredicate(final GroupByQuery query, final GroupByQuery subquery, final Supplier<MergedDictionary[]> mergedDictionarySupplier)
   {
     final List<Interval> queryIntervals = query.getIntervals();
     final Filter filter = Filters.convertToCNFFromQueryContext(
@@ -398,10 +412,12 @@ public class RowBasedGrouperHelper
 
     final SettableSupplier<ResultRow> rowSupplier = new SettableSupplier<>();
     final ColumnSelectorFactory columnSelectorFactory =
-        RowBasedGrouperHelper.createResultRowBasedColumnSelectorFactory(subquery, rowSupplier);
+        RowBasedGrouperHelper.createResultRowBasedColumnSelectorFactory(subquery, rowSupplier, mergedDictionarySupplier);
 
     final ValueMatcher filterMatcher = filter == null
                                        ? BooleanValueMatcher.of(true)
+                                       // TODO: maybe possible to modify filter to use dictionary..
+                                       // but let's decode it for now
                                        : filter.makeMatcher(columnSelectorFactory);
 
     if (subquery.getUniversalTimestamp() != null
@@ -424,6 +440,7 @@ public class RowBasedGrouperHelper
           return false;
         }
       }
+      // TODO: decode dictionary
       rowSupplier.set(row);
       return filterMatcher.matches();
     };
@@ -660,9 +677,10 @@ public class RowBasedGrouperHelper
     {
       return () -> {
         IndexedInts index = selector.getRow();
-        return index.size() == 0
-               ? null
-               : selector.lookupName(index.get(0));
+//        return index.size() == 0
+//               ? null
+//               : selector.lookupName(index.get(0));
+        return index.get(0);
       };
     }
   }
@@ -740,8 +758,9 @@ public class RowBasedGrouperHelper
     private final long maxDictionarySize;
     private final DefaultLimitSpec limitSpec;
     private final List<DimensionSpec> dimensions;
-    final AggregatorFactory[] aggregatorFactories;
+    private final AggregatorFactory[] aggregatorFactories;
     private final List<ValueType> valueTypes;
+    private final Supplier<MergedDictionary[]> mergedDictionarySupplier;
 
     RowBasedKeySerdeFactory(
         boolean includeTimestamp,
@@ -750,7 +769,8 @@ public class RowBasedGrouperHelper
         long maxDictionarySize,
         List<ValueType> valueTypes,
         final AggregatorFactory[] aggregatorFactories,
-        DefaultLimitSpec limitSpec
+        DefaultLimitSpec limitSpec,
+        Supplier<MergedDictionary[]> mergedDictionarySupplier
     )
     {
       this.includeTimestamp = includeTimestamp;
@@ -761,6 +781,7 @@ public class RowBasedGrouperHelper
       this.limitSpec = limitSpec;
       this.aggregatorFactories = aggregatorFactories;
       this.valueTypes = valueTypes;
+      this.mergedDictionarySupplier = mergedDictionarySupplier;
     }
 
     @Override
@@ -779,7 +800,8 @@ public class RowBasedGrouperHelper
           maxDictionarySize,
           limitSpec,
           valueTypes,
-          null
+          null,
+          mergedDictionarySupplier
       );
     }
 
@@ -793,7 +815,8 @@ public class RowBasedGrouperHelper
           maxDictionarySize,
           limitSpec,
           valueTypes,
-          dictionary
+          dictionary,
+          null
       );
     }
 
@@ -1038,6 +1061,8 @@ public class RowBasedGrouperHelper
     // Size limiting for the dictionary, in (roughly estimated) bytes.
     private final long maxDictionarySize;
 
+    private final Supplier<MergedDictionary[]> mergedDictionarySupplier;
+
     private long currentEstimatedSize = 0;
 
     // dictionary id -> rank of the sorted dictionary
@@ -1053,7 +1078,8 @@ public class RowBasedGrouperHelper
         final long maxDictionarySize,
         final DefaultLimitSpec limitSpec,
         final List<ValueType> valueTypes,
-        @Nullable final List<String> dictionary
+        @Nullable final List<String> dictionary,
+        @Nullable final Supplier<MergedDictionary[]> mergedDictionarySupplier
     )
     {
       this.includeTimestamp = includeTimestamp;
@@ -1074,6 +1100,7 @@ public class RowBasedGrouperHelper
       Arrays.setAll(serdeHelperComparators, i -> serdeHelpers[i].getBufferComparator());
       this.keySize = (includeTimestamp ? Long.BYTES : 0) + getTotalKeySize();
       this.keyBuffer = ByteBuffer.allocate(keySize);
+      this.mergedDictionarySupplier = mergedDictionarySupplier;
 
       if (!enableRuntimeDictionaryGeneration) {
         final long initialDictionarySize = dictionary.stream()
@@ -1261,12 +1288,13 @@ public class RowBasedGrouperHelper
         int keyBufferPosition,
         boolean pushLimitDown,
         @Nullable StringComparator stringComparator,
-        boolean enableRuntimeDictionaryGeneration
+        boolean enableRuntimeDictionaryGeneration,
+        @Nullable Supplier<MergedDictionary> mergedDictionarySupplier
     )
     {
       switch (valueType) {
         case STRING:
-          if (enableRuntimeDictionaryGeneration) {
+          if (mergedDictionarySupplier == null && enableRuntimeDictionaryGeneration) {
             return new DynamicDictionaryStringRowBasedKeySerdeHelper(
                 keyBufferPosition,
                 pushLimitDown,

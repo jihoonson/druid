@@ -36,6 +36,7 @@ import org.apache.druid.query.QueryRunnerFactoryConglomerate;
 import org.apache.druid.query.QueryToolChest;
 import org.apache.druid.query.ReportTimelineMissingSegmentQueryRunner;
 import org.apache.druid.query.SegmentDescriptor;
+import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.segment.ReferenceCountingSegment;
 import org.apache.druid.segment.SegmentReference;
 import org.apache.druid.segment.join.JoinableFactory;
@@ -100,6 +101,7 @@ public class ServerManagerForQueryRetryTest extends ServerManager
   <T> QueryRunner<T> buildQueryRunnerForSegment(
       Query<T> query,
       SegmentDescriptor descriptor,
+      SegmentIdMapper segmentIdMapper,
       QueryRunnerFactory<T, Query<T>> factory,
       QueryToolChest<T, Query<T>> toolChest,
       VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline,
@@ -131,6 +133,7 @@ public class ServerManagerForQueryRetryTest extends ServerManager
     return super.buildQueryRunnerForSegment(
         query,
         descriptor,
+        segmentIdMapper,
         factory,
         toolChest,
         timeline,

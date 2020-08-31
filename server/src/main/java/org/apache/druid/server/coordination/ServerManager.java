@@ -35,6 +35,9 @@ import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
 import org.apache.druid.query.BySegmentQueryRunner;
 import org.apache.druid.query.CPUTimeMetricQueryRunner;
+import org.apache.druid.query.DictionaryConversion;
+import org.apache.druid.query.DictionaryMergingQueryRunner;
+import org.apache.druid.query.DictionaryMergingQueryRunnerFactory;
 import org.apache.druid.query.FinalizeResultsQueryRunner;
 import org.apache.druid.query.MetricsEmittingQueryRunner;
 import org.apache.druid.query.NoopQueryRunner;
@@ -52,6 +55,7 @@ import org.apache.druid.query.QueryUnsupportedException;
 import org.apache.druid.query.ReferenceCountingSegmentQueryRunner;
 import org.apache.druid.query.ReportTimelineMissingSegmentQueryRunner;
 import org.apache.druid.query.SegmentDescriptor;
+import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.query.planning.DataSourceAnalysis;
 import org.apache.druid.query.spec.SpecificSegmentQueryRunner;
 import org.apache.druid.query.spec.SpecificSegmentSpec;
@@ -204,6 +208,27 @@ public class ServerManager implements QuerySegmentWalker
         analysis.getBaseQuery().orElse(query)
     );
 
+    final SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
+    final DictionaryMergingQueryRunnerFactory dictionaryMergingQueryRunnerFactory = new DictionaryMergingQueryRunnerFactory();
+    final FunctionalIterable<QueryRunner<DictionaryConversion[]>> dictionaryScanners = FunctionalIterable
+        .create(specs)
+        .transformCat(
+            descriptor -> Collections.singletonList(
+                buildDictionaryMergingQueryRunnerForSegment(
+                    descriptor,
+                    segmentIdMapper,
+                    dictionaryMergingQueryRunnerFactory,
+                    timeline,
+                    segmentMapFn,
+                    cpuTimeAccumulator
+                )
+            )
+        );
+    final DictionaryMergingQueryRunner dictionaryMergingQueryRunner = dictionaryMergingQueryRunnerFactory.mergeRunners(
+        exec,
+        dictionaryScanners
+    );
+
     final FunctionalIterable<QueryRunner<T>> queryRunners = FunctionalIterable
         .create(specs)
         .transformCat(
@@ -211,6 +236,7 @@ public class ServerManager implements QuerySegmentWalker
                 buildQueryRunnerForSegment(
                     query,
                     descriptor,
+                    segmentIdMapper,
                     factory,
                     toolChest,
                     timeline,
@@ -222,7 +248,7 @@ public class ServerManager implements QuerySegmentWalker
 
     return CPUTimeMetricQueryRunner.safeBuild(
         new FinalizeResultsQueryRunner<>(
-            toolChest.mergeResults(factory.mergeRunners(exec, queryRunners)),
+            toolChest.mergeResults(factory.mergeRunners(exec, queryRunners, dictionaryMergingQueryRunner)),
             toolChest
         ),
         toolChest,
@@ -235,6 +261,7 @@ public class ServerManager implements QuerySegmentWalker
   <T> QueryRunner<T> buildQueryRunnerForSegment(
       final Query<T> query,
       final SegmentDescriptor descriptor,
+      final SegmentIdMapper segmentIdMapper,
       final QueryRunnerFactory<T, Query<T>> factory,
       final QueryToolChest<T, Query<T>> toolChest,
       final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline,
@@ -258,6 +285,7 @@ public class ServerManager implements QuerySegmentWalker
 
     final ReferenceCountingSegment segment = chunk.getObject();
     return buildAndDecorateQueryRunner(
+        segmentIdMapper,
         factory,
         toolChest,
         segmentMapFn.apply(segment),
@@ -267,6 +295,7 @@ public class ServerManager implements QuerySegmentWalker
   }
 
   private <T> QueryRunner<T> buildAndDecorateQueryRunner(
+      final SegmentIdMapper segmentIdMapper,
       final QueryRunnerFactory<T, Query<T>> factory,
       final QueryToolChest<T, Query<T>> toolChest,
       final SegmentReference segment,
@@ -288,7 +317,7 @@ public class ServerManager implements QuerySegmentWalker
     MetricsEmittingQueryRunner<T> metricsEmittingQueryRunnerInner = new MetricsEmittingQueryRunner<>(
         emitter,
         toolChest,
-        new ReferenceCountingSegmentQueryRunner<>(factory, segment, segmentDescriptor),
+        new ReferenceCountingSegmentQueryRunner<>(segmentIdMapper, factory, segment, segmentDescriptor),
         QueryMetrics::reportSegmentTime,
         queryMetrics -> queryMetrics.segment(segmentIdString)
     );
@@ -337,6 +366,117 @@ public class ServerManager implements QuerySegmentWalker
             cpuTimeAccumulator,
             false
         )
+    );
+  }
+
+  QueryRunner<DictionaryConversion[]> buildDictionaryMergingQueryRunnerForSegment(
+      final SegmentDescriptor descriptor,
+      final SegmentIdMapper segmentIdMapper,
+      final DictionaryMergingQueryRunnerFactory factory,
+      final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline,
+      final Function<SegmentReference, SegmentReference> segmentMapFn,
+      final AtomicLong cpuTimeAccumulator
+  )
+  {
+    final PartitionHolder<ReferenceCountingSegment> entry = timeline.findEntry(
+        descriptor.getInterval(),
+        descriptor.getVersion()
+    );
+
+    if (entry == null) {
+      return new ReportTimelineMissingSegmentQueryRunner<>(descriptor);
+    }
+
+    final PartitionChunk<ReferenceCountingSegment> chunk = entry.getChunk(descriptor.getPartitionNumber());
+    if (chunk == null) {
+      return new ReportTimelineMissingSegmentQueryRunner<>(descriptor);
+    }
+
+    final ReferenceCountingSegment segment = chunk.getObject();
+    return buildAndDecorateDictionaryMergingQueryRunner(
+        segmentIdMapper,
+        factory,
+        segmentMapFn.apply(segment),
+        descriptor,
+        cpuTimeAccumulator
+    );
+  }
+
+  private QueryRunner<DictionaryConversion[]> buildAndDecorateDictionaryMergingQueryRunner(
+      final SegmentIdMapper segmentIdMapper,
+      final DictionaryMergingQueryRunnerFactory factory,
+      final SegmentReference segment,
+      final SegmentDescriptor segmentDescriptor,
+      final AtomicLong cpuTimeAccumulator
+  )
+  {
+    final SpecificSegmentSpec segmentSpec = new SpecificSegmentSpec(segmentDescriptor);
+    final SegmentId segmentId = segment.getId();
+    final Interval segmentInterval = segment.getDataInterval();
+    // ReferenceCountingSegment can return null for ID or interval if it's already closed.
+    // Here, we check one more time if the segment is closed.
+    // If the segment is closed after this line, ReferenceCountingSegmentQueryRunner will handle and do the right thing.
+    if (segmentId == null || segmentInterval == null) {
+      return new ReportTimelineMissingSegmentQueryRunner<>(segmentDescriptor);
+    }
+
+    final ReferenceCountingSegmentQueryRunner<DictionaryConversion[]> referenceCountingSegmentQueryRunner =
+        new ReferenceCountingSegmentQueryRunner<>(segmentIdMapper, factory, segment, segmentDescriptor);
+
+  //    MetricsEmittingQueryRunner<T> metricsEmittingQueryRunnerInner = new MetricsEmittingQueryRunner<>(
+  //        emitter,
+  //        toolChest,
+  //        new ReferenceCountingSegmentQueryRunner<>(factory, segment, segmentDescriptor),
+  //        QueryMetrics::reportSegmentTime,
+  //        queryMetrics -> queryMetrics.segment(segmentIdString)
+  //    );
+
+    // TODO: maybe useful if cache was separate?
+  //    CachingQueryRunner<T> cachingQueryRunner = new CachingQueryRunner<>(
+  //        segmentIdString,
+  //        segmentDescriptor,
+  //        objectMapper,
+  //        cache,
+  //        toolChest,
+  //        metricsEmittingQueryRunnerInner,
+  //        cachePopulator,
+  //        cacheConfig
+  //    );
+
+    BySegmentQueryRunner<DictionaryConversion[]> bySegmentQueryRunner = new BySegmentQueryRunner<>(
+        segmentId,
+        segmentInterval.getStart(),
+        referenceCountingSegmentQueryRunner
+    );
+
+  //    MetricsEmittingQueryRunner<T> metricsEmittingQueryRunnerOuter = new MetricsEmittingQueryRunner<>(
+  //        emitter,
+  //        toolChest,
+  //        bySegmentQueryRunner,
+  //        QueryMetrics::reportSegmentAndCacheTime,
+  //        queryMetrics -> queryMetrics.segment(segmentIdString)
+  //    ).withWaitMeasuredFromNow();
+
+    SpecificSegmentQueryRunner<DictionaryConversion[]> specificSegmentQueryRunner = new SpecificSegmentQueryRunner<>(
+        bySegmentQueryRunner,
+        segmentSpec
+    );
+
+  //    PerSegmentOptimizingQueryRunner<T> perSegmentOptimizingQueryRunner = new PerSegmentOptimizingQueryRunner<>(
+  //        specificSegmentQueryRunner,
+  //        new PerSegmentQueryOptimizationContext(segmentDescriptor)
+  //    );
+
+    return new SetAndVerifyContextQueryRunner<>(
+        serverConfig,
+        specificSegmentQueryRunner
+  //        CPUTimeMetricQueryRunner.safeBuild(
+  //            perSegmentOptimizingQueryRunner,
+  //            toolChest,
+  //            emitter,
+  //            cpuTimeAccumulator,
+  //            false
+  //        )
     );
   }
 }

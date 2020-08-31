@@ -32,6 +32,7 @@ import org.apache.druid.guice.annotations.Global;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
+import org.apache.druid.query.DictionaryMergingQueryRunner;
 import org.apache.druid.query.GroupByMergedQueryRunner;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
@@ -48,7 +49,7 @@ import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.orderby.NoopLimitSpec;
 import org.apache.druid.query.groupby.resource.GroupByQueryResource;
 import org.apache.druid.query.spec.MultipleIntervalSegmentSpec;
-import org.apache.druid.segment.StorageAdapter;
+import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.incremental.IncrementalIndex;
 import org.apache.druid.segment.incremental.IncrementalIndexStorageAdapter;
 import org.joda.time.Interval;
@@ -242,7 +243,11 @@ public class GroupByStrategyV1 implements GroupByStrategy
                         outerQuery.withQuerySegmentSpec(
                             new MultipleIntervalSegmentSpec(ImmutableList.of(interval))
                         ),
-                        new IncrementalIndexStorageAdapter(innerQueryResultIndex)
+                        // TODO: what to do?
+                        new IdentifiableStorageAdapter(
+                            0,
+                            new IncrementalIndexStorageAdapter(innerQueryResultIndex)
+                        )
                     );
                   }
                 }
@@ -271,14 +276,15 @@ public class GroupByStrategyV1 implements GroupByStrategy
   @Override
   public QueryRunner<ResultRow> mergeRunners(
       final ListeningExecutorService exec,
-      final Iterable<QueryRunner<ResultRow>> queryRunners
+      final Iterable<QueryRunner<ResultRow>> queryRunners,
+      final DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
     return new GroupByMergedQueryRunner<>(exec, configSupplier, queryWatcher, bufferPool, queryRunners);
   }
 
   @Override
-  public Sequence<ResultRow> process(final GroupByQuery query, final StorageAdapter storageAdapter)
+  public Sequence<ResultRow> process(final GroupByQuery query, final IdentifiableStorageAdapter storageAdapter)
   {
     return Sequences.map(
         engine.process(query, storageAdapter),

@@ -31,6 +31,10 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import it.unimi.dsi.fastutil.ints.Int2IntMap;
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.collections.Releaser;
@@ -45,6 +49,9 @@ import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.query.AbstractPrioritizedCallable;
 import org.apache.druid.query.ChainedExecutionQueryRunner;
+import org.apache.druid.query.DictionaryConversion;
+import org.apache.druid.query.DictionaryMergeQuery;
+import org.apache.druid.query.DictionaryMergingQueryRunner;
 import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryInterruptedException;
 import org.apache.druid.query.QueryPlus;
@@ -79,7 +86,7 @@ import java.util.concurrent.TimeoutException;
  * similarities and differences.
  *
  * Used by
- * {@link org.apache.druid.query.groupby.strategy.GroupByStrategyV2#mergeRunners(ListeningExecutorService, Iterable)}.
+ * {@link org.apache.druid.query.groupby.strategy.GroupByStrategyV2#mergeRunners}.
  */
 public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
 {
@@ -95,6 +102,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
   private final ObjectMapper spillMapper;
   private final String processingTmpDir;
   private final int mergeBufferSize;
+  private final DictionaryMergingQueryRunner dictionaryMergingRunner;
 
   public GroupByMergingQueryRunnerV2(
       GroupByQueryConfig config,
@@ -105,7 +113,8 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
       BlockingPool<ByteBuffer> mergeBufferPool,
       int mergeBufferSize,
       ObjectMapper spillMapper,
-      String processingTmpDir
+      String processingTmpDir,
+      DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
     this.config = config;
@@ -117,6 +126,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
     this.spillMapper = spillMapper;
     this.processingTmpDir = processingTmpDir;
     this.mergeBufferSize = mergeBufferSize;
+    this.dictionaryMergingRunner = dictionaryMergingRunner;
   }
 
   @Override
@@ -192,6 +202,42 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                                                                                       mergeBufferHolders.get(1) :
                                                                                       null;
 
+              final ListenableFuture<Pair<Int2IntMap[], Int2ObjectMap<String>>[]> dictionaryMergingFuture;
+              if (config.isEarlyDictMerge()) {
+                final DictionaryMergeQuery dictionaryMergeQuery = new DictionaryMergeQuery(
+                    query.getDataSource(),
+                    query.getQuerySegmentSpec(),
+                    query.getDimensions()
+                );
+                final Sequence<DictionaryConversion[]> conversionSequence = dictionaryMergingRunner.run(
+                    QueryPlus.wrap(dictionaryMergeQuery)
+                );
+
+                dictionaryMergingFuture = exec.submit(() -> {
+                  final Pair<Int2IntMap[], Int2ObjectMap<String>>[] merging = new Pair[query.getDimensions().size()];
+                  for (int i = 0; i < merging.length; i++) {
+                    final Int2IntMap[] dictIdConversion = new Int2IntMap[dictionaryMergingRunner.getNumQueryRunners()];
+                    for (int j = 0; j < dictIdConversion.length; j++) {
+                      dictIdConversion[j] = new Int2IntOpenHashMap();
+                    }
+                    merging[i] = Pair.of(dictIdConversion, new Int2ObjectOpenHashMap<>());
+                  }
+                  return conversionSequence.accumulate(
+                      merging,
+                      (accumulated, conversions) -> {
+                        for (int i = 0; i < accumulated.length; i++) {
+                          accumulated[i].lhs[conversions[i].getSegmentId()].put(conversions[i].getOldDictionaryId(), conversions[i].getNewDictionaryId());
+                          accumulated[i].rhs.put(conversions[i].getNewDictionaryId(), conversions[i].getVal());
+                        }
+                        return accumulated;
+                      }
+                  );
+                });
+              } else {
+                // TODO: make it not nullable
+                dictionaryMergingFuture = Futures.immediateFuture(null);
+              }
+
               Pair<Grouper<RowBasedKey>, Accumulator<AggregateResult, ResultRow>> pair =
                   RowBasedGrouperHelper.createGrouperAccumulatorPair(
                       query,
@@ -206,7 +252,13 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                       priority,
                       hasTimeout,
                       timeoutAt,
-                      mergeBufferSize
+                      mergeBufferSize,
+                      Suppliers.memoize(() -> waitForDictionaryMergeFutureCompletion(
+                          query,
+                          dictionaryMergingFuture,
+                          hasTimeout,
+                          timeoutAt - System.currentTimeMillis()
+                      ))
                   );
               final Grouper<RowBasedKey> grouper = pair.lhs;
               final Accumulator<AggregateResult, ResultRow> accumulator = pair.rhs;
@@ -218,7 +270,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
 
               List<ListenableFuture<AggregateResult>> futures = Lists.newArrayList(
                       Iterables.transform(
-                          queryables,
+                          queryables, // each queryable performs a blocking operation processing a segment
                           new Function<QueryRunner<ResultRow>, ListenableFuture<AggregateResult>>()
                           {
                             @Override
@@ -272,7 +324,12 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                   );
 
               if (!isSingleThreaded) {
-                waitForFutureCompletion(query, futures, hasTimeout, timeoutAt - System.currentTimeMillis());
+                waitForFutureCompletion(
+                    query,
+                    futures,
+                    hasTimeout,
+                    timeoutAt - System.currentTimeMillis()
+                );
               }
 
               return RowBasedGrouperHelper.makeGrouperIterator(
@@ -336,6 +393,50 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
     }
   }
 
+  private MergedDictionary[] waitForDictionaryMergeFutureCompletion(
+      GroupByQuery query,
+      ListenableFuture<Pair<Int2IntMap[], Int2ObjectMap<String>>[]> future,
+      boolean hasTimeout,
+      long timeout
+  )
+  {
+    try {
+      if (hasTimeout && timeout <= 0) {
+        throw new TimeoutException();
+      }
+
+      final Pair<Int2IntMap[], Int2ObjectMap<String>>[] result;
+      if (hasTimeout) {
+        result = future.get(timeout, TimeUnit.MILLISECONDS);
+      } else {
+        result = future.get();
+      }
+      final MergedDictionary[] mergedDictionaries = new MergedDictionary[result.length];
+      for (int i = 0; i < mergedDictionaries.length; i++) {
+        mergedDictionaries[i] = new MergedDictionary(result[i].lhs, result[i].rhs);
+      }
+      return mergedDictionaries;
+    }
+    catch (InterruptedException e) {
+      log.warn(e, "Query interrupted, cancelling pending results, query id [%s]", query.getId());
+      future.cancel(true);
+      throw new QueryInterruptedException(e);
+    }
+    catch (CancellationException e) {
+      future.cancel(true);
+      throw new QueryInterruptedException(e);
+    }
+    catch (TimeoutException e) {
+      log.info("Query timeout, cancelling pending results for query id [%s]", query.getId());
+      future.cancel(true);
+      throw new QueryInterruptedException(e);
+    }
+    catch (ExecutionException e) {
+      future.cancel(true);
+      throw new RuntimeException(e);
+    }
+  }
+
   private void waitForFutureCompletion(
       GroupByQuery query,
       List<ListenableFuture<AggregateResult>> futures,
@@ -381,5 +482,4 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
       throw new RuntimeException(e);
     }
   }
-
 }

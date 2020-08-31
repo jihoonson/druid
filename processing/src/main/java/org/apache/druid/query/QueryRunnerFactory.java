@@ -22,6 +22,7 @@ package org.apache.druid.query;
 import org.apache.druid.guice.annotations.ExtensionPoint;
 import org.apache.druid.segment.Segment;
 
+import javax.annotation.Nullable;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -41,6 +42,11 @@ public interface QueryRunnerFactory<T, QueryType extends Query<T>>
    * @return  A {@link QueryRunner} that, when asked, will generate a
    *          {@link org.apache.druid.java.util.common.guava.Sequence} of results based on the given segment
    */
+  default QueryRunner<T> createRunner(SegmentIdMapper segmentIdMapper, Segment segment)
+  {
+    return createRunner(segment);
+  }
+
   QueryRunner<T> createRunner(Segment segment);
 
   /**
@@ -60,6 +66,15 @@ public interface QueryRunnerFactory<T, QueryType extends Query<T>>
    *                        {@link QueryRunner} collection.
    */
   QueryRunner<T> mergeRunners(ExecutorService queryExecutor, Iterable<QueryRunner<T>> queryRunners);
+
+  default QueryRunner<T> mergeRunners(
+      ExecutorService queryExecutor,
+      Iterable<QueryRunner<T>> queryRunners,
+      @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner
+  )
+  {
+    return mergeRunners(queryExecutor, queryRunners);
+  }
 
   /**
    * Provides access to the {@link QueryToolChest} for this specific {@link Query} type.

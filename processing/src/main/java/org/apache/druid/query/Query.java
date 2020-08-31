@@ -105,6 +105,8 @@ public interface Query<T>
 
   boolean isDescending();
 
+  QuerySegmentSpec getQuerySegmentSpec();
+
   /**
    * Comparator that represents the order in which results are generated from the
    * {@link QueryRunnerFactory#createRunner(Segment)} and

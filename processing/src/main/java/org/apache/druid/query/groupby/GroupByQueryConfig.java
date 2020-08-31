@@ -45,6 +45,7 @@ public class GroupByQueryConfig
   private static final String CTX_KEY_INTERMEDIATE_COMBINE_DEGREE = "intermediateCombineDegree";
   private static final String CTX_KEY_NUM_PARALLEL_COMBINE_THREADS = "numParallelCombineThreads";
   public static final String CTX_KEY_VECTORIZE = "vectorize";
+  public static final String CTX_KEY_EARLY_DICT_MERGE = "earlyDictMerge";
 
   @JsonProperty
   private String defaultStrategy = GroupByStrategySelector.STRATEGY_V2;
@@ -96,6 +97,9 @@ public class GroupByQueryConfig
 
   @JsonProperty
   private boolean vectorize = true;
+
+  @JsonProperty
+  private boolean earlyDictMerge = true;
 
   public String getDefaultStrategy()
   {
@@ -192,6 +196,11 @@ public class GroupByQueryConfig
     return forcePushDownNestedQuery;
   }
 
+  public boolean isEarlyDictMerge()
+  {
+    return earlyDictMerge;
+  }
+
   public GroupByQueryConfig withOverrides(final GroupByQuery query)
   {
     final GroupByQueryConfig newConfig = new GroupByQueryConfig();
@@ -244,6 +253,7 @@ public class GroupByQueryConfig
         getNumParallelCombineThreads()
     );
     newConfig.vectorize = query.getContextBoolean(CTX_KEY_VECTORIZE, isVectorize());
+    newConfig.earlyDictMerge = query.getContextBoolean(CTX_KEY_EARLY_DICT_MERGE, isEarlyDictMerge());
     return newConfig;
   }
 
@@ -266,6 +276,7 @@ public class GroupByQueryConfig
            ", numParallelCombineThreads=" + numParallelCombineThreads +
            ", vectorize=" + vectorize +
            ", forcePushDownNestedQuery=" + forcePushDownNestedQuery +
+           ", earlyDictMerge=" + earlyDictMerge +
            '}';
   }
 }
