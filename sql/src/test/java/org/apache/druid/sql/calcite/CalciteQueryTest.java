@@ -1910,7 +1910,7 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testAnyAggregator() throws Exception
   {
-    // Cannot vectorize ANY aggregator.
+    // Cannot vectorize virtual expressions.
     skipVectorize();
 
     testQuery(
@@ -1951,9 +1951,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testAnyAggregatorsOnHeapNumericNulls() throws Exception
   {
-    // Cannot vectorize ANY aggregator.
-    skipVectorize();
-
     testQuery(
         "SELECT ANY_VALUE(l1), ANY_VALUE(d1), ANY_VALUE(f1) FROM druid.numfoo",
         ImmutableList.of(
@@ -1982,8 +1979,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testAnyAggregatorsOffHeapNumericNulls() throws Exception
   {
-    // Cannot vectorize ANY aggregator.
-    skipVectorize();
     testQuery(
         "SELECT ANY_VALUE(l1), ANY_VALUE(d1), ANY_VALUE(f1) FROM druid.numfoo GROUP BY dim2",
         ImmutableList.of(
@@ -2203,9 +2198,12 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testPrimitiveAnyInSubquery() throws Exception
   {
-    // Cannot vectorize ANY aggregator.
-    skipVectorize();
-
+    // The grouping works like this
+    // dim2 ->    m1   |   m2
+    // a    -> [1,4]   | [1,4]
+    // null -> [2,3,6] | [2,3,6]
+    // abc  -> [5]     | [5]
+    // So the acceptable response can be any combination of these values
     testQuery(
         "SELECT SUM(val1), SUM(val2), SUM(val3) FROM (SELECT dim2, ANY_VALUE(m1) AS val1, ANY_VALUE(cnt) AS val2, ANY_VALUE(m2) AS val3 FROM foo GROUP BY dim2)",
         ImmutableList.of(
@@ -2251,9 +2249,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testStringAnyInSubquery() throws Exception
   {
-    // Cannot vectorize ANY aggregator.
-    skipVectorize();
-
     testQuery(
         "SELECT SUM(val) FROM (SELECT dim2, ANY_VALUE(dim1, 10) AS val FROM foo GROUP BY dim2)",
         ImmutableList.of(
@@ -2408,9 +2403,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testAnyAggregatorsDoesNotSkipNulls() throws Exception
   {
-    // Cannot vectorize ANY aggregator.
-    skipVectorize();
-
     testQuery(
         "SELECT ANY_VALUE(dim1, 32), ANY_VALUE(l2), ANY_VALUE(d2), ANY_VALUE(f2) FROM druid.numfoo",
         ImmutableList.of(
@@ -2439,9 +2431,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testAnyAggregatorsSkipNullsWithFilter() throws Exception
   {
-    // Cannot vectorize ANY aggregator.
-    skipVectorize();
-
     final DimFilter filter;
     if (useDefault) {
       filter = not(selector("dim1", null, null));
@@ -2767,8 +2756,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testOrderByAnyFloat() throws Exception
   {
-    // Cannot vectorize ANY aggregator.
-    skipVectorize();
     List<Object[]> expected;
     if (NullHandling.replaceWithDefault()) {
       expected = ImmutableList.of(
@@ -2817,8 +2804,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testOrderByAnyDouble() throws Exception
   {
-    // Cannot vectorize ANY aggregator.
-    skipVectorize();
     List<Object[]> expected;
     if (NullHandling.replaceWithDefault()) {
       expected = ImmutableList.of(
@@ -2866,8 +2851,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testOrderByAnyLong() throws Exception
   {
-    // Cannot vectorize ANY aggregator.
-    skipVectorize();
     List<Object[]> expected;
     if (NullHandling.replaceWithDefault()) {
       expected = ImmutableList.of(
@@ -5912,9 +5895,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testExpressionFilteringAndGroupingUsingCastToLong() throws Exception
   {
-    // Cannot vectorize due to virtual columns.
-    cannotVectorize();
-
     testQuery(
         "SELECT\n"
         + "  CAST(m1 AS BIGINT) / 2 * 2,\n"
@@ -6653,9 +6633,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testSumOfString() throws Exception
   {
-    // Cannot vectorize due to expressions in aggregators.
-    cannotVectorize();
-
     testQuery(
         "SELECT SUM(CAST(dim1 AS INTEGER)) FROM druid.foo",
         ImmutableList.of(
@@ -6713,9 +6690,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testTimeseriesWithTimeFilterOnLongColumnUsingMillisToTimestamp() throws Exception
   {
-    // Cannot vectorize due to virtual columns.
-    cannotVectorize();
-
     testQuery(
         "SELECT\n"
         + "  FLOOR(MILLIS_TO_TIMESTAMP(cnt) TO YEAR),\n"
@@ -9191,9 +9165,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testGroupByFloorTimeAndOneOtherDimensionWithOrderBy() throws Exception
   {
-    // Cannot vectorize due to virtual columns.
-    cannotVectorize();
-
     testQuery(
         "SELECT floor(__time TO year), dim2, COUNT(*)"
         + " FROM druid.foo"
@@ -11432,9 +11403,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testTimeseriesUsingTimeFloorWithTimestampAdd() throws Exception
   {
-    // Cannot vectorize due to virtual columns.
-    cannotVectorize();
-
     testQuery(
         "SELECT SUM(cnt), gran FROM (\n"
         + "  SELECT TIME_FLOOR(TIMESTAMPADD(DAY, -1, __time), 'P1M') AS gran,\n"
@@ -11944,11 +11912,7 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testTimeseriesWithLimitAndOffset() throws Exception
   {
-    // Cannot vectorize due to expressions.
-    cannotVectorize();
-
     // Timeseries cannot handle offsets, so the query morphs into a groupBy.
-
     testQuery(
         "SELECT gran, SUM(cnt)\n"
         + "FROM (\n"
@@ -12013,9 +11977,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testGroupByTimeAndOtherDimension() throws Exception
   {
-    // Cannot vectorize due to virtual columns.
-    cannotVectorize();
-
     testQuery(
         "SELECT dim2, gran, SUM(cnt)\n"
         + "FROM (SELECT FLOOR(__time TO MONTH) AS gran, dim2, cnt FROM druid.foo) AS x\n"
@@ -15939,8 +15900,6 @@ public class CalciteQueryTest extends BaseCalciteQueryTest
   @Test
   public void testRepeatedIdenticalVirtualExpressionGrouping() throws Exception
   {
-    cannotVectorize();
-
     final String query = "SELECT \n"
                          + "\tCASE dim1 WHEN NULL THEN FALSE ELSE TRUE END AS col_a,\n"
                          + "\tCASE dim2 WHEN NULL THEN FALSE ELSE TRUE END AS col_b\n"
