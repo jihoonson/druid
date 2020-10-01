@@ -10651,6 +10651,11 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
       expectedException.expect(UnsupportedOperationException.class);
     }
 
+    // cannot vectorize due to unknown nulls in numeric column
+    if (NullHandling.sqlCompatible()) {
+      cannotVectorize();
+    }
+
     GroupByQuery query = makeQueryBuilder()
         .setDataSource(QueryRunnerTestHelper.DATA_SOURCE)
         .setQuerySegmentSpec(QueryRunnerTestHelper.FIRST_TO_THIRD)
@@ -10722,7 +10727,8 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
   private Map<String, Object> makeContext()
   {
     return ImmutableMap.<String, Object>builder()
-        .put("vectorize", vectorize ? "force" : "false")
+        .put(QueryContexts.VECTORIZE_KEY, vectorize ? "force" : "false")
+        .put(QueryContexts.VECTORIZE_VIRTUAL_COLUMNS_KEY, vectorize ? "force" : "false")
         .put("vectorSize", 16) // Small vector size to ensure we use more than one.
         .build();
   }

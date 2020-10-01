@@ -20,6 +20,7 @@
 package org.apache.druid.query.groupby;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.groupby.strategy.GroupByStrategySelector;
 
 /**
@@ -44,7 +45,6 @@ public class GroupByQueryConfig
   private static final String CTX_KEY_FORCE_HASH_AGGREGATION = "forceHashAggregation";
   private static final String CTX_KEY_INTERMEDIATE_COMBINE_DEGREE = "intermediateCombineDegree";
   private static final String CTX_KEY_NUM_PARALLEL_COMBINE_THREADS = "numParallelCombineThreads";
-  public static final String CTX_KEY_VECTORIZE = "vectorize";
   public static final String CTX_KEY_EARLY_DICT_MERGE = "earlyDictMerge";
 
   @JsonProperty
@@ -252,7 +252,7 @@ public class GroupByQueryConfig
         CTX_KEY_NUM_PARALLEL_COMBINE_THREADS,
         getNumParallelCombineThreads()
     );
-    newConfig.vectorize = query.getContextBoolean(CTX_KEY_VECTORIZE, isVectorize());
+    newConfig.vectorize = query.getContextBoolean(QueryContexts.VECTORIZE_KEY, isVectorize());
     newConfig.earlyDictMerge = query.getContextBoolean(CTX_KEY_EARLY_DICT_MERGE, isEarlyDictMerge());
     return newConfig;
   }

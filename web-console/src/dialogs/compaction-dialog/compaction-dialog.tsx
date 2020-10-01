@@ -24,8 +24,6 @@ import { deepGet, deepSet } from '../../utils/object-change';
 
 import './compaction-dialog.scss';
 
-export const DEFAULT_MAX_ROWS_PER_SEGMENT = 5000000;
-
 type Tabs = 'form' | 'json';
 
 type CompactionConfig = Record<string, any>;
@@ -35,6 +33,7 @@ const COMPACTION_CONFIG_FIELDS: Field<CompactionConfig>[] = [
     name: 'skipOffsetFromLatest',
     type: 'string',
     defaultValue: 'P1D',
+    suggestions: ['PT0H', 'PT1H', 'P1D', 'P3D'],
     info: (
       <p>
         The offset for searching segments to be compacted. Strongly recommended to set for realtime
@@ -77,7 +76,6 @@ const COMPACTION_CONFIG_FIELDS: Field<CompactionConfig>[] = [
     name: 'tuningConfig.partitionsSpec.numShards',
     label: 'Num shards',
     type: 'number',
-    required: true, // ToDo: this will no longer be required after https://github.com/apache/druid/pull/10419 is merged
     defined: (t: CompactionConfig) => deepGet(t, 'tuningConfig.partitionsSpec.type') === 'hashed',
     info: (
       <>
@@ -211,13 +209,7 @@ function validCompactionConfig(compactionConfig: CompactionConfig): boolean {
     deepGet(compactionConfig, 'tuningConfig.partitionsSpec.type') || 'dynamic';
   switch (partitionsSpecType) {
     // case 'dynamic': // Nothing to check for dynamic
-    case 'hashed':
-      // ToDo: this will no longer be required after https://github.com/apache/druid/pull/10419 is merged
-      if (!deepGet(compactionConfig, 'tuningConfig.partitionsSpec.numShards')) {
-        return false;
-      }
-      break;
-
+    // case 'hashed': // Nothing to check for hashed
     case 'single_dim':
       if (!deepGet(compactionConfig, 'tuningConfig.partitionsSpec.partitionDimension')) {
         return false;
