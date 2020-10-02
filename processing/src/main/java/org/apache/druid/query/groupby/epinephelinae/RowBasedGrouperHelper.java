@@ -36,6 +36,7 @@ import org.apache.druid.common.guava.SettableSupplier;
 import org.apache.druid.common.utils.IntArrayUtils;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.IAE;
+import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.granularity.AllGranularity;
 import org.apache.druid.java.util.common.guava.Accumulator;
@@ -603,11 +604,18 @@ public class RowBasedGrouperHelper
           for (int i = resultRowDimensionStart; i < entry.getKey().getKey().length; i++) {
             if (dimsToInclude == null || dimsToIncludeBitSet.get(i - resultRowDimensionStart)) {
               final Object dimVal;
-              if (mergedDictionarySupplier == null) {
+              // TODO: type check should be better
+              if (mergedDictionarySupplier == null || query.getDimensions().get(i - resultRowDimensionStart).getOutputType() != ValueType.STRING) {
                 dimVal = entry.getKey().getKey()[i];
               } else {
                 // Convert dictionary ID to dictionary value
-                dimVal = mergedDictionarySupplier.get()[i - resultRowDimensionStart].lookup((int) entry.getKey().getKey()[i]);
+                final int dictId;
+                if (entry.getKey().getKey()[i] instanceof Number) {
+                  dictId = ((Number) entry.getKey().getKey()[i]).intValue();
+                } else {
+                  throw new ISE("wth?");
+                }
+                dimVal = mergedDictionarySupplier.get()[i - resultRowDimensionStart].lookup(dictId);
               }
               resultRow.set(
                   i,

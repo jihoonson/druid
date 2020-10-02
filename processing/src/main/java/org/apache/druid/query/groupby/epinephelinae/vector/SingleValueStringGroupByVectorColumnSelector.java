@@ -70,6 +70,7 @@ public class SingleValueStringGroupByVectorColumnSelector implements GroupByVect
   )
   {
     final int id = keyMemory.getInt(keyOffset);
-    resultRow.set(resultRowPosition, segmentId, selector.lookupName(id));
+//    resultRow.set(resultRowPosition, segmentId, selector.lookupName(id));
+    resultRow.set(resultRowPosition, segmentId, id);
   }
 }

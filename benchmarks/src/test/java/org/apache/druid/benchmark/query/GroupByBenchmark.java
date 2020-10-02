@@ -41,6 +41,8 @@ import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.math.expr.ExprMacroTable;
 import org.apache.druid.offheap.OffheapBufferGenerator;
+import org.apache.druid.query.DictionaryConversion;
+import org.apache.druid.query.DictionaryMergingQueryRunnerFactory;
 import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.FinalizeResultsQueryRunner;
 import org.apache.druid.query.Query;
@@ -48,6 +50,7 @@ import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryRunnerFactory;
 import org.apache.druid.query.QueryToolChest;
+import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.CountAggregatorFactory;
 import org.apache.druid.query.aggregation.DoubleMinAggregatorFactory;
@@ -123,7 +126,10 @@ public class GroupByBenchmark
   @Param({"4"})
   private int numSegments;
 
-  @Param({"2", "4"})
+  @Param({
+//      "2",
+      "4"
+  })
   private int numProcessingThreads;
 
   @Param({"-1"})
@@ -132,16 +138,28 @@ public class GroupByBenchmark
   @Param({"100000"})
   private int rowsPerSegment;
 
-  @Param({"basic.A", "basic.nested"})
+  @Param({
+      "basic.A",
+//      "basic.nested"
+  })
   private String schemaAndQuery;
 
-  @Param({"v1", "v2"})
+  @Param({
+//      "v1",
+      "v2"
+  })
   private String defaultStrategy;
 
-  @Param({"all", "day"})
+  @Param({
+      "all",
+//      "day"
+  })
   private String queryGranularity;
 
-  @Param({"force", "false"})
+  @Param({
+      "force",
+//      "false"
+  })
   private String vectorize;
 
   private static final Logger log = new Logger(GroupByBenchmark.class);
@@ -624,7 +642,7 @@ public class GroupByBenchmark
     return theRunner.run(QueryPlus.wrap(query), ResponseContext.createEmpty());
   }
 
-  @Benchmark
+//  @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void querySingleIncrementalIndex(Blackhole blackhole)
@@ -644,7 +662,7 @@ public class GroupByBenchmark
     blackhole.consume(lastRow);
   }
 
-  @Benchmark
+//  @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void querySingleQueryableIndex(Blackhole blackhole)
@@ -670,19 +688,25 @@ public class GroupByBenchmark
   public void queryMultiQueryableIndexX(Blackhole blackhole)
   {
     QueryToolChest<ResultRow, GroupByQuery> toolChest = factory.getToolchest();
+    SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
     QueryRunner<ResultRow> theRunner = new FinalizeResultsQueryRunner<>(
         toolChest.mergeResults(
-            factory.mergeRunners(executorService, makeMultiRunners())
+            factory.mergeRunners(
+                executorService,
+                makeMultiRunners(segmentIdMapper),
+                new DictionaryMergingQueryRunnerFactory().mergeRunners(executorService, makeDictScanRunners(segmentIdMapper))
+            )
         ),
         (QueryToolChest) toolChest
     );
 
     Sequence<ResultRow> queryResult = theRunner.run(QueryPlus.wrap(query), ResponseContext.createEmpty());
     List<ResultRow> results = queryResult.toList();
+    System.err.println(results.size());
     blackhole.consume(results);
   }
 
-  @Benchmark
+//  @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void queryMultiQueryableIndexWithSpilling(Blackhole blackhole)
@@ -690,7 +714,7 @@ public class GroupByBenchmark
     QueryToolChest<ResultRow, GroupByQuery> toolChest = factory.getToolchest();
     QueryRunner<ResultRow> theRunner = new FinalizeResultsQueryRunner<>(
         toolChest.mergeResults(
-            factory.mergeRunners(executorService, makeMultiRunners())
+            factory.mergeRunners(executorService, makeMultiRunners(new SegmentIdMapper()))
         ),
         (QueryToolChest) toolChest
     );
@@ -703,7 +727,7 @@ public class GroupByBenchmark
     blackhole.consume(results);
   }
 
-  @Benchmark
+//  @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void queryMultiQueryableIndexWithSerde(Blackhole blackhole)
@@ -716,7 +740,7 @@ public class GroupByBenchmark
                 new DefaultObjectMapper(new SmileFactory()),
                 ResultRow.class,
                 toolChest.mergeResults(
-                    factory.mergeRunners(executorService, makeMultiRunners())
+                    factory.mergeRunners(executorService, makeMultiRunners(new SegmentIdMapper()))
                 )
             )
         ),
@@ -728,7 +752,7 @@ public class GroupByBenchmark
     blackhole.consume(results);
   }
 
-  private List<QueryRunner<ResultRow>> makeMultiRunners()
+  private List<QueryRunner<ResultRow>> makeMultiRunners(SegmentIdMapper segmentIdMapper)
   {
     List<QueryRunner<ResultRow>> runners = new ArrayList<>();
     for (int i = 0; i < numSegments; i++) {
@@ -736,9 +760,25 @@ public class GroupByBenchmark
       QueryRunner<ResultRow> runner = QueryBenchmarkUtil.makeQueryRunner(
           factory,
           SegmentId.dummy(segmentName),
-          new QueryableIndexSegment(queryableIndexes.get(i), SegmentId.dummy(segmentName))
+          new QueryableIndexSegment(queryableIndexes.get(i), SegmentId.dummy(segmentName)),
+          segmentIdMapper
       );
       runners.add(factory.getToolchest().preMergeQueryDecoration(runner));
+    }
+    return runners;
+  }
+
+  private List<QueryRunner<DictionaryConversion[]>> makeDictScanRunners(SegmentIdMapper segmentIdMapper)
+  {
+    List<QueryRunner<DictionaryConversion[]>> runners = new ArrayList<>();
+    for (int i = 0; i < numSegments; i++) {
+      String segmentName = "qIndex " + i;
+      QueryRunner<DictionaryConversion[]> runner = QueryBenchmarkUtil.makeDictionaryScanRunner(
+          SegmentId.dummy(segmentName),
+          new QueryableIndexSegment(queryableIndexes.get(i), SegmentId.dummy(segmentName)),
+          segmentIdMapper
+      );
+      runners.add(runner);
     }
     return runners;
   }

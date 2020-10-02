@@ -51,7 +51,7 @@ public class PerSegmentEncodedResultRow extends ResultRow
 
   public int getInt(final int i)
   {
-    assert super.get(i) != null && (super.get(i) instanceof Integer || super.get(i) instanceof Long);
+//    assert super.get(i) != null && (super.get(i) instanceof Integer || super.get(i) instanceof Long);
     return ((Number) super.get(i)).intValue();
   }
 

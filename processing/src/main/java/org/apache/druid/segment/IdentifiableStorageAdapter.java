@@ -25,6 +25,7 @@ import org.apache.druid.query.QueryMetrics;
 import org.apache.druid.query.filter.Filter;
 import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.data.Indexed;
+import org.apache.druid.segment.vector.VectorCursor;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
@@ -120,6 +121,25 @@ public class IdentifiableStorageAdapter implements StorageAdapter
   public DateTime getMaxIngestedEventTime()
   {
     return delegate.getMaxIngestedEventTime();
+  }
+
+  @Override
+  public boolean canVectorize(@Nullable Filter filter, VirtualColumns virtualColumns, boolean descending)
+  {
+    return delegate.canVectorize(filter, virtualColumns, descending);
+  }
+
+  @Override
+  public VectorCursor makeVectorCursor(
+      @Nullable Filter filter,
+      Interval interval,
+      VirtualColumns virtualColumns,
+      boolean descending,
+      int vectorSize,
+      @Nullable QueryMetrics<?> queryMetrics
+  )
+  {
+    return delegate.makeVectorCursor(filter, interval, virtualColumns, descending, vectorSize, queryMetrics);
   }
 
   @Override
