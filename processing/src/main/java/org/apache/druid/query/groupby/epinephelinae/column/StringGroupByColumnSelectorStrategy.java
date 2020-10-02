@@ -20,7 +20,7 @@
 package org.apache.druid.query.groupby.epinephelinae.column;
 
 import com.google.common.base.Preconditions;
-import org.apache.druid.common.config.NullHandling;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper;
 import org.apache.druid.query.ordering.StringComparator;
@@ -58,22 +58,24 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
   public void processValueFromGroupingKey(
       GroupByColumnSelectorPlus selectorPlus,
       ByteBuffer key,
-      ResultRow resultRow,
-      int keyBufferPosition
+      PerSegmentEncodedResultRow resultRow,
+      int keyBufferPosition,
+      int segmentId
   )
   {
     final int id = key.getInt(keyBufferPosition);
 
     // TODO: set dictionary id instead of string
     // GROUP_BY_MISSING_VALUE is used to indicate empty rows, which are omitted from the result map.
-    if (id != GROUP_BY_MISSING_VALUE) {
-      resultRow.set(
-          selectorPlus.getResultRowPosition(),
-          ((DimensionSelector) selectorPlus.getSelector()).lookupName(id)
-      );
-    } else {
-      resultRow.set(selectorPlus.getResultRowPosition(), NullHandling.defaultStringValue());
-    }
+    resultRow.set(selectorPlus.getResultRowPosition(), segmentId, id);
+//    if (id != GROUP_BY_MISSING_VALUE) {
+//      resultRow.set(
+//          selectorPlus.getResultRowPosition(),
+//          ((DimensionSelector) selectorPlus.getSelector()).lookupName(id)
+//      );
+//    } else {
+//      resultRow.set(selectorPlus.getResultRowPosition(), NullHandling.defaultStringValue());
+//    }
   }
 
   @Override

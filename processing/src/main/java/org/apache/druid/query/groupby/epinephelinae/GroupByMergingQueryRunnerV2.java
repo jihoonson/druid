@@ -22,6 +22,7 @@ package org.apache.druid.query.groupby.epinephelinae;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Function;
 import com.google.common.base.Predicates;
+import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -238,6 +239,13 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                 dictionaryMergingFuture = Futures.immediateFuture(null);
               }
 
+              final Supplier<MergedDictionary[]> mergedDictionariesSupplier = Suppliers.memoize(() -> waitForDictionaryMergeFutureCompletion(
+                  query,
+                  dictionaryMergingFuture,
+                  hasTimeout,
+                  timeoutAt - System.currentTimeMillis()
+              ));
+
               Pair<Grouper<RowBasedKey>, Accumulator<AggregateResult, ResultRow>> pair =
                   RowBasedGrouperHelper.createGrouperAccumulatorPair(
                       query,
@@ -253,12 +261,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                       hasTimeout,
                       timeoutAt,
                       mergeBufferSize,
-                      Suppliers.memoize(() -> waitForDictionaryMergeFutureCompletion(
-                          query,
-                          dictionaryMergingFuture,
-                          hasTimeout,
-                          timeoutAt - System.currentTimeMillis()
-                      ))
+                      mergedDictionariesSupplier
                   );
               final Grouper<RowBasedKey> grouper = pair.lhs;
               final Accumulator<AggregateResult, ResultRow> accumulator = pair.rhs;
@@ -335,7 +338,8 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
               return RowBasedGrouperHelper.makeGrouperIterator(
                   grouper,
                   query,
-                  resources
+                  resources,
+                  mergedDictionariesSupplier
               );
             }
             catch (Throwable t) {

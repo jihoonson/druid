@@ -20,6 +20,7 @@
 package org.apache.druid.query.groupby.epinephelinae.column;
 
 import org.apache.druid.query.dimension.ColumnSelectorStrategy;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper;
 import org.apache.druid.query.ordering.StringComparator;
@@ -67,8 +68,9 @@ public interface GroupByColumnSelectorStrategy extends ColumnSelectorStrategy
   void processValueFromGroupingKey(
       GroupByColumnSelectorPlus selectorPlus,
       ByteBuffer key,
-      ResultRow resultRow,
-      int keyBufferPosition
+      PerSegmentEncodedResultRow resultRow,
+      int keyBufferPosition,
+      int segmentId
   );
 
   /**

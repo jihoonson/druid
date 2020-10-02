@@ -24,8 +24,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import junitparams.converters.Nullable;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
+import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.MergeSequence;
@@ -363,15 +365,59 @@ public class QueryRunnerTestHelper
     final QueryableIndex noRollupMMappedTestIndex = TestIndex.getNoRollupMMappedTestIndex();
     final QueryableIndex mergedRealtimeIndex = TestIndex.mergedRealtimeIndex();
     return ImmutableList.of(
-        makeQueryRunner(factory, new IncrementalIndexSegment(rtIndex, SEGMENT_ID), ("rtIndex")),
-        makeQueryRunner(factory, new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex"),
-        makeQueryRunner(factory, new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex"),
+        makeQueryRunner(factory, new IncrementalIndexSegment(rtIndex, SEGMENT_ID), ("rtIndex"), new SegmentIdMapper()),
+        makeQueryRunner(factory, new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex", new SegmentIdMapper()),
+        makeQueryRunner(factory, new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", new SegmentIdMapper()),
         makeQueryRunner(
             factory,
             new QueryableIndexSegment(noRollupMMappedTestIndex, SEGMENT_ID),
-            "noRollupMMappedTestIndex"
+            "noRollupMMappedTestIndex",
+            new SegmentIdMapper()
         ),
-        makeQueryRunner(factory, new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID), "mergedRealtimeIndex")
+        makeQueryRunner(factory, new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID), "mergedRealtimeIndex", new SegmentIdMapper())
+    );
+  }
+
+  public static <T, QueryType extends Query<T>> List<Pair<QueryRunner<T>, QueryRunner<DictionaryConversion[]>>> makeQueryRunnersAndDictScanRunners(
+      QueryRunnerFactory<T, QueryType> factory
+  )
+  {
+    final SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
+    final IncrementalIndex rtIndex = TestIndex.getIncrementalTestIndex();
+    final IncrementalIndex noRollupRtIndex = TestIndex.getNoRollupIncrementalTestIndex();
+    final QueryableIndex mMappedTestIndex = TestIndex.getMMappedTestIndex();
+    final QueryableIndex noRollupMMappedTestIndex = TestIndex.getNoRollupMMappedTestIndex();
+    final QueryableIndex mergedRealtimeIndex = TestIndex.mergedRealtimeIndex();
+    return ImmutableList.of(
+        Pair.of(
+            makeQueryRunner(factory, new IncrementalIndexSegment(rtIndex, SEGMENT_ID), ("rtIndex"), segmentIdMapper),
+            makeDictionaryScanRunner(new IncrementalIndexSegment(rtIndex, SEGMENT_ID), "rtIndex", segmentIdMapper)
+        ),
+        Pair.of(
+            makeQueryRunner(factory, new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex", segmentIdMapper),
+            makeDictionaryScanRunner(new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex", segmentIdMapper)
+        ),
+        Pair.of(
+            makeQueryRunner(factory, new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", segmentIdMapper),
+            makeDictionaryScanRunner(new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", segmentIdMapper)
+        ),
+        Pair.of(
+            makeQueryRunner(
+                factory,
+                new QueryableIndexSegment(noRollupMMappedTestIndex, SEGMENT_ID),
+                "noRollupMMappedTestIndex",
+                segmentIdMapper
+            ),
+            makeDictionaryScanRunner(
+                new QueryableIndexSegment(noRollupMMappedTestIndex, SEGMENT_ID),
+                "noRollupMMappedTestIndex",
+                segmentIdMapper
+            )
+        ),
+        Pair.of(
+            makeQueryRunner(factory, new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID), "mergedRealtimeIndex", segmentIdMapper),
+            makeDictionaryScanRunner(new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID), "mergedRealtimeIndex", segmentIdMapper)
+        )
     );
   }
 
@@ -399,11 +445,22 @@ public class QueryRunnerTestHelper
       final String runnerName
   )
   {
+    return makeQueryRunner(factory, resourceFileName, runnerName, null);
+  }
+
+  public static <T, QueryType extends Query<T>> QueryRunner<T> makeQueryRunner(
+      QueryRunnerFactory<T, QueryType> factory,
+      String resourceFileName,
+      final String runnerName,
+      @Nullable SegmentIdMapper segmentIdMapper
+  )
+  {
     return makeQueryRunner(
         factory,
         SEGMENT_ID,
         new IncrementalIndexSegment(TestIndex.makeRealtimeIndex(resourceFileName), SEGMENT_ID),
-        runnerName
+        runnerName,
+        segmentIdMapper
     );
   }
 
@@ -413,7 +470,17 @@ public class QueryRunnerTestHelper
       final String runnerName
   )
   {
-    return makeQueryRunner(factory, SEGMENT_ID, adapter, runnerName);
+    return makeQueryRunner(factory, adapter, runnerName, null);
+  }
+
+  public static <T, QueryType extends Query<T>> QueryRunner<T> makeQueryRunner(
+      QueryRunnerFactory<T, QueryType> factory,
+      Segment adapter,
+      final String runnerName,
+      @Nullable SegmentIdMapper segmentIdMapper
+  )
+  {
+    return makeQueryRunner(factory, SEGMENT_ID, adapter, runnerName, segmentIdMapper);
   }
 
   public static <T, QueryType extends Query<T>> QueryRunner<T> makeQueryRunner(
@@ -423,9 +490,50 @@ public class QueryRunnerTestHelper
       final String runnerName
   )
   {
+    return makeQueryRunner(factory, segmentId, adapter, runnerName, null);
+  }
+
+  public static <T, QueryType extends Query<T>> QueryRunner<T> makeQueryRunner(
+      QueryRunnerFactory<T, QueryType> factory,
+      SegmentId segmentId,
+      Segment adapter,
+      final String runnerName,
+      @Nullable SegmentIdMapper segmentIdMapper // TODO: is this nullable? maybe null for topN
+  )
+  {
     return new FinalizeResultsQueryRunner<T>(
-        new BySegmentQueryRunner<>(segmentId, adapter.getDataInterval().getStart(), factory.createRunner(adapter)),
+        new BySegmentQueryRunner<>(segmentId, adapter.getDataInterval().getStart(), factory.createRunner(segmentIdMapper, adapter)),
         (QueryToolChest<T, Query<T>>) factory.getToolchest()
+    )
+    {
+      @Override
+      public String toString()
+      {
+        return runnerName;
+      }
+    };
+  }
+
+  public static QueryRunner<DictionaryConversion[]> makeDictionaryScanRunner(
+      Segment adapter,
+      final String runnerName,
+      @Nullable SegmentIdMapper segmentIdMapper
+  )
+  {
+    return makeDictionaryScanRunner(SEGMENT_ID, adapter, runnerName, segmentIdMapper);
+  }
+
+  private static QueryRunner<DictionaryConversion[]> makeDictionaryScanRunner(
+      SegmentId segmentId,
+      Segment adapter,
+      final String runnerName,
+      @Nullable SegmentIdMapper segmentIdMapper // TODO: is this nullable? maybe null for topN
+  )
+  {
+    final DictionaryMergingQueryRunnerFactory factory = new DictionaryMergingQueryRunnerFactory();
+    return new FinalizeResultsQueryRunner<DictionaryConversion[]>(
+        new BySegmentQueryRunner<>(segmentId, adapter.getDataInterval().getStart(), factory.createRunner(segmentIdMapper, adapter)),
+        factory.getToolchest()
     )
     {
       @Override

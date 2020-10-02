@@ -41,6 +41,7 @@ import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.filter.Filter;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.column.DictionaryBuildingStringGroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.epinephelinae.column.DoubleGroupByColumnSelectorStrategy;
@@ -347,8 +348,9 @@ public class GroupByQueryEngineV2
 
   public static void convertRowTypesToOutputTypes(
       final List<DimensionSpec> dimensionSpecs,
-      final ResultRow resultRow,
-      final int resultRowDimensionStart
+      final PerSegmentEncodedResultRow resultRow,
+      final int resultRowDimensionStart,
+      final int segmentId
   )
   {
     for (int i = 0; i < dimensionSpecs.size(); i++) {
@@ -358,7 +360,8 @@ public class GroupByQueryEngineV2
 
       resultRow.set(
           resultRowIndex,
-          DimensionHandlerUtils.convertObjectToType(resultRow.get(resultRowIndex), outputType)
+          segmentId,
+          DimensionHandlerUtils.convertObjectToType(resultRow.getInt(resultRowIndex), outputType)
       );
     }
   }
@@ -477,20 +480,22 @@ public class GroupByQueryEngineV2
       return new CloseableGrouperIterator<>(
           grouper.iterator(false),
           entry -> {
-            final ResultRow resultRow = ResultRow.create(query.getResultRowSizeWithoutPostAggregators());
+            final PerSegmentEncodedResultRow resultRow = PerSegmentEncodedResultRow.create(
+                query.getResultRowSizeWithoutPostAggregators()
+            );
 
             // Add timestamp, if necessary.
             if (resultRowHasTimestamp) {
-              resultRow.set(0, timestamp.getMillis());
+              resultRow.set(0, segmentId, timestamp.getMillis());
             }
 
             // Add dimensions, and convert their types if necessary.
             putToRow(entry.getKey(), resultRow);
-            convertRowTypesToOutputTypes(query.getDimensions(), resultRow, resultRowDimensionStart);
+            convertRowTypesToOutputTypes(query.getDimensions(), resultRow, resultRowDimensionStart, segmentId);
 
             // Add aggregations.
             for (int i = 0; i < entry.getValues().length; i++) {
-              resultRow.set(resultRowAggregatorStart + i, entry.getValues()[i]);
+              resultRow.set(resultRowAggregatorStart + i, segmentId, entry.getValues()[i]);
             }
 
             return resultRow;
@@ -562,7 +567,7 @@ public class GroupByQueryEngineV2
      * Add the key to the result row.  Some pre-processing like deserialization might be done for the key before
      * adding to the map.
      */
-    protected abstract void putToRow(KeyType key, ResultRow resultRow);
+    protected abstract void putToRow(KeyType key, PerSegmentEncodedResultRow resultRow);
 
     protected int getSingleValue(IndexedInts indexedInts)
     {
@@ -768,14 +773,15 @@ public class GroupByQueryEngineV2
     }
 
     @Override
-    protected void putToRow(ByteBuffer key, ResultRow resultRow)
+    protected void putToRow(ByteBuffer key, PerSegmentEncodedResultRow resultRow)
     {
       for (GroupByColumnSelectorPlus selectorPlus : dims) {
         selectorPlus.getColumnSelectorStrategy().processValueFromGroupingKey(
             selectorPlus,
             key,
             resultRow,
-            selectorPlus.getKeyBufferPosition()
+            selectorPlus.getKeyBufferPosition(),
+            segmentId
         );
       }
     }
@@ -891,7 +897,7 @@ public class GroupByQueryEngineV2
     }
 
     @Override
-    protected void putToRow(Integer key, ResultRow resultRow)
+    protected void putToRow(Integer key, PerSegmentEncodedResultRow resultRow)
     {
 //      if (dim != null) {
 //        if (key != GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE) {
@@ -902,11 +908,7 @@ public class GroupByQueryEngineV2
 //      }
       if (dim != null) {
         final long val = GroupByStrategyV2.identifiableDictionaryId(segmentId, key);
-        if (key != GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE) {
-          resultRow.set(dim.getResultRowPosition(), val);
-        } else {
-          resultRow.set(dim.getResultRowPosition(), val);
-        }
+        resultRow.set(dim.getResultRowPosition(), segmentId, val);
       }
     }
   }

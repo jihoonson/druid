@@ -60,6 +60,7 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
     final DictionaryMergeQuery query = (DictionaryMergeQuery) queryPlus.getQuery();
 
     // TODO: i'm reading same data twice.. probably i don't need that since the dictionaries are all sorted
+    // TODO: maybe it should be able to support string metrics too
     final MergingDictionary[] dictionaries = new MergingDictionary[query.getDimensions().size()];
     for (int i = 0; i < dictionaries.length; i++) {
       dictionaries[i] = new MergingDictionary();

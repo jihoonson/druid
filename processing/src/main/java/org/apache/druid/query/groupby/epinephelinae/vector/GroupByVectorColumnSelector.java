@@ -21,6 +21,7 @@ package org.apache.druid.query.groupby.epinephelinae.vector;
 
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 
 /**
@@ -60,7 +61,8 @@ public interface GroupByVectorColumnSelector
   void writeKeyToResultRow(
       Memory keyMemory,
       int keyOffset,
-      ResultRow resultRow,
-      int resultRowPosition
+      PerSegmentEncodedResultRow resultRow,
+      int resultRowPosition,
+      int segmentId
   );
 }

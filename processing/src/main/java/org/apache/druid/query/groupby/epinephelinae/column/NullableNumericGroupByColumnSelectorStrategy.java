@@ -20,7 +20,7 @@
 package org.apache.druid.query.groupby.epinephelinae.column;
 
 import org.apache.druid.common.config.NullHandling;
-import org.apache.druid.query.groupby.ResultRow;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper;
 import org.apache.druid.query.groupby.epinephelinae.GrouperBufferComparatorUtils;
 import org.apache.druid.query.ordering.StringComparator;
@@ -54,14 +54,16 @@ public class NullableNumericGroupByColumnSelectorStrategy implements GroupByColu
   public void processValueFromGroupingKey(
       GroupByColumnSelectorPlus selectorPlus,
       ByteBuffer key,
-      ResultRow resultRow,
-      int keyBufferPosition
+      PerSegmentEncodedResultRow resultRow,
+      int keyBufferPosition,
+      int segmentId
   )
   {
     if (key.get(keyBufferPosition) == NullHandling.IS_NULL_BYTE) {
-      resultRow.set(selectorPlus.getResultRowPosition(), null);
+//      resultRow.set(selectorPlus.getResultRowPosition(), null);
+      resultRow.set(selectorPlus.getResultRowPosition(), segmentId, GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE);
     } else {
-      delegate.processValueFromGroupingKey(selectorPlus, key, resultRow, keyBufferPosition + Byte.BYTES);
+      delegate.processValueFromGroupingKey(selectorPlus, key, resultRow, keyBufferPosition + Byte.BYTES, segmentId);
     }
   }
 

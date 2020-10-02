@@ -170,6 +170,12 @@ public class MaterializedViewQuery<T> implements Query<T>
   }
 
   @Override
+  public QuerySegmentSpec getQuerySegmentSpec()
+  {
+    return query.getQuerySegmentSpec();
+  }
+
+  @Override
   public Ordering<T> getResultOrdering()
   {
     return query.getResultOrdering();

@@ -21,6 +21,7 @@ package org.apache.druid.query.groupby.epinephelinae.vector;
 
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.segment.vector.SingleValueDimensionVectorSelector;
 
@@ -63,11 +64,12 @@ public class SingleValueStringGroupByVectorColumnSelector implements GroupByVect
   public void writeKeyToResultRow(
       final Memory keyMemory,
       final int keyOffset,
-      final ResultRow resultRow,
-      final int resultRowPosition
+      final PerSegmentEncodedResultRow resultRow,
+      final int resultRowPosition,
+      final int segmentId
   )
   {
     final int id = keyMemory.getInt(keyOffset);
-    resultRow.set(resultRowPosition, selector.lookupName(id));
+    resultRow.set(resultRowPosition, segmentId, selector.lookupName(id));
   }
 }

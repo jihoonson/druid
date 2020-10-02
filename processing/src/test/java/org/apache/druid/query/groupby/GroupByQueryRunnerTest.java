@@ -52,6 +52,8 @@ import org.apache.druid.math.expr.ExprMacroTable;
 import org.apache.druid.query.BySegmentResultValue;
 import org.apache.druid.query.BySegmentResultValueClass;
 import org.apache.druid.query.ChainedExecutionQueryRunner;
+import org.apache.druid.query.DictionaryConversion;
+import org.apache.druid.query.DictionaryMergingQueryRunnerFactory;
 import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.FinalizeResultsQueryRunner;
 import org.apache.druid.query.QueryContexts;
@@ -332,8 +334,8 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
     v1SingleThreadedConfig.setMaxIntermediateRows(10000);
 
     return ImmutableList.of(
-        v1Config,
-        v1SingleThreadedConfig,
+//        v1Config,
+//        v1SingleThreadedConfig,
         v2Config,
         v2SmallBufferConfig,
         v2SmallDictionaryConfig,
@@ -423,13 +425,13 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
       final Pair<GroupByQueryRunnerFactory, Closer> factoryAndCloser = makeQueryRunnerFactory(config);
       final GroupByQueryRunnerFactory factory = factoryAndCloser.lhs;
       RESOURCE_CLOSER.register(factoryAndCloser.rhs);
-      for (QueryRunner<ResultRow> runner : QueryRunnerTestHelper.makeQueryRunners(factory)) {
+      for (Pair<QueryRunner<ResultRow>, QueryRunner<DictionaryConversion[]>> pair : QueryRunnerTestHelper.makeQueryRunnersAndDictScanRunners(factory)) {
         for (boolean vectorize : ImmutableList.of(false, true)) {
-          final String testName = StringUtils.format("config=%s, runner=%s, vectorize=%s", config, runner, vectorize);
+          final String testName = StringUtils.format("config=%s, runner=%s, vectorize=%s", config, pair.lhs, vectorize);
 
           // Add vectorization tests for any indexes that support it.
-          if (!vectorize || QueryRunnerTestHelper.isTestRunnerVectorizable(runner)) {
-            constructors.add(new Object[]{testName, config, factory, runner, vectorize});
+          if (!vectorize || QueryRunnerTestHelper.isTestRunnerVectorizable(pair.lhs)) {
+            constructors.add(new Object[]{testName, config, factory, pair.lhs, pair.rhs, vectorize});
           }
         }
       }
@@ -449,12 +451,17 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
       GroupByQueryConfig config,
       GroupByQueryRunnerFactory factory,
       QueryRunner runner,
+      QueryRunner<DictionaryConversion[]> dictionaryScanRunner,
       boolean vectorize
   )
   {
     this.config = config;
     this.factory = factory;
-    this.runner = factory.mergeRunners(Execs.directExecutor(), ImmutableList.of(runner));
+    this.runner = factory.mergeRunners(
+        Execs.directExecutor(),
+        ImmutableList.of(runner),
+        new DictionaryMergingQueryRunnerFactory().mergeRunners(Execs.directExecutor(), ImmutableList.of(dictionaryScanRunner))
+    );
     this.runnerName = runner.toString();
     this.vectorize = vectorize;
   }

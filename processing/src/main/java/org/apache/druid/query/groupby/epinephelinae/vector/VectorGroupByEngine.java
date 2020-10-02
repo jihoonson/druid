@@ -32,6 +32,7 @@ import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.filter.Filter;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.AggregateResult;
 import org.apache.druid.query.groupby.epinephelinae.BufferArrayGrouper;
@@ -41,6 +42,7 @@ import org.apache.druid.query.groupby.epinephelinae.HashVectorGrouper;
 import org.apache.druid.query.groupby.epinephelinae.VectorGrouper;
 import org.apache.druid.query.vector.VectorCursorGranularizer;
 import org.apache.druid.segment.DimensionHandlerUtils;
+import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.StorageAdapter;
 import org.apache.druid.segment.VirtualColumns;
 import org.apache.druid.segment.column.ColumnCapabilities;
@@ -118,7 +120,7 @@ public class VectorGroupByEngine
 
   public static Sequence<ResultRow> process(
       final GroupByQuery query,
-      final StorageAdapter storageAdapter,
+      final IdentifiableStorageAdapter storageAdapter,
       final ByteBuffer processingBuffer,
       @Nullable final DateTime fudgeTimestamp,
       @Nullable final Filter filter,
@@ -218,6 +220,7 @@ public class VectorGroupByEngine
 
   private static class VectorGroupByEngineIterator implements CloseableIterator<ResultRow>
   {
+    private final int segmentId;
     private final GroupByQuery query;
     private final GroupByQueryConfig querySpecificConfig;
     private final StorageAdapter storageAdapter;
@@ -246,7 +249,7 @@ public class VectorGroupByEngine
     VectorGroupByEngineIterator(
         final GroupByQuery query,
         final GroupByQueryConfig config,
-        final StorageAdapter storageAdapter,
+        final IdentifiableStorageAdapter storageAdapter,
         final VectorCursor cursor,
         final Interval queryInterval,
         final List<GroupByVectorColumnSelector> selectors,
@@ -254,6 +257,7 @@ public class VectorGroupByEngine
         @Nullable final DateTime fudgeTimestamp
     )
     {
+      this.segmentId = storageAdapter.getId();
       this.query = query;
       this.querySpecificConfig = config;
       this.storageAdapter = storageAdapter;
@@ -427,11 +431,12 @@ public class VectorGroupByEngine
       return new CloseableGrouperIterator<>(
           vectorGrouper.iterator(),
           entry -> {
-            final ResultRow resultRow = ResultRow.create(query.getResultRowSizeWithoutPostAggregators());
+            final PerSegmentEncodedResultRow resultRow =
+                PerSegmentEncodedResultRow.create(query.getResultRowSizeWithoutPostAggregators());
 
             // Add timestamp, if necessary.
             if (resultRowHasTimestamp) {
-              resultRow.set(0, timestamp.getMillis());
+              resultRow.set(0, segmentId, timestamp.getMillis());
             }
 
             // Add dimensions.
@@ -443,7 +448,8 @@ public class VectorGroupByEngine
                   entry.getKey(),
                   keyOffset,
                   resultRow,
-                  resultRowDimensionStart + i
+                  resultRowDimensionStart + i,
+                  segmentId
               );
 
               keyOffset += selector.getGroupingKeySize();
@@ -453,12 +459,13 @@ public class VectorGroupByEngine
             GroupByQueryEngineV2.convertRowTypesToOutputTypes(
                 query.getDimensions(),
                 resultRow,
-                resultRowDimensionStart
+                resultRowDimensionStart,
+                segmentId
             );
 
             // Add aggregations.
             for (int i = 0; i < entry.getValues().length; i++) {
-              resultRow.set(resultRowAggregatorStart + i, entry.getValues()[i]);
+              resultRow.set(resultRowAggregatorStart + i, segmentId, entry.getValues()[i]);
             }
 
             return resultRow;

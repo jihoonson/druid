@@ -83,7 +83,8 @@ public class DimFilterHavingSpec implements HavingSpec
     this.matcher = dimFilter.toFilter().makeMatcher(
         RowBasedGrouperHelper.createResultRowBasedColumnSelectorFactory(
             query,
-            rowSupplier
+            rowSupplier,
+            null // TODO: can it not be null?
         )
     );
   }

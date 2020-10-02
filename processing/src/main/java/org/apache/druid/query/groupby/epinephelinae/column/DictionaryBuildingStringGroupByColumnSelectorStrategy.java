@@ -22,7 +22,7 @@ package org.apache.druid.query.groupby.epinephelinae.column;
 import com.google.common.base.Preconditions;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import org.apache.druid.common.config.NullHandling;
-import org.apache.druid.query.groupby.ResultRow;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper;
 import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.query.ordering.StringComparators;
@@ -58,8 +58,9 @@ public class DictionaryBuildingStringGroupByColumnSelectorStrategy extends Strin
   public void processValueFromGroupingKey(
       GroupByColumnSelectorPlus selectorPlus,
       ByteBuffer key,
-      ResultRow resultRow,
-      int keyBufferPosition
+      PerSegmentEncodedResultRow resultRow,
+      int keyBufferPosition,
+      int segmentId
   )
   {
     final int id = key.getInt(keyBufferPosition);
@@ -71,6 +72,7 @@ public class DictionaryBuildingStringGroupByColumnSelectorStrategy extends Strin
     } else {
       resultRow.set(selectorPlus.getResultRowPosition(), NullHandling.defaultStringValue());
     }
+    throw new UnsupportedOperationException();
   }
 
   @Override

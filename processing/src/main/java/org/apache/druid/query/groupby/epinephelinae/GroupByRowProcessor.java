@@ -169,7 +169,8 @@ public class GroupByRowProcessor
                 grouper,
                 query,
                 dimensionsToInclude,
-                () -> {}
+                () -> {},
+                null
             );
           }
 

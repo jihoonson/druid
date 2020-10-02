@@ -19,7 +19,7 @@
 
 package org.apache.druid.query.groupby.epinephelinae.column;
 
-import org.apache.druid.query.groupby.ResultRow;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper;
 import org.apache.druid.query.groupby.epinephelinae.GrouperBufferComparatorUtils;
 import org.apache.druid.query.ordering.StringComparator;
@@ -42,12 +42,13 @@ public class FloatGroupByColumnSelectorStrategy implements GroupByColumnSelector
   public void processValueFromGroupingKey(
       GroupByColumnSelectorPlus selectorPlus,
       ByteBuffer key,
-      ResultRow resultRow,
-      int keyBufferPosition
+      PerSegmentEncodedResultRow resultRow,
+      int keyBufferPosition,
+      int segmentId
   )
   {
     final float val = key.getFloat(keyBufferPosition);
-    resultRow.set(selectorPlus.getResultRowPosition(), val);
+    resultRow.set(selectorPlus.getResultRowPosition(), segmentId, val);
   }
 
   @Override

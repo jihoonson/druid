@@ -54,11 +54,11 @@ import java.util.Map;
  * @see GroupByQuery#getResultRowSizeWithPostAggregators()
  * @see GroupByQuery#getResultRowSizeWithoutPostAggregators()
  */
-public final class ResultRow
+public class ResultRow
 {
   private final Object[] row;
 
-  private ResultRow(final Object[] row)
+  protected ResultRow(final Object[] row)
   {
     this.row = row;
   }
