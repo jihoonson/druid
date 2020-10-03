@@ -359,22 +359,23 @@ public class QueryRunnerTestHelper
       QueryRunnerFactory<T, QueryType> factory
   )
   {
+    final SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
     final IncrementalIndex rtIndex = TestIndex.getIncrementalTestIndex();
     final IncrementalIndex noRollupRtIndex = TestIndex.getNoRollupIncrementalTestIndex();
     final QueryableIndex mMappedTestIndex = TestIndex.getMMappedTestIndex();
     final QueryableIndex noRollupMMappedTestIndex = TestIndex.getNoRollupMMappedTestIndex();
     final QueryableIndex mergedRealtimeIndex = TestIndex.mergedRealtimeIndex();
     return ImmutableList.of(
-        makeQueryRunner(factory, new IncrementalIndexSegment(rtIndex, SEGMENT_ID), ("rtIndex"), new SegmentIdMapper()),
-        makeQueryRunner(factory, new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex", new SegmentIdMapper()),
-        makeQueryRunner(factory, new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", new SegmentIdMapper()),
+        makeQueryRunner(factory, new IncrementalIndexSegment(rtIndex, SEGMENT_ID), ("rtIndex"), segmentIdMapper),
+        makeQueryRunner(factory, new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex", segmentIdMapper),
+        makeQueryRunner(factory, new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", segmentIdMapper),
         makeQueryRunner(
             factory,
             new QueryableIndexSegment(noRollupMMappedTestIndex, SEGMENT_ID),
             "noRollupMMappedTestIndex",
-            new SegmentIdMapper()
+            segmentIdMapper
         ),
-        makeQueryRunner(factory, new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID), "mergedRealtimeIndex", new SegmentIdMapper())
+        makeQueryRunner(factory, new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID), "mergedRealtimeIndex", segmentIdMapper)
     );
   }
 

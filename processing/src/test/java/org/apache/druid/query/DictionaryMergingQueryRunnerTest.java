@@ -24,18 +24,28 @@ import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
 import org.apache.druid.testing.InitializedNullHandlingTest;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 public class DictionaryMergingQueryRunnerTest extends InitializedNullHandlingTest
 {
+  private ExecutorService service;
+
   @Before
   public void setup()
   {
+    service = Execs.multiThreaded(4, "test-%d");
+  }
 
+  @After
+  public void teardown()
+  {
+    service.shutdownNow();
   }
 
   @Test
@@ -44,8 +54,8 @@ public class DictionaryMergingQueryRunnerTest extends InitializedNullHandlingTes
     final DictionaryMergingQueryRunnerFactory factory = new DictionaryMergingQueryRunnerFactory();
     List<QueryRunner<DictionaryConversion[]>> runners = QueryRunnerTestHelper.makeQueryRunners(factory);
     final QueryRunner<DictionaryConversion[]> mergingRunner = factory.mergeRunners(
-        Execs.directExecutor(),
-        ImmutableList.of(runners.get(2))
+        service,
+        ImmutableList.of(runners.get(2), runners.get(3), runners.get(4))
     );
     final Query<DictionaryConversion[]> query = new DictionaryMergeQuery(
         new TableDataSource(QueryRunnerTestHelper.DATA_SOURCE),

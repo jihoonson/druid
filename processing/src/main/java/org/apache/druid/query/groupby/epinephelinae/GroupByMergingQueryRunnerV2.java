@@ -227,7 +227,9 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                       merging,
                       (accumulated, conversions) -> {
                         for (int i = 0; i < accumulated.length; i++) {
+                          // old dict id -> new dict id
                           accumulated[i].lhs[conversions[i].getSegmentId()].put(conversions[i].getOldDictionaryId(), conversions[i].getNewDictionaryId());
+                          // new dict id -> dict value
                           accumulated[i].rhs.put(conversions[i].getNewDictionaryId(), conversions[i].getVal());
                         }
                         return accumulated;

@@ -25,9 +25,13 @@ import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.query.context.ResponseContext;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConversion[]>
 {
@@ -61,32 +65,61 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
 
     // TODO: i'm reading same data twice.. probably i don't need that since the dictionaries are all sorted
     // TODO: maybe it should be able to support string metrics too
-    final MergingDictionary[] dictionaries = new MergingDictionary[query.getDimensions().size()];
+    final ThreadSafeMergingDictionary[] dictionaries = new ThreadSafeMergingDictionary[query.getDimensions().size()];
     for (int i = 0; i < dictionaries.length; i++) {
-      dictionaries[i] = new MergingDictionary();
+      dictionaries[i] = new ThreadSafeMergingDictionary();
     }
-    final Future<MergingDictionary[]> future = exec.submit(
-        () -> Sequences
-            .simple(queryRunners)
-            .flatMap(runner -> runner.run(queryPlus, responseContext))
-            .accumulate(dictionaries, (mergingDictionaries, conversions) -> {
-              for (int i = 0; i < conversions.length; i++) {
-                if (conversions[i].getOldDictionaryId() != DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID) {
-                  mergingDictionaries[i].add(conversions[i].getVal());
-                }
-              }
-              return mergingDictionaries;
-            })
-    );
-    try {
-      future.get();
+//    final Future<ThreadSafeMergingDictionary[]> future = exec.submit(
+//        () -> Sequences
+//            .simple(queryRunners)
+//            .flatMap(runner -> runner.run(queryPlus, responseContext))
+//            .accumulate(dictionaries, (mergingDictionaries, conversions) -> {
+//              for (int i = 0; i < conversions.length; i++) {
+//                if (conversions[i].getOldDictionaryId() != DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID) {
+//                  mergingDictionaries[i].add(conversions[i].getVal());
+//                }
+//              }
+//              return mergingDictionaries;
+//            })
+//    );
+//    try {
+//      future.get();
+//    }
+//    catch (InterruptedException e) {
+//      throw new QueryInterruptedException(e);
+//    }
+//    catch (ExecutionException e) {
+//      throw new QueryInterruptedException(e);
+//    }
+
+    final List<Future> futures = new ArrayList<>();
+    for (QueryRunner<DictionaryConversion[]> runner : queryRunners) {
+      futures.add(
+          exec.submit(() -> {
+            runner.run(queryPlus, responseContext)
+                  .accumulate(dictionaries, (mergingDictionaries, conversions) -> {
+                    for (int i = 0; i < conversions.length; i++) {
+                      if (conversions[i].getOldDictionaryId() != DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID) {
+                        mergingDictionaries[i].add(conversions[i].getVal());
+                      }
+                    }
+                    return mergingDictionaries;
+                  });
+          })
+      );
     }
-    catch (InterruptedException e) {
-      throw new QueryInterruptedException(e);
+    for (Future future : futures) {
+      try {
+        future.get();
+      }
+      catch (InterruptedException e) {
+        throw new QueryInterruptedException(e);
+      }
+      catch (ExecutionException e) {
+        throw new QueryInterruptedException(e);
+      }
     }
-    catch (ExecutionException e) {
-      throw new QueryInterruptedException(e);
-    }
+
     return Sequences.simple(queryRunners)
                     .flatMap(runner -> runner.run(queryPlus, responseContext))
                     .map(conversions -> {
@@ -96,7 +129,7 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
                             conversions[i].getVal(),
                             conversions[i].getSegmentId(),
                             conversions[i].getOldDictionaryId(),
-                            dictionaries[i].reverseDictionary.getInt(conversions[i].getVal())
+                            dictionaries[i].get(conversions[i].getVal())
                         );
                       }
                       return newConversions;
@@ -120,12 +153,35 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
      */
     private int add(String val)
     {
-      int id = reverseDictionary.getInt(val);
-      if (id == DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID) {
-        id = nextId++;
-        reverseDictionary.put(val, id);
-      }
-      return id;
+      return reverseDictionary.computeIntIfAbsent(val, k -> nextId++);
+    }
+
+    private int get(String val)
+    {
+      return reverseDictionary.getInt(val);
+    }
+  }
+
+  private static class ThreadSafeMergingDictionary
+  {
+    private final ConcurrentHashMap<String, Integer> reverseDictionary = new ConcurrentHashMap<>();
+    private final AtomicInteger nextId = new AtomicInteger();
+
+    private ThreadSafeMergingDictionary()
+    {
+    }
+
+    /**
+     * Return new dictionary ID.
+     */
+    private int add(String val)
+    {
+      return reverseDictionary.computeIfAbsent(val, k -> nextId.getAndIncrement());
+    }
+
+    private int get(String val)
+    {
+      return reverseDictionary.getOrDefault(val, DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID);
     }
   }
 }
