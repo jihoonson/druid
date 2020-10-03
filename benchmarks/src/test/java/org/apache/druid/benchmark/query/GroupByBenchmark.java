@@ -69,6 +69,7 @@ import org.apache.druid.query.groupby.GroupByQueryRunnerFactory;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.OrderByColumnSpec;
+import org.apache.druid.query.groupby.orderby.OrderByColumnSpec.Direction;
 import org.apache.druid.query.groupby.strategy.GroupByStrategySelector;
 import org.apache.druid.query.groupby.strategy.GroupByStrategyV1;
 import org.apache.druid.query.groupby.strategy.GroupByStrategyV2;
@@ -139,8 +140,9 @@ public class GroupByBenchmark
   private int rowsPerSegment;
 
   @Param({
-      "basic.A",
-//      "basic.nested"
+//      "basic.A",
+//      "basic.nested",
+      "basic.sorted2"
   })
   private String schemaAndQuery;
 
@@ -161,6 +163,12 @@ public class GroupByBenchmark
 //      "false"
   })
   private String vectorize;
+
+  @Param({
+      "true",
+//      "false"
+  })
+  private String earlyDictMerge;
 
   private static final Logger log = new Logger(GroupByBenchmark.class);
   private static final int RNG_SEED = 9999;
@@ -223,7 +231,7 @@ public class GroupByBenchmark
           .setDimensions(new DefaultDimensionSpec("dimSequential", null), new DefaultDimensionSpec("dimZipf", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(queryGranularity))
-          .setContext(ImmutableMap.of("vectorize", vectorize))
+          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge))
           .build();
 
       basicQueries.put("A", queryA);
@@ -252,9 +260,39 @@ public class GroupByBenchmark
                   100
               )
           )
+          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge))
           .build();
 
       basicQueries.put("sorted", queryA);
+    }
+
+    { // basic.sorted2
+      QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(Collections.singletonList(basicSchema.getDataInterval()));
+      List<AggregatorFactory> queryAggs = new ArrayList<>();
+      queryAggs.add(new LongSumAggregatorFactory("sumLongSequential", "sumLongSequential"));
+      GroupByQuery queryA = GroupByQuery
+          .builder()
+          .setDataSource("blah")
+          .setQuerySegmentSpec(intervalSpec)
+          .setDimensions(new DefaultDimensionSpec("dimSequential", null), new DefaultDimensionSpec("dimZipf", null))
+          .setAggregatorSpecs(queryAggs)
+          .setGranularity(Granularity.fromString(queryGranularity))
+          .setLimitSpec(
+              new DefaultLimitSpec(
+                  Collections.singletonList(
+                      new OrderByColumnSpec(
+                          "dimSequential",
+                          Direction.ASCENDING,
+                          StringComparators.LEXICOGRAPHIC
+                      )
+                  ),
+                  100
+              )
+          )
+          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge))
+          .build();
+
+      basicQueries.put("sorted2", queryA);
     }
 
     { // basic.nested
@@ -694,7 +732,9 @@ public class GroupByBenchmark
             factory.mergeRunners(
                 executorService,
                 makeMultiRunners(segmentIdMapper),
-                new DictionaryMergingQueryRunnerFactory().mergeRunners(executorService, makeDictScanRunners(segmentIdMapper))
+                earlyDictMerge.equals("true")
+                ? new DictionaryMergingQueryRunnerFactory().mergeRunners(executorService, makeDictScanRunners(segmentIdMapper))
+                : null
             )
         ),
         (QueryToolChest) toolChest

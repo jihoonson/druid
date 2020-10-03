@@ -96,6 +96,8 @@ public class QueryRunnerTestHelper
   public static final String DATA_SOURCE = "testing";
   public static final Interval FULL_ON_INTERVAL = Intervals.of("1970-01-01T00:00:00.000Z/2020-01-01T00:00:00.000Z");
   public static final SegmentId SEGMENT_ID = SegmentId.of(DATA_SOURCE, FULL_ON_INTERVAL, "dummy_version", 0);
+  public static final SegmentId SEGMENT_ID_2 = SegmentId.of(DATA_SOURCE, FULL_ON_INTERVAL, "dummy_version", 1);
+  public static final SegmentId SEGMENT_ID_3 = SegmentId.of(DATA_SOURCE, FULL_ON_INTERVAL, "dummy_version", 2);
   public static final UnionDataSource UNION_DATA_SOURCE = new UnionDataSource(
       Stream.of(DATA_SOURCE, DATA_SOURCE, DATA_SOURCE, DATA_SOURCE)
             .map(TableDataSource::new)
@@ -371,11 +373,11 @@ public class QueryRunnerTestHelper
         makeQueryRunner(factory, new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", segmentIdMapper),
         makeQueryRunner(
             factory,
-            new QueryableIndexSegment(noRollupMMappedTestIndex, SEGMENT_ID),
+            new QueryableIndexSegment(noRollupMMappedTestIndex, SEGMENT_ID_2),
             "noRollupMMappedTestIndex",
             segmentIdMapper
         ),
-        makeQueryRunner(factory, new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID), "mergedRealtimeIndex", segmentIdMapper)
+        makeQueryRunner(factory, new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID_3), "mergedRealtimeIndex", segmentIdMapper)
     );
   }
 

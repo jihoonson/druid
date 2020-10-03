@@ -37,7 +37,7 @@ import org.apache.druid.segment.data.IndexedInts;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class DictionaryScanRunner implements QueryRunner<DictionaryConversion[]>
+public class DictionaryScanRunner implements IdentifiableQueryRunner<DictionaryConversion[]>
 {
   private final int segmentId;
   private final StorageAdapter storageAdapter;
@@ -114,5 +114,11 @@ public class DictionaryScanRunner implements QueryRunner<DictionaryConversion[]>
             }
         )
     );
+  }
+
+  @Override
+  public int getSegmentId()
+  {
+    return segmentId;
   }
 }

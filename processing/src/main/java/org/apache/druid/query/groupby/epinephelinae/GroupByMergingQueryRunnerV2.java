@@ -203,8 +203,8 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                                                                                       mergeBufferHolders.get(1) :
                                                                                       null;
 
-              final ListenableFuture<Pair<Int2IntMap[], Int2ObjectMap<String>>[]> dictionaryMergingFuture;
-              if (config.isEarlyDictMerge()) {
+              final Supplier<MergedDictionary[]> mergedDictionariesSupplier;
+              if (config.isEarlyDictMerge() && dictionaryMergingRunner != null) { // TODO: no null check
                 final DictionaryMergeQuery dictionaryMergeQuery = new DictionaryMergeQuery(
                     query.getDataSource(),
                     query.getQuerySegmentSpec(),
@@ -214,7 +214,8 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                     QueryPlus.wrap(dictionaryMergeQuery)
                 );
 
-                dictionaryMergingFuture = exec.submit(() -> {
+                // TODO: maybe i don't need this accumulation at all if i just compute these maps in the queryRunner
+                final ListenableFuture<Pair<Int2IntMap[], Int2ObjectMap<String>>[]> dictionaryMergingFuture = exec.submit(() -> {
                   final Pair<Int2IntMap[], Int2ObjectMap<String>>[] merging = new Pair[query.getDimensions().size()];
                   for (int i = 0; i < merging.length; i++) {
                     final Int2IntMap[] dictIdConversion = new Int2IntMap[dictionaryMergingRunner.getNumQueryRunners()];
@@ -227,26 +228,27 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                       merging,
                       (accumulated, conversions) -> {
                         for (int i = 0; i < accumulated.length; i++) {
-                          // old dict id -> new dict id
-                          accumulated[i].lhs[conversions[i].getSegmentId()].put(conversions[i].getOldDictionaryId(), conversions[i].getNewDictionaryId());
-                          // new dict id -> dict value
-                          accumulated[i].rhs.put(conversions[i].getNewDictionaryId(), conversions[i].getVal());
+                          if (conversions[i] != null) {
+                            // old dict id -> new dict id
+                            accumulated[i].lhs[conversions[i].getSegmentId()].put(conversions[i].getOldDictionaryId(), conversions[i].getNewDictionaryId());
+                            // new dict id -> dict value
+                            accumulated[i].rhs.put(conversions[i].getNewDictionaryId(), conversions[i].getVal());
+                          }
                         }
                         return accumulated;
                       }
                   );
                 });
+                mergedDictionariesSupplier = Suppliers.memoize(() -> waitForDictionaryMergeFutureCompletion(
+                    query,
+                    dictionaryMergingFuture,
+                    hasTimeout,
+                    timeoutAt - System.currentTimeMillis()
+                ));
               } else {
                 // TODO: make it not nullable
-                dictionaryMergingFuture = Futures.immediateFuture(null);
+                mergedDictionariesSupplier = null;
               }
-
-              final Supplier<MergedDictionary[]> mergedDictionariesSupplier = Suppliers.memoize(() -> waitForDictionaryMergeFutureCompletion(
-                  query,
-                  dictionaryMergingFuture,
-                  hasTimeout,
-                  timeoutAt - System.currentTimeMillis()
-              ));
 
               Pair<Grouper<RowBasedKey>, Accumulator<AggregateResult, ResultRow>> pair =
                   RowBasedGrouperHelper.createGrouperAccumulatorPair(

@@ -252,6 +252,12 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
       }
 
       @Override
+      public boolean isEarlyDictMerge()
+      {
+        return true;
+      }
+
+      @Override
       public String toString()
       {
         return "v2";
@@ -336,10 +342,10 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
     return ImmutableList.of(
 //        v1Config,
 //        v1SingleThreadedConfig,
-        v2Config,
-        v2SmallBufferConfig,
-        v2SmallDictionaryConfig,
-        v2ParallelCombineConfig
+        v2Config
+//        v2SmallBufferConfig,
+//        v2SmallDictionaryConfig,
+//        v2ParallelCombineConfig
     );
   }
 
