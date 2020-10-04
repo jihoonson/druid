@@ -364,7 +364,6 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
   {
     private final Int2IntMap[] dictIdMap;
     private final Int2ObjectMap<String> newDictionary;
-    private int maxNewDictId;
 
     private MergingDictionary(int numSegments)
     {
@@ -381,7 +380,6 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
       dictIdMap[segmentId].put(oldDictId, newDictId);
       // new dict id -> dict value
       newDictionary.put(newDictId, val);
-      maxNewDictId = Math.max(maxNewDictId, newDictId);
     }
   }
 
@@ -439,7 +437,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
       }
       final MergedDictionary[] mergedDictionaries = new MergedDictionary[result.length];
       for (int i = 0; i < mergedDictionaries.length; i++) {
-        mergedDictionaries[i] = new MergedDictionary(result[i].dictIdMap, result[i].newDictionary, result[i].maxNewDictId);
+        mergedDictionaries[i] = new MergedDictionary(result[i].dictIdMap, result[i].newDictionary);
       }
       return mergedDictionaries;
     }
