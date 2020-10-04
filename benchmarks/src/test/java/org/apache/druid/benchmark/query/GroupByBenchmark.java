@@ -129,7 +129,8 @@ public class GroupByBenchmark
 
   @Param({
 //      "2",
-      "8"
+      "4"
+//      "8"
   })
   private int numProcessingThreads;
 

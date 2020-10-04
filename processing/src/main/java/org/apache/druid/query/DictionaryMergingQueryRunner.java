@@ -19,6 +19,7 @@
 
 package org.apache.druid.query;
 
+import com.google.common.collect.FluentIterable;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import org.apache.druid.java.util.common.guava.LazySequence;
@@ -70,10 +71,10 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
 
     // TODO: i'm reading same data twice.. probably i don't need that since the dictionaries are all sorted
     // TODO: maybe it should be able to support string metrics too
-    final ThreadSafeMergingDictionary[] dictionaries = new ThreadSafeMergingDictionary[query.getDimensions().size()];
-    for (int i = 0; i < dictionaries.length; i++) {
-      dictionaries[i] = new ThreadSafeMergingDictionary();
-    }
+//    for (int i = 0; i < dictionaries.length; i++) {
+//      dictionaries[i] = new MergingDictionary();
+//    }
+
 //    final Future<ThreadSafeMergingDictionary[]> future = exec.submit(
 //        () -> Sequences
 //            .simple(queryRunners)
@@ -97,10 +98,22 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
 //      throw new QueryInterruptedException(e);
 //    }
 
-    final List<Future> futures = new ArrayList<>();
+    // Thread safe merging dictionary
+    final AtomicInteger[] nextIds = new AtomicInteger[query.getDimensions().size()];
+    final ConcurrentHashMap<String, Integer>[] reverseDictionaries = new ConcurrentHashMap[query.getDimensions().size()];
+    for (int i = 0; i < nextIds.length; i++) {
+      nextIds[i] = new AtomicInteger();
+      reverseDictionaries[i] = new ConcurrentHashMap<>();
+    }
+
+    final List<Future<ThreadSafeMergingDictionary[]>> futures = new ArrayList<>();
     for (QueryRunner<DictionaryConversion[]> runner : queryRunners) {
       futures.add(
           exec.submit(() -> {
+            final ThreadSafeMergingDictionary[] dictionaries = new ThreadSafeMergingDictionary[query.getDimensions().size()];
+            for (int i = 0; i < dictionaries.length; i++) {
+              dictionaries[i] = new ThreadSafeMergingDictionary(reverseDictionaries[i], nextIds[i]);
+            }
             runner.run(queryPlus, responseContext)
                   .accumulate(dictionaries, (mergingDictionaries, conversions) -> {
                     for (int i = 0; i < conversions.length; i++) {
@@ -115,15 +128,18 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
                     }
                     return mergingDictionaries;
                   });
+            return dictionaries;
           })
       );
     }
 
+    // Thread safe merging dictionary
     return new LazySequence<>(
         () -> {
-          for (Future future : futures) {
+          final List<ThreadSafeMergingDictionary[]> dictionariesList = new ArrayList<>(futures.size());
+          for (Future<ThreadSafeMergingDictionary[]> future : futures) {
             try {
-              future.get();
+              dictionariesList.add(future.get());
             }
             catch (InterruptedException e) {
               throw new QueryInterruptedException(e);
@@ -133,27 +149,18 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
             }
           }
 
-          final Iterator<Entry<EntryKey, Integer>>[] iterators = new Iterator[dictionaries.length];
-          for (int i = 0; i < iterators.length; i++) {
-            iterators[i] = dictionaries[i].entries();
-          }
-          final IteratorsIterator iterator = new IteratorsIterator(iterators);
-          return Sequences.simple(() -> iterator);
-
-//          return Sequences.simple(queryRunners)
-//                          .flatMap(runner -> runner.run(queryPlus, responseContext))
-//                          .map(conversions -> {
-//                            DictionaryConversion[] newConversions = new DictionaryConversion[conversions.length];
-//                            for (int i = 0; i < conversions.length; i++) {
-//                              newConversions[i] = new DictionaryConversion(
-//                                  conversions[i].getVal(),
-//                                  conversions[i].getSegmentId(),
-//                                  conversions[i].getOldDictionaryId(),
-//                                  dictionaries[i].get(conversions[i].getVal())
-//                              );
-//                            }
-//                            return newConversions;
-//                          });
+          return Sequences.simple(
+              FluentIterable.from(dictionariesList)
+                            .transformAndConcat(
+                                dictionaries -> {
+                                  final Iterator<Object2IntMap.Entry<EntryKey>>[] iterators = new Iterator[dictionaries.length];
+                                  for (int i = 0; i < iterators.length; i++) {
+                                    iterators[i] = dictionaries[i].entries();
+                                  }
+                                  return () -> new IteratorsIterator(iterators);
+                                }
+                            )
+          );
         }
     );
   }
@@ -163,6 +170,7 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
     // TODO: size limit on dictionary?
 
     private final Object2IntMap<String> reverseDictionary = new Object2IntOpenHashMap<>();
+    private final Object2IntMap<EntryKey> entries = new Object2IntOpenHashMap<>();
     private int nextId;
 
     private MergingDictionary()
@@ -173,31 +181,45 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
     /**
      * Return new dictionary ID.
      */
-    private int add(String val)
+    private int add(String val, int segmentId, int oldDictId)
     {
-      return reverseDictionary.computeIntIfAbsent(val, k -> nextId++);
+      final int newDictId = reverseDictionary.computeIntIfAbsent(val, k -> nextId++);
+      entries.putIfAbsent(new EntryKey(val, segmentId, oldDictId), newDictId);
+      return newDictId;
     }
 
     private int get(String val)
     {
       return reverseDictionary.getInt(val);
     }
+
+    private Iterator<Object2IntMap.Entry<EntryKey>> entries()
+    {
+      return entries.object2IntEntrySet().iterator();
+    }
   }
 
   private static class ThreadSafeMergingDictionary
   {
-    private final ConcurrentHashMap<String, Integer> reverseDictionary = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<EntryKey, Integer> entries = new ConcurrentHashMap<>();
-    private final AtomicInteger nextId = new AtomicInteger();
+    private final ConcurrentHashMap<String, Integer> reverseDictionary;
+    private final Object2IntMap<EntryKey> entries = new Object2IntOpenHashMap<>();
+    private final AtomicInteger nextId;
+
+    private ThreadSafeMergingDictionary(ConcurrentHashMap<String, Integer> reverseDictionary, AtomicInteger nextId)
+    {
+      this.reverseDictionary = reverseDictionary;
+      this.nextId = nextId;
+    }
 
     /**
      * Return new dictionary ID.
      */
-    private int add(String val, int segmentId, int oldDictId)
+    private void add(String val, int segmentId, int oldDictId)
     {
-      final int newDictId = reverseDictionary.computeIfAbsent(val, k -> nextId.getAndIncrement());
-      entries.putIfAbsent(new EntryKey(val, segmentId, oldDictId), newDictId);
-      return newDictId;
+      if (val != null) {
+        final int newDictId = reverseDictionary.computeIfAbsent(val, k -> nextId.getAndIncrement());
+        entries.putIfAbsent(new EntryKey(val, segmentId, oldDictId), newDictId);
+      }
     }
 
     private int get(String val)
@@ -205,9 +227,9 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
       return reverseDictionary.getOrDefault(val, DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID);
     }
 
-    private Iterator<Entry<EntryKey, Integer>> entries()
+    private Iterator<Object2IntMap.Entry<EntryKey>> entries()
     {
-      return entries.entrySet().iterator();
+      return entries.object2IntEntrySet().iterator();
     }
   }
 
@@ -248,9 +270,9 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
 
   private static class IteratorsIterator implements Iterator<DictionaryConversion[]>
   {
-    private final Iterator<Entry<EntryKey, Integer>>[] iterators;
+    private final Iterator<Object2IntMap.Entry<EntryKey>>[] iterators;
 
-    private IteratorsIterator(Iterator<Entry<EntryKey, Integer>>[] iterators)
+    private IteratorsIterator(Iterator<Object2IntMap.Entry<EntryKey>>[] iterators)
     {
       this.iterators = iterators;
     }
@@ -258,7 +280,7 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
     @Override
     public boolean hasNext()
     {
-      for (Iterator<Entry<EntryKey, Integer>> iterator : iterators) {
+      for (Iterator<Object2IntMap.Entry<EntryKey>> iterator : iterators) {
         if (iterator.hasNext()) {
           return true;
         }

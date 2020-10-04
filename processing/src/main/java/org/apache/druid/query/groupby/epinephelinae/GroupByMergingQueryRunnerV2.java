@@ -215,24 +215,17 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                 );
 
                 // TODO: maybe i don't need this accumulation at all if i just compute these maps in the queryRunner
-                final ListenableFuture<Pair<Int2IntMap[], Int2ObjectMap<String>>[]> dictionaryMergingFuture = exec.submit(() -> {
-                  final Pair<Int2IntMap[], Int2ObjectMap<String>>[] merging = new Pair[query.getDimensions().size()];
+                final ListenableFuture<MergingDictionary[]> dictionaryMergingFuture = exec.submit(() -> {
+                  final MergingDictionary[] merging = new MergingDictionary[query.getDimensions().size()];
                   for (int i = 0; i < merging.length; i++) {
-                    final Int2IntMap[] dictIdConversion = new Int2IntMap[dictionaryMergingRunner.getNumQueryRunners()];
-                    for (int j = 0; j < dictIdConversion.length; j++) {
-                      dictIdConversion[j] = new Int2IntOpenHashMap();
-                    }
-                    merging[i] = Pair.of(dictIdConversion, new Int2ObjectOpenHashMap<>());
+                    merging[i] = new MergingDictionary(dictionaryMergingRunner.getNumQueryRunners());
                   }
                   return conversionSequence.accumulate(
                       merging,
                       (accumulated, conversions) -> {
                         for (int i = 0; i < accumulated.length; i++) {
                           if (conversions[i] != null) {
-                            // old dict id -> new dict id
-                            accumulated[i].lhs[conversions[i].getSegmentId()].put(conversions[i].getOldDictionaryId(), conversions[i].getNewDictionaryId());
-                            // new dict id -> dict value
-                            accumulated[i].rhs.put(conversions[i].getNewDictionaryId(), conversions[i].getVal());
+                            accumulated[i].merge(conversions[i].getSegmentId(), conversions[i].getOldDictionaryId(), conversions[i].getNewDictionaryId(), conversions[i].getVal());
                           }
                         }
                         return accumulated;
@@ -367,6 +360,31 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
     );
   }
 
+  private static class MergingDictionary
+  {
+    private final Int2IntMap[] dictIdMap;
+    private final Int2ObjectMap<String> newDictionary;
+    private int maxNewDictId;
+
+    private MergingDictionary(int numSegments)
+    {
+      this.dictIdMap = new Int2IntMap[numSegments];
+      for (int j = 0; j < numSegments; j++) {
+        dictIdMap[j] = new Int2IntOpenHashMap();
+      }
+      newDictionary = new Int2ObjectOpenHashMap<>();
+    }
+
+    private void merge(int segmentId, int oldDictId, int newDictId, String val)
+    {
+      // old dict id -> new dict id
+      dictIdMap[segmentId].put(oldDictId, newDictId);
+      // new dict id -> dict value
+      newDictionary.put(newDictId, val);
+      maxNewDictId = Math.max(maxNewDictId, newDictId);
+    }
+  }
+
   private List<ReferenceCountingResourceHolder<ByteBuffer>> getMergeBuffersHolder(
       int numBuffers,
       boolean hasTimeout,
@@ -403,7 +421,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
 
   private MergedDictionary[] waitForDictionaryMergeFutureCompletion(
       GroupByQuery query,
-      ListenableFuture<Pair<Int2IntMap[], Int2ObjectMap<String>>[]> future,
+      ListenableFuture<MergingDictionary[]> future,
       boolean hasTimeout,
       long timeout
   )
@@ -413,7 +431,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
         throw new TimeoutException();
       }
 
-      final Pair<Int2IntMap[], Int2ObjectMap<String>>[] result;
+      final MergingDictionary[] result;
       if (hasTimeout) {
         result = future.get(timeout, TimeUnit.MILLISECONDS);
       } else {
@@ -421,7 +439,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
       }
       final MergedDictionary[] mergedDictionaries = new MergedDictionary[result.length];
       for (int i = 0; i < mergedDictionaries.length; i++) {
-        mergedDictionaries[i] = new MergedDictionary(result[i].lhs, result[i].rhs);
+        mergedDictionaries[i] = new MergedDictionary(result[i].dictIdMap, result[i].newDictionary, result[i].maxNewDictId);
       }
       return mergedDictionaries;
     }

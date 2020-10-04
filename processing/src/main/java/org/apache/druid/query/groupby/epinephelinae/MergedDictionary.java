@@ -28,7 +28,7 @@ public class MergedDictionary
   private final int[][] dictIdConversion;
   private final String[] dictionary;
 
-  public MergedDictionary(Int2IntMap[] dictIdConversion, Int2ObjectMap<String> dictionary)
+  public MergedDictionary(Int2IntMap[] dictIdConversion, Int2ObjectMap<String> dictionary, int maxDictId)
   {
     this.dictIdConversion = new int[dictIdConversion.length][];
     for (int i = 0; i < dictIdConversion.length; i++) {
@@ -36,7 +36,7 @@ public class MergedDictionary
       final int[] localVar = this.dictIdConversion[i];
       dictIdConversion[i].forEach((k, v) -> localVar[k] = v);
     }
-    this.dictionary = new String[dictionary.size()];
+    this.dictionary = new String[maxDictId + 1];
     dictionary.forEach((k, v) -> this.dictionary[k] = v);
   }
 
