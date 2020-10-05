@@ -119,9 +119,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 @State(Scope.Benchmark)
-@Fork(value = 2)
-@Warmup(iterations = 10)
-@Measurement(iterations = 25)
+@Fork(value = 1)
+@Warmup(iterations = 5)
+@Measurement(iterations = 5)
 public class GroupByBenchmark
 {
   @Param({"4"})
@@ -129,8 +129,11 @@ public class GroupByBenchmark
 
   @Param({
 //      "2",
-      "4"
+//      "4",
 //      "8"
+      "5",
+      "6",
+      "7"
   })
   private int numProcessingThreads;
 
@@ -275,18 +278,12 @@ public class GroupByBenchmark
           .builder()
           .setDataSource("blah")
           .setQuerySegmentSpec(intervalSpec)
-          .setDimensions(new DefaultDimensionSpec("dimSequential", null), new DefaultDimensionSpec("dimZipf", null))
+          .setDimensions(new DefaultDimensionSpec("dimHyperUnique", null), new DefaultDimensionSpec("dimUniform", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(queryGranularity))
           .setLimitSpec(
               new DefaultLimitSpec(
-                  Collections.singletonList(
-                      new OrderByColumnSpec(
-                          "dimSequential",
-                          Direction.ASCENDING,
-                          StringComparators.LEXICOGRAPHIC
-                      )
-                  ),
+                  Collections.emptyList(),
                   100
               )
           )
