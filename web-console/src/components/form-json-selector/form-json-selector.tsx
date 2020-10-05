@@ -16,20 +16,25 @@
  * limitations under the License.
  */
 
-import { PartitionsSpec } from '../load-data/config/partition';
+import { Button, ButtonGroup, FormGroup } from '@blueprintjs/core';
+import React from 'react';
 
-/**
- * Datasource compaction configuration
- */
-export class CompactionConfig {
-  constructor(props: CompactionConfigProps) {
-    Object.assign(this, props);
-  }
+export type FormJsonTabs = 'form' | 'json';
+
+export interface FormJsonSelectorProps {
+  tab: FormJsonTabs;
+  onChange: (tab: FormJsonTabs) => void;
 }
 
-interface CompactionConfigProps {
-  readonly skipOffsetFromLatest: string;
-  readonly partitionsSpec: PartitionsSpec;
-}
+export const FormJsonSelector = React.memo(function FormJsonSelector(props: FormJsonSelectorProps) {
+  const { tab, onChange } = props;
 
-export interface CompactionConfig extends CompactionConfigProps {}
+  return (
+    <FormGroup className="form-json-selector">
+      <ButtonGroup fill>
+        <Button text="Form" active={tab === 'form'} onClick={() => onChange('form')} />
+        <Button text="JSON" active={tab === 'json'} onClick={() => onChange('json')} />
+      </ButtonGroup>
+    </FormGroup>
+  );
+});

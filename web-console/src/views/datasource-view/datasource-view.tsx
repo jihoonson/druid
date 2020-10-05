@@ -893,9 +893,10 @@ GROUP BY 1`;
           data={datasources}
           loading={datasourcesAndDefaultRulesState.loading}
           noDataText={
-            !datasourcesAndDefaultRulesState.loading && datasources && !datasources.length
+            datasourcesAndDefaultRulesState.getErrorMessage() ||
+            (!datasourcesAndDefaultRulesState.loading && datasources && !datasources.length
               ? 'No datasources'
-              : datasourcesAndDefaultRulesState.getErrorMessage() || ''
+              : '')
           }
           filterable
           filtered={datasourceFilter}
@@ -1209,12 +1210,12 @@ GROUP BY 1`;
               width: ACTION_COLUMN_WIDTH,
               filterable: false,
               Cell: ({ value: datasource, original }) => {
-                const { unused, rules, compaction } = original;
+                const { unused, rules, compactionConfig } = original;
                 const datasourceActions = this.getDatasourceActions(
                   datasource,
                   unused,
                   rules,
-                  compaction,
+                  compactionConfig,
                 );
                 return (
                   <ActionCell

@@ -16,20 +16,21 @@
  * limitations under the License.
  */
 
-import { PartitionsSpec } from '../load-data/config/partition';
+import { shallow } from 'enzyme';
+import React from 'react';
 
-/**
- * Datasource compaction configuration
- */
-export class CompactionConfig {
-  constructor(props: CompactionConfigProps) {
-    Object.assign(this, props);
-  }
-}
+import { FormJsonSelector } from './form-json-selector';
 
-interface CompactionConfigProps {
-  readonly skipOffsetFromLatest: string;
-  readonly partitionsSpec: PartitionsSpec;
-}
+describe('FormJsonSelector', () => {
+  it('matches snapshot form tab', () => {
+    const formJsonSelector = shallow(<FormJsonSelector tab="form" onChange={() => {}} />);
 
-export interface CompactionConfig extends CompactionConfigProps {}
+    expect(formJsonSelector).toMatchSnapshot();
+  });
+
+  it('matches snapshot form json', () => {
+    const formJsonSelector = shallow(<FormJsonSelector tab="json" onChange={() => {}} />);
+
+    expect(formJsonSelector).toMatchSnapshot();
+  });
+});
