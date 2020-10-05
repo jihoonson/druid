@@ -31,6 +31,7 @@ import org.apache.druid.segment.IdLookup;
 import org.apache.druid.segment.data.CachingIndexed;
 import org.apache.druid.segment.data.ColumnarInts;
 import org.apache.druid.segment.data.ColumnarMultiInts;
+import org.apache.druid.segment.data.Indexed;
 import org.apache.druid.segment.data.IndexedInts;
 import org.apache.druid.segment.data.ReadableOffset;
 import org.apache.druid.segment.data.SingleIndexedInt;
@@ -77,6 +78,12 @@ public class StringDictionaryEncodedColumn implements DictionaryEncodedColumn<St
   public boolean hasMultipleValues()
   {
     return column == null;
+  }
+
+  @Override
+  public Indexed<String> getDictionary()
+  {
+    return cachedLookups;
   }
 
   @Override

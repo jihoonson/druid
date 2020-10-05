@@ -305,6 +305,22 @@ public class QueryableIndexStorageAdapter implements StorageAdapter
     );
   }
 
+  public Sequence<String> getDictionarySequence(String columnName)
+  {
+    final ColumnHolder columnHolder = index.getColumnHolder(columnName);
+    if (columnHolder == null) {
+      return Sequences.empty();
+    }
+    final ColumnCapabilities columnCapabilities = columnHolder.getCapabilities();
+    if (columnCapabilities == null || !columnCapabilities.isDictionaryEncoded().isTrue()) {
+      return Sequences.empty();
+    }
+
+    final DictionaryEncodedColumn<String> column = (DictionaryEncodedColumn<String>) columnHolder.getColumn();
+    final Indexed<String> dictionary = column.getDictionary();
+    return Sequences.simple(dictionary);
+  }
+
   @Nullable
   public static ColumnCapabilities getColumnCapabilities(ColumnSelector index, String columnName)
   {

@@ -22,6 +22,7 @@ package org.apache.druid.segment.column;
 import org.apache.druid.query.extraction.ExtractionFn;
 import org.apache.druid.segment.ColumnValueSelector;
 import org.apache.druid.segment.DimensionSelector;
+import org.apache.druid.segment.data.Indexed;
 import org.apache.druid.segment.data.IndexedInts;
 import org.apache.druid.segment.data.ReadableOffset;
 import org.apache.druid.segment.vector.MultiValueDimensionVectorSelector;
@@ -37,6 +38,8 @@ public interface DictionaryEncodedColumn<ActualType extends Comparable<? super A
   int length();
 
   boolean hasMultipleValues();
+
+  Indexed<ActualType> getDictionary();
 
   int getSingleValueRow(int rowNum);
 
