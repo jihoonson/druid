@@ -20,7 +20,7 @@
 package org.apache.druid.segment.column;
 
 import org.apache.druid.java.util.common.StringUtils;
-import org.apache.druid.segment.data.GenericIndexed;
+import org.apache.druid.segment.data.Indexed;
 import org.apache.druid.segment.selector.settable.SettableColumnValueSelector;
 
 import javax.annotation.Nullable;
@@ -43,7 +43,7 @@ public interface ColumnHolder
   int getLength();
   BaseColumn getColumn();
   @Nullable
-  GenericIndexed<String> getDictionary();
+  Indexed<String> getDictionary();
 
   @Nullable
   BitmapIndex getBitmapIndex();

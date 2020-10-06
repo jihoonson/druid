@@ -206,6 +206,12 @@ public class IncrementalIndexStorageAdapter implements StorageAdapter
     return indexer.getMaxValue();
   }
 
+  // TODO
+//  @Override
+//  public Iterator<String> getDictionaryIterator(String columnName)
+//  {
+//  }
+
   @Override
   public ColumnCapabilities getColumnCapabilities(String column)
   {

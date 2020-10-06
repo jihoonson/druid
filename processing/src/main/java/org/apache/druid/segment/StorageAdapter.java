@@ -26,6 +26,8 @@ import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.Iterator;
 
 /**
  */
@@ -76,4 +78,9 @@ public interface StorageAdapter extends CursorFactory, ColumnInspector
   int getNumRows();
   DateTime getMaxIngestedEventTime();
   Metadata getMetadata();
+
+  default Iterator<String> getDictionaryIterator(String columnName)
+  {
+    return Collections.emptyIterator();
+  }
 }

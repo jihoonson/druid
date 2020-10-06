@@ -390,14 +390,14 @@ public class QueryRunnerTestHelper
     final QueryableIndex noRollupMMappedTestIndex = TestIndex.getNoRollupMMappedTestIndex();
     final QueryableIndex mergedRealtimeIndex = TestIndex.mergedRealtimeIndex();
     return ImmutableList.of(
-        Pair.of(
-            makeQueryRunner(factory, new IncrementalIndexSegment(rtIndex, SEGMENT_ID), ("rtIndex"), segmentIdMapper),
-            makeDictionaryScanRunner(new IncrementalIndexSegment(rtIndex, SEGMENT_ID), "rtIndex", segmentIdMapper)
-        ),
-        Pair.of(
-            makeQueryRunner(factory, new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex", segmentIdMapper),
-            makeDictionaryScanRunner(new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex", segmentIdMapper)
-        ),
+//        Pair.of(
+//            makeQueryRunner(factory, new IncrementalIndexSegment(rtIndex, SEGMENT_ID), ("rtIndex"), segmentIdMapper),
+//            makeDictionaryScanRunner(new IncrementalIndexSegment(rtIndex, SEGMENT_ID), "rtIndex", segmentIdMapper)
+//        ),
+//        Pair.of(
+//            makeQueryRunner(factory, new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex", segmentIdMapper),
+//            makeDictionaryScanRunner(new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex", segmentIdMapper)
+//        ),
         Pair.of(
             makeQueryRunner(factory, new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", segmentIdMapper),
             makeDictionaryScanRunner(new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", segmentIdMapper)

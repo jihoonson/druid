@@ -52,6 +52,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -305,20 +306,21 @@ public class QueryableIndexStorageAdapter implements StorageAdapter
     );
   }
 
-  public Sequence<String> getDictionarySequence(String columnName)
+  @Override
+  public Iterator<String> getDictionaryIterator(String columnName)
   {
     final ColumnHolder columnHolder = index.getColumnHolder(columnName);
     if (columnHolder == null) {
-      return Sequences.empty();
+      return Collections.emptyIterator();
     }
     final ColumnCapabilities columnCapabilities = columnHolder.getCapabilities();
     if (columnCapabilities == null || !columnCapabilities.isDictionaryEncoded().isTrue()) {
-      return Sequences.empty();
+      return Collections.emptyIterator();
     }
 
     final DictionaryEncodedColumn<String> column = (DictionaryEncodedColumn<String>) columnHolder.getColumn();
     final Indexed<String> dictionary = column.getDictionary();
-    return Sequences.simple(dictionary);
+    return dictionary.iterator();
   }
 
   @Nullable

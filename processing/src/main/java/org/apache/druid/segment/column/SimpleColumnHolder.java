@@ -22,6 +22,7 @@ package org.apache.druid.segment.column;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import org.apache.druid.segment.ColumnValueSelector;
+import org.apache.druid.segment.data.Indexed;
 import org.apache.druid.segment.selector.settable.SettableColumnValueSelector;
 import org.apache.druid.segment.selector.settable.SettableObjectColumnValueSelector;
 
@@ -86,6 +87,13 @@ class SimpleColumnHolder implements ColumnHolder
   public BaseColumn getColumn()
   {
     return columnSupplier == null ? UnknownTypeComplexColumn.instance() : columnSupplier.get();
+  }
+
+  @Nullable
+  @Override
+  public Indexed<String> getDictionary()
+  {
+    return capabilities.isDictionaryEncoded().isTrue() ? ((DictionaryEncodedColumn<String>) columnSupplier.get()).getDictionary() : null;
   }
 
   @Nullable

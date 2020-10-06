@@ -19,22 +19,14 @@
 
 package org.apache.druid.query;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
-import org.apache.druid.java.util.common.granularity.Granularities;
-import org.apache.druid.java.util.common.guava.BaseSequence;
-import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.query.context.ResponseContext;
-import org.apache.druid.segment.ColumnSelectorFactory;
-import org.apache.druid.segment.Cursor;
-import org.apache.druid.segment.DimensionSelector;
 import org.apache.druid.segment.QueryableIndexStorageAdapter;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.segment.StorageAdapter;
-import org.apache.druid.segment.VirtualColumns;
-import org.apache.druid.segment.data.IndexedInts;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -49,13 +41,24 @@ public class DictionaryScanRunner implements IdentifiableQueryRunner<DictionaryC
     this.storageAdapter = segment.asStorageAdapter();
   }
 
+  // TODO: This can return Sequence<Iterator<DictionaryConversion>>. Each iterator is the conversions for one column.
+  // or Sequence<Sequence<DictionaryConversion>>.. but probably iterator will be better since there is no reason
+  // to flat out the outer sequence.
   @Override
   public Sequence<DictionaryConversion[]> run(QueryPlus<DictionaryConversion[]> queryPlus, ResponseContext responseContext)
   {
     final DictionaryMergeQuery query = (DictionaryMergeQuery) queryPlus.getQuery();
 
-    // TODO: add a good interface in StorageAdapter
-    final Sequence<String> dictionarySequence = ((QueryableIndexStorageAdapter) storageAdapter).getDictionarySequence()
+    final Iterator<String>[] dictionaryIterators = new Iterator[query.getDimensions().size()];
+    for (int i = 0; i < dictionaryIterators.length; i++) {
+      // TODO: add a good interface in StorageAdapter
+      dictionaryIterators[i] = storageAdapter.getDictionaryIterator(
+          query.getDimensions().get(i).getDimension()
+      );
+    }
+
+    final IteratorsIterator iterator = new IteratorsIterator(segmentId, dictionaryIterators);
+    return Sequences.simple(() -> iterator);
 
 //    final Sequence<Cursor> cursors = storageAdapter.makeCursors(
 //        null, // TODO: filters?!
@@ -125,5 +128,48 @@ public class DictionaryScanRunner implements IdentifiableQueryRunner<DictionaryC
   public int getSegmentId()
   {
     return segmentId;
+  }
+
+  private static class IteratorsIterator implements Iterator<DictionaryConversion[]>
+  {
+    private final int segmentId;
+    private final Iterator<String>[] iterators;
+    private int dictId;
+
+    private IteratorsIterator(int segmentId, Iterator<String>[] dictionaryIterators)
+    {
+      this.segmentId = segmentId;
+      this.iterators = dictionaryIterators;
+    }
+
+    @Override
+    public boolean hasNext()
+    {
+      return Arrays.stream(iterators).anyMatch(Iterator::hasNext);
+    }
+
+    @Override
+    public DictionaryConversion[] next()
+    {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+
+      final DictionaryConversion[] conversions = new DictionaryConversion[iterators.length];
+      for (int i = 0; i < conversions.length; i++) {
+        if (iterators[i].hasNext()) {
+          final String value = iterators[i].next();
+          // TODO: we can filter out value based on the query filter
+          conversions[i] = new DictionaryConversion(
+              value,
+              segmentId,
+              dictId,
+              DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID // fills with unknown temporarily. will be updated when merging
+          );
+        }
+      }
+      dictId++;
+      return conversions;
+    }
   }
 }

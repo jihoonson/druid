@@ -101,6 +101,7 @@ import org.apache.druid.segment.column.SpatialIndex;
 import org.apache.druid.segment.column.ValueType;
 import org.apache.druid.segment.data.CompressionFactory.LongEncodingStrategy;
 import org.apache.druid.segment.data.CompressionStrategy;
+import org.apache.druid.segment.data.Indexed;
 import org.apache.druid.segment.data.ListIndexed;
 import org.apache.druid.segment.data.RoaringBitmapSerdeFactory;
 import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
@@ -1441,6 +1442,13 @@ public class CompactionTaskTest
 
     @Override
     public BaseColumn getColumn()
+    {
+      return null;
+    }
+
+    @Nullable
+    @Override
+    public Indexed<String> getDictionary()
     {
       return null;
     }

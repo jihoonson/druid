@@ -117,8 +117,8 @@ public class DictionaryMergingQueryRunner implements QueryRunner<DictionaryConve
             runner.run(queryPlus, responseContext)
                   .accumulate(dictionaries, (mergingDictionaries, conversions) -> {
                     for (int i = 0; i < conversions.length; i++) {
-                      if (conversions[i].getOldDictionaryId()
-                          != DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID) {
+                      if (conversions[i] != null
+                          && conversions[i].getOldDictionaryId() != DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID) {
                         mergingDictionaries[i].add(
                             conversions[i].getVal(),
                             conversions[i].getSegmentId(),
