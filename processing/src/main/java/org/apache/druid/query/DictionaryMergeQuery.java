@@ -23,10 +23,11 @@ import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.filter.DimFilter;
 import org.apache.druid.query.spec.QuerySegmentSpec;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class DictionaryMergeQuery extends BaseQuery<DictionaryConversion[]>
+public class DictionaryMergeQuery extends BaseQuery<Iterator<DictionaryConversion>>
 {
   private final List<DimensionSpec> dimensions;
 
@@ -64,19 +65,19 @@ public class DictionaryMergeQuery extends BaseQuery<DictionaryConversion[]>
   }
 
   @Override
-  public Query<DictionaryConversion[]> withOverriddenContext(Map<String, Object> contextOverride)
+  public Query<Iterator<DictionaryConversion>> withOverriddenContext(Map<String, Object> contextOverride)
   {
     return this;
   }
 
   @Override
-  public Query<DictionaryConversion[]> withQuerySegmentSpec(QuerySegmentSpec spec)
+  public Query<Iterator<DictionaryConversion>> withQuerySegmentSpec(QuerySegmentSpec spec)
   {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public Query<DictionaryConversion[]> withDataSource(DataSource dataSource)
+  public Query<Iterator<DictionaryConversion>> withDataSource(DataSource dataSource)
   {
     throw new UnsupportedOperationException();
   }

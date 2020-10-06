@@ -379,7 +379,7 @@ public class QueryRunnerTestHelper
     );
   }
 
-  public static <T, QueryType extends Query<T>> List<Pair<QueryRunner<T>, QueryRunner<DictionaryConversion[]>>> makeQueryRunnersAndDictScanRunners(
+  public static <T, QueryType extends Query<T>> List<Pair<QueryRunner<T>, QueryRunner<Iterator<DictionaryConversion>>>> makeQueryRunnersAndDictScanRunners(
       QueryRunnerFactory<T, QueryType> factory
   )
   {
@@ -515,7 +515,7 @@ public class QueryRunnerTestHelper
     };
   }
 
-  public static QueryRunner<DictionaryConversion[]> makeDictionaryScanRunner(
+  public static QueryRunner<Iterator<DictionaryConversion>> makeDictionaryScanRunner(
       Segment adapter,
       final String runnerName,
       @Nullable SegmentIdMapper segmentIdMapper
@@ -524,7 +524,7 @@ public class QueryRunnerTestHelper
     return makeDictionaryScanRunner(SEGMENT_ID, adapter, runnerName, segmentIdMapper);
   }
 
-  private static QueryRunner<DictionaryConversion[]> makeDictionaryScanRunner(
+  private static QueryRunner<Iterator<DictionaryConversion>> makeDictionaryScanRunner(
       SegmentId segmentId,
       Segment adapter,
       final String runnerName,
@@ -532,11 +532,23 @@ public class QueryRunnerTestHelper
   )
   {
     final DictionaryMergingQueryRunnerFactory factory = new DictionaryMergingQueryRunnerFactory();
-    return new FinalizeResultsQueryRunner<DictionaryConversion[]>(
-        new BySegmentQueryRunner<>(segmentId, adapter.getDataInterval().getStart(), factory.createRunner(segmentIdMapper, adapter)),
-        factory.getToolchest()
-    )
+    return new IdentifiableQueryRunner<Iterator<DictionaryConversion>>()
     {
+      @Override
+      public int getSegmentId()
+      {
+        return segmentIdMapper.applyAsInt(segmentId);
+      }
+
+      @Override
+      public Sequence<Iterator<DictionaryConversion>> run(
+          QueryPlus<Iterator<DictionaryConversion>> queryPlus,
+          ResponseContext responseContext
+      )
+      {
+        return factory.createRunner(segmentIdMapper, adapter).run(queryPlus, responseContext);
+      }
+
       @Override
       public String toString()
       {

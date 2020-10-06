@@ -20,20 +20,25 @@
 package org.apache.druid.benchmark.query;
 
 import org.apache.druid.common.config.NullHandling;
+import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.query.BySegmentQueryRunner;
 import org.apache.druid.query.DictionaryConversion;
 import org.apache.druid.query.DictionaryMergingQueryRunnerFactory;
 import org.apache.druid.query.FinalizeResultsQueryRunner;
+import org.apache.druid.query.IdentifiableQueryRunner;
 import org.apache.druid.query.Query;
+import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryRunnerFactory;
 import org.apache.druid.query.QueryToolChest;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.SegmentIdMapper;
+import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.timeline.SegmentId;
 
 import javax.annotation.Nullable;
+import java.util.Iterator;
 
 public class QueryBenchmarkUtil
 {
@@ -63,17 +68,30 @@ public class QueryBenchmarkUtil
     );
   }
 
-  public static QueryRunner<DictionaryConversion[]> makeDictionaryScanRunner(
+  public static QueryRunner<Iterator<DictionaryConversion>> makeDictionaryScanRunner(
       SegmentId segmentId,
       Segment adapter,
       SegmentIdMapper segmentIdMapper
   )
   {
     final DictionaryMergingQueryRunnerFactory factory = new DictionaryMergingQueryRunnerFactory();
-    return new FinalizeResultsQueryRunner<>(
-        new BySegmentQueryRunner<>(segmentId, adapter.getDataInterval().getStart(), factory.createRunner(segmentIdMapper, adapter)),
-        factory.getToolchest()
-    );
+    return new IdentifiableQueryRunner<Iterator<DictionaryConversion>>()
+    {
+      @Override
+      public int getSegmentId()
+      {
+        return segmentIdMapper.applyAsInt(segmentId);
+      }
+
+      @Override
+      public Sequence<Iterator<DictionaryConversion>> run(
+          QueryPlus<Iterator<DictionaryConversion>> queryPlus,
+          ResponseContext responseContext
+      )
+      {
+        return factory.createRunner(segmentIdMapper, adapter).run(queryPlus, responseContext);
+      }
+    };
   }
 
 

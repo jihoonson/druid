@@ -36,6 +36,7 @@ import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.collections.Releaser;
@@ -67,6 +68,7 @@ import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBas
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
@@ -210,7 +212,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                     query.getQuerySegmentSpec(),
                     query.getDimensions()
                 );
-                final Sequence<DictionaryConversion[]> conversionSequence = dictionaryMergingRunner.run(
+                final Sequence<Iterator<DictionaryConversion>> conversionSequence = dictionaryMergingRunner.run(
                     QueryPlus.wrap(dictionaryMergeQuery)
                 );
 
@@ -220,14 +222,20 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                   for (int i = 0; i < merging.length; i++) {
                     merging[i] = new MergingDictionary(dictionaryMergingRunner.getNumQueryRunners());
                   }
+                  final MutableInt dimensionIndex = new MutableInt(0);
                   return conversionSequence.accumulate(
                       merging,
                       (accumulated, conversions) -> {
-                        for (int i = 0; i < accumulated.length; i++) {
-                          if (conversions[i] != null) {
-                            accumulated[i].merge(conversions[i].getSegmentId(), conversions[i].getOldDictionaryId(), conversions[i].getNewDictionaryId(), conversions[i].getVal());
-                          }
+                        while (conversions.hasNext()) {
+                          final DictionaryConversion conversion = conversions.next();
+                          accumulated[dimensionIndex.getValue()].merge(
+                              conversion.getSegmentId(),
+                              conversion.getOldDictionaryId(),
+                              conversion.getNewDictionaryId(),
+                              conversion.getVal()
+                          );
                         }
+                        dimensionIndex.increment();
                         return accumulated;
                       }
                   );

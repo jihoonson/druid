@@ -22,7 +22,6 @@ package org.apache.druid.query;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.query.context.ResponseContext;
-import org.apache.druid.segment.QueryableIndexStorageAdapter;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.segment.StorageAdapter;
 
@@ -30,7 +29,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class DictionaryScanRunner implements IdentifiableQueryRunner<DictionaryConversion[]>
+public class DictionaryScanRunner implements IdentifiableQueryRunner<Iterator<DictionaryConversion>>
 {
   private final int segmentId;
   private final StorageAdapter storageAdapter;
@@ -45,83 +44,71 @@ public class DictionaryScanRunner implements IdentifiableQueryRunner<DictionaryC
   // or Sequence<Sequence<DictionaryConversion>>.. but probably iterator will be better since there is no reason
   // to flat out the outer sequence.
   @Override
-  public Sequence<DictionaryConversion[]> run(QueryPlus<DictionaryConversion[]> queryPlus, ResponseContext responseContext)
+  public Sequence<Iterator<DictionaryConversion>> run(QueryPlus<Iterator<DictionaryConversion>> queryPlus, ResponseContext responseContext)
   {
     final DictionaryMergeQuery query = (DictionaryMergeQuery) queryPlus.getQuery();
 
-    final Iterator<String>[] dictionaryIterators = new Iterator[query.getDimensions().size()];
-    for (int i = 0; i < dictionaryIterators.length; i++) {
-      // TODO: add a good interface in StorageAdapter
-      dictionaryIterators[i] = storageAdapter.getDictionaryIterator(
-          query.getDimensions().get(i).getDimension()
-      );
-    }
+    return Sequences.simple(
+        () -> new Iterator<Iterator<DictionaryConversion>>()
+        {
+          int remainingDimensions = query.getDimensions().size();
+          int nextDimension = segmentId % remainingDimensions;
 
-    final IteratorsIterator iterator = new IteratorsIterator(segmentId, dictionaryIterators);
-    return Sequences.simple(() -> iterator);
+          @Override
+          public boolean hasNext()
+          {
+            return remainingDimensions > 0;
+          }
 
-//    final Sequence<Cursor> cursors = storageAdapter.makeCursors(
-//        null, // TODO: filters?!
-//        Iterables.getOnlyElement(query.getIntervals()),
-//        VirtualColumns.EMPTY,
-//        Granularities.ALL,
-//        false,
-//        null
-//    );
+          @Override
+          public Iterator<DictionaryConversion> next()
+          {
+            final Iterator<String> dictionaryIterator = storageAdapter.getDictionaryIterator(
+                query.getDimensions().get(nextDimension++).getDimension()
+            );
+            if (nextDimension == query.getDimensions().size()) {
+              nextDimension = 0;
+            }
+            remainingDimensions--;
+            return new Iterator<DictionaryConversion>()
+            {
+              int dictId;
+
+              @Override
+              public boolean hasNext()
+              {
+                return dictionaryIterator.hasNext();
+              }
+
+              @Override
+              public DictionaryConversion next()
+              {
+                if (!hasNext()) {
+                  throw new NoSuchElementException();
+                }
+                final String val = dictionaryIterator.next();
+                return new DictionaryConversion(
+                    val,
+                    segmentId,
+                    dictId++,
+                    DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID // fills with unknown temporarily. will be updated when merging
+                );
+              }
+            };
+          }
+        }
+    );
+
+//    final Iterator<String>[] dictionaryIterators = new Iterator[query.getDimensions().size()];
+//    for (int i = 0; i < dictionaryIterators.length; i++) {
+//      // TODO: add a good interface in StorageAdapter
+//      dictionaryIterators[i] = storageAdapter.getDictionaryIterator(
+//          query.getDimensions().get(i).getDimension()
+//      );
+//    }
 //
-//    return cursors.flatMap(
-//        cursor -> new BaseSequence<>(
-//            new IteratorMaker<DictionaryConversion[], Iterator<DictionaryConversion[]>>()
-//            {
-//              @Override
-//              public Iterator<DictionaryConversion[]> make()
-//              {
-//                final ColumnSelectorFactory columnSelectorFactory = cursor.getColumnSelectorFactory();
-//                final DimensionSelector[] dimensionSelectors = new DimensionSelector[query.getDimensions().size()];
-//                for (int i = 0; i < dimensionSelectors.length; i++) {
-//                  // TODO: handle
-//                  dimensionSelectors[i] = columnSelectorFactory.makeDimensionSelector(query.getDimensions().get(i));
-//                }
-//
-//                return new Iterator<DictionaryConversion[]>()
-//                {
-//                  @Override
-//                  public boolean hasNext()
-//                  {
-//                    return !cursor.isDone();
-//                  }
-//
-//                  @Override
-//                  public DictionaryConversion[] next()
-//                  {
-//                    if (!hasNext()) {
-//                      throw new NoSuchElementException();
-//                    }
-//
-//                    final DictionaryConversion[] conversions = new DictionaryConversion[dimensionSelectors.length];
-//                    // TODO: handle multi-valued columns later
-//                    for (int i = 0; i < conversions.length; i++) {
-//                      final IndexedInts dictionaryIds = dimensionSelectors[i].getRow();
-//                      Preconditions.checkState(dictionaryIds.size() == 1);
-//                      final int oldDictionaryId = dictionaryIds.get(0);
-//                      final String val = dimensionSelectors[i].lookupName(oldDictionaryId);
-//                      conversions[i] = new DictionaryConversion(val, segmentId, oldDictionaryId, DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID);
-//                    }
-//
-//                    cursor.advance();
-//                    return conversions;
-//                  }
-//                };
-//              }
-//
-//              @Override
-//              public void cleanup(Iterator<DictionaryConversion[]> iterFromMake)
-//              {
-//
-//              }
-//            }
-//        )
-//    );
+//    final IteratorsIterator iterator = new IteratorsIterator(segmentId, dictionaryIterators);
+//    return Sequences.simple(() -> iterator);
   }
 
   @Override

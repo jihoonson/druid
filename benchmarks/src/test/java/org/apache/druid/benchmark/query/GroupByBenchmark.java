@@ -112,6 +112,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -144,9 +145,9 @@ public class GroupByBenchmark
   private int rowsPerSegment;
 
   @Param({
-//      "basic.A",
+      "basic.A",
 //      "basic.nested",
-      "basic.sorted2"
+//      "basic.sorted2"
   })
   private String schemaAndQuery;
 
@@ -805,12 +806,12 @@ public class GroupByBenchmark
     return runners;
   }
 
-  private List<QueryRunner<DictionaryConversion[]>> makeDictScanRunners(SegmentIdMapper segmentIdMapper)
+  private List<QueryRunner<Iterator<DictionaryConversion>>> makeDictScanRunners(SegmentIdMapper segmentIdMapper)
   {
-    List<QueryRunner<DictionaryConversion[]>> runners = new ArrayList<>();
+    List<QueryRunner<Iterator<DictionaryConversion>>> runners = new ArrayList<>();
     for (int i = 0; i < numSegments; i++) {
       String segmentName = "qIndex " + i;
-      QueryRunner<DictionaryConversion[]> runner = QueryBenchmarkUtil.makeDictionaryScanRunner(
+      QueryRunner<Iterator<DictionaryConversion>> runner = QueryBenchmarkUtil.makeDictionaryScanRunner(
           SegmentId.dummy(segmentName),
           new QueryableIndexSegment(queryableIndexes.get(i), SegmentId.dummy(segmentName)),
           segmentIdMapper

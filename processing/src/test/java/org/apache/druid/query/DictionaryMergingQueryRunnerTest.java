@@ -43,8 +43,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -111,12 +111,10 @@ public class DictionaryMergingQueryRunnerTest extends InitializedNullHandlingTes
   {
     final DictionaryMergingQueryRunnerFactory factory = new DictionaryMergingQueryRunnerFactory();
     final SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
-    final List<QueryRunner<DictionaryConversion[]>> runners = new ArrayList<>();
+    final List<QueryRunner<Iterator<DictionaryConversion>>> runners = new ArrayList<>();
     for (int i = 0; i < SEGMENTS.size(); i++) {
       runners.add(
-          QueryRunnerTestHelper.makeQueryRunner(
-              factory,
-              SEGMENTS.get(i).getId(),
+          QueryRunnerTestHelper.makeDictionaryScanRunner(
               new QueryableIndexSegment(INDEXES.get(i), SEGMENTS.get(i).getId()),
               "test",
               segmentIdMapper
@@ -127,7 +125,7 @@ public class DictionaryMergingQueryRunnerTest extends InitializedNullHandlingTes
         service,
         runners
     );
-    final Query<DictionaryConversion[]> query = new DictionaryMergeQuery(
+    final DictionaryMergeQuery query = new DictionaryMergeQuery(
         new TableDataSource("foo"),
         new MultipleIntervalSegmentSpec(ImmutableList.of(SCHEMA_INFO.getDataInterval())),
         ImmutableList.of(
@@ -136,18 +134,16 @@ public class DictionaryMergingQueryRunnerTest extends InitializedNullHandlingTes
             new DefaultDimensionSpec("dimUniform", "dimUniform")
         )
     );
-    final Sequence<DictionaryConversion[]> sequence = mergingRunner.run(QueryPlus.wrap(query));
-    final Map<String, Integer>[] newDictionaries = new HashMap[mergingRunner.getNumQueryRunners()];
-    for (int i = 0; i < newDictionaries.length; i++) {
-      newDictionaries[i] = new HashMap<>();
-    }
-    for (DictionaryConversion[] conversions : sequence.toList()) {
-      for (int i = 0; i < conversions.length; i++) {
-        if (conversions[i] != null) {
-          final Integer newDictId = newDictionaries[i].put(conversions[i].getVal(), conversions[i].getNewDictionaryId());
-          if (newDictId != null) {
-            Assert.assertEquals(newDictId.intValue(), conversions[i].getNewDictionaryId());
-          }
+    final Sequence<Iterator<DictionaryConversion>> sequence = mergingRunner.run(QueryPlus.wrap(query));
+    final List<Iterator<DictionaryConversion>> iterators = sequence.toList();
+    Assert.assertEquals(query.getDimensions().size(), iterators.size());
+    for (Iterator<DictionaryConversion> conversions : iterators) {
+      final Map<String, Integer> newDictionary = new HashMap<>();
+      while (conversions.hasNext()) {
+        final DictionaryConversion conversion = conversions.next();
+        final Integer newDictId = newDictionary.put(conversion.getVal(), conversion.getNewDictionaryId());
+        if (newDictId != null) {
+          Assert.assertEquals(newDictId.intValue(), conversion.getNewDictionaryId());
         }
       }
     }

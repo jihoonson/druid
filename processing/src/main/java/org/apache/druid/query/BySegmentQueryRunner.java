@@ -40,6 +40,7 @@ import java.util.List;
  */
 public class BySegmentQueryRunner<T> implements QueryRunner<T>
 {
+  // TODO: can have assigned segment id instead of identifiable query runner
   private final SegmentId segmentId;
   private final DateTime timestamp;
   private final QueryRunner<T> base;
