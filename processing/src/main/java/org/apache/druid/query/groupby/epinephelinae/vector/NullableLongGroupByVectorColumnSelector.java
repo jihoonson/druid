@@ -22,6 +22,7 @@ package org.apache.druid.query.groupby.epinephelinae.vector;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.common.config.NullHandling;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.segment.vector.VectorValueSelector;
 
@@ -67,16 +68,17 @@ public class NullableLongGroupByVectorColumnSelector implements GroupByVectorCol
 
   @Override
   public void writeKeyToResultRow(
-      final Memory keyMemory,
-      final int keyOffset,
-      final ResultRow resultRow,
-      final int resultRowPosition
+      Memory keyMemory,
+      int keyOffset,
+      PerSegmentEncodedResultRow resultRow,
+      int resultRowPosition,
+      int segmentId
   )
   {
     if (keyMemory.getByte(keyOffset) == NullHandling.IS_NULL_BYTE) {
-      resultRow.set(resultRowPosition, null);
+      resultRow.set(resultRowPosition, segmentId, null);
     } else {
-      resultRow.set(resultRowPosition, keyMemory.getLong(keyOffset + 1));
+      resultRow.set(resultRowPosition, segmentId, keyMemory.getLong(keyOffset + 1));
     }
   }
 }

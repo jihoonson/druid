@@ -30,6 +30,7 @@ import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.epinephelinae.VectorGrouper;
 import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine.VectorGroupByEngineIterator;
 import org.apache.druid.segment.DimensionHandlerUtils;
+import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.QueryableIndexStorageAdapter;
 import org.apache.druid.segment.StorageAdapter;
 import org.apache.druid.segment.TestIndex;
@@ -82,7 +83,7 @@ public class VectorGroupByEngineIteratorTest extends InitializedNullHandlingTest
     final VectorGroupByEngineIterator iterator = new VectorGroupByEngineIterator(
         query,
         new GroupByQueryConfig(),
-        storageAdapter,
+        new IdentifiableStorageAdapter(0, storageAdapter),
         cursor,
         interval,
         dimensions,
