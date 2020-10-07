@@ -25,10 +25,10 @@ import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.segment.StorageAdapter;
 
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
+// TODO: how to extend to columns which don't have dictionary?
 public class DictionaryScanRunner implements IdentifiableQueryRunner<Iterator<DictionaryConversion>>
 {
   private final int segmentId;
@@ -98,65 +98,11 @@ public class DictionaryScanRunner implements IdentifiableQueryRunner<Iterator<Di
           }
         }
     );
-
-//    final Iterator<String>[] dictionaryIterators = new Iterator[query.getDimensions().size()];
-//    for (int i = 0; i < dictionaryIterators.length; i++) {
-//      // TODO: add a good interface in StorageAdapter
-//      dictionaryIterators[i] = storageAdapter.getDictionaryIterator(
-//          query.getDimensions().get(i).getDimension()
-//      );
-//    }
-//
-//    final IteratorsIterator iterator = new IteratorsIterator(segmentId, dictionaryIterators);
-//    return Sequences.simple(() -> iterator);
   }
 
   @Override
   public int getSegmentId()
   {
     return segmentId;
-  }
-
-  private static class IteratorsIterator implements Iterator<DictionaryConversion[]>
-  {
-    private final int segmentId;
-    private final Iterator<String>[] iterators;
-    private int dictId;
-
-    private IteratorsIterator(int segmentId, Iterator<String>[] dictionaryIterators)
-    {
-      this.segmentId = segmentId;
-      this.iterators = dictionaryIterators;
-    }
-
-    @Override
-    public boolean hasNext()
-    {
-      return Arrays.stream(iterators).anyMatch(Iterator::hasNext);
-    }
-
-    @Override
-    public DictionaryConversion[] next()
-    {
-      if (!hasNext()) {
-        throw new NoSuchElementException();
-      }
-
-      final DictionaryConversion[] conversions = new DictionaryConversion[iterators.length];
-      for (int i = 0; i < conversions.length; i++) {
-        if (iterators[i].hasNext()) {
-          final String value = iterators[i].next();
-          // TODO: we can filter out value based on the query filter
-          conversions[i] = new DictionaryConversion(
-              value,
-              segmentId,
-              dictId,
-              DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID // fills with unknown temporarily. will be updated when merging
-          );
-        }
-      }
-      dictId++;
-      return conversions;
-    }
   }
 }
