@@ -247,8 +247,6 @@ public class GroupByStrategyV2 implements GroupByStrategy
       return Sequences.map(
           mergedResults,
           row -> {
-            // TODO: decode dictionary ids to string values
-
             // This function's purpose is to apply PostAggregators.
 
             final ResultRow rowWithPostAggregations = ResultRow.create(query.getResultRowSizeWithPostAggregators());

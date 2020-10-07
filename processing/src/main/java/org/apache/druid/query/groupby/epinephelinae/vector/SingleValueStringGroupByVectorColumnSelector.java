@@ -28,10 +28,12 @@ import org.apache.druid.segment.vector.SingleValueDimensionVectorSelector;
 public class SingleValueStringGroupByVectorColumnSelector implements GroupByVectorColumnSelector
 {
   private final SingleValueDimensionVectorSelector selector;
+  private final boolean encodeStrings;
 
-  SingleValueStringGroupByVectorColumnSelector(final SingleValueDimensionVectorSelector selector)
+  SingleValueStringGroupByVectorColumnSelector(final SingleValueDimensionVectorSelector selector, boolean encodeStrings)
   {
     this.selector = selector;
+    this.encodeStrings = encodeStrings;
   }
 
   @Override
@@ -70,7 +72,10 @@ public class SingleValueStringGroupByVectorColumnSelector implements GroupByVect
   )
   {
     final int id = keyMemory.getInt(keyOffset);
-//    resultRow.set(resultRowPosition, segmentId, selector.lookupName(id));
-    resultRow.set(resultRowPosition, segmentId, id);
+    if (encodeStrings) {
+      resultRow.set(resultRowPosition, segmentId, id);
+    } else {
+      resultRow.set(resultRowPosition, segmentId, selector.lookupName(id));
+    }
   }
 }

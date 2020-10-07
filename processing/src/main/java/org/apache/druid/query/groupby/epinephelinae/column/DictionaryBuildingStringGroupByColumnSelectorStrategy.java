@@ -50,7 +50,7 @@ public class DictionaryBuildingStringGroupByColumnSelectorStrategy extends Strin
 
   public DictionaryBuildingStringGroupByColumnSelectorStrategy()
   {
-    super(null, null);
+    super(null, null, false);
     reverseDictionary.defaultReturnValue(-1);
   }
 

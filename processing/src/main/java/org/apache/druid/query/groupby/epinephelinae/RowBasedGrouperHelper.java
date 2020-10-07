@@ -436,7 +436,7 @@ public class RowBasedGrouperHelper
     final ValueMatcher filterMatcher = filter == null
                                        ? BooleanValueMatcher.of(true)
                                        // TODO: maybe possible to modify filter to use dictionary..
-                                       // but let's decode it for now
+                                       // but let's decode it for now. see below rowSupplier.set()
                                        : filter.makeMatcher(columnSelectorFactory);
 
     if (subquery.getUniversalTimestamp() != null

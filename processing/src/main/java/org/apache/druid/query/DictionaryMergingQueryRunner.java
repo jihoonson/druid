@@ -39,6 +39,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
+// TODO: maybe these runners don't have to be QueryRunner
 public class DictionaryMergingQueryRunner implements QueryRunner<Iterator<DictionaryConversion>>
 {
   private final ExecutorService exec;
@@ -119,6 +120,7 @@ public class DictionaryMergingQueryRunner implements QueryRunner<Iterator<Dictio
           final List<ThreadSafeMergingDictionary[]> dictionariesList = new ArrayList<>(futures.size());
           for (Future<ThreadSafeMergingDictionary[]> future : futures) {
             try {
+              // TODO: handle timeout
               dictionariesList.add(future.get());
             }
             catch (InterruptedException e) {

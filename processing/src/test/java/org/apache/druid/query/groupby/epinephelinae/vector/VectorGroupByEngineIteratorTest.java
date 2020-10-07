@@ -76,7 +76,8 @@ public class VectorGroupByEngineIteratorTest extends InitializedNullHandlingTest
             DimensionHandlerUtils.makeVectorProcessor(
                 dimensionSpec,
                 GroupByVectorColumnProcessorFactory.instance(),
-                cursor.getColumnSelectorFactory()
+                cursor.getColumnSelectorFactory(),
+                false
             )
     ).collect(Collectors.toList());
     final MutableObject<VectorGrouper> grouperCaptor = new MutableObject<>();

@@ -91,7 +91,8 @@ import java.util.stream.Stream;
  */
 public class GroupByQueryEngineV2
 {
-  private static final GroupByStrategyFactory STRATEGY_FACTORY = new GroupByStrategyFactory();
+  private static final GroupByStrategyFactory STRATEGY_FACTORY_ENCODE_STRINGS = new GroupByStrategyFactory(true);
+  private static final GroupByStrategyFactory STRATEGY_FACTORY_NO_ENCODE = new GroupByStrategyFactory(false);
 
   private static GroupByColumnSelectorPlus[] createGroupBySelectorPlus(
       ColumnSelectorPlus<GroupByColumnSelectorStrategy>[] baseSelectorPlus,
@@ -209,7 +210,7 @@ public class GroupByQueryEngineV2
                 final ColumnSelectorFactory columnSelectorFactory = cursor.getColumnSelectorFactory();
                 final ColumnSelectorPlus<GroupByColumnSelectorStrategy>[] selectorPlus = DimensionHandlerUtils
                     .createColumnSelectorPluses(
-                        STRATEGY_FACTORY,
+                        querySpecificConfig.isEarlyDictMerge() ? STRATEGY_FACTORY_ENCODE_STRINGS : STRATEGY_FACTORY_NO_ENCODE,
                         query.getDimensions(),
                         columnSelectorFactory
                     );
@@ -235,7 +236,8 @@ public class GroupByQueryEngineV2
                       fudgeTimestamp,
                       dims,
                       isAllSingleValueDims(columnSelectorFactory, query.getDimensions()),
-                      cardinalityForArrayAggregation
+                      cardinalityForArrayAggregation,
+                      querySpecificConfig.isEarlyDictMerge()
                   );
                 } else {
                   return new HashAggregateIterator(
@@ -246,7 +248,8 @@ public class GroupByQueryEngineV2
                       processingBuffer,
                       fudgeTimestamp,
                       dims,
-                      isAllSingleValueDims(columnSelectorFactory, query.getDimensions())
+                      isAllSingleValueDims(columnSelectorFactory, query.getDimensions()),
+                      querySpecificConfig.isEarlyDictMerge()
                   );
                 }
               }
@@ -350,18 +353,26 @@ public class GroupByQueryEngineV2
       final List<DimensionSpec> dimensionSpecs,
       final PerSegmentEncodedResultRow resultRow,
       final int resultRowDimensionStart,
-      final int segmentId
+      final int segmentId,
+      final boolean encodeStrings
   )
   {
     for (int i = 0; i < dimensionSpecs.size(); i++) {
       DimensionSpec dimSpec = dimensionSpecs.get(i);
       final int resultRowIndex = resultRowDimensionStart + i;
       final ValueType outputType = dimSpec.getOutputType();
+      // TODO: maybe there is a better way
+      final ValueType convertType;
+      if (encodeStrings) {
+        convertType = outputType == ValueType.STRING ? ValueType.LONG : outputType;
+      } else {
+        convertType = outputType;
+      }
 
       resultRow.set(
           resultRowIndex,
           segmentId,
-          DimensionHandlerUtils.convertObjectToType(resultRow.getInt(resultRowIndex), outputType)
+          DimensionHandlerUtils.convertObjectToType(resultRow.getInt(resultRowIndex), convertType)
       );
     }
   }
@@ -384,9 +395,15 @@ public class GroupByQueryEngineV2
     return false;
   }
 
-  private static class GroupByStrategyFactory
-      implements ColumnSelectorStrategyFactory<GroupByColumnSelectorStrategy>
+  private static class GroupByStrategyFactory implements ColumnSelectorStrategyFactory<GroupByColumnSelectorStrategy>
   {
+    private final boolean encodeStringsIfPossible;
+
+    private GroupByStrategyFactory(boolean encodeStringsIfPossible)
+    {
+      this.encodeStringsIfPossible = encodeStringsIfPossible;
+    }
+
     @Override
     public GroupByColumnSelectorStrategy makeColumnSelectorStrategy(
         ColumnCapabilities capabilities,
@@ -398,7 +415,7 @@ public class GroupByQueryEngineV2
         case STRING:
           DimensionSelector dimSelector = (DimensionSelector) selector;
           if (dimSelector.getValueCardinality() >= 0) {
-            return new StringGroupByColumnSelectorStrategy(dimSelector::lookupName, capabilities);
+            return new StringGroupByColumnSelectorStrategy(dimSelector::lookupName, capabilities, encodeStringsIfPossible);
           } else {
             return new DictionaryBuildingStringGroupByColumnSelectorStrategy();
           }
@@ -437,6 +454,7 @@ public class GroupByQueryEngineV2
     @Nullable
     protected CloseableGrouperIterator<KeyType, ResultRow> delegate = null;
     protected final boolean allSingleValueDims;
+    protected final boolean encodeStrings;
 
     public GroupByEngineIterator(
         final int segmentId,
@@ -446,7 +464,8 @@ public class GroupByQueryEngineV2
         final ByteBuffer buffer,
         @Nullable final DateTime fudgeTimestamp,
         final GroupByColumnSelectorPlus[] dims,
-        final boolean allSingleValueDims
+        final boolean allSingleValueDims,
+        final boolean encodeStrings
     )
     {
       this.segmentId = segmentId;
@@ -460,6 +479,7 @@ public class GroupByQueryEngineV2
       // Time is the same for every row in the cursor
       this.timestamp = fudgeTimestamp != null ? fudgeTimestamp : cursor.getTime();
       this.allSingleValueDims = allSingleValueDims;
+      this.encodeStrings = encodeStrings;
     }
 
     private CloseableGrouperIterator<KeyType, ResultRow> initNewDelegate()
@@ -491,7 +511,7 @@ public class GroupByQueryEngineV2
 
             // Add dimensions, and convert their types if necessary.
             putToRow(entry.getKey(), resultRow);
-            convertRowTypesToOutputTypes(query.getDimensions(), resultRow, resultRowDimensionStart, segmentId);
+            convertRowTypesToOutputTypes(query.getDimensions(), resultRow, resultRowDimensionStart, segmentId, encodeStrings);
 
             // Add aggregations.
             for (int i = 0; i < entry.getValues().length; i++) {
@@ -596,10 +616,11 @@ public class GroupByQueryEngineV2
         ByteBuffer buffer,
         @Nullable DateTime fudgeTimestamp,
         GroupByColumnSelectorPlus[] dims,
-        boolean allSingleValueDims
+        boolean allSingleValueDims,
+        boolean encodeStrings
     )
     {
-      super(segmentId, query, querySpecificConfig, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims);
+      super(segmentId, query, querySpecificConfig, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims, encodeStrings);
 
       final int dimCount = query.getDimensions().size();
       stack = new int[dimCount];
@@ -807,10 +828,11 @@ public class GroupByQueryEngineV2
         @Nullable DateTime fudgeTimestamp,
         GroupByColumnSelectorPlus[] dims,
         boolean allSingleValueDims,
-        int cardinality
+        int cardinality,
+        boolean encodeStrings
     )
     {
-      super(segmentId, query, querySpecificConfig, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims);
+      super(segmentId, query, querySpecificConfig, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims, encodeStrings);
       this.cardinality = cardinality;
       if (dims.length == 1) {
         this.dim = dims[0];
@@ -899,16 +921,19 @@ public class GroupByQueryEngineV2
     @Override
     protected void putToRow(Integer key, PerSegmentEncodedResultRow resultRow)
     {
-//      if (dim != null) {
-//        if (key != GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE) {
-//          resultRow.set(dim.getResultRowPosition(), ((DimensionSelector) dim.getSelector()).lookupName(key));
-//        } else {
-//          resultRow.set(dim.getResultRowPosition(), NullHandling.defaultStringValue());
-//        }
-//      }
-      if (dim != null) {
-        final long val = GroupByStrategyV2.identifiableDictionaryId(segmentId, key);
-        resultRow.set(dim.getResultRowPosition(), segmentId, val);
+      if (encodeStrings) {
+        if (dim != null) {
+          if (key != GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE) {
+            resultRow.set(dim.getResultRowPosition(), ((DimensionSelector) dim.getSelector()).lookupName(key));
+          } else {
+            resultRow.set(dim.getResultRowPosition(), NullHandling.defaultStringValue());
+          }
+        }
+      } else {
+        if (dim != null) {
+//        final long val = GroupByStrategyV2.identifiableDictionaryId(segmentId, key);
+          resultRow.set(dim.getResultRowPosition(), segmentId, key);
+        }
       }
     }
   }

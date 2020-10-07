@@ -42,7 +42,8 @@ public class VectorValueMatcherColumnProcessorFactory implements VectorColumnPro
   @Override
   public VectorValueMatcherFactory makeSingleValueDimensionProcessor(
       final ColumnCapabilities capabilities,
-      final SingleValueDimensionVectorSelector selector
+      final SingleValueDimensionVectorSelector selector,
+      final boolean encodeStrings
   )
   {
     return new SingleValueStringVectorValueMatcher(selector);
@@ -51,7 +52,8 @@ public class VectorValueMatcherColumnProcessorFactory implements VectorColumnPro
   @Override
   public VectorValueMatcherFactory makeMultiValueDimensionProcessor(
       final ColumnCapabilities capabilities,
-      final MultiValueDimensionVectorSelector selector
+      final MultiValueDimensionVectorSelector selector,
+      final boolean encodeStrings
   )
   {
     return new MultiValueStringVectorValueMatcher(selector);

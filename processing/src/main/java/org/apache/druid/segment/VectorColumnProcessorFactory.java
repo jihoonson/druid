@@ -39,12 +39,14 @@ public interface VectorColumnProcessorFactory<T>
 {
   T makeSingleValueDimensionProcessor(
       ColumnCapabilities capabilities,
-      SingleValueDimensionVectorSelector selector
+      SingleValueDimensionVectorSelector selector,
+      boolean encodeStrings
   );
 
   T makeMultiValueDimensionProcessor(
       ColumnCapabilities capabilities,
-      MultiValueDimensionVectorSelector selector
+      MultiValueDimensionVectorSelector selector,
+      boolean encodeStrings
   );
 
   T makeFloatProcessor(ColumnCapabilities capabilities, VectorValueSelector selector);

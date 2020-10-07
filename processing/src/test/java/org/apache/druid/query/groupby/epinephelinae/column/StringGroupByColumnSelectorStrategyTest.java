@@ -63,7 +63,7 @@ public class StringGroupByColumnSelectorStrategyTest
     Mockito.doReturn(true).when(capabilities).hasBitmapIndexes();
     Mockito.doReturn(ColumnCapabilities.Capable.TRUE).when(capabilities).areDictionaryValuesSorted();
     Mockito.doReturn(ColumnCapabilities.Capable.TRUE).when(capabilities).areDictionaryValuesUnique();
-    target = new StringGroupByColumnSelectorStrategy(dictionaryLookup, capabilities);
+    target = new StringGroupByColumnSelectorStrategy(dictionaryLookup, capabilities, false);
   }
 
   @Test

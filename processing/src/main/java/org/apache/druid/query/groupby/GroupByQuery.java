@@ -722,6 +722,7 @@ public class GroupByQuery extends BaseQuery<ResultRow>
     }
   }
 
+  // This is used only in mergeResults for groupBys
   private static int compareDimsForLimitPushDown(
       final IntList fields,
       final List<Boolean> needsReverseList,
@@ -748,7 +749,6 @@ public class GroupByQuery extends BaseQuery<ResultRow>
         }
       } else {
         dimCompare = comparator.compare((String) lhsObj, (String) rhsObj);
-//        dimCompare = Integer.compare((Integer) lhsObj, (Integer) rhsObj);
       }
 
       if (dimCompare != 0) {

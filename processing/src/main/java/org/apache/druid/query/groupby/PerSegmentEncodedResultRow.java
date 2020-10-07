@@ -51,7 +51,8 @@ public class PerSegmentEncodedResultRow extends ResultRow
 
   public int getInt(final int i)
   {
-//    assert super.get(i) != null && (super.get(i) instanceof Integer || super.get(i) instanceof Long);
+    // TODO Virtual column sometimes returns double....
+    assert super.get(i) != null && (super.get(i) instanceof Number);
     return ((Number) super.get(i)).intValue();
   }
 

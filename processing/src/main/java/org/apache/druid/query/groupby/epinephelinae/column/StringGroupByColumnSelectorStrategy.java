@@ -20,6 +20,7 @@
 package org.apache.druid.query.groupby.epinephelinae.column;
 
 import com.google.common.base.Preconditions;
+import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper;
@@ -41,11 +42,13 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
 
   @Nullable
   private final IntFunction<String> dictionaryLookup;
+  private final boolean encodeStrings;
 
-  public StringGroupByColumnSelectorStrategy(IntFunction<String> dictionaryLookup, ColumnCapabilities capabilities)
+  public StringGroupByColumnSelectorStrategy(IntFunction<String> dictionaryLookup, ColumnCapabilities capabilities, boolean encodeStrings)
   {
     this.dictionaryLookup = dictionaryLookup;
     this.capabilities = capabilities;
+    this.encodeStrings = encodeStrings;
   }
 
   @Override
@@ -65,17 +68,19 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
   {
     final int id = key.getInt(keyBufferPosition);
 
-    // TODO: set dictionary id instead of string
-    // GROUP_BY_MISSING_VALUE is used to indicate empty rows, which are omitted from the result map.
-    resultRow.set(selectorPlus.getResultRowPosition(), segmentId, id);
-//    if (id != GROUP_BY_MISSING_VALUE) {
-//      resultRow.set(
-//          selectorPlus.getResultRowPosition(),
-//          ((DimensionSelector) selectorPlus.getSelector()).lookupName(id)
-//      );
-//    } else {
-//      resultRow.set(selectorPlus.getResultRowPosition(), NullHandling.defaultStringValue());
-//    }
+    if (encodeStrings) {
+      resultRow.set(selectorPlus.getResultRowPosition(), segmentId, id);
+    } else {
+      // GROUP_BY_MISSING_VALUE is used to indicate empty rows, which are omitted from the result map.
+      if (id != GROUP_BY_MISSING_VALUE) {
+        resultRow.set(
+            selectorPlus.getResultRowPosition(),
+            ((DimensionSelector) selectorPlus.getSelector()).lookupName(id)
+        );
+      } else {
+        resultRow.set(selectorPlus.getResultRowPosition(), NullHandling.defaultStringValue());
+      }
+    }
   }
 
   @Override

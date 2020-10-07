@@ -22,6 +22,9 @@ package org.apache.druid.query.groupby.epinephelinae;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 
+import javax.annotation.Nullable;
+
+// TODO: size limit
 public class MergedDictionary
 {
   // segmentId -> original dict id -> new dict id
@@ -45,9 +48,10 @@ public class MergedDictionary
     return dictIdConversion[segmentId][originalDictId];
   }
 
+  @Nullable
   public String lookup(int newDictId)
   {
-    return dictionary[newDictId];
+    return newDictId < 0 ? null : dictionary[newDictId];
   }
 
   public int size()

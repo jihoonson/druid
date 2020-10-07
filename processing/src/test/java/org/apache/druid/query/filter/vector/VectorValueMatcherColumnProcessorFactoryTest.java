@@ -32,6 +32,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+// TODO: test with encodedStrings enabled
 public class VectorValueMatcherColumnProcessorFactoryTest extends InitializedNullHandlingTest
 {
   private static final int VECTOR_SIZE = 128;
@@ -155,7 +156,8 @@ public class VectorValueMatcherColumnProcessorFactoryTest extends InitializedNul
                                         .setDictionaryValuesUnique(true)
                                         .setDictionaryValuesSorted(true)
                                         .setDictionaryEncoded(true),
-            selector
+            selector,
+            false
         );
 
     Assert.assertTrue(matcherFactory instanceof SingleValueStringVectorValueMatcher);
@@ -193,7 +195,8 @@ public class VectorValueMatcherColumnProcessorFactoryTest extends InitializedNul
                                         .setDictionaryValuesUnique(true)
                                         .setDictionaryValuesSorted(true)
                                         .setDictionaryEncoded(true),
-            selector
+            selector,
+            false
         );
 
     Assert.assertTrue(matcherFactory instanceof SingleValueStringVectorValueMatcher);
@@ -233,7 +236,8 @@ public class VectorValueMatcherColumnProcessorFactoryTest extends InitializedNul
                                         .setDictionaryValuesUnique(true)
                                         .setDictionaryValuesSorted(true)
                                         .setDictionaryEncoded(true),
-            selector
+            selector,
+            false
         );
 
     Assert.assertTrue(matcherFactory instanceof SingleValueStringVectorValueMatcher);
@@ -276,7 +280,8 @@ public class VectorValueMatcherColumnProcessorFactoryTest extends InitializedNul
                                         .setDictionaryValuesUnique(true)
                                         .setDictionaryValuesSorted(true)
                                         .setDictionaryEncoded(true),
-            selector
+            selector,
+            false
         );
 
     Assert.assertTrue(matcherFactory instanceof SingleValueStringVectorValueMatcher);
@@ -309,7 +314,8 @@ public class VectorValueMatcherColumnProcessorFactoryTest extends InitializedNul
                                         .setDictionaryValuesUnique(true)
                                         .setDictionaryValuesSorted(true)
                                         .setDictionaryEncoded(true),
-            selector
+            selector,
+            false
         );
 
     Assert.assertTrue(matcherFactory instanceof MultiValueStringVectorValueMatcher);

@@ -259,7 +259,7 @@ public final class DimensionHandlerUtils
   /**
    * Equivalent to calling makeVectorProcessor(DefaultDimensionSpec.of(column), strategyFactory, selectorFactory).
    *
-   * @see #makeVectorProcessor(DimensionSpec, VectorColumnProcessorFactory, VectorColumnSelectorFactory)
+   * @see #makeVectorProcessor(DimensionSpec, VectorColumnProcessorFactory, VectorColumnSelectorFactory, boolean)
    * @see ColumnProcessors#makeProcessor the non-vectorized version
    */
   public static <T> T makeVectorProcessor(
@@ -268,7 +268,7 @@ public final class DimensionHandlerUtils
       final VectorColumnSelectorFactory selectorFactory
   )
   {
-    return makeVectorProcessor(DefaultDimensionSpec.of(column), strategyFactory, selectorFactory);
+    return makeVectorProcessor(DefaultDimensionSpec.of(column), strategyFactory, selectorFactory, false);
   }
 
   /**
@@ -286,7 +286,8 @@ public final class DimensionHandlerUtils
   public static <T> T makeVectorProcessor(
       final DimensionSpec dimensionSpec,
       final VectorColumnProcessorFactory<T> strategyFactory,
-      final VectorColumnSelectorFactory selectorFactory
+      final VectorColumnSelectorFactory selectorFactory,
+      final boolean encodeStrings
   )
   {
     final ColumnCapabilities originalCapabilities =
@@ -308,12 +309,14 @@ public final class DimensionHandlerUtils
       if (!forceSingleValue && effectiveCapabilites.hasMultipleValues().isMaybeTrue()) {
         return strategyFactory.makeMultiValueDimensionProcessor(
             effectiveCapabilites,
-            selectorFactory.makeMultiValueDimensionSelector(dimensionSpec)
+            selectorFactory.makeMultiValueDimensionSelector(dimensionSpec),
+            encodeStrings
         );
       } else {
         return strategyFactory.makeSingleValueDimensionProcessor(
             effectiveCapabilites,
-            selectorFactory.makeSingleValueDimensionSelector(dimensionSpec)
+            selectorFactory.makeSingleValueDimensionSelector(dimensionSpec),
+            encodeStrings
         );
       }
     } else {

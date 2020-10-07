@@ -44,20 +44,22 @@ public class GroupByVectorColumnProcessorFactory implements VectorColumnProcesso
   @Override
   public GroupByVectorColumnSelector makeSingleValueDimensionProcessor(
       final ColumnCapabilities capabilities,
-      final SingleValueDimensionVectorSelector selector
+      final SingleValueDimensionVectorSelector selector,
+      final boolean encodeStrings
   )
   {
     Preconditions.checkArgument(
         ValueType.STRING == capabilities.getType(),
         "groupBy dimension processors must be STRING typed"
     );
-    return new SingleValueStringGroupByVectorColumnSelector(selector);
+    return new SingleValueStringGroupByVectorColumnSelector(selector, encodeStrings);
   }
 
   @Override
   public GroupByVectorColumnSelector makeMultiValueDimensionProcessor(
       final ColumnCapabilities capabilities,
-      final MultiValueDimensionVectorSelector selector
+      final MultiValueDimensionVectorSelector selector,
+      final boolean encodeStrings
   )
   {
     Preconditions.checkArgument(

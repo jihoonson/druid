@@ -60,8 +60,8 @@ public class NullableNumericGroupByColumnSelectorStrategy implements GroupByColu
   )
   {
     if (key.get(keyBufferPosition) == NullHandling.IS_NULL_BYTE) {
-//      resultRow.set(selectorPlus.getResultRowPosition(), null);
-      resultRow.set(selectorPlus.getResultRowPosition(), segmentId, GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE);
+      resultRow.set(selectorPlus.getResultRowPosition(), null);
+//      resultRow.set(selectorPlus.getResultRowPosition(), segmentId, GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE);
     } else {
       delegate.processValueFromGroupingKey(selectorPlus, key, resultRow, keyBufferPosition + Byte.BYTES, segmentId);
     }

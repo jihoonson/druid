@@ -180,7 +180,8 @@ public class VectorGroupByEngine
                       DimensionHandlerUtils.makeVectorProcessor(
                           dimensionSpec,
                           GroupByVectorColumnProcessorFactory.instance(),
-                          columnSelectorFactory
+                          columnSelectorFactory,
+                          config.isEarlyDictMerge()
                       )
               ).collect(Collectors.toList());
 
@@ -460,7 +461,8 @@ public class VectorGroupByEngine
                 query.getDimensions(),
                 resultRow,
                 resultRowDimensionStart,
-                segmentId
+                segmentId,
+                querySpecificConfig.isEarlyDictMerge()
             );
 
             // Add aggregations.
