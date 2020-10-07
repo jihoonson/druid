@@ -362,18 +362,19 @@ public class GroupByQueryEngineV2
       final int resultRowIndex = resultRowDimensionStart + i;
       final ValueType outputType = dimSpec.getOutputType();
       // TODO: maybe there is a better way
-      final ValueType convertType;
-      if (encodeStrings) {
-        convertType = outputType == ValueType.STRING ? ValueType.LONG : outputType;
+      if (encodeStrings && outputType == ValueType.STRING) {
+        resultRow.set(
+            resultRowIndex,
+            segmentId,
+            DimensionHandlerUtils.convertObjectToType(resultRow.getInt(resultRowIndex), ValueType.LONG)
+        );
       } else {
-        convertType = outputType;
+        resultRow.set(
+            resultRowIndex,
+            segmentId,
+            DimensionHandlerUtils.convertObjectToType(resultRow.get(resultRowIndex), outputType)
+        );
       }
-
-      resultRow.set(
-          resultRowIndex,
-          segmentId,
-          DimensionHandlerUtils.convertObjectToType(resultRow.getInt(resultRowIndex), convertType)
-      );
     }
   }
 
@@ -923,16 +924,16 @@ public class GroupByQueryEngineV2
     {
       if (encodeStrings) {
         if (dim != null) {
-          if (key != GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE) {
-            resultRow.set(dim.getResultRowPosition(), ((DimensionSelector) dim.getSelector()).lookupName(key));
-          } else {
-            resultRow.set(dim.getResultRowPosition(), NullHandling.defaultStringValue());
-          }
+//        final long val = GroupByStrategyV2.identifiableDictionaryId(segmentId, key);
+          resultRow.set(dim.getResultRowPosition(), segmentId, key);
         }
       } else {
         if (dim != null) {
-//        final long val = GroupByStrategyV2.identifiableDictionaryId(segmentId, key);
-          resultRow.set(dim.getResultRowPosition(), segmentId, key);
+          if (key != GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE) {
+            resultRow.set(dim.getResultRowPosition(), segmentId, ((DimensionSelector) dim.getSelector()).lookupName(key));
+          } else {
+            resultRow.set(dim.getResultRowPosition(), segmentId, NullHandling.defaultStringValue());
+          }
         }
       }
     }

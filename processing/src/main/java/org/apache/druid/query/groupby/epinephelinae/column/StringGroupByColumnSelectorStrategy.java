@@ -75,10 +75,11 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
       if (id != GROUP_BY_MISSING_VALUE) {
         resultRow.set(
             selectorPlus.getResultRowPosition(),
+            segmentId,
             ((DimensionSelector) selectorPlus.getSelector()).lookupName(id)
         );
       } else {
-        resultRow.set(selectorPlus.getResultRowPosition(), NullHandling.defaultStringValue());
+        resultRow.set(selectorPlus.getResultRowPosition(), segmentId, NullHandling.defaultStringValue());
       }
     }
   }
