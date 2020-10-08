@@ -242,6 +242,8 @@ public class VectorGroupByEngine
     // Granularity-bucket iterator and current bucket.
     private final Iterator<Interval> bucketIterator;
 
+    private final List<ColumnCapabilities> dimensionCapabilities;
+
     @Nullable
     private Interval bucketInterval;
 
@@ -281,6 +283,7 @@ public class VectorGroupByEngine
       }
 
       this.bucketInterval = this.bucketIterator.hasNext() ? this.bucketIterator.next() : null;
+      this.dimensionCapabilities = GroupByQueryEngineV2.getDimensionCapabilities(query, storageAdapter);
     }
 
     @Override
@@ -462,6 +465,7 @@ public class VectorGroupByEngine
                 resultRow,
                 resultRowDimensionStart,
                 segmentId,
+                dimensionCapabilities,
                 querySpecificConfig.isEarlyDictMerge()
             );
 

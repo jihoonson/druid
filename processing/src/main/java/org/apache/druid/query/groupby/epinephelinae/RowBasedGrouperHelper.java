@@ -54,6 +54,7 @@ import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
+import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.OrderByColumnSpec;
 import org.apache.druid.query.ordering.StringComparator;
@@ -714,7 +715,8 @@ public class RowBasedGrouperHelper
 //        return index.size() == 0
 //               ? null
 //               : selector.lookupName(index.get(0));
-        return index.get(0);
+        // TODO: is this right?
+        return index.size() == 0 ? GroupByColumnSelectorStrategy.GROUP_BY_MISSING_VALUE : index.get(0);
       };
     }
   }

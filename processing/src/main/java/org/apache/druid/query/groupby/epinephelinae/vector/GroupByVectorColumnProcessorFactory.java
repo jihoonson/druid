@@ -52,7 +52,7 @@ public class GroupByVectorColumnProcessorFactory implements VectorColumnProcesso
         ValueType.STRING == capabilities.getType(),
         "groupBy dimension processors must be STRING typed"
     );
-    return new SingleValueStringGroupByVectorColumnSelector(selector, encodeStrings);
+    return new SingleValueStringGroupByVectorColumnSelector(selector, capabilities, encodeStrings);
   }
 
   @Override

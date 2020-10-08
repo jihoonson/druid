@@ -74,6 +74,8 @@ import org.joda.time.Interval;
 import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -219,6 +221,11 @@ public class GroupByQueryEngineV2
                     query.getResultRowDimensionStart()
                 );
 
+                final List<ColumnCapabilities> dimensionCapabilities = getDimensionCapabilities(
+                    query,
+                    storageAdapter
+                );
+
                 final int cardinalityForArrayAggregation = getCardinalityForArrayAggregation(
                     querySpecificConfig,
                     query,
@@ -237,6 +244,7 @@ public class GroupByQueryEngineV2
                       dims,
                       isAllSingleValueDims(columnSelectorFactory, query.getDimensions()),
                       cardinalityForArrayAggregation,
+                      dimensionCapabilities.get(0),
                       querySpecificConfig.isEarlyDictMerge()
                   );
                 } else {
@@ -249,6 +257,7 @@ public class GroupByQueryEngineV2
                       fudgeTimestamp,
                       dims,
                       isAllSingleValueDims(columnSelectorFactory, query.getDimensions()),
+                      dimensionCapabilities,
                       querySpecificConfig.isEarlyDictMerge()
                   );
                 }
@@ -323,6 +332,23 @@ public class GroupByQueryEngineV2
     }
   }
 
+  public static List<ColumnCapabilities> getDimensionCapabilities(GroupByQuery query, StorageAdapter storageAdapter)
+  {
+    final List<ColumnCapabilities> capabilities = new ArrayList<>(query.getDimensions().size());
+    for (DimensionSpec dimensionSpec : query.getDimensions()) {
+      if (query.getVirtualColumns().exists(dimensionSpec.getDimension())) {
+        capabilities.add(
+            query.getVirtualColumns().getColumnCapabilitiesWithFallback(storageAdapter, dimensionSpec.getDimension())
+        );
+      } else {
+        capabilities.add(
+            storageAdapter.getColumnCapabilities(dimensionSpec.getDimension())
+        );
+      }
+    }
+    return capabilities;
+  }
+
   /**
    * Checks whether all "dimensions" are either single-valued, or if allowed, nonexistent. Since non-existent column
    * selectors will show up as full of nulls they are effectively single valued, however they can also be null during
@@ -354,6 +380,7 @@ public class GroupByQueryEngineV2
       final PerSegmentEncodedResultRow resultRow,
       final int resultRowDimensionStart,
       final int segmentId,
+      final List<ColumnCapabilities> dimensionCapabilities,
       final boolean encodeStrings
   )
   {
@@ -362,7 +389,7 @@ public class GroupByQueryEngineV2
       final int resultRowIndex = resultRowDimensionStart + i;
       final ValueType outputType = dimSpec.getOutputType();
       // TODO: maybe there is a better way
-      if (encodeStrings && outputType == ValueType.STRING) {
+      if (encodeStrings && StringGroupByColumnSelectorStrategy.canUseDictionary(dimensionCapabilities.get(i))) {
         resultRow.set(
             resultRowIndex,
             segmentId,
@@ -398,11 +425,11 @@ public class GroupByQueryEngineV2
 
   private static class GroupByStrategyFactory implements ColumnSelectorStrategyFactory<GroupByColumnSelectorStrategy>
   {
-    private final boolean encodeStringsIfPossible;
+    private final boolean encodeStrings;
 
-    private GroupByStrategyFactory(boolean encodeStringsIfPossible)
+    private GroupByStrategyFactory(boolean encodeStrings)
     {
-      this.encodeStringsIfPossible = encodeStringsIfPossible;
+      this.encodeStrings = encodeStrings;
     }
 
     @Override
@@ -415,8 +442,9 @@ public class GroupByQueryEngineV2
       switch (type) {
         case STRING:
           DimensionSelector dimSelector = (DimensionSelector) selector;
+          // TODO: is this enough? or should we check the capabilities?
           if (dimSelector.getValueCardinality() >= 0) {
-            return new StringGroupByColumnSelectorStrategy(dimSelector::lookupName, capabilities, encodeStringsIfPossible);
+            return new StringGroupByColumnSelectorStrategy(dimSelector::lookupName, capabilities, encodeStrings);
           } else {
             return new DictionaryBuildingStringGroupByColumnSelectorStrategy();
           }
@@ -455,6 +483,7 @@ public class GroupByQueryEngineV2
     @Nullable
     protected CloseableGrouperIterator<KeyType, ResultRow> delegate = null;
     protected final boolean allSingleValueDims;
+    protected final List<ColumnCapabilities> dimensionCapabilities;
     protected final boolean encodeStrings;
 
     public GroupByEngineIterator(
@@ -466,6 +495,7 @@ public class GroupByQueryEngineV2
         @Nullable final DateTime fudgeTimestamp,
         final GroupByColumnSelectorPlus[] dims,
         final boolean allSingleValueDims,
+        final List<ColumnCapabilities> dimensionCapabilities,
         final boolean encodeStrings
     )
     {
@@ -480,6 +510,7 @@ public class GroupByQueryEngineV2
       // Time is the same for every row in the cursor
       this.timestamp = fudgeTimestamp != null ? fudgeTimestamp : cursor.getTime();
       this.allSingleValueDims = allSingleValueDims;
+      this.dimensionCapabilities = dimensionCapabilities;
       this.encodeStrings = encodeStrings;
     }
 
@@ -512,7 +543,7 @@ public class GroupByQueryEngineV2
 
             // Add dimensions, and convert their types if necessary.
             putToRow(entry.getKey(), resultRow);
-            convertRowTypesToOutputTypes(query.getDimensions(), resultRow, resultRowDimensionStart, segmentId, encodeStrings);
+            convertRowTypesToOutputTypes(query.getDimensions(), resultRow, resultRowDimensionStart, segmentId, dimensionCapabilities, encodeStrings);
 
             // Add aggregations.
             for (int i = 0; i < entry.getValues().length; i++) {
@@ -618,10 +649,11 @@ public class GroupByQueryEngineV2
         @Nullable DateTime fudgeTimestamp,
         GroupByColumnSelectorPlus[] dims,
         boolean allSingleValueDims,
+        List<ColumnCapabilities> dimensionCapabilities,
         boolean encodeStrings
     )
     {
-      super(segmentId, query, querySpecificConfig, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims, encodeStrings);
+      super(segmentId, query, querySpecificConfig, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims, dimensionCapabilities, encodeStrings);
 
       final int dimCount = query.getDimensions().size();
       stack = new int[dimCount];
@@ -830,10 +862,11 @@ public class GroupByQueryEngineV2
         GroupByColumnSelectorPlus[] dims,
         boolean allSingleValueDims,
         int cardinality,
+        ColumnCapabilities dimensionCapabilities,
         boolean encodeStrings
     )
     {
-      super(segmentId, query, querySpecificConfig, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims, encodeStrings);
+      super(segmentId, query, querySpecificConfig, cursor, buffer, fudgeTimestamp, dims, allSingleValueDims, Collections.singletonList(dimensionCapabilities), encodeStrings);
       this.cardinality = cardinality;
       if (dims.length == 1) {
         this.dim = dims[0];
@@ -922,7 +955,8 @@ public class GroupByQueryEngineV2
     @Override
     protected void putToRow(Integer key, PerSegmentEncodedResultRow resultRow)
     {
-      if (encodeStrings) {
+      if (encodeStrings
+          && StringGroupByColumnSelectorStrategy.canUseDictionary(Iterables.getOnlyElement(dimensionCapabilities))) {
         if (dim != null) {
 //        final long val = GroupByStrategyV2.identifiableDictionaryId(segmentId, key);
           resultRow.set(dim.getResultRowPosition(), segmentId, key);

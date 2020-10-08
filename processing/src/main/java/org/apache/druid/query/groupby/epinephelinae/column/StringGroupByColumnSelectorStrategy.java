@@ -22,7 +22,6 @@ package org.apache.druid.query.groupby.epinephelinae.column;
 import com.google.common.base.Preconditions;
 import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
-import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper;
 import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.query.ordering.StringComparators;
@@ -40,6 +39,7 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
   @Nullable
   private final ColumnCapabilities capabilities;
 
+  // TODO: WTF dictionaryLookup
   @Nullable
   private final IntFunction<String> dictionaryLookup;
   private final boolean encodeStrings;
@@ -68,7 +68,7 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
   {
     final int id = key.getInt(keyBufferPosition);
 
-    if (encodeStrings) {
+    if (encodeStrings && canUseDictionary(capabilities)) {
       resultRow.set(selectorPlus.getResultRowPosition(), segmentId, id);
     } else {
       // GROUP_BY_MISSING_VALUE is used to indicate empty rows, which are omitted from the result map.
@@ -162,10 +162,7 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
   @Override
   public Grouper.BufferComparator bufferComparator(int keyBufferPosition, @Nullable StringComparator stringComparator)
   {
-    final boolean canCompareInts =
-        capabilities != null &&
-        capabilities.hasBitmapIndexes() &&
-        capabilities.areDictionaryValuesSorted().and(capabilities.areDictionaryValuesUnique()).isTrue();
+    final boolean canCompareInts = canUseDictionary(capabilities);
     final StringComparator comparator = stringComparator == null ? StringComparators.LEXICOGRAPHIC : stringComparator;
     if (canCompareInts && StringComparators.LEXICOGRAPHIC.equals(comparator)) {
       return (lhsBuffer, rhsBuffer, lhsPosition, rhsPosition) -> Integer.compare(
@@ -180,5 +177,15 @@ public class StringGroupByColumnSelectorStrategy implements GroupByColumnSelecto
         return comparator.compare(lhsStr, rhsStr);
       };
     }
+  }
+
+  public static boolean canUseDictionary(ColumnCapabilities capabilities)
+  {
+    return capabilities != null &&
+//           capabilities.hasBitmapIndexes() && TODO: this should be fine
+           capabilities.isDictionaryEncoded()
+                       .and(capabilities.areDictionaryValuesSorted())
+                       .and(capabilities.areDictionaryValuesUnique())
+                       .isTrue();
   }
 }

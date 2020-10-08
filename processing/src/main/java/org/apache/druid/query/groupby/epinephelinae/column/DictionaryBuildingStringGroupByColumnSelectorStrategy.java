@@ -68,11 +68,10 @@ public class DictionaryBuildingStringGroupByColumnSelectorStrategy extends Strin
     // GROUP_BY_MISSING_VALUE is used to indicate empty rows, which are omitted from the result map.
     if (id != GROUP_BY_MISSING_VALUE) {
       final String value = dictionary.get(id);
-      resultRow.set(selectorPlus.getResultRowPosition(), value);
+      resultRow.set(selectorPlus.getResultRowPosition(), segmentId, value);
     } else {
-      resultRow.set(selectorPlus.getResultRowPosition(), NullHandling.defaultStringValue());
+      resultRow.set(selectorPlus.getResultRowPosition(), segmentId, NullHandling.defaultStringValue());
     }
-    throw new UnsupportedOperationException();
   }
 
   @Override

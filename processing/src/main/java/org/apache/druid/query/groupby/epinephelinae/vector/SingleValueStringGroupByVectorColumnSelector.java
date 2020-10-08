@@ -23,16 +23,24 @@ import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
+import org.apache.druid.query.groupby.epinephelinae.column.StringGroupByColumnSelectorStrategy;
+import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.vector.SingleValueDimensionVectorSelector;
 
 public class SingleValueStringGroupByVectorColumnSelector implements GroupByVectorColumnSelector
 {
   private final SingleValueDimensionVectorSelector selector;
+  private final ColumnCapabilities columnCapabilities;
   private final boolean encodeStrings;
 
-  SingleValueStringGroupByVectorColumnSelector(final SingleValueDimensionVectorSelector selector, boolean encodeStrings)
+  SingleValueStringGroupByVectorColumnSelector(
+      final SingleValueDimensionVectorSelector selector,
+      final ColumnCapabilities columnCapabilities,
+      final boolean encodeStrings
+  )
   {
     this.selector = selector;
+    this.columnCapabilities = columnCapabilities;
     this.encodeStrings = encodeStrings;
   }
 
@@ -72,7 +80,7 @@ public class SingleValueStringGroupByVectorColumnSelector implements GroupByVect
   )
   {
     final int id = keyMemory.getInt(keyOffset);
-    if (encodeStrings) {
+    if (encodeStrings && StringGroupByColumnSelectorStrategy.canUseDictionary(columnCapabilities)) {
       resultRow.set(resultRowPosition, segmentId, id);
     } else {
       resultRow.set(resultRowPosition, segmentId, selector.lookupName(id));
