@@ -120,12 +120,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 @State(Scope.Benchmark)
-@Fork(value = 1)
+@Fork(value = 1, jvmArgsAppend = "-XX:+UseG1GC")
 @Warmup(iterations = 5)
 @Measurement(iterations = 5)
 public class GroupByBenchmark
 {
-  @Param({"4"})
+  @Param({"8"})
   private int numSegments;
 
   @Param({
@@ -134,7 +134,7 @@ public class GroupByBenchmark
 //      "5",
 //      "6",
 //      "7",
-//      "8"
+      "8"
   })
   private int numProcessingThreads;
 
@@ -145,9 +145,9 @@ public class GroupByBenchmark
   private int rowsPerSegment;
 
   @Param({
-//      "basic.B",
+      "basic.A",
 //      "basic.nested",
-      "basic.sorted2"
+//      "basic.sorted2"
   })
   private String schemaAndQuery;
 

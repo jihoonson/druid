@@ -53,8 +53,9 @@ public class DictionaryMergingQueryRunner implements QueryRunner<Iterator<Dictio
       int numQueryRunners
   )
   {
-//    this.exec = exec;
-    this.exec = Execs.singleThreaded("dict-merge");
+    this.exec = exec;
+//    this.exec = Execs.multiThreaded(2, "test-%d");
+//    this.exec = Execs.singleThreaded("dict-merge");
     this.queryRunners = queryRunners;
     this.numQueryRunners = numQueryRunners;
   }
