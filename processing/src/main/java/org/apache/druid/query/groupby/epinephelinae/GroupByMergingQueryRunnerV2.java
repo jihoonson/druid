@@ -276,6 +276,8 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
                   ReferenceCountingResourceHolder.fromCloseable(grouper);
               resources.register(grouperHolder);
 
+//              mergedDictionariesSupplier.get();
+
               List<ListenableFuture<AggregateResult>> futures = Lists.newArrayList(
                       Iterables.transform(
                           queryables, // each queryable performs a blocking operation processing a segment

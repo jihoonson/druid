@@ -145,9 +145,9 @@ public class GroupByBenchmark
   private int rowsPerSegment;
 
   @Param({
-      "basic.A",
+//      "basic.B",
 //      "basic.nested",
-//      "basic.sorted2"
+      "basic.sorted2"
   })
   private String schemaAndQuery;
 
@@ -240,6 +240,24 @@ public class GroupByBenchmark
           .build();
 
       basicQueries.put("A", queryA);
+    }
+
+    { // basic.A
+      QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(Collections.singletonList(basicSchema.getDataInterval()));
+      List<AggregatorFactory> queryAggs = new ArrayList<>();
+      queryAggs.add(new CountAggregatorFactory("cnt"));
+      queryAggs.add(new LongSumAggregatorFactory("sumLongSequential", "sumLongSequential"));
+      GroupByQuery queryA = GroupByQuery
+          .builder()
+          .setDataSource("blah")
+          .setQuerySegmentSpec(intervalSpec)
+          .setDimensions(new DefaultDimensionSpec("dimHyperUnique", null), new DefaultDimensionSpec("dimUniform", null))
+          .setAggregatorSpecs(queryAggs)
+          .setGranularity(Granularity.fromString(queryGranularity))
+          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge))
+          .build();
+
+      basicQueries.put("B", queryA);
     }
 
     { // basic.sorted

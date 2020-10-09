@@ -23,6 +23,7 @@ import com.google.common.collect.FluentIterable;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import org.apache.commons.lang3.mutable.MutableInt;
+import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.guava.LazySequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
@@ -52,7 +53,8 @@ public class DictionaryMergingQueryRunner implements QueryRunner<Iterator<Dictio
       int numQueryRunners
   )
   {
-    this.exec = exec;
+//    this.exec = exec;
+    this.exec = Execs.singleThreaded("dict-merge");
     this.queryRunners = queryRunners;
     this.numQueryRunners = numQueryRunners;
   }

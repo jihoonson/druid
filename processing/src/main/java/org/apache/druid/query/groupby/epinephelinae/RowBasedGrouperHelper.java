@@ -795,6 +795,7 @@ public class RowBasedGrouperHelper
     private final List<DimensionSpec> dimensions;
     private final AggregatorFactory[] aggregatorFactories;
     private final List<ValueType> valueTypes;
+    @Nullable
     private final Supplier<MergedDictionary[]> mergedDictionarySupplier;
 
     RowBasedKeySerdeFactory(
@@ -805,7 +806,7 @@ public class RowBasedGrouperHelper
         List<ValueType> valueTypes,
         final AggregatorFactory[] aggregatorFactories,
         DefaultLimitSpec limitSpec,
-        Supplier<MergedDictionary[]> mergedDictionarySupplier
+        @Nullable Supplier<MergedDictionary[]> mergedDictionarySupplier
     )
     {
       this.includeTimestamp = includeTimestamp;
@@ -1310,7 +1311,7 @@ public class RowBasedGrouperHelper
     private RowBasedKeySerdeHelper[] makeSerdeHelpers(
         boolean pushLimitDown,
         boolean enableRuntimeDictionaryGeneration,
-        Supplier<MergedDictionary[]> mergedDictionarySupplier
+        @Nullable Supplier<MergedDictionary[]> mergedDictionarySupplier
     )
     {
       final List<RowBasedKeySerdeHelper> helpers = new ArrayList<>();
