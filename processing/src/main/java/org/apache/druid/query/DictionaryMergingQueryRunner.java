@@ -87,6 +87,7 @@ public class DictionaryMergingQueryRunner implements QueryRunner<Iterator<Dictio
       final int runnerId = ((IdentifiableQueryRunner<Iterator<DictionaryConversion>>) runner).getSegmentId();
       futures.add(
           exec.submit(() -> {
+            // TODO: this must preserve the ordering, so that the new dict id is ordered
             final ThreadSafeMergingDictionary[] dictionaries = new ThreadSafeMergingDictionary[query.getDimensions().size()];
             for (int i = 0; i < dictionaries.length; i++) {
               dictionaries[i] = new ThreadSafeMergingDictionary(reverseDictionaries[i], nextIds[i]);

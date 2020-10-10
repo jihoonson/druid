@@ -53,9 +53,11 @@ import org.apache.druid.query.groupby.epinephelinae.column.NullableNumericGroupB
 import org.apache.druid.query.groupby.epinephelinae.column.StringGroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
+import org.apache.druid.query.groupby.orderby.LimitSpec;
 import org.apache.druid.query.groupby.orderby.OrderByColumnSpec;
 import org.apache.druid.query.groupby.strategy.GroupByStrategyV2;
 import org.apache.druid.query.ordering.StringComparator;
+import org.apache.druid.query.ordering.StringComparators;
 import org.apache.druid.segment.ColumnInspector;
 import org.apache.druid.segment.ColumnSelectorFactory;
 import org.apache.druid.segment.ColumnValueSelector;
@@ -1026,14 +1028,14 @@ public class GroupByQueryEngineV2
     @Override
     public Grouper.BufferComparator bufferComparator()
     {
-      Preconditions.checkState(query.isApplyLimitPushDown(), "no limit push down");
-      DefaultLimitSpec limitSpec = (DefaultLimitSpec) query.getLimitSpec();
+//      Preconditions.checkState(query.isApplyLimitPushDown(), "no limit push down");
+//      DefaultLimitSpec limitSpec = (DefaultLimitSpec) query.getLimitSpec();
 
       return GrouperBufferComparatorUtils.bufferComparator(
           query.getResultRowHasTimestamp(),
           query.getContextSortByDimsFirst(),
           query.getDimensions().size(),
-          getDimensionComparators(limitSpec)
+          getDimensionComparators(query.getLimitSpec())
       );
     }
 
@@ -1057,13 +1059,21 @@ public class GroupByQueryEngineV2
       );
     }
 
-    private Grouper.BufferComparator[] getDimensionComparators(DefaultLimitSpec limitSpec)
+    private Grouper.BufferComparator[] getDimensionComparators(LimitSpec limitSpec)
     {
       Grouper.BufferComparator[] dimComparators = new Grouper.BufferComparator[dims.length];
 
       for (int i = 0; i < dims.length; i++) {
         final String dimName = query.getDimensions().get(i).getOutputName();
-        StringComparator stringComparator = DefaultLimitSpec.getComparatorForDimName(limitSpec, dimName);
+        final StringComparator stringComparator;
+        if (limitSpec instanceof DefaultLimitSpec) {
+          stringComparator = DefaultLimitSpec.getComparatorForDimName(
+              (DefaultLimitSpec) limitSpec,
+              dimName
+          );
+        } else {
+          stringComparator = StringComparators.LEXICOGRAPHIC;
+        }
         dimComparators[i] = dims[i].getColumnSelectorStrategy().bufferComparator(
             dims[i].getKeyBufferPosition(),
             stringComparator

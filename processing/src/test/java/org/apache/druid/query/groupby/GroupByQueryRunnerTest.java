@@ -10282,7 +10282,8 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
             )
         )
         .overrideContext(
-            ImmutableMap.of(GroupByQueryConfig.CTX_KEY_FORCE_LIMIT_PUSH_DOWN, true)
+//            ImmutableMap.of(GroupByQueryConfig.CTX_KEY_FORCE_LIMIT_PUSH_DOWN, true)
+            ImmutableMap.of(GroupByQueryConfig.CTX_KEY_APPLY_LIMIT_PUSH_DOWN, false)
         )
         .setGranularity(Granularities.ALL);
 
