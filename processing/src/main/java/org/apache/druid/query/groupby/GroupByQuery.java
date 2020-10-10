@@ -663,7 +663,7 @@ public class GroupByQuery extends BaseQuery<ResultRow>
   }
 
   @Nullable
-  private Comparator<ResultRow> getTimeComparator(boolean granular)
+  public Comparator<ResultRow> getTimeComparator(boolean granular)
   {
     if (Granularities.ALL.equals(getGranularity())) {
       return null;

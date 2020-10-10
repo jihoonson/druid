@@ -49,6 +49,7 @@ public class PerSegmentEncodedResultRow extends ResultRow
     throw new UnsupportedOperationException();
   }
 
+  @Override
   public int getInt(final int i)
   {
     // TODO Virtual column sometimes returns double....

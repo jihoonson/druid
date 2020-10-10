@@ -530,7 +530,7 @@ public class GroupByQueryEngineV2
       final int resultRowAggregatorStart = query.getResultRowAggregatorStart();
 
       return new CloseableGrouperIterator<>(
-          grouper.iterator(false),
+          grouper.iterator(true),
           entry -> {
             final PerSegmentEncodedResultRow resultRow = PerSegmentEncodedResultRow.create(
                 query.getResultRowSizeWithoutPostAggregators()

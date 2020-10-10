@@ -59,7 +59,7 @@ import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.GroupByBinaryFnV2;
-import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2;
+import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV3;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByRowProcessor;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
@@ -557,17 +557,25 @@ public class GroupByStrategyV2 implements GroupByStrategy
       final DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
-    return new GroupByMergingQueryRunnerV2(
+//    return new GroupByMergingQueryRunnerV2(
+//        configSupplier.get(),
+//        exec,
+//        queryWatcher,
+//        queryRunners,
+//        processingConfig.getNumThreads(),
+//        mergeBufferPool,
+//        processingConfig.intermediateComputeSizeBytes(),
+//        spillMapper,
+//        processingConfig.getTmpDir(),
+//        dictionaryMergingRunner
+//    );
+    return new GroupByMergingQueryRunnerV3(
         configSupplier.get(),
         exec,
         queryWatcher,
         queryRunners,
-        processingConfig.getNumThreads(),
-        mergeBufferPool,
-        processingConfig.intermediateComputeSizeBytes(),
-        spillMapper,
-        processingConfig.getTmpDir(),
-        dictionaryMergingRunner
+        dictionaryMergingRunner,
+        processingConfig
     );
   }
 

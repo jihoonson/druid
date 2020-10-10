@@ -133,6 +133,13 @@ public class ResultRow
     return row[i];
   }
 
+  public int getInt(final int i)
+  {
+    // TODO Virtual column sometimes returns double....
+    assert row[i] != null && (row[i] instanceof Number);
+    return ((Number) row[i]).intValue();
+  }
+
   public long getLong(final int i)
   {
     return ((Number) row[i]).longValue();

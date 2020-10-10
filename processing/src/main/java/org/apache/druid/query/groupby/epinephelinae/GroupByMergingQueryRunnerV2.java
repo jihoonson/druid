@@ -370,12 +370,12 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
     );
   }
 
-  private static class MergingDictionary
+  public static class MergingDictionary
   {
     private final Int2IntMap[] dictIdMap;
     private final Int2ObjectMap<String> newDictionary;
 
-    private MergingDictionary(int numSegments)
+    public MergingDictionary(int numSegments)
     {
       this.dictIdMap = new Int2IntMap[numSegments];
       for (int j = 0; j < numSegments; j++) {
@@ -384,12 +384,22 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
       newDictionary = new Int2ObjectOpenHashMap<>();
     }
 
-    private void merge(int segmentId, int oldDictId, int newDictId, String val)
+    public void merge(int segmentId, int oldDictId, int newDictId, String val)
     {
       // old dict id -> new dict id
       dictIdMap[segmentId].put(oldDictId, newDictId);
       // new dict id -> dict value
       newDictionary.put(newDictId, val);
+    }
+
+    public Int2IntMap[] getDictIdMap()
+    {
+      return dictIdMap;
+    }
+
+    public Int2ObjectMap<String> getNewDictionary()
+    {
+      return newDictionary;
     }
   }
 
