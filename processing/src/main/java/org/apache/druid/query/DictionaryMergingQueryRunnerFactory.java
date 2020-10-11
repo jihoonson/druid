@@ -27,15 +27,16 @@ import org.apache.druid.query.aggregation.MetricManipulationFn;
 import org.apache.druid.segment.Segment;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 public class DictionaryMergingQueryRunnerFactory
-    implements QueryRunnerFactory<Iterator<DictionaryConversion>, Query<Iterator<DictionaryConversion>>>
+    implements QueryRunnerFactory<List<Iterator<DictionaryConversion>>, Query<List<Iterator<DictionaryConversion>>>>
 {
   static final int UNKNOWN_DICTIONARY_ID = -1;
 
   @Override
-  public QueryRunner<Iterator<DictionaryConversion>> createRunner(SegmentIdMapper segmentIdMapper, Segment segment)
+  public QueryRunner<List<Iterator<DictionaryConversion>>> createRunner(SegmentIdMapper segmentIdMapper, Segment segment)
   {
     return new DictionaryScanRunner(
         segmentIdMapper.applyAsInt(segment.getId()),
@@ -44,7 +45,7 @@ public class DictionaryMergingQueryRunnerFactory
   }
 
   @Override
-  public QueryRunner<Iterator<DictionaryConversion>> createRunner(Segment segment)
+  public QueryRunner<List<Iterator<DictionaryConversion>>> createRunner(Segment segment)
   {
     throw new UnsupportedOperationException();
   }
@@ -52,7 +53,7 @@ public class DictionaryMergingQueryRunnerFactory
   @Override
   public DictionaryMergingQueryRunner mergeRunners(
       ExecutorService queryExecutor,
-      Iterable<QueryRunner<Iterator<DictionaryConversion>>> queryRunners
+      Iterable<QueryRunner<List<Iterator<DictionaryConversion>>>> queryRunners
   )
   {
     // TODO: is this good? should the size be passed as a param?
@@ -60,28 +61,28 @@ public class DictionaryMergingQueryRunnerFactory
   }
 
   @Override
-  public QueryToolChest<Iterator<DictionaryConversion>, Query<Iterator<DictionaryConversion>>> getToolchest()
+  public QueryToolChest<List<Iterator<DictionaryConversion>>, Query<List<Iterator<DictionaryConversion>>>> getToolchest()
   {
-    return new QueryToolChest<Iterator<DictionaryConversion>, Query<Iterator<DictionaryConversion>>>()
+    return new QueryToolChest<List<Iterator<DictionaryConversion>>, Query<List<Iterator<DictionaryConversion>>>>()
     {
       @Override
-      public QueryMetrics<? super Query<Iterator<DictionaryConversion>>> makeMetrics(Query<Iterator<DictionaryConversion>> query)
+      public QueryMetrics<? super Query<List<Iterator<DictionaryConversion>>>> makeMetrics(Query<List<Iterator<DictionaryConversion>>> query)
       {
         return new DefaultQueryMetrics<>();
       }
 
       @Override
-      public Function<Iterator<DictionaryConversion>, Iterator<DictionaryConversion>> makePreComputeManipulatorFn(
-          Query<Iterator<DictionaryConversion>> query, MetricManipulationFn fn
+      public Function<List<Iterator<DictionaryConversion>>, List<Iterator<DictionaryConversion>>> makePreComputeManipulatorFn(
+          Query<List<Iterator<DictionaryConversion>>> query, MetricManipulationFn fn
       )
       {
         return Functions.identity();
       }
 
       @Override
-      public TypeReference<Iterator<DictionaryConversion>> getResultTypeReference()
+      public TypeReference<List<Iterator<DictionaryConversion>>> getResultTypeReference()
       {
-        return new TypeReference<Iterator<DictionaryConversion>>()
+        return new TypeReference<List<Iterator<DictionaryConversion>>>()
         {
         };
       }

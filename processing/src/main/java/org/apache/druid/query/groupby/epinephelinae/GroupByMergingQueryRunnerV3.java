@@ -26,13 +26,13 @@ import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import it.unimi.dsi.fastutil.ints.Int2IntMap;
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
-import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.druid.common.guava.CombiningSequence;
 import org.apache.druid.java.util.common.guava.MappedSequence;
 import org.apache.druid.java.util.common.guava.MergeSequence;
-import org.apache.druid.java.util.common.guava.ParallelMergeCombiningSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -51,7 +51,6 @@ import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
-import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2.MergingDictionary;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.OrderByColumnSpec;
 import org.apache.druid.query.ordering.StringComparator;
@@ -60,6 +59,7 @@ import org.apache.druid.segment.DimensionHandlerUtils;
 import org.apache.druid.segment.column.RowSignature;
 import org.apache.druid.segment.column.ValueType;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -69,7 +69,6 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -195,7 +194,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
         query.getQuerySegmentSpec(),
         query.getDimensions()
     );
-    final Sequence<Iterator<DictionaryConversion>> conversionSequence = dictionaryMergingRunner.run(
+    final Sequence<List<Iterator<DictionaryConversion>>> conversionSequence = dictionaryMergingRunner.run(
         QueryPlus.wrap(dictionaryMergeQuery)
     );
 
@@ -205,20 +204,16 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
       for (int i = 0; i < merging.length; i++) {
         merging[i] = new MergingDictionary(dictionaryMergingRunner.getNumQueryRunners());
       }
-      final MutableInt dimensionIndex = new MutableInt(0);
       return conversionSequence.accumulate(
           merging,
           (accumulated, conversions) -> {
-            while (conversions.hasNext()) {
-              final DictionaryConversion conversion = conversions.next();
-              accumulated[dimensionIndex.getValue()].merge(
-                  conversion.getSegmentId(),
-                  conversion.getOldDictionaryId(),
-                  conversion.getNewDictionaryId(),
-                  conversion.getVal()
-              );
+            assert accumulated.length == conversions.size();
+            for (int i = 0; i < conversions.size(); i++) {
+              while (conversions.get(i).hasNext()) {
+                final DictionaryConversion conversion = conversions.get(i).next();
+                accumulated[i].add(conversion.getVal(), conversion.getSegmentId(), conversion.getOldDictionaryId());
+              }
             }
-            dimensionIndex.increment();
             return accumulated;
           }
       );
@@ -251,7 +246,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
       }
       final MergedDictionary[] mergedDictionaries = new MergedDictionary[result.length];
       for (int i = 0; i < mergedDictionaries.length; i++) {
-        mergedDictionaries[i] = new MergedDictionary(result[i].getDictIdMap(), result[i].getNewDictionary());
+        mergedDictionaries[i] = result[i].toImmutable();
       }
       return mergedDictionaries;
     }
@@ -272,6 +267,48 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
     catch (ExecutionException e) {
       future.cancel(true);
       throw new RuntimeException(e);
+    }
+  }
+
+  public static class MergingDictionary
+  {
+    // segmentId -> original dict id -> new dict id
+    private final Int2IntMap[] dictIdConversion;
+    private final List<String> dictionary = new ArrayList<>();
+    @Nullable
+    private String prevVal = null;
+    private int nextId = 0; // TODO: unnecessary
+
+    public MergingDictionary(int numSegments)
+    {
+      this.dictIdConversion = new Int2IntMap[numSegments];
+      for (int i = 0; i < numSegments; i++) {
+        this.dictIdConversion[i] = new Int2IntOpenHashMap();
+      }
+    }
+
+    public void add(@Nullable String val, int segmentId, int oldDictId)
+    {
+      if (val != null) {
+        final int newDictId = getNewDictId(val);
+        dictIdConversion[segmentId].put(oldDictId, newDictId);
+      }
+    }
+
+    private int getNewDictId(String val)
+    {
+      if (prevVal == null || !prevVal.equals(val)) {
+        prevVal = val;
+        dictionary.add(val);
+        return nextId++;
+      } else {
+        return nextId;
+      }
+    }
+
+    public MergedDictionary toImmutable()
+    {
+      return new MergedDictionary(dictIdConversion, dictionary);
     }
   }
 

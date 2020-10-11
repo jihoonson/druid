@@ -19,17 +19,22 @@
 
 package org.apache.druid.query;
 
+import com.google.common.collect.FluentIterable;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.query.context.ResponseContext;
+import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.segment.StorageAdapter;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
 
 // TODO: how to extend to columns which don't have dictionary?
-public class DictionaryScanRunner implements IdentifiableQueryRunner<Iterator<DictionaryConversion>>
+public class DictionaryScanRunner implements IdentifiableQueryRunner<List<Iterator<DictionaryConversion>>>
 {
   private final int segmentId;
   private final StorageAdapter storageAdapter;
@@ -40,61 +45,50 @@ public class DictionaryScanRunner implements IdentifiableQueryRunner<Iterator<Di
     this.storageAdapter = segment.asStorageAdapter();
   }
 
-  // TODO: This can return Sequence<Iterator<DictionaryConversion>>. Each iterator is the conversions for one column.
-  // or Sequence<Sequence<DictionaryConversion>>.. but probably iterator will be better since there is no reason
-  // to flat out the outer sequence.
+  // TODO: make a type for List<Iterator<DictionaryConversion>>
   @Override
-  public Sequence<Iterator<DictionaryConversion>> run(QueryPlus<Iterator<DictionaryConversion>> queryPlus, ResponseContext responseContext)
+  public Sequence<List<Iterator<DictionaryConversion>>> run(QueryPlus<List<Iterator<DictionaryConversion>>> queryPlus, ResponseContext responseContext)
   {
     final DictionaryMergeQuery query = (DictionaryMergeQuery) queryPlus.getQuery();
 
     return Sequences.simple(
-        () -> new Iterator<Iterator<DictionaryConversion>>()
+        () -> new Iterator<List<Iterator<DictionaryConversion>>>()
         {
-          int remainingDimensions = query.getDimensions().size();
-          int nextDimension = segmentId % remainingDimensions;
+          boolean returned;
 
           @Override
           public boolean hasNext()
           {
-            return remainingDimensions > 0;
+            return !returned;
           }
 
           @Override
-          public Iterator<DictionaryConversion> next()
+          public List<Iterator<DictionaryConversion>> next()
           {
-            final Iterator<String> dictionaryIterator = storageAdapter.getDictionaryIterator(
-                query.getDimensions().get(nextDimension++).getDimension()
-            );
-            if (nextDimension == query.getDimensions().size()) {
-              nextDimension = 0;
+            if (!hasNext()) {
+              throw new NoSuchElementException();
             }
-            remainingDimensions--;
-            return new Iterator<DictionaryConversion>()
-            {
-              int dictId;
-
-              @Override
-              public boolean hasNext()
-              {
-                return dictionaryIterator.hasNext();
-              }
-
-              @Override
-              public DictionaryConversion next()
-              {
-                if (!hasNext()) {
-                  throw new NoSuchElementException();
-                }
-                final String val = dictionaryIterator.next();
-                return new DictionaryConversion(
-                    val,
-                    segmentId,
-                    dictId++,
-                    DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID // fills with unknown temporarily. will be updated when merging
-                );
-              }
-            };
+            returned = true;
+            final List<Iterator<DictionaryConversion>> dictionaryIterators = new ArrayList<>(
+                query.getDimensions().size()
+            );
+            final int[] dictIds = new int[query.getDimensions().size()];
+            Arrays.fill(dictIds, 0);
+            for (int i = 0; i < query.getDimensions().size(); i++) {
+              final int dimIndex = i;
+              final DimensionSpec dimensionSpec = query.getDimensions().get(dimIndex);
+              dictionaryIterators.add(
+                  FluentIterable.from(() -> storageAdapter.getDictionaryIterator(dimensionSpec.getDimension()))
+                                .transform(val -> new DictionaryConversion(
+                                    val,
+                                    segmentId,
+                                    dictIds[dimIndex]++,
+                                    DictionaryMergingQueryRunnerFactory.UNKNOWN_DICTIONARY_ID // fills with unknown temporarily. will be updated when merging
+                                ))
+                                .iterator()
+              );
+            }
+            return dictionaryIterators;
           }
         }
     );

@@ -25,6 +25,8 @@ import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
+import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV3.MergingDictionary;
+import org.apache.druid.query.groupby.epinephelinae.MergedDictionary;
 import org.apache.druid.query.spec.MultipleIntervalSegmentSpec;
 import org.apache.druid.segment.QueryableIndex;
 import org.apache.druid.segment.QueryableIndexSegment;
@@ -43,6 +45,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -111,7 +115,7 @@ public class DictionaryMergingQueryRunnerTest extends InitializedNullHandlingTes
   {
     final DictionaryMergingQueryRunnerFactory factory = new DictionaryMergingQueryRunnerFactory();
     final SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
-    final List<QueryRunner<Iterator<DictionaryConversion>>> runners = new ArrayList<>();
+    final List<QueryRunner<List<Iterator<DictionaryConversion>>>> runners = new ArrayList<>();
     for (int i = 0; i < SEGMENTS.size(); i++) {
       runners.add(
           QueryRunnerTestHelper.makeDictionaryScanRunner(
@@ -134,17 +138,31 @@ public class DictionaryMergingQueryRunnerTest extends InitializedNullHandlingTes
             new DefaultDimensionSpec("dimUniform", "dimUniform")
         )
     );
-    final Sequence<Iterator<DictionaryConversion>> sequence = mergingRunner.run(QueryPlus.wrap(query));
-    final List<Iterator<DictionaryConversion>> iterators = sequence.toList();
-    Assert.assertEquals(query.getDimensions().size(), iterators.size());
-    for (Iterator<DictionaryConversion> conversions : iterators) {
-      final Map<String, Integer> newDictionary = new HashMap<>();
-      while (conversions.hasNext()) {
-        final DictionaryConversion conversion = conversions.next();
-        final Integer newDictId = newDictionary.put(conversion.getVal(), conversion.getNewDictionaryId());
-        if (newDictId != null) {
-          Assert.assertEquals(newDictId.intValue(), conversion.getNewDictionaryId());
+    final Sequence<List<Iterator<DictionaryConversion>>> sequence = mergingRunner.run(QueryPlus.wrap(query));
+    final MergingDictionary[] merging = new MergingDictionary[query.getDimensions().size()];
+    for (int i = 0; i < merging.length; i++) {
+      merging[i] = new MergingDictionary(runners.size());
+    }
+    sequence.accumulate(
+        merging,
+        (accumulated, conversions) -> {
+          assert accumulated.length == conversions.size();
+          for (int i = 0; i < conversions.size(); i++) {
+            while (conversions.get(i).hasNext()) {
+              final DictionaryConversion conversion = conversions.get(i).next();
+              accumulated[i].add(conversion.getVal(), conversion.getSegmentId(), conversion.getOldDictionaryId());
+            }
+          }
+          return accumulated;
         }
+    );
+
+    for (MergingDictionary mergingDictionary : merging) {
+      final MergedDictionary mergedDictionary = mergingDictionary.toImmutable();
+      final List<String> sortedStrings = Arrays.asList(mergedDictionary.getDictionary());
+      Collections.sort(sortedStrings);
+      for (int i = 0; i < sortedStrings.size(); i++) {
+        Assert.assertEquals(sortedStrings.get(i), mergedDictionary.lookup(i));
       }
     }
   }

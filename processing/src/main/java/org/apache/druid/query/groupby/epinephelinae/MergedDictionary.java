@@ -19,10 +19,12 @@
 
 package org.apache.druid.query.groupby.epinephelinae;
 
+import com.google.common.annotations.VisibleForTesting;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 
 import javax.annotation.Nullable;
+import java.util.List;
 
 // TODO: size limit
 public class MergedDictionary
@@ -43,6 +45,17 @@ public class MergedDictionary
     dictionary.forEach((k, v) -> this.dictionary[k] = v);
   }
 
+  public MergedDictionary(Int2IntMap[] dictIdConversion, List<String> dictionary)
+  {
+    this.dictIdConversion = new int[dictIdConversion.length][];
+    for (int i = 0; i < dictIdConversion.length; i++) {
+      this.dictIdConversion[i] = new int[dictIdConversion[i].size()];
+      final int[] localVar = this.dictIdConversion[i];
+      dictIdConversion[i].forEach((k, v) -> localVar[k] = v);
+    }
+    this.dictionary = dictionary.toArray(new String[0]);
+  }
+
   public int getNewDictId(int segmentId, int originalDictId)
   {
     return dictIdConversion[segmentId][originalDictId];
@@ -57,5 +70,11 @@ public class MergedDictionary
   public int size()
   {
     return dictionary.length;
+  }
+
+  @VisibleForTesting
+  public String[] getDictionary()
+  {
+    return dictionary;
   }
 }

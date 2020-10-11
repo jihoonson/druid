@@ -379,7 +379,7 @@ public class QueryRunnerTestHelper
     );
   }
 
-  public static <T, QueryType extends Query<T>> List<Pair<QueryRunner<T>, QueryRunner<Iterator<DictionaryConversion>>>> makeQueryRunnersAndDictScanRunners(
+  public static <T, QueryType extends Query<T>> List<Pair<QueryRunner<T>, QueryRunner<List<Iterator<DictionaryConversion>>>>> makeQueryRunnersAndDictScanRunners(
       QueryRunnerFactory<T, QueryType> factory
   )
   {
@@ -515,7 +515,7 @@ public class QueryRunnerTestHelper
     };
   }
 
-  public static QueryRunner<Iterator<DictionaryConversion>> makeDictionaryScanRunner(
+  public static QueryRunner<List<Iterator<DictionaryConversion>>> makeDictionaryScanRunner(
       Segment adapter,
       final String runnerName,
       @Nullable SegmentIdMapper segmentIdMapper
@@ -524,7 +524,7 @@ public class QueryRunnerTestHelper
     return makeDictionaryScanRunner(SEGMENT_ID, adapter, runnerName, segmentIdMapper);
   }
 
-  private static QueryRunner<Iterator<DictionaryConversion>> makeDictionaryScanRunner(
+  private static QueryRunner<List<Iterator<DictionaryConversion>>> makeDictionaryScanRunner(
       SegmentId segmentId,
       Segment adapter,
       final String runnerName,
@@ -532,7 +532,7 @@ public class QueryRunnerTestHelper
   )
   {
     final DictionaryMergingQueryRunnerFactory factory = new DictionaryMergingQueryRunnerFactory();
-    return new IdentifiableQueryRunner<Iterator<DictionaryConversion>>()
+    return new IdentifiableQueryRunner<List<Iterator<DictionaryConversion>>>()
     {
       @Override
       public int getSegmentId()
@@ -541,8 +541,8 @@ public class QueryRunnerTestHelper
       }
 
       @Override
-      public Sequence<Iterator<DictionaryConversion>> run(
-          QueryPlus<Iterator<DictionaryConversion>> queryPlus,
+      public Sequence<List<Iterator<DictionaryConversion>>> run(
+          QueryPlus<List<Iterator<DictionaryConversion>>> queryPlus,
           ResponseContext responseContext
       )
       {

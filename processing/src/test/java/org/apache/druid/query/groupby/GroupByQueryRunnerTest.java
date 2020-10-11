@@ -430,7 +430,7 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
       final Pair<GroupByQueryRunnerFactory, Closer> factoryAndCloser = makeQueryRunnerFactory(config);
       final GroupByQueryRunnerFactory factory = factoryAndCloser.lhs;
       RESOURCE_CLOSER.register(factoryAndCloser.rhs);
-      for (Pair<QueryRunner<ResultRow>, QueryRunner<Iterator<DictionaryConversion>>> pair : QueryRunnerTestHelper.makeQueryRunnersAndDictScanRunners(factory)) {
+      for (Pair<QueryRunner<ResultRow>, QueryRunner<List<Iterator<DictionaryConversion>>>> pair : QueryRunnerTestHelper.makeQueryRunnersAndDictScanRunners(factory)) {
         for (boolean vectorize : ImmutableList.of(false, true)) {
           final String testName = StringUtils.format("config=%s, runner=%s, vectorize=%s", config, pair.lhs, vectorize);
 
@@ -456,7 +456,7 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
       GroupByQueryConfig config,
       GroupByQueryRunnerFactory factory,
       QueryRunner runner,
-      QueryRunner<Iterator<DictionaryConversion>> dictionaryScanRunner,
+      QueryRunner<List<Iterator<DictionaryConversion>>> dictionaryScanRunner,
       boolean vectorize
   )
   {
