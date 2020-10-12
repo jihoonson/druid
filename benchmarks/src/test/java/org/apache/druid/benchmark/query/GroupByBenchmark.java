@@ -137,6 +137,11 @@ public class GroupByBenchmark
   })
   private int numProcessingThreads;
 
+  @Param({
+      "4"
+  })
+  private int parallelMergeParallelism;
+
   @Param({"-1"})
   private int initialBuckets;
 
@@ -235,7 +240,7 @@ public class GroupByBenchmark
           .setDimensions(new DefaultDimensionSpec("dimSequential", null), new DefaultDimensionSpec("dimZipf", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(queryGranularity))
-          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge))
+          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge, "parallelMergeParallelism", parallelMergeParallelism))
           .build();
 
       basicQueries.put("A", queryA);
@@ -253,7 +258,7 @@ public class GroupByBenchmark
           .setDimensions(new DefaultDimensionSpec("dimHyperUnique", null), new DefaultDimensionSpec("dimUniform", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(queryGranularity))
-          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge))
+          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge, "parallelMergeParallelism", parallelMergeParallelism))
           .build();
 
       basicQueries.put("B", queryA);
@@ -305,7 +310,7 @@ public class GroupByBenchmark
                   100
               )
           )
-          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge))
+          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge, "parallelMergeParallelism", parallelMergeParallelism))
           .build();
 
       basicQueries.put("sorted2", queryA);
