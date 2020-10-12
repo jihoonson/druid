@@ -126,6 +126,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
         .transform(runner -> runner.run(queryPlusForRunners, responseContext).map(row -> {
           final MergedDictionary[] mergedDictionaries = mergedDictionariesSupplier.get(); // TODO: per row??
           final PerSegmentEncodedResultRow encodedResultRow = (PerSegmentEncodedResultRow) row;
+//          System.err.println("encodedResultRow: " + encodedResultRow);
           final ResultRow resultRow = ResultRow.create(row.length());
 
           for (int i = 0; i < query.getResultRowDimensionStart(); i++) {
@@ -134,13 +135,15 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
 
           // (segmentId, oldDictId) -> newDictId
           for (int i = query.getResultRowDimensionStart(); i < query.getResultRowAggregatorStart(); i++) {
-            final MergedDictionary mergedDictionary = mergedDictionaries[i - query.getResultRowDimensionStart()];
+            final int dimIndex = i - query.getResultRowDimensionStart();
+            final MergedDictionary mergedDictionary = mergedDictionaries[dimIndex];
             resultRow.set(i, mergedDictionary.getNewDictId(encodedResultRow.getSegmentId(i), encodedResultRow.getInt(i)));
           }
 
           for (int i = query.getResultRowAggregatorStart(); i < row.length(); i++) {
             resultRow.set(i, encodedResultRow.get(i));
           }
+//          System.err.println("new row: " + resultRow);
           return resultRow;
         }))
         .toList();
@@ -171,9 +174,11 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
     final MappedSequence<ResultRow, ResultRow> mappedSequence = new MappedSequence<>(
         mergeCombiningSequence,
         row -> {
+//          System.err.println("row: " + row);
           final MergedDictionary[] mergedDictionaries = mergedDictionariesSupplier.get(); // TODO: per row??
           for (int i = query.getResultRowDimensionStart(); i < query.getResultRowAggregatorStart(); i++) {
-            final MergedDictionary mergedDictionary = mergedDictionaries[i - query.getResultRowDimensionStart()];
+            final int dimIndex = i - query.getResultRowDimensionStart();
+            final MergedDictionary mergedDictionary = mergedDictionaries[dimIndex];
             row.set(i, mergedDictionary.lookup(row.getInt(i)));
           }
           return row;
@@ -277,7 +282,6 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
     private final List<String> dictionary = new ArrayList<>();
     @Nullable
     private String prevVal = null;
-    private int nextId = 0; // TODO: unnecessary
 
     public MergingDictionary(int numSegments)
     {
@@ -300,10 +304,8 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
       if (prevVal == null || !prevVal.equals(val)) {
         prevVal = val;
         dictionary.add(val);
-        return nextId++;
-      } else {
-        return nextId;
       }
+      return dictionary.size() - 1;
     }
 
     public MergedDictionary toImmutable()

@@ -74,6 +74,7 @@ import org.joda.time.Interval;
 
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
@@ -211,7 +212,7 @@ public class ServerManager implements QuerySegmentWalker
 
     final SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
     final DictionaryMergingQueryRunnerFactory dictionaryMergingQueryRunnerFactory = new DictionaryMergingQueryRunnerFactory();
-    final FunctionalIterable<QueryRunner<Iterator<DictionaryConversion>>> dictionaryScanners = FunctionalIterable
+    final FunctionalIterable<QueryRunner<List<Iterator<DictionaryConversion>>>> dictionaryScanners = FunctionalIterable
         .create(specs)
         .transformCat(
             descriptor -> Collections.singletonList(
@@ -370,7 +371,7 @@ public class ServerManager implements QuerySegmentWalker
     );
   }
 
-  QueryRunner<Iterator<DictionaryConversion>> buildDictionaryMergingQueryRunnerForSegment(
+  QueryRunner<List<Iterator<DictionaryConversion>>> buildDictionaryMergingQueryRunnerForSegment(
       final SegmentDescriptor descriptor,
       final SegmentIdMapper segmentIdMapper,
       final DictionaryMergingQueryRunnerFactory factory,
@@ -403,7 +404,7 @@ public class ServerManager implements QuerySegmentWalker
     );
   }
 
-  private QueryRunner<Iterator<DictionaryConversion>> buildAndDecorateDictionaryMergingQueryRunner(
+  private QueryRunner<List<Iterator<DictionaryConversion>>> buildAndDecorateDictionaryMergingQueryRunner(
       final SegmentIdMapper segmentIdMapper,
       final DictionaryMergingQueryRunnerFactory factory,
       final SegmentReference segment,
@@ -421,7 +422,7 @@ public class ServerManager implements QuerySegmentWalker
       return new ReportTimelineMissingSegmentQueryRunner<>(segmentDescriptor);
     }
 
-    final ReferenceCountingSegmentQueryRunner<Iterator<DictionaryConversion>> referenceCountingSegmentQueryRunner =
+    final ReferenceCountingSegmentQueryRunner<List<Iterator<DictionaryConversion>>> referenceCountingSegmentQueryRunner =
         new ReferenceCountingSegmentQueryRunner<>(segmentIdMapper, factory, segment, segmentDescriptor);
 
   //    MetricsEmittingQueryRunner<T> metricsEmittingQueryRunnerInner = new MetricsEmittingQueryRunner<>(
@@ -444,7 +445,7 @@ public class ServerManager implements QuerySegmentWalker
   //        cacheConfig
   //    );
 
-    BySegmentQueryRunner<Iterator<DictionaryConversion>> bySegmentQueryRunner = new BySegmentQueryRunner<>(
+    BySegmentQueryRunner<List<Iterator<DictionaryConversion>>> bySegmentQueryRunner = new BySegmentQueryRunner<>(
         segmentId,
         segmentInterval.getStart(),
         referenceCountingSegmentQueryRunner
@@ -458,7 +459,7 @@ public class ServerManager implements QuerySegmentWalker
   //        queryMetrics -> queryMetrics.segment(segmentIdString)
   //    ).withWaitMeasuredFromNow();
 
-    SpecificSegmentQueryRunner<Iterator<DictionaryConversion>> specificSegmentQueryRunner = new SpecificSegmentQueryRunner<>(
+    SpecificSegmentQueryRunner<List<Iterator<DictionaryConversion>>> specificSegmentQueryRunner = new SpecificSegmentQueryRunner<>(
         bySegmentQueryRunner,
         segmentSpec
     );

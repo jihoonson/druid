@@ -133,8 +133,8 @@ public class DictionaryMergingQueryRunnerTest extends InitializedNullHandlingTes
         new TableDataSource("foo"),
         new MultipleIntervalSegmentSpec(ImmutableList.of(SCHEMA_INFO.getDataInterval())),
         ImmutableList.of(
-            new DefaultDimensionSpec("dimSequential", "dimSequential"),
-            new DefaultDimensionSpec("dimZipf", "dimZipf"),
+//            new DefaultDimensionSpec("dimSequential", "dimSequential"),
+//            new DefaultDimensionSpec("dimZipf", "dimZipf")
             new DefaultDimensionSpec("dimUniform", "dimUniform")
         )
     );
@@ -163,6 +163,12 @@ public class DictionaryMergingQueryRunnerTest extends InitializedNullHandlingTes
       Collections.sort(sortedStrings);
       for (int i = 0; i < sortedStrings.size(); i++) {
         Assert.assertEquals(sortedStrings.get(i), mergedDictionary.lookup(i));
+      }
+
+      for (int i = 0; i < runners.size(); i++) {
+        final int[] conversion = mergedDictionary.getDictionaryConversion(i);
+        final int max = Arrays.stream(conversion).max().getAsInt();
+        Assert.assertTrue(sortedStrings.size() > max);
       }
     }
   }

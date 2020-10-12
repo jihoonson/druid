@@ -64,6 +64,7 @@ public class MergedDictionary
   @Nullable
   public String lookup(int newDictId)
   {
+//    System.err.println("dict len : " + dictionary.length + " new dict id: " + newDictId);
     return newDictId < 0 ? null : dictionary[newDictId];
   }
 
@@ -76,5 +77,11 @@ public class MergedDictionary
   public String[] getDictionary()
   {
     return dictionary;
+  }
+
+  @VisibleForTesting
+  public int[] getDictionaryConversion(int segmentId)
+  {
+    return dictIdConversion[segmentId];
   }
 }

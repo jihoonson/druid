@@ -9904,7 +9904,14 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
                 2
             )
         ).setAggregatorSpecs(QueryRunnerTestHelper.ROWS_COUNT)
-        .overrideContext(ImmutableMap.of(GroupByQueryConfig.CTX_KEY_FORCE_LIMIT_PUSH_DOWN, true))
+        .overrideContext(
+            ImmutableMap.of(
+                GroupByQueryConfig.CTX_KEY_FORCE_LIMIT_PUSH_DOWN,
+                true,
+                GroupByQueryConfig.CTX_KEY_FORCE_HASH_AGGREGATION,
+                true
+            )
+        )
         .build();
 
     List<ResultRow> expectedResults = Arrays.asList(

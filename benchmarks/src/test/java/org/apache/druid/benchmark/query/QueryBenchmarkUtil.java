@@ -39,6 +39,7 @@ import org.apache.druid.timeline.SegmentId;
 
 import javax.annotation.Nullable;
 import java.util.Iterator;
+import java.util.List;
 
 public class QueryBenchmarkUtil
 {
@@ -68,14 +69,14 @@ public class QueryBenchmarkUtil
     );
   }
 
-  public static QueryRunner<Iterator<DictionaryConversion>> makeDictionaryScanRunner(
+  public static QueryRunner<List<Iterator<DictionaryConversion>>> makeDictionaryScanRunner(
       SegmentId segmentId,
       Segment adapter,
       SegmentIdMapper segmentIdMapper
   )
   {
     final DictionaryMergingQueryRunnerFactory factory = new DictionaryMergingQueryRunnerFactory();
-    return new IdentifiableQueryRunner<Iterator<DictionaryConversion>>()
+    return new IdentifiableQueryRunner<List<Iterator<DictionaryConversion>>>()
     {
       @Override
       public int getSegmentId()
@@ -84,8 +85,8 @@ public class QueryBenchmarkUtil
       }
 
       @Override
-      public Sequence<Iterator<DictionaryConversion>> run(
-          QueryPlus<Iterator<DictionaryConversion>> queryPlus,
+      public Sequence<List<Iterator<DictionaryConversion>>> run(
+          QueryPlus<List<Iterator<DictionaryConversion>>> queryPlus,
           ResponseContext responseContext
       )
       {

@@ -69,7 +69,6 @@ import org.apache.druid.query.groupby.GroupByQueryRunnerFactory;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.OrderByColumnSpec;
-import org.apache.druid.query.groupby.orderby.OrderByColumnSpec.Direction;
 import org.apache.druid.query.groupby.strategy.GroupByStrategySelector;
 import org.apache.druid.query.groupby.strategy.GroupByStrategyV1;
 import org.apache.druid.query.groupby.strategy.GroupByStrategyV2;
@@ -825,12 +824,12 @@ public class GroupByBenchmark
     return runners;
   }
 
-  private List<QueryRunner<Iterator<DictionaryConversion>>> makeDictScanRunners(SegmentIdMapper segmentIdMapper)
+  private List<QueryRunner<List<Iterator<DictionaryConversion>>>> makeDictScanRunners(SegmentIdMapper segmentIdMapper)
   {
-    List<QueryRunner<Iterator<DictionaryConversion>>> runners = new ArrayList<>();
+    List<QueryRunner<List<Iterator<DictionaryConversion>>>> runners = new ArrayList<>();
     for (int i = 0; i < numSegments; i++) {
       String segmentName = "qIndex " + i;
-      QueryRunner<Iterator<DictionaryConversion>> runner = QueryBenchmarkUtil.makeDictionaryScanRunner(
+      QueryRunner<List<Iterator<DictionaryConversion>>> runner = QueryBenchmarkUtil.makeDictionaryScanRunner(
           SegmentId.dummy(segmentName),
           new QueryableIndexSegment(queryableIndexes.get(i), SegmentId.dummy(segmentName)),
           segmentIdMapper
