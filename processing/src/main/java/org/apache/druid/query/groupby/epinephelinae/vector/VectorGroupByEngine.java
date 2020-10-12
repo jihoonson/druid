@@ -433,7 +433,7 @@ public class VectorGroupByEngine
       final int resultRowAggregatorStart = query.getResultRowAggregatorStart();
 
       return new CloseableGrouperIterator<>(
-          vectorGrouper.iterator(),
+          vectorGrouper.iterator(), // TODO: must be sorted iterator
           entry -> {
             final PerSegmentEncodedResultRow resultRow =
                 PerSegmentEncodedResultRow.create(query.getResultRowSizeWithoutPostAggregators());

@@ -126,7 +126,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
         .transform(runner -> runner.run(queryPlusForRunners, responseContext).map(row -> {
           final MergedDictionary[] mergedDictionaries = mergedDictionariesSupplier.get(); // TODO: per row??
           final PerSegmentEncodedResultRow encodedResultRow = (PerSegmentEncodedResultRow) row;
-//          System.err.println("encodedResultRow: " + encodedResultRow);
+//          System.err.println("encodedResultRow: " + encodedResultRow + " decoded: " + decode(mergedDictionaries, encodedResultRow, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
           final ResultRow resultRow = ResultRow.create(row.length());
 
           for (int i = 0; i < query.getResultRowDimensionStart(); i++) {
@@ -143,7 +143,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
           for (int i = query.getResultRowAggregatorStart(); i < row.length(); i++) {
             resultRow.set(i, encodedResultRow.get(i));
           }
-//          System.err.println("new row: " + resultRow);
+//          System.err.println("new row: " + resultRow + " decoded: " + decode(mergedDictionaries, resultRow, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
           return resultRow;
         }))
         .toList();
@@ -163,10 +163,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
 //        metrics -> {} // TODO: metrics
 //    );
     final CombiningSequence<ResultRow> mergeCombiningSequence = CombiningSequence.create(
-        new MergeSequence<>(
-            getRowOrdering(query),
-            Sequences.simple(sequences)
-        ),
+        new MergeSequence<>(getRowOrdering(query), Sequences.simple(sequences)),
         getRowOrdering(query),
         new GroupByBinaryFnV2(query)
     );
@@ -174,8 +171,8 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
     final MappedSequence<ResultRow, ResultRow> mappedSequence = new MappedSequence<>(
         mergeCombiningSequence,
         row -> {
-//          System.err.println("row: " + row);
           final MergedDictionary[] mergedDictionaries = mergedDictionariesSupplier.get(); // TODO: per row??
+//          System.err.println("row: " + row + " decoded: " + decode(mergedDictionaries, row, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
           for (int i = query.getResultRowDimensionStart(); i < query.getResultRowAggregatorStart(); i++) {
             final int dimIndex = i - query.getResultRowDimensionStart();
             final MergedDictionary mergedDictionary = mergedDictionaries[dimIndex];
@@ -186,6 +183,21 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
     );
 
     return mappedSequence;
+  }
+
+  private ResultRow decode(MergedDictionary[] mergedDictionaries, ResultRow row, int dimStart, int dimEnd)
+  {
+    final ResultRow decoded = ResultRow.create(row.length());
+    for (int i = 0; i < dimStart; i++) {
+      decoded.set(i, row.get(i));
+    }
+    for (int i = dimStart; i < dimEnd; i++) {
+      decoded.set(i, mergedDictionaries[i - dimStart].lookup(row.getInt(i)));
+    }
+    for (int i = dimEnd; i < row.length(); i++) {
+      decoded.set(i, row.get(i));
+    }
+    return decoded;
   }
 
   private Supplier<MergedDictionary[]> createMergedDictionariesSupplier(
