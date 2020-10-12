@@ -33,6 +33,7 @@ import it.unimi.dsi.fastutil.ints.IntList;
 import org.apache.druid.common.guava.CombiningSequence;
 import org.apache.druid.java.util.common.guava.MappedSequence;
 import org.apache.druid.java.util.common.guava.MergeSequence;
+import org.apache.druid.java.util.common.guava.ParallelMergeCombiningSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -69,6 +70,7 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -148,25 +150,25 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
         }))
         .toList();
 
-//    final ParallelMergeCombiningSequence<ResultRow> mergeCombiningSequence = new ParallelMergeCombiningSequence<>(
-//        ForkJoinPool.commonPool(),
-//        sequences,
-//        getRowOrdering(query), // TODO: this compares strings. i need dictionary-based ordering
-//        new GroupByBinaryFnV2(query),
-//        hasTimeout,
-//        queryTimeout,
-//        priority,
-//        QueryContexts.getParallelMergeParallelism(query, processingConfig.getMergePoolDefaultMaxQueryParallelism()),
-//        QueryContexts.getParallelMergeInitialYieldRows(query, processingConfig.getMergePoolTaskInitialYieldRows()),
-//        QueryContexts.getParallelMergeSmallBatchRows(query, processingConfig.getMergePoolSmallBatchRows()),
-//        processingConfig.getMergePoolTargetTaskRunTimeMillis(),
-//        metrics -> {} // TODO: metrics
-//    );
-    final CombiningSequence<ResultRow> mergeCombiningSequence = CombiningSequence.create(
-        new MergeSequence<>(getRowOrdering(query), Sequences.simple(sequences)),
-        getRowOrdering(query),
-        new GroupByBinaryFnV2(query)
+    final ParallelMergeCombiningSequence<ResultRow> mergeCombiningSequence = new ParallelMergeCombiningSequence<>(
+        ForkJoinPool.commonPool(),
+        sequences,
+        getRowOrdering(query), // TODO: this compares strings. i need dictionary-based ordering
+        new GroupByBinaryFnV2(query),
+        hasTimeout,
+        queryTimeout,
+        priority,
+        QueryContexts.getParallelMergeParallelism(query, processingConfig.getMergePoolDefaultMaxQueryParallelism()),
+        QueryContexts.getParallelMergeInitialYieldRows(query, processingConfig.getMergePoolTaskInitialYieldRows()),
+        QueryContexts.getParallelMergeSmallBatchRows(query, processingConfig.getMergePoolSmallBatchRows()),
+        processingConfig.getMergePoolTargetTaskRunTimeMillis(),
+        metrics -> {} // TODO: metrics
     );
+//    final CombiningSequence<ResultRow> mergeCombiningSequence = CombiningSequence.create(
+//        new MergeSequence<>(getRowOrdering(query), Sequences.simple(sequences)),
+//        getRowOrdering(query),
+//        new GroupByBinaryFnV2(query)
+//    );
 
     final MappedSequence<ResultRow, ResultRow> mappedSequence = new MappedSequence<>(
         mergeCombiningSequence,
