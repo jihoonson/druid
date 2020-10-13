@@ -150,31 +150,31 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
         }))
         .toList();
 
-    final ParallelMergeCombiningSequence<ResultRow> mergeCombiningSequence = new ParallelMergeCombiningSequence<>(
-        ForkJoinPool.commonPool(),
-        sequences,
-        getRowOrdering(query), // TODO: this compares strings. i need dictionary-based ordering
-        new GroupByBinaryFnV2(query),
-        hasTimeout,
-        queryTimeout,
-        priority,
-        QueryContexts.getParallelMergeParallelism(query, processingConfig.getMergePoolDefaultMaxQueryParallelism()),
-        QueryContexts.getParallelMergeInitialYieldRows(query, processingConfig.getMergePoolTaskInitialYieldRows()),
-        QueryContexts.getParallelMergeSmallBatchRows(query, processingConfig.getMergePoolSmallBatchRows()),
-        processingConfig.getMergePoolTargetTaskRunTimeMillis(),
-        metrics -> {} // TODO: metrics
-    );
-//    final CombiningSequence<ResultRow> mergeCombiningSequence = CombiningSequence.create(
-//        new MergeSequence<>(getRowOrdering(query), Sequences.simple(sequences)),
-//        getRowOrdering(query),
-//        new GroupByBinaryFnV2(query)
+//    final ParallelMergeCombiningSequence<ResultRow> mergeCombiningSequence = new ParallelMergeCombiningSequence<>(
+//        ForkJoinPool.commonPool(),
+//        sequences,
+//        getRowOrdering(query), // TODO: this compares strings. i need dictionary-based ordering
+//        new GroupByBinaryFnV2(query),
+//        hasTimeout,
+//        queryTimeout,
+//        priority,
+//        QueryContexts.getParallelMergeParallelism(query, processingConfig.getMergePoolDefaultMaxQueryParallelism()),
+//        QueryContexts.getParallelMergeInitialYieldRows(query, processingConfig.getMergePoolTaskInitialYieldRows()),
+//        QueryContexts.getParallelMergeSmallBatchRows(query, processingConfig.getMergePoolSmallBatchRows()),
+//        processingConfig.getMergePoolTargetTaskRunTimeMillis(),
+//        metrics -> {} // TODO: metrics
 //    );
+    final CombiningSequence<ResultRow> mergeCombiningSequence = CombiningSequence.create(
+        new MergeSequence<>(getRowOrdering(query), Sequences.simple(sequences)),
+        getRowOrdering(query),
+        new GroupByBinaryFnV2(query)
+    );
 
     final MappedSequence<ResultRow, ResultRow> mappedSequence = new MappedSequence<>(
         mergeCombiningSequence,
         row -> {
           final MergedDictionary[] mergedDictionaries = mergedDictionariesSupplier.get(); // TODO: per row??
-//          System.err.println("row: " + row + " decoded: " + decode(mergedDictionaries, row, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
+          System.err.println("row: " + row + " decoded: " + decode(mergedDictionaries, row, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
           for (int i = query.getResultRowDimensionStart(); i < query.getResultRowAggregatorStart(); i++) {
             final int dimIndex = i - query.getResultRowDimensionStart();
             final MergedDictionary mergedDictionary = mergedDictionaries[dimIndex];

@@ -21,6 +21,7 @@ package org.apache.druid.query.groupby.epinephelinae;
 
 import com.google.common.base.Supplier;
 import it.unimi.dsi.fastutil.HashCommon;
+import it.unimi.dsi.fastutil.ints.AbstractIntList;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntIterator;
 import it.unimi.dsi.fastutil.ints.IntList;
@@ -31,8 +32,6 @@ import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
-import org.apache.druid.query.aggregation.AggregatorFactory;
-import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.query.groupby.epinephelinae.collection.HashTableUtils;
 import org.apache.druid.query.groupby.epinephelinae.collection.MemoryOpenHashTable;
@@ -40,9 +39,7 @@ import org.apache.druid.query.groupby.epinephelinae.collection.MemoryOpenHashTab
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.AbstractList;
 import java.util.Collections;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.IntConsumer;
 
@@ -225,8 +222,12 @@ public class HashVectorGrouper implements VectorGrouper
   }
 
   @Override
-  public CloseableIterator<Grouper.Entry<Memory>> iterator()
+  public CloseableIterator<Grouper.Entry<Memory>> iterator(@Nullable MemoryComparator comparator)
   {
+    if (comparator != null) {
+      return sortedIterator(comparator);
+    }
+
     if (!initialized) {
       // it's possible for iterator() to be called before initialization when
       // a nested groupBy's subquery has an empty result set (see testEmptySubquery() in GroupByQueryRunnerTest)
@@ -271,44 +272,25 @@ public class HashVectorGrouper implements VectorGrouper
     };
   }
 
-  interface MemoryComparator
-  {
-    int compare(Memory lhsBuffer, Memory rhsBuffer, int lhsPosition, int rhsPosition);
-  }
-
   private CloseableIterator<Grouper.Entry<Memory>> sortedIterator(MemoryComparator comparator)
   {
     assert initialized;
 
-    final IntList wrappedOffsets = new IntArrayList(hashTable.size())
+    final IntList offsetList = new IntArrayList(hashTable.size());
+    hashTable.bucketIterator().forEachRemaining((IntConsumer) offsetList::add);
+
+    final IntList wrappedOffsets = new AbstractIntList()
     {
       @Override
       public int getInt(int index)
       {
-        return super.getInt(index);
+        return offsetList.getInt(index);
       }
 
       @Override
-      public int set(int index, int k)
+      public int set(int index, int element)
       {
-        return super.set(index, k);
-      }
-    };
-    hashTable.bucketIterator().forEachRemaining((IntConsumer) wrappedOffsets::add);
-
-
-    final List<Integer> wrappedOffsets = new AbstractList<Integer>()
-    {
-      @Override
-      public Integer get(int index)
-      {
-        return offsetList.get(index);
-      }
-
-      @Override
-      public Integer set(int index, Integer element)
-      {
-        final Integer oldValue = get(index);
+        final Integer oldValue = getInt(index);
         offsetList.set(index, element);
         return oldValue;
       }
@@ -316,7 +298,7 @@ public class HashVectorGrouper implements VectorGrouper
       @Override
       public int size()
       {
-        return hashTable.getSize();
+        return hashTable.size();
       }
     };
 
@@ -324,34 +306,56 @@ public class HashVectorGrouper implements VectorGrouper
     Collections.sort(
         wrappedOffsets,
         (lhs, rhs) -> {
-          final ByteBuffer tableBuffer = hashTable.getTableBuffer();
+          final int lhsPos = hashTable.bucketMemoryPosition(lhs);
+          final Memory lhsKey = hashTable.memory().region(
+              lhsPos + hashTable.bucketKeyOffset(),
+              hashTable.keySize()
+          );
+          final int rhsPos = hashTable.bucketMemoryPosition(rhs);
+          final Memory rhsKey = hashTable.memory().region(
+              rhsPos + hashTable.bucketKeyOffset(),
+              hashTable.keySize()
+          );
+
           return comparator.compare(
-              tableBuffer,
-              tableBuffer,
-              lhs + HASH_SIZE,
-              rhs + HASH_SIZE
+              lhsKey,
+              rhsKey
           );
         }
     );
 
     return new CloseableIterator<Entry<Memory>>()
     {
-      int curr = 0;
-      final int size = getSize();
+      final IntIterator baseIterator = wrappedOffsets.iterator();
 
       @Override
       public boolean hasNext()
       {
-        return curr < size;
+        return baseIterator.hasNext();
       }
 
       @Override
-      public Entry<KeyType> next()
+      public Entry<Memory> next()
       {
-        if (curr >= size) {
+        if (!hasNext()) {
           throw new NoSuchElementException();
         }
-        return bucketEntryForOffset(wrappedOffsets.get(curr++));
+
+        final int bucket = baseIterator.nextInt();
+        final int bucketPosition = hashTable.bucketMemoryPosition(bucket);
+
+        final Memory keyMemory = hashTable.memory().region(
+            bucketPosition + hashTable.bucketKeyOffset(),
+            hashTable.keySize()
+        );
+
+        final Object[] values = new Object[aggregators.size()];
+        final int aggregatorsOffset = bucketPosition + hashTable.bucketValueOffset();
+        for (int i = 0; i < aggregators.size(); i++) {
+          values[i] = aggregators.get(hashTable.memory().getByteBuffer(), aggregatorsOffset, i);
+        }
+
+        return new Grouper.Entry<>(keyMemory, values);
       }
 
       @Override

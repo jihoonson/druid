@@ -23,8 +23,13 @@ import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
-import org.apache.druid.query.groupby.ResultRow;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
+import org.apache.druid.query.groupby.epinephelinae.GrouperBufferComparatorUtils;
+import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
+import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.segment.vector.VectorValueSelector;
+
+import javax.annotation.Nullable;
 
 public class NullableFloatGroupByVectorColumnSelector implements GroupByVectorColumnSelector
 {
@@ -80,5 +85,19 @@ public class NullableFloatGroupByVectorColumnSelector implements GroupByVectorCo
     } else {
       resultRow.set(resultRowPosition, segmentId, keyMemory.getFloat(keyOffset + 1));
     }
+  }
+
+  @Override
+  public MemoryComparator bufferComparator(@Nullable StringComparator stringComparator)
+  {
+    final BufferComparator delegate = GrouperBufferComparatorUtils.makeNullHandlingBufferComparatorForNumericData(
+        0,
+        GrouperBufferComparatorUtils.makeBufferComparatorForFloat(
+            Byte.BYTES,
+            true,
+            stringComparator
+        )
+    );
+    return (lhs, rhs) -> delegate.compare(lhs.getByteBuffer(), rhs.getByteBuffer(), 0, 0);
   }
 }

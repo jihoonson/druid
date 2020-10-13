@@ -283,8 +283,12 @@ public class BufferArrayGrouper implements VectorGrouper, IntGrouper
   }
 
   @Override
-  public CloseableIterator<Entry<Memory>> iterator()
+  public CloseableIterator<Entry<Memory>> iterator(@Nullable MemoryComparator comparator)
   {
+    if (comparator != null) {
+      throw new UnsupportedOperationException("sorted iterator is not supported yet");
+    }
+
     final CloseableIterator<Entry<Integer>> iterator = iterator(false);
     final WritableMemory keyMemory = WritableMemory.allocate(Integer.BYTES);
     return new CloseableIterator<Entry<Memory>>()

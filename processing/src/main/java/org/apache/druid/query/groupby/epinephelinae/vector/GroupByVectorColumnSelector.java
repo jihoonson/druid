@@ -22,7 +22,10 @@ package org.apache.druid.query.groupby.epinephelinae.vector;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
-import org.apache.druid.query.groupby.ResultRow;
+import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
+import org.apache.druid.query.ordering.StringComparator;
+
+import javax.annotation.Nullable;
 
 /**
  * Column processor for groupBy dimensions.
@@ -65,4 +68,6 @@ public interface GroupByVectorColumnSelector
       int resultRowPosition,
       int segmentId
   );
+
+  MemoryComparator bufferComparator(@Nullable StringComparator stringComparator);
 }

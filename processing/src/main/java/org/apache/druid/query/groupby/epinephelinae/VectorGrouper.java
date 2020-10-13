@@ -21,7 +21,9 @@ package org.apache.druid.query.groupby.epinephelinae;
 
 import org.apache.datasketches.memory.Memory;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
 
+import javax.annotation.Nullable;
 import java.io.Closeable;
 
 /**
@@ -71,5 +73,10 @@ public interface VectorGrouper extends Closeable
    *
    * @return entry iterator
    */
-  CloseableIterator<Grouper.Entry<Memory>> iterator();
+  CloseableIterator<Grouper.Entry<Memory>> iterator(@Nullable MemoryComparator comparator);
+
+  interface MemoryComparator
+  {
+    int compare(Memory lhsBuffer, Memory rhsBuffer);
+  }
 }

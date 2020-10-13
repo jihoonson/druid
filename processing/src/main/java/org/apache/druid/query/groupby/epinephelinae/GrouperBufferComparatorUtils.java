@@ -20,10 +20,12 @@
 package org.apache.druid.query.groupby.epinephelinae;
 
 import com.google.common.primitives.Longs;
+import org.apache.datasketches.memory.Memory;
 import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.dimension.DimensionSpec;
+import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.OrderByColumnSpec;
 import org.apache.druid.query.ordering.StringComparator;
@@ -106,6 +108,70 @@ public class GrouperBufferComparatorUtils
                 rhsBuffer,
                 lhsPosition,
                 rhsPosition
+            );
+
+            if (cmp != 0) {
+              return cmp;
+            }
+          }
+
+          return 0;
+        }
+      };
+    }
+  }
+
+  public static MemoryComparator memoryComparator(
+      boolean includeTimestamp,
+      boolean sortByDimsFirst,
+      int dimCount,
+      MemoryComparator[] dimComparators
+  )
+  {
+    if (includeTimestamp) {
+      if (sortByDimsFirst) {
+        return (lhsBuffer, rhsBuffer) -> {
+          final int cmp = compareDimsInBuffersForNullFudgeTimestamp(
+              dimComparators,
+              lhsBuffer,
+              rhsBuffer
+          );
+          if (cmp != 0) {
+            return cmp;
+          }
+
+          return Longs.compare(lhsBuffer.getLong(0), rhsBuffer.getLong(0));
+        };
+      } else {
+        return new MemoryComparator()
+        {
+          @Override
+          public int compare(Memory lhsBuffer, Memory rhsBuffer)
+          {
+            final int timeCompare = Longs.compare(lhsBuffer.getLong(0), rhsBuffer.getLong(0));
+
+            if (timeCompare != 0) {
+              return timeCompare;
+            }
+
+            return compareDimsInBuffersForNullFudgeTimestamp(
+                dimComparators,
+                lhsBuffer,
+                rhsBuffer
+            );
+          }
+        };
+      }
+    } else {
+      return new MemoryComparator()
+      {
+        @Override
+        public int compare(Memory lhsBuffer, Memory rhsBuffer)
+        {
+          for (int i = 0; i < dimCount; i++) {
+            final int cmp = dimComparators[i].compare(
+                lhsBuffer,
+                rhsBuffer
             );
 
             if (cmp != 0) {
@@ -288,6 +354,25 @@ public class GrouperBufferComparatorUtils
             rhsPosition + Long.BYTES
         );
       }
+      if (cmp != 0) {
+        return cmp;
+      }
+    }
+
+    return 0;
+  }
+
+  private static int compareDimsInBuffersForNullFudgeTimestamp(
+      MemoryComparator[] serdeHelperComparators,
+      Memory lhsBuffer,
+      Memory rhsBuffer
+  )
+  {
+    for (MemoryComparator comparator : serdeHelperComparators) {
+      final int cmp = comparator.compare(
+          lhsBuffer,
+          rhsBuffer
+      );
       if (cmp != 0) {
         return cmp;
       }

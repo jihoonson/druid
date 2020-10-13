@@ -22,10 +22,14 @@ package org.apache.druid.query.groupby.epinephelinae.vector;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
-import org.apache.druid.query.groupby.ResultRow;
+import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
 import org.apache.druid.query.groupby.epinephelinae.column.StringGroupByColumnSelectorStrategy;
+import org.apache.druid.query.ordering.StringComparator;
+import org.apache.druid.query.ordering.StringComparators;
 import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.vector.SingleValueDimensionVectorSelector;
+
+import javax.annotation.Nullable;
 
 public class SingleValueStringGroupByVectorColumnSelector implements GroupByVectorColumnSelector
 {
@@ -84,6 +88,18 @@ public class SingleValueStringGroupByVectorColumnSelector implements GroupByVect
       resultRow.set(resultRowPosition, segmentId, id);
     } else {
       resultRow.set(resultRowPosition, segmentId, selector.lookupName(id));
+    }
+  }
+
+  @Override
+  public MemoryComparator bufferComparator(@Nullable StringComparator stringComparator)
+  {
+    final boolean canCompareInts = StringGroupByColumnSelectorStrategy.canUseDictionary(columnCapabilities);
+    final StringComparator comparator = stringComparator == null ? StringComparators.LEXICOGRAPHIC : stringComparator;
+    if (canCompareInts && StringComparators.LEXICOGRAPHIC.equals(comparator)) {
+      return (lhs, rhs) -> Integer.compare(lhs.getInt(0), rhs.getInt(0));
+    } else {
+      throw new UnsupportedOperationException("not implemented");
     }
   }
 }

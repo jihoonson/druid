@@ -40,8 +40,14 @@ import org.apache.druid.query.groupby.epinephelinae.AggregateResult;
 import org.apache.druid.query.groupby.epinephelinae.BufferArrayGrouper;
 import org.apache.druid.query.groupby.epinephelinae.CloseableGrouperIterator;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2;
+import org.apache.druid.query.groupby.epinephelinae.GrouperBufferComparatorUtils;
 import org.apache.druid.query.groupby.epinephelinae.HashVectorGrouper;
 import org.apache.druid.query.groupby.epinephelinae.VectorGrouper;
+import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
+import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
+import org.apache.druid.query.groupby.orderby.LimitSpec;
+import org.apache.druid.query.ordering.StringComparator;
+import org.apache.druid.query.ordering.StringComparators;
 import org.apache.druid.query.vector.VectorCursorGranularizer;
 import org.apache.druid.segment.DimensionHandlerUtils;
 import org.apache.druid.segment.IdentifiableStorageAdapter;
@@ -432,8 +438,15 @@ public class VectorGroupByEngine
       final int resultRowDimensionStart = query.getResultRowDimensionStart();
       final int resultRowAggregatorStart = query.getResultRowAggregatorStart();
 
+      final MemoryComparator bufferComparator = GrouperBufferComparatorUtils.memoryComparator(
+          query.getResultRowHasTimestamp(),
+          query.getContextSortByDimsFirst(),
+          query.getDimensions().size(),
+          getDimensionComparators(query.getLimitSpec())
+      );
+
       return new CloseableGrouperIterator<>(
-          vectorGrouper.iterator(), // TODO: must be sorted iterator
+          vectorGrouper.iterator(bufferComparator), // TODO: must be sorted iterator
           entry -> {
             final PerSegmentEncodedResultRow resultRow =
                 PerSegmentEncodedResultRow.create(query.getResultRowSizeWithoutPostAggregators());
@@ -478,6 +491,27 @@ public class VectorGroupByEngine
           },
           () -> {} // Grouper will be closed when VectorGroupByEngineIterator is closed.
       );
+    }
+
+    private MemoryComparator[] getDimensionComparators(LimitSpec limitSpec)
+    {
+      MemoryComparator[] dimComparators = new MemoryComparator[selectors.size()];
+
+      for (int i = 0; i < selectors.size(); i++) {
+        final String dimName = query.getDimensions().get(i).getOutputName();
+        final StringComparator stringComparator;
+        if (limitSpec instanceof DefaultLimitSpec) {
+          stringComparator = DefaultLimitSpec.getComparatorForDimName(
+              (DefaultLimitSpec) limitSpec,
+              dimName
+          );
+        } else {
+          stringComparator = StringComparators.LEXICOGRAPHIC;
+        }
+        dimComparators[i] = selectors.get(i).bufferComparator(stringComparator);
+      }
+
+      return dimComparators;
     }
   }
 }
