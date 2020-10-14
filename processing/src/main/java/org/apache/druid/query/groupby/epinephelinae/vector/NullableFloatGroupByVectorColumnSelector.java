@@ -88,16 +88,15 @@ public class NullableFloatGroupByVectorColumnSelector implements GroupByVectorCo
   }
 
   @Override
-  public MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
+  public BufferComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
   {
-    final BufferComparator delegate = GrouperBufferComparatorUtils.makeNullHandlingBufferComparatorForNumericData(
-        0,
+    return GrouperBufferComparatorUtils.makeNullHandlingBufferComparatorForNumericData(
+        keyOffset,
         GrouperBufferComparatorUtils.makeBufferComparatorForFloat(
-            Byte.BYTES,
+            Byte.BYTES + keyOffset,
             true,
             stringComparator
         )
     );
-    return (lhs, rhs) -> delegate.compare(lhs.getByteBuffer(), rhs.getByteBuffer(), keyOffset, keyOffset);
   }
 }

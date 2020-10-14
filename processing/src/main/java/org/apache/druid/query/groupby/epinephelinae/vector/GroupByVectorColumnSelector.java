@@ -22,6 +22,7 @@ package org.apache.druid.query.groupby.epinephelinae.vector;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
 import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
 import org.apache.druid.query.ordering.StringComparator;
 
@@ -69,5 +70,5 @@ public interface GroupByVectorColumnSelector
       int segmentId
   );
 
-  MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator);
+  BufferComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator);
 }

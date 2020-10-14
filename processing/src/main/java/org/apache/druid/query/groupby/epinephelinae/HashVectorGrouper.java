@@ -32,6 +32,7 @@ import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.query.groupby.epinephelinae.collection.HashTableUtils;
 import org.apache.druid.query.groupby.epinephelinae.collection.MemoryOpenHashTable;
@@ -222,7 +223,7 @@ public class HashVectorGrouper implements VectorGrouper
   }
 
   @Override
-  public CloseableIterator<Grouper.Entry<Memory>> iterator(@Nullable MemoryComparator comparator)
+  public CloseableIterator<Grouper.Entry<Memory>> iterator(@Nullable BufferComparator comparator)
   {
     if (comparator != null) {
       return sortedIterator(comparator);
@@ -272,7 +273,7 @@ public class HashVectorGrouper implements VectorGrouper
     };
   }
 
-  private CloseableIterator<Grouper.Entry<Memory>> sortedIterator(MemoryComparator comparator)
+  private CloseableIterator<Grouper.Entry<Memory>> sortedIterator(BufferComparator comparator)
   {
     assert initialized;
 
@@ -318,8 +319,14 @@ public class HashVectorGrouper implements VectorGrouper
           );
 
           return comparator.compare(
-              lhsKey,
-              rhsKey
+//              hashTable.memory().getByteBuffer(),
+//              hashTable.memory().getByteBuffer(),
+//              lhsPos + hashTable.bucketKeyOffset(),
+//              rhsPos + hashTable.bucketKeyOffset()
+              lhsKey.getByteBuffer(),
+              rhsKey.getByteBuffer(),
+              0,
+              0
           );
         }
     );

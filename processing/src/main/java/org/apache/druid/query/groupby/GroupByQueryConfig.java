@@ -257,6 +257,11 @@ public class GroupByQueryConfig
     return newConfig;
   }
 
+  public void setHashAggregation(boolean hashAggregation)
+  {
+    this.forceHashAggregation = hashAggregation;
+  }
+
   @Override
   public String toString()
   {

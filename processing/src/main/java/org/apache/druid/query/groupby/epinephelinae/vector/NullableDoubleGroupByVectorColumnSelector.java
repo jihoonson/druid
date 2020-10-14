@@ -88,16 +88,15 @@ public class NullableDoubleGroupByVectorColumnSelector implements GroupByVectorC
   }
 
   @Override
-  public MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
+  public BufferComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
   {
-    final BufferComparator delegate = GrouperBufferComparatorUtils.makeNullHandlingBufferComparatorForNumericData(
-        0,
+    return GrouperBufferComparatorUtils.makeNullHandlingBufferComparatorForNumericData(
+        keyOffset,
         GrouperBufferComparatorUtils.makeBufferComparatorForDouble(
-            Byte.BYTES,
-            true,
+            Byte.BYTES + keyOffset,
+            true, // TODO: why always true?
             stringComparator
         )
     );
-    return (lhs, rhs) -> delegate.compare(lhs.getByteBuffer(), rhs.getByteBuffer(), keyOffset, keyOffset);
   }
 }

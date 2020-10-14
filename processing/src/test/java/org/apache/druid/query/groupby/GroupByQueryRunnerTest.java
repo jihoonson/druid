@@ -461,6 +461,7 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
   )
   {
     this.config = config;
+    this.config.setHashAggregation(true);
     this.factory = factory;
     this.runner = factory.mergeRunners(
         Execs.directExecutor(),
@@ -2989,7 +2990,8 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
         .setInterval("2011-04-02/2011-04-04")
         .setDimensions(new DefaultDimensionSpec("quality", "alias"))
         .setAggregatorSpecs(QueryRunnerTestHelper.ROWS_COUNT, new LongSumAggregatorFactory("idx", "index"))
-        .setGranularity(new PeriodGranularity(new Period("P1M"), null, null));
+        .setGranularity(new PeriodGranularity(new Period("P1M"), null, null))
+        .setContext(ImmutableMap.of(GroupByQueryConfig.CTX_KEY_FORCE_HASH_AGGREGATION, true));
 
     final GroupByQuery fullQuery = builder.build();
     final GroupByQuery allGranQuery = builder.copy().setGranularity(Granularities.ALL).build();
@@ -3073,7 +3075,8 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
         .setDimensions(new DefaultDimensionSpec("quality", "alias"))
         .setAggregatorSpecs(QueryRunnerTestHelper.ROWS_COUNT, new LongSumAggregatorFactory("idx", "index"))
         .setGranularity(new PeriodGranularity(new Period("P1M"), null, null))
-        .setLimitSpec(DefaultLimitSpec.builder().limit(limit).offset(offset).build());
+        .setLimitSpec(DefaultLimitSpec.builder().limit(limit).offset(offset).build())
+        .setContext(ImmutableMap.of(GroupByQueryConfig.CTX_KEY_FORCE_HASH_AGGREGATION, true));
 
     final GroupByQuery fullQuery = builder.build();
 
