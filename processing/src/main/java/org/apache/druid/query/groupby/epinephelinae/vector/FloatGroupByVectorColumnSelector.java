@@ -80,13 +80,13 @@ public class FloatGroupByVectorColumnSelector implements GroupByVectorColumnSele
   }
 
   @Override
-  public MemoryComparator bufferComparator(@Nullable StringComparator stringComparator)
+  public MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
   {
     final BufferComparator delegate = GrouperBufferComparatorUtils.makeBufferComparatorForFloat(
         0,
         true,
         stringComparator
     );
-    return (lhs, rhs) -> delegate.compare(lhs.getByteBuffer(), rhs.getByteBuffer(), 0, 0);
+    return (lhs, rhs) -> delegate.compare(lhs.getByteBuffer(), rhs.getByteBuffer(), keyOffset, keyOffset);
   }
 }

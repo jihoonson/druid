@@ -145,7 +145,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
           for (int i = query.getResultRowAggregatorStart(); i < row.length(); i++) {
             resultRow.set(i, encodedResultRow.get(i));
           }
-//          System.err.println("new row: " + resultRow + " decoded: " + decode(mergedDictionaries, resultRow, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
+//          System.err.println(query.getIntervals() + " new row: " + resultRow + " decoded: " + decode(mergedDictionaries, resultRow, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
           return resultRow;
         }))
         .toList();
@@ -174,7 +174,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
         mergeCombiningSequence,
         row -> {
           final MergedDictionary[] mergedDictionaries = mergedDictionariesSupplier.get(); // TODO: per row??
-          System.err.println("row: " + row + " decoded: " + decode(mergedDictionaries, row, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
+//          System.err.println(query.getIntervals() + " after merge row: " + row + " decoded: " + decode(mergedDictionaries, row, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
           for (int i = query.getResultRowDimensionStart(); i < query.getResultRowAggregatorStart(); i++) {
             final int dimIndex = i - query.getResultRowDimensionStart();
             final MergedDictionary mergedDictionary = mergedDictionaries[dimIndex];

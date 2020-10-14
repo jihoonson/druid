@@ -69,5 +69,5 @@ public interface GroupByVectorColumnSelector
       int segmentId
   );
 
-  MemoryComparator bufferComparator(@Nullable StringComparator stringComparator);
+  MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator);
 }

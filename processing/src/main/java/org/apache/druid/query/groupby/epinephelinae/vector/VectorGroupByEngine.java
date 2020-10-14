@@ -487,6 +487,8 @@ public class VectorGroupByEngine
               resultRow.set(resultRowAggregatorStart + i, segmentId, entry.getValues()[i]);
             }
 
+//            System.err.println("query interval: " + query.getIntervals() + " segmentId: " + segmentId + ", row: " + resultRow);
+
             return resultRow;
           },
           () -> {} // Grouper will be closed when VectorGroupByEngineIterator is closed.
@@ -497,6 +499,7 @@ public class VectorGroupByEngine
     {
       MemoryComparator[] dimComparators = new MemoryComparator[selectors.size()];
 
+      int keyOffset = 0;
       for (int i = 0; i < selectors.size(); i++) {
         final String dimName = query.getDimensions().get(i).getOutputName();
         final StringComparator stringComparator;
@@ -508,7 +511,8 @@ public class VectorGroupByEngine
         } else {
           stringComparator = StringComparators.LEXICOGRAPHIC;
         }
-        dimComparators[i] = selectors.get(i).bufferComparator(stringComparator);
+        dimComparators[i] = selectors.get(i).bufferComparator(keyOffset, stringComparator);
+        keyOffset += selectors.get(i).getGroupingKeySize();
       }
 
       return dimComparators;

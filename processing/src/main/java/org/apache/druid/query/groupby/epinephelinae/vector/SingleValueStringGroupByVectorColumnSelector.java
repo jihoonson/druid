@@ -92,12 +92,12 @@ public class SingleValueStringGroupByVectorColumnSelector implements GroupByVect
   }
 
   @Override
-  public MemoryComparator bufferComparator(@Nullable StringComparator stringComparator)
+  public MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
   {
     final boolean canCompareInts = StringGroupByColumnSelectorStrategy.canUseDictionary(columnCapabilities);
     final StringComparator comparator = stringComparator == null ? StringComparators.LEXICOGRAPHIC : stringComparator;
     if (canCompareInts && StringComparators.LEXICOGRAPHIC.equals(comparator)) {
-      return (lhs, rhs) -> Integer.compare(lhs.getInt(0), rhs.getInt(0));
+      return (lhs, rhs) -> Integer.compare(lhs.getInt(keyOffset), rhs.getInt(keyOffset));
     } else {
       throw new UnsupportedOperationException("not implemented");
     }

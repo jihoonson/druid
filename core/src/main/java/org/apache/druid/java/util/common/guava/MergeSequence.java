@@ -24,7 +24,9 @@ import com.google.common.collect.Ordering;
 import org.apache.druid.java.util.common.io.Closer;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.PriorityQueue;
+import java.util.stream.Collectors;
 
 /**
  * Used to perform an n-way merge on n ordered sequences
@@ -33,6 +35,18 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
 {
   private final Ordering<? super T> ordering;
   private final Sequence<? extends Sequence<T>> baseSequences;
+  private final boolean debug;
+
+  public MergeSequence(
+      Ordering<? super T> ordering,
+      Sequence<? extends Sequence<? extends T>> baseSequences,
+      boolean debug
+  )
+  {
+    this.ordering = ordering;
+    this.baseSequences = (Sequence<? extends Sequence<T>>) baseSequences;
+    this.debug = debug;
+  }
 
   public MergeSequence(
       Ordering<? super T> ordering,
@@ -41,6 +55,7 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
   {
     this.ordering = ordering;
     this.baseSequences = (Sequence<? extends Sequence<T>>) baseSequences;
+    this.debug = false;
   }
 
   /*
@@ -78,6 +93,9 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
             if (!yielder.isDone()) {
               try {
                 queue.add(yielder);
+                if (debug) {
+                  System.err.println("added " + yielder.get() + " queue: " + strings(queue));
+                }
               }
               catch (Throwable t1) {
                 try {
@@ -116,6 +134,11 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
     }
   }
 
+  private List<String> strings(PriorityQueue<Yielder<T>> queue)
+  {
+    return queue.stream().map(v -> v.get().toString()).collect(Collectors.toList());
+  }
+
   private <OutType> Yielder<OutType> makeYielder(
       final PriorityQueue<Yielder<T>> pQueue,
       OutType initVal,
@@ -125,6 +148,9 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
     OutType retVal = initVal;
     while (!accumulator.yielded() && !pQueue.isEmpty()) {
       Yielder<T> yielder = pQueue.remove();
+      if (debug) {
+        System.err.println("removed: " + yielder.get() + " queue: " + strings(pQueue));
+      }
 
       try {
         retVal = accumulator.accumulate(retVal, yielder.get());
@@ -143,6 +169,9 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
 
       if (yielder.isDone()) {
         try {
+          if (debug) {
+            System.err.println("done");
+          }
           yielder.close();
         }
         catch (IOException e) {
@@ -150,6 +179,9 @@ public class MergeSequence<T> extends YieldingSequenceBase<T>
         }
       } else {
         pQueue.add(yielder);
+        if (debug) {
+          System.err.println("added " + yielder.get() + " queue: " + strings(pQueue));
+        }
       }
     }
 
