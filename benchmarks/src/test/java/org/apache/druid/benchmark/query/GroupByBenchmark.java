@@ -763,7 +763,7 @@ public class GroupByBenchmark
 
     Sequence<ResultRow> queryResult = theRunner.run(QueryPlus.wrap(query), ResponseContext.createEmpty());
     List<ResultRow> results = queryResult.toList();
-    System.err.println(results.size());
+//    System.err.println(results.size());
     blackhole.consume(results);
   }
 

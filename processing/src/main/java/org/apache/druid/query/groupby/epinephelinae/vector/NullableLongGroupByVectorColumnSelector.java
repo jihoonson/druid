@@ -25,6 +25,7 @@ import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
 import org.apache.druid.query.groupby.epinephelinae.GrouperBufferComparatorUtils;
+import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
 import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.segment.vector.VectorValueSelector;
 
@@ -87,15 +88,16 @@ public class NullableLongGroupByVectorColumnSelector implements GroupByVectorCol
   }
 
   @Override
-  public BufferComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
+  public MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
   {
-    return GrouperBufferComparatorUtils.makeNullHandlingBufferComparatorForNumericData(
-        keyOffset,
+    final BufferComparator delegate = GrouperBufferComparatorUtils.makeNullHandlingBufferComparatorForNumericData(
+        0,
         GrouperBufferComparatorUtils.makeBufferComparatorForLong(
-            Byte.BYTES + keyOffset,
+            Byte.BYTES,
             true,
             stringComparator
         )
     );
+    return (lhs, rhs) -> delegate.compare(lhs.getByteBuffer(), rhs.getByteBuffer(), keyOffset, keyOffset);
   }
 }

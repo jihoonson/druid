@@ -73,7 +73,7 @@ public interface VectorGrouper extends Closeable
    *
    * @return entry iterator
    */
-  CloseableIterator<Grouper.Entry<Memory>> iterator(@Nullable BufferComparator comparator);
+  CloseableIterator<Grouper.Entry<Memory>> iterator(@Nullable MemoryComparator comparator);
 
   interface MemoryComparator
   {

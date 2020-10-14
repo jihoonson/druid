@@ -153,7 +153,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
 //    final ParallelMergeCombiningSequence<ResultRow> mergeCombiningSequence = new ParallelMergeCombiningSequence<>(
 //        ForkJoinPool.commonPool(),
 //        sequences,
-//        getRowOrdering(query),
+//        getRowOrdering(query), // TODO: this compares strings. i need dictionary-based ordering
 //        new GroupByBinaryFnV2(query),
 //        hasTimeout,
 //        queryTimeout,

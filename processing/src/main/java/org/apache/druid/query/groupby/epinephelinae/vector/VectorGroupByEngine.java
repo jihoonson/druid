@@ -40,7 +40,6 @@ import org.apache.druid.query.groupby.epinephelinae.AggregateResult;
 import org.apache.druid.query.groupby.epinephelinae.BufferArrayGrouper;
 import org.apache.druid.query.groupby.epinephelinae.CloseableGrouperIterator;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2;
-import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
 import org.apache.druid.query.groupby.epinephelinae.GrouperBufferComparatorUtils;
 import org.apache.druid.query.groupby.epinephelinae.HashVectorGrouper;
 import org.apache.druid.query.groupby.epinephelinae.VectorGrouper;
@@ -439,7 +438,7 @@ public class VectorGroupByEngine
       final int resultRowDimensionStart = query.getResultRowDimensionStart();
       final int resultRowAggregatorStart = query.getResultRowAggregatorStart();
 
-      final BufferComparator bufferComparator = GrouperBufferComparatorUtils.bufferComparator(
+      final MemoryComparator bufferComparator = GrouperBufferComparatorUtils.memoryComparator(
           query.getResultRowHasTimestamp(),
           query.getContextSortByDimsFirst(),
           query.getDimensions().size(),
@@ -488,7 +487,7 @@ public class VectorGroupByEngine
               resultRow.set(resultRowAggregatorStart + i, segmentId, entry.getValues()[i]);
             }
 
-            System.err.println("query interval: " + query.getIntervals() + " segmentId: " + segmentId + ", row: " + resultRow);
+//            System.err.println("query interval: " + query.getIntervals() + " segmentId: " + segmentId + ", row: " + resultRow);
 
             return resultRow;
           },
@@ -496,9 +495,9 @@ public class VectorGroupByEngine
       );
     }
 
-    private BufferComparator[] getDimensionComparators(LimitSpec limitSpec)
+    private MemoryComparator[] getDimensionComparators(LimitSpec limitSpec)
     {
-      BufferComparator[] dimComparators = new BufferComparator[selectors.size()];
+      MemoryComparator[] dimComparators = new MemoryComparator[selectors.size()];
 
       int keyOffset = 0;
       for (int i = 0; i < selectors.size(); i++) {
