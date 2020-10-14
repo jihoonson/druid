@@ -90,14 +90,6 @@ public class NullableLongGroupByVectorColumnSelector implements GroupByVectorCol
   @Override
   public MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
   {
-    final BufferComparator delegate = GrouperBufferComparatorUtils.makeNullHandlingBufferComparatorForNumericData(
-        0,
-        GrouperBufferComparatorUtils.makeBufferComparatorForLong(
-            Byte.BYTES,
-            true,
-            stringComparator
-        )
-    );
-    return (lhs, rhs) -> delegate.compare(lhs.getByteBuffer(), rhs.getByteBuffer(), keyOffset, keyOffset);
+    throw new UnsupportedOperationException();
   }
 }

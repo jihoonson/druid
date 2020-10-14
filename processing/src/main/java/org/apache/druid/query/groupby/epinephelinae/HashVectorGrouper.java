@@ -306,19 +306,21 @@ public class HashVectorGrouper implements VectorGrouper
         offsetList,
         (lhs, rhs) -> {
           final int lhsPos = hashTable.bucketMemoryPosition(lhs);
-          final Memory lhsKey = hashTable.memory().region(
-              lhsPos + hashTable.bucketKeyOffset(),
-              hashTable.keySize()
-          );
+//          final Memory lhsKey = hashTable.memory().region(
+//              lhsPos + hashTable.bucketKeyOffset(),
+//              hashTable.keySize()
+//          );
           final int rhsPos = hashTable.bucketMemoryPosition(rhs);
-          final Memory rhsKey = hashTable.memory().region(
-              rhsPos + hashTable.bucketKeyOffset(),
-              hashTable.keySize()
-          );
+//          final Memory rhsKey = hashTable.memory().region(
+//              rhsPos + hashTable.bucketKeyOffset(),
+//              hashTable.keySize()
+//          );
 
           return comparator.compare(
-              lhsKey,
-              rhsKey
+              hashTable.memory(),
+              hashTable.memory(),
+              lhsPos + hashTable.bucketKeyOffset(),
+              rhsPos + hashTable.bucketKeyOffset()
           );
         }
     );

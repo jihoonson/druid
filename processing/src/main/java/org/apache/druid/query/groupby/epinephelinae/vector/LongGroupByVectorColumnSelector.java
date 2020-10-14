@@ -22,10 +22,6 @@ package org.apache.druid.query.groupby.epinephelinae.vector;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
-import org.apache.druid.query.groupby.ResultRow;
-import org.apache.druid.query.groupby.epinephelinae.Grouper;
-import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
-import org.apache.druid.query.groupby.epinephelinae.GrouperBufferComparatorUtils;
 import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
 import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.segment.vector.VectorValueSelector;
@@ -82,11 +78,6 @@ public class LongGroupByVectorColumnSelector implements GroupByVectorColumnSelec
   @Override
   public MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
   {
-    final BufferComparator delegate = GrouperBufferComparatorUtils.makeBufferComparatorForLong(
-        0,
-        true,
-        stringComparator
-    );
-    return (lhs, rhs) -> delegate.compare(lhs.getByteBuffer(), rhs.getByteBuffer(), keyOffset, keyOffset);
+    throw new UnsupportedOperationException();
   }
 }

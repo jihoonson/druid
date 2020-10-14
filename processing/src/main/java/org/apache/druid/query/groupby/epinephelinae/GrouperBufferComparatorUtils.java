@@ -130,11 +130,13 @@ public class GrouperBufferComparatorUtils
   {
     if (includeTimestamp) {
       if (sortByDimsFirst) {
-        return (lhsBuffer, rhsBuffer) -> {
+        return (lhsBuffer, rhsBuffer, lhsOffset, rhsOffset) -> {
           final int cmp = compareDimsInBuffersForNullFudgeTimestamp(
               dimComparators,
               lhsBuffer,
-              rhsBuffer
+              rhsBuffer,
+              lhsOffset,
+              rhsOffset
           );
           if (cmp != 0) {
             return cmp;
@@ -143,44 +145,38 @@ public class GrouperBufferComparatorUtils
           return Longs.compare(lhsBuffer.getLong(0), rhsBuffer.getLong(0));
         };
       } else {
-        return new MemoryComparator()
-        {
-          @Override
-          public int compare(Memory lhsBuffer, Memory rhsBuffer)
-          {
-            final int timeCompare = Longs.compare(lhsBuffer.getLong(0), rhsBuffer.getLong(0));
+        return (lhsBuffer, rhsBuffer, lhsOffset, rhsOffset) -> {
+          final int timeCompare = Longs.compare(lhsBuffer.getLong(0), rhsBuffer.getLong(0));
 
-            if (timeCompare != 0) {
-              return timeCompare;
-            }
-
-            return compareDimsInBuffersForNullFudgeTimestamp(
-                dimComparators,
-                lhsBuffer,
-                rhsBuffer
-            );
+          if (timeCompare != 0) {
+            return timeCompare;
           }
+
+          return compareDimsInBuffersForNullFudgeTimestamp(
+              dimComparators,
+              lhsBuffer,
+              rhsBuffer,
+              lhsOffset,
+              rhsOffset
+          );
         };
       }
     } else {
-      return new MemoryComparator()
-      {
-        @Override
-        public int compare(Memory lhsBuffer, Memory rhsBuffer)
-        {
-          for (int i = 0; i < dimCount; i++) {
-            final int cmp = dimComparators[i].compare(
-                lhsBuffer,
-                rhsBuffer
-            );
+      return (lhsBuffer, rhsBuffer, lhsOffset, rhsOffset) -> {
+        for (int i = 0; i < dimCount; i++) {
+          final int cmp = dimComparators[i].compare(
+              lhsBuffer,
+              rhsBuffer,
+              lhsOffset,
+              rhsOffset
+          );
 
-            if (cmp != 0) {
-              return cmp;
-            }
+          if (cmp != 0) {
+            return cmp;
           }
-
-          return 0;
         }
+
+        return 0;
       };
     }
   }
@@ -365,13 +361,17 @@ public class GrouperBufferComparatorUtils
   private static int compareDimsInBuffersForNullFudgeTimestamp(
       MemoryComparator[] serdeHelperComparators,
       Memory lhsBuffer,
-      Memory rhsBuffer
+      Memory rhsBuffer,
+      long lhsOffset,
+      long rhsOffset
   )
   {
     for (MemoryComparator comparator : serdeHelperComparators) {
       final int cmp = comparator.compare(
           lhsBuffer,
-          rhsBuffer
+          rhsBuffer,
+          lhsOffset,
+          rhsOffset
       );
       if (cmp != 0) {
         return cmp;

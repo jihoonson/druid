@@ -77,6 +77,6 @@ public interface VectorGrouper extends Closeable
 
   interface MemoryComparator
   {
-    int compare(Memory lhsBuffer, Memory rhsBuffer);
+    int compare(Memory lhsBuffer, Memory rhsBuffer, long lhsOffset, long rhsOffset);
   }
 }

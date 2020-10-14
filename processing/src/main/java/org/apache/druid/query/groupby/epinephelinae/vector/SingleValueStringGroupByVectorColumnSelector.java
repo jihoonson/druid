@@ -97,7 +97,7 @@ public class SingleValueStringGroupByVectorColumnSelector implements GroupByVect
     final boolean canCompareInts = StringGroupByColumnSelectorStrategy.canUseDictionary(columnCapabilities);
     final StringComparator comparator = stringComparator == null ? StringComparators.LEXICOGRAPHIC : stringComparator;
     if (canCompareInts && StringComparators.LEXICOGRAPHIC.equals(comparator)) {
-      return (lhs, rhs) -> Integer.compare(lhs.getInt(keyOffset), rhs.getInt(keyOffset));
+      return (lhs, rhs, lhsOffset, rhsOffset) -> Integer.compare(lhs.getInt(lhsOffset + keyOffset), rhs.getInt(rhsOffset + keyOffset));
     } else {
       throw new UnsupportedOperationException("not implemented");
     }
