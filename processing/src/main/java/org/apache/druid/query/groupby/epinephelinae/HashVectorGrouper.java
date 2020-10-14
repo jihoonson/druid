@@ -21,7 +21,6 @@ package org.apache.druid.query.groupby.epinephelinae;
 
 import com.google.common.base.Supplier;
 import it.unimi.dsi.fastutil.HashCommon;
-import it.unimi.dsi.fastutil.ints.AbstractIntList;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntIterator;
 import it.unimi.dsi.fastutil.ints.IntList;
@@ -279,32 +278,32 @@ public class HashVectorGrouper implements VectorGrouper
     final IntList offsetList = new IntArrayList(hashTable.size());
     hashTable.bucketIterator().forEachRemaining((IntConsumer) offsetList::add);
 
-    final IntList wrappedOffsets = new AbstractIntList()
-    {
-      @Override
-      public int getInt(int index)
-      {
-        return offsetList.getInt(index);
-      }
-
-      @Override
-      public int set(int index, int element)
-      {
-        final Integer oldValue = getInt(index);
-        offsetList.set(index, element);
-        return oldValue;
-      }
-
-      @Override
-      public int size()
-      {
-        return hashTable.size();
-      }
-    };
+//    final IntList wrappedOffsets = new AbstractIntList()
+//    {
+//      @Override
+//      public int getInt(int index)
+//      {
+//        return offsetList.getInt(index);
+//      }
+//
+//      @Override
+//      public int set(int index, int element)
+//      {
+//        final Integer oldValue = getInt(index);
+//        offsetList.set(index, element);
+//        return oldValue;
+//      }
+//
+//      @Override
+//      public int size()
+//      {
+//        return hashTable.size();
+//      }
+//    };
 
     // Sort offsets in-place.
     Collections.sort(
-        wrappedOffsets,
+        offsetList,
         (lhs, rhs) -> {
           final int lhsPos = hashTable.bucketMemoryPosition(lhs);
           final Memory lhsKey = hashTable.memory().region(
@@ -326,7 +325,7 @@ public class HashVectorGrouper implements VectorGrouper
 
     return new CloseableIterator<Entry<Memory>>()
     {
-      final IntIterator baseIterator = wrappedOffsets.iterator();
+      final IntIterator baseIterator = offsetList.iterator();
 
       @Override
       public boolean hasNext()

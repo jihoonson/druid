@@ -439,7 +439,7 @@ public class VectorGroupByEngine
       final int resultRowAggregatorStart = query.getResultRowAggregatorStart();
 
       final MemoryComparator bufferComparator = GrouperBufferComparatorUtils.memoryComparator(
-          query.getResultRowHasTimestamp(),
+          false,
           query.getContextSortByDimsFirst(),
           query.getDimensions().size(),
           getDimensionComparators(query.getLimitSpec())

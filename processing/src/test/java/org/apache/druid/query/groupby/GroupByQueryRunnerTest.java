@@ -461,6 +461,7 @@ public class GroupByQueryRunnerTest extends InitializedNullHandlingTest
   )
   {
     this.config = config;
+    this.config.setForceHashAggregation(true);
     this.factory = factory;
     this.runner = factory.mergeRunners(
         Execs.directExecutor(),
