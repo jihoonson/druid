@@ -98,6 +98,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
@@ -395,6 +396,7 @@ public class GroupByLimitPushDownMultiNodeMergeTest
             configSupplier,
             bufferPool,
             mergePool,
+            ForkJoinPool.commonPool(),
             new ObjectMapper(new SmileFactory()),
             NOOP_QUERYWATCHER
         )
@@ -413,6 +415,7 @@ public class GroupByLimitPushDownMultiNodeMergeTest
             configSupplier,
             bufferPool,
             mergePool2,
+            ForkJoinPool.commonPool(),
             new ObjectMapper(new SmileFactory()),
             NOOP_QUERYWATCHER
         )

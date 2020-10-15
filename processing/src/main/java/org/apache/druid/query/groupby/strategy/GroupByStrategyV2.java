@@ -20,6 +20,7 @@
 package org.apache.druid.query.groupby.strategy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableMap;
@@ -59,7 +60,6 @@ import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.GroupByBinaryFnV2;
-import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV3;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByRowProcessor;
@@ -78,6 +78,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 
@@ -93,6 +94,7 @@ public class GroupByStrategyV2 implements GroupByStrategy
   private final Supplier<GroupByQueryConfig> configSupplier;
   private final NonBlockingPool<ByteBuffer> bufferPool;
   private final BlockingPool<ByteBuffer> mergeBufferPool;
+  private final ForkJoinPool mergePool;
   private final ObjectMapper spillMapper;
   private final QueryWatcher queryWatcher;
 
@@ -102,6 +104,7 @@ public class GroupByStrategyV2 implements GroupByStrategy
       Supplier<GroupByQueryConfig> configSupplier,
       @Global NonBlockingPool<ByteBuffer> bufferPool,
       @Merging BlockingPool<ByteBuffer> mergeBufferPool,
+      @Merging ForkJoinPool pool,
       @Smile ObjectMapper spillMapper,
       QueryWatcher queryWatcher
   )
@@ -110,8 +113,30 @@ public class GroupByStrategyV2 implements GroupByStrategy
     this.configSupplier = configSupplier;
     this.bufferPool = bufferPool;
     this.mergeBufferPool = mergeBufferPool;
+    this.mergePool = pool;
     this.spillMapper = spillMapper;
     this.queryWatcher = queryWatcher;
+  }
+
+  @VisibleForTesting
+  public GroupByStrategyV2(
+      DruidProcessingConfig processingConfig,
+      Supplier<GroupByQueryConfig> configSupplier,
+      NonBlockingPool<ByteBuffer> bufferPool,
+      BlockingPool<ByteBuffer> mergeBufferPool,
+      ObjectMapper spillMapper,
+      QueryWatcher queryWatcher
+  )
+  {
+    this(
+        processingConfig,
+        configSupplier,
+        bufferPool,
+        mergeBufferPool,
+        ForkJoinPool.commonPool(),
+        spillMapper,
+        queryWatcher
+    );
   }
 
   @Override
@@ -576,7 +601,8 @@ public class GroupByStrategyV2 implements GroupByStrategy
         queryWatcher,
         queryRunners,
         dictionaryMergingRunner,
-        processingConfig
+        processingConfig,
+        mergePool
     );
   }
 

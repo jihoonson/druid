@@ -20,6 +20,7 @@
 package org.apache.druid.java.util.common.guava;
 
 import com.google.common.base.Throwables;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 
 import java.io.IOException;
 
@@ -41,6 +42,16 @@ public class Yielders
           }
         }
     );
+  }
+
+  public static <T> CloseableIterator<T> iterator(final Sequence<T> sequence)
+  {
+    return new YielderIterator<>(each(sequence));
+  }
+
+  public static <T> CloseableIterator<T> iterator(final Yielder<T> yielder)
+  {
+    return new YielderIterator<>(yielder);
   }
 
   public static <T> Yielder<T> done(final T finalVal, final AutoCloseable closeable)
@@ -79,5 +90,35 @@ public class Yielders
         }
       }
     };
+  }
+
+  private static class YielderIterator<T> implements CloseableIterator<T>
+  {
+    private Yielder<T> current;
+
+    private YielderIterator(Yielder<T> yielder)
+    {
+      this.current = yielder;
+    }
+
+    @Override
+    public boolean hasNext()
+    {
+      return !current.isDone();
+    }
+
+    @Override
+    public T next()
+    {
+      final T next = current.get();
+      current = current.next(null);
+      return next;
+    }
+
+    @Override
+    public void close() throws IOException
+    {
+      current.close();
+    }
   }
 }

@@ -30,13 +30,16 @@ import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
-import org.apache.druid.common.guava.CombiningSequence;
+import org.apache.druid.java.util.common.guava.BaseSequence;
+import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
+import org.apache.druid.java.util.common.guava.LazySequence;
 import org.apache.druid.java.util.common.guava.MappedSequence;
-import org.apache.druid.java.util.common.guava.MergeSequence;
 import org.apache.druid.java.util.common.guava.ParallelMergeCombiningSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
-import org.apache.druid.java.util.common.guava.Sequences;
+import org.apache.druid.java.util.common.guava.Yielder;
+import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.java.util.common.logger.Logger;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.DictionaryConversion;
 import org.apache.druid.query.DictionaryMergeQuery;
 import org.apache.druid.query.DictionaryMergingQueryRunner;
@@ -61,6 +64,7 @@ import org.apache.druid.segment.column.RowSignature;
 import org.apache.druid.segment.column.ValueType;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -71,6 +75,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -84,6 +89,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
   private final QueryWatcher queryWatcher;
   private final DictionaryMergingQueryRunner dictionaryMergingRunner;
   private final DruidProcessingConfig processingConfig;
+  private final ForkJoinPool pool;
 
   public GroupByMergingQueryRunnerV3(
       GroupByQueryConfig config,
@@ -91,7 +97,8 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
       QueryWatcher queryWatcher,
       Iterable<QueryRunner<ResultRow>> queryables,
       DictionaryMergingQueryRunner dictionaryMergingRunner,
-      DruidProcessingConfig processingConfig
+      DruidProcessingConfig processingConfig,
+      ForkJoinPool pool
   )
   {
     this.config = config;
@@ -100,6 +107,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
     this.queryWatcher = queryWatcher;
     this.dictionaryMergingRunner = dictionaryMergingRunner;
     this.processingConfig = processingConfig;
+    this.pool = pool;
   }
 
   @Override
@@ -125,33 +133,67 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
     );
     final List<Sequence<ResultRow>> sequences = FluentIterable
         .from(queryables)
-        .transform(runner -> runner.run(queryPlusForRunners, responseContext).map(row -> {
-          final MergedDictionary[] mergedDictionaries = mergedDictionariesSupplier.get(); // TODO: per row??
-          final PerSegmentEncodedResultRow encodedResultRow = (PerSegmentEncodedResultRow) row;
+        .transform(runner -> {
+          final Future<Yielder<ResultRow>> future = exec.submit(() -> Yielders.each(
+              runner.run(queryPlusForRunners, responseContext).map(row -> {
+                final MergedDictionary[] mergedDictionaries = mergedDictionariesSupplier.get(); // TODO: per row??
+                final PerSegmentEncodedResultRow encodedResultRow = (PerSegmentEncodedResultRow) row;
 //          System.err.println("encodedResultRow: " + encodedResultRow + " decoded: " + decode(mergedDictionaries, encodedResultRow, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
-          final ResultRow resultRow = ResultRow.create(row.length());
+                final ResultRow resultRow = ResultRow.create(row.length());
 
-          for (int i = 0; i < query.getResultRowDimensionStart(); i++) {
-            resultRow.set(i, encodedResultRow.get(i));
-          }
+                for (int i = 0; i < query.getResultRowDimensionStart(); i++) {
+                  resultRow.set(i, encodedResultRow.get(i));
+                }
 
-          // (segmentId, oldDictId) -> newDictId
-          for (int i = query.getResultRowDimensionStart(); i < query.getResultRowAggregatorStart(); i++) {
-            final int dimIndex = i - query.getResultRowDimensionStart();
-            final MergedDictionary mergedDictionary = mergedDictionaries[dimIndex];
-            resultRow.set(i, mergedDictionary.getNewDictId(encodedResultRow.getSegmentId(i), encodedResultRow.getInt(i)));
-          }
+                // (segmentId, oldDictId) -> newDictId
+                for (int i = query.getResultRowDimensionStart(); i < query.getResultRowAggregatorStart(); i++) {
+                  final int dimIndex = i - query.getResultRowDimensionStart();
+                  final MergedDictionary mergedDictionary = mergedDictionaries[dimIndex];
+                  resultRow.set(i, mergedDictionary.getNewDictId(encodedResultRow.getSegmentId(i), encodedResultRow.getInt(i)));
+                }
 
-          for (int i = query.getResultRowAggregatorStart(); i < row.length(); i++) {
-            resultRow.set(i, encodedResultRow.get(i));
-          }
+                for (int i = query.getResultRowAggregatorStart(); i < row.length(); i++) {
+                  resultRow.set(i, encodedResultRow.get(i));
+                }
 //          System.err.println(query.getIntervals() + " new row: " + resultRow + " decoded: " + decode(mergedDictionaries, resultRow, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
-          return resultRow;
-        }))
+                return resultRow;
+              })
+          ));
+          return (Sequence<ResultRow>) new LazySequence<>(() -> {
+            final Yielder<ResultRow> yielder;
+            try {
+              yielder = future.get();
+            }
+            catch (InterruptedException | ExecutionException e) {
+              throw new RuntimeException(e);
+            }
+            return new BaseSequence<>(
+                new IteratorMaker<ResultRow, CloseableIterator<ResultRow>>()
+                {
+                  @Override
+                  public CloseableIterator<ResultRow> make()
+                  {
+                    return Yielders.iterator(yielder);
+                  }
+
+                  @Override
+                  public void cleanup(CloseableIterator<ResultRow> iterFromMake)
+                  {
+                    try {
+                      iterFromMake.close();
+                    }
+                    catch (IOException e) {
+                      throw new RuntimeException(e);
+                    }
+                  }
+                }
+            );
+          });
+        })
         .toList();
 
     final ParallelMergeCombiningSequence<ResultRow> mergeCombiningSequence = new ParallelMergeCombiningSequence<>(
-        ForkJoinPool.commonPool(),
+        pool,
         sequences,
         getRowOrdering(query), // TODO: this compares strings. i need dictionary-based ordering
         new GroupByBinaryFnV2(query),

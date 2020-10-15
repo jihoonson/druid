@@ -58,7 +58,7 @@ public class BaseParallelMergeCombiningSequenceBenchmark
   // benchmarks to run
   // also note: don't really run this like it is unless you have days to spare
   @Param({
-      "8",
+//      "8",
       "16",
       "32",
       "64"
@@ -75,10 +75,10 @@ public class BaseParallelMergeCombiningSequenceBenchmark
    * {@link CombiningSequence} that wraps a {@link MergeSequence}
    */
   @Param({
-      "combiningMergeSequence-same-thread",
-      "parallelism-1-10ms-256-1024",
-      "parallelism-4-10ms-256-1024",
-      "parallelism-8-10ms-256-1024",
+//      "combiningMergeSequence-same-thread",
+//      "parallelism-1-10ms-256-1024",
+//      "parallelism-4-10ms-256-1024",
+//      "parallelism-8-10ms-256-1024",
       "parallelism-16-10ms-256-1024",
       "parallelism-1-100ms-1024-4096",
       "parallelism-4-100ms-1024-4096",
