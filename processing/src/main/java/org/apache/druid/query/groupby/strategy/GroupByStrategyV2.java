@@ -558,26 +558,26 @@ public class GroupByStrategyV2 implements GroupByStrategy
       final DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
-    return new GroupByMergingQueryRunnerV2(
-        configSupplier.get(),
-        exec,
-        queryWatcher,
-        queryRunners,
-        processingConfig.getNumThreads(),
-        mergeBufferPool,
-        processingConfig.intermediateComputeSizeBytes(),
-        spillMapper,
-        processingConfig.getTmpDir(),
-        dictionaryMergingRunner
-    );
-//    return new GroupByMergingQueryRunnerV3(
+//    return new GroupByMergingQueryRunnerV2(
 //        configSupplier.get(),
 //        exec,
 //        queryWatcher,
 //        queryRunners,
-//        dictionaryMergingRunner,
-//        processingConfig
+//        processingConfig.getNumThreads(),
+//        mergeBufferPool,
+//        processingConfig.intermediateComputeSizeBytes(),
+//        spillMapper,
+//        processingConfig.getTmpDir(),
+//        dictionaryMergingRunner
 //    );
+    return new GroupByMergingQueryRunnerV3(
+        configSupplier.get(),
+        exec,
+        queryWatcher,
+        queryRunners,
+        dictionaryMergingRunner,
+        processingConfig
+    );
   }
 
   @Override
