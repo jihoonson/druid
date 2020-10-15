@@ -124,7 +124,7 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 5)
 public class GroupByBenchmark
 {
-  @Param({"4"})
+  @Param({"16"})
   private int numSegments;
 
   @Param({
@@ -133,14 +133,15 @@ public class GroupByBenchmark
 //      "5",
 //      "6",
 //      "7",
-//      "8"
+      "8",
+      "16"
   })
   private int numProcessingThreads;
 
-  @Param({
-      "4"
-  })
-  private int parallelMergeParallelism;
+//  @Param({
+//      "4"
+//  })
+//  private int parallelMergeParallelism;
 
   @Param({"-1"})
   private int initialBuckets;
@@ -224,6 +225,7 @@ public class GroupByBenchmark
 
   private void setupQueries()
   {
+    final int parallelMergeParallelism = numProcessingThreads;
     // queries for the basic schema
     Map<String, GroupByQuery> basicQueries = new LinkedHashMap<>();
     GeneratorSchemaInfo basicSchema = GeneratorBasicSchemas.SCHEMA_MAP.get("basic");
