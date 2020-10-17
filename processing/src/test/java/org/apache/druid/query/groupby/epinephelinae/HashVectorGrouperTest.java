@@ -35,6 +35,7 @@ public class HashVectorGrouperTest
     final AggregatorAdapters aggregatorAdapters = Mockito.mock(AggregatorAdapters.class);
     final HashVectorGrouper grouper = new HashVectorGrouper(
         Suppliers.ofInstance(buffer),
+        1,
         1024,
         aggregatorAdapters,
         Integer.MAX_VALUE,

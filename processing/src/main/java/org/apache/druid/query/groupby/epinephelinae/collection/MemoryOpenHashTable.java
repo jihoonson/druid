@@ -29,6 +29,11 @@ import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.NoSuchElementException;
+import java.util.Spliterator;
+import java.util.Spliterator.OfInt;
+import java.util.Spliterators;
+import java.util.Spliterators.AbstractIntSpliterator;
+import java.util.function.IntConsumer;
 
 /**
  * An open-addressed hash table with linear probing backed by {@link WritableMemory}. Does not offer a similar
@@ -376,6 +381,32 @@ public class MemoryOpenHashTable
 
         curr++;
         return currBucket;
+      }
+    };
+  }
+
+  public OfInt bucketSplitIterator()
+  {
+    return new AbstractIntSpliterator(size, Spliterator.SIZED)
+    {
+      private int curr = 0;
+      private int currBucket = -1;
+
+      @Override
+      public boolean tryAdvance(IntConsumer action)
+      {
+        if (curr < size) {
+          currBucket++;
+          while (!isOffsetUsed(currBucket * bucketSize)) {
+            currBucket++;
+          }
+
+          curr++;
+
+          action.accept(currBucket);
+          return true;
+        }
+        return false;
       }
     };
   }

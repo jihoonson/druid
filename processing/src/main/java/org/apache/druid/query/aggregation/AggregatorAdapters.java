@@ -201,6 +201,20 @@ public class AggregatorAdapters implements Closeable
     }
   }
 
+  public void aggregateVector(
+      final ByteBuffer[] buf,
+      final int numRows,
+      final int[] positions,
+      @Nullable final int[] rows
+  )
+  {
+    for (int i = 0; i < adapters.size(); i++) {
+      final Adapter adapter = adapters.get(i);
+      adapter.asVectorAggregator().aggregate(buf, numRows, positions, rows, aggregatorPositions[i]);
+    }
+  }
+
+
   /**
    * Retrieve aggregation state from one of our aggregators.
    *

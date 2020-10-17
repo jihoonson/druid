@@ -70,6 +70,18 @@ public class LongSumVectorAggregator implements VectorAggregator
   }
 
   @Override
+  public void aggregate(ByteBuffer[] buf, int numRows, int[] positions, @Nullable int[] rows, int positionOffset)
+  {
+    final long[] vector = selector.getLongVector();
+
+    for (int i = 0; i < numRows; i++) {
+      final int position = positions[i] + positionOffset;
+      buf[i].putLong(position, buf[i].getLong(position) + vector[rows != null ? rows[i] : i]);
+    }
+
+  }
+
+  @Override
   public Object get(final ByteBuffer buf, final int position)
   {
     return buf.getLong(position);

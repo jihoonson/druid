@@ -66,6 +66,11 @@ public interface VectorAggregator
    */
   void aggregate(ByteBuffer buf, int numRows, int[] positions, @Nullable int[] rows, int positionOffset);
 
+  default void aggregate(ByteBuffer[] buf, int numRows, int[] positions, @Nullable int[] rows, int positionOffset)
+  {
+    throw new UnsupportedOperationException();
+  }
+
   /**
    * Same as {@link BufferAggregator#get}.
    */

@@ -33,6 +33,7 @@ import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.query.ColumnSelectorPlus;
+import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
 import org.apache.druid.query.aggregation.AggregatorFactory;
@@ -121,8 +122,9 @@ public class GroupByQueryEngineV2
       final GroupByQuery query,
       @Nullable final IdentifiableStorageAdapter storageAdapter,
       final NonBlockingPool<ByteBuffer> intermediateResultsBufferPool,
-      final GroupByQueryConfig querySpecificConfig
-  )
+      final GroupByQueryConfig querySpecificConfig,
+      final DruidProcessingConfig processingConfig
+      )
   {
     if (storageAdapter == null) {
       throw new ISE(
@@ -163,7 +165,8 @@ public class GroupByQueryEngineV2
             fudgeTimestamp,
             filter,
             interval,
-            querySpecificConfig
+            querySpecificConfig,
+            processingConfig
         );
       } else {
         result = processNonVectorized(

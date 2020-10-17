@@ -28,6 +28,7 @@ import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
+import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
 import org.apache.druid.query.dimension.DimensionSpec;
@@ -133,8 +134,9 @@ public class VectorGroupByEngine
       @Nullable final DateTime fudgeTimestamp,
       @Nullable final Filter filter,
       final Interval interval,
-      final GroupByQueryConfig config
-  )
+      final GroupByQueryConfig config,
+      final DruidProcessingConfig processingConfig
+      )
   {
     if (!canVectorize(query, storageAdapter, filter)) {
       throw new ISE("Cannot vectorize");
@@ -199,7 +201,8 @@ public class VectorGroupByEngine
                   interval,
                   dimensions,
                   processingBuffer,
-                  fudgeTimestamp
+                  fudgeTimestamp,
+                  processingConfig.getNumThreads()
               );
             }
             catch (Throwable e) {
@@ -250,6 +253,8 @@ public class VectorGroupByEngine
 
     private final List<ColumnCapabilities> dimensionCapabilities;
 
+    private final int numHashTables;
+
     @Nullable
     private Interval bucketInterval;
 
@@ -266,7 +271,8 @@ public class VectorGroupByEngine
         final Interval queryInterval,
         final List<GroupByVectorColumnSelector> selectors,
         final ByteBuffer processingBuffer,
-        @Nullable final DateTime fudgeTimestamp
+        @Nullable final DateTime fudgeTimestamp,
+        final int numHashTables
     )
     {
       this.segmentId = storageAdapter.getId();
@@ -279,6 +285,7 @@ public class VectorGroupByEngine
       this.fudgeTimestamp = fudgeTimestamp;
       this.keySize = selectors.stream().mapToInt(GroupByVectorColumnSelector::getGroupingKeySize).sum();
       this.keySpace = WritableMemory.allocate(keySize * cursor.getMaxVectorSize());
+      this.numHashTables = numHashTables;
       this.vectorGrouper = makeGrouper();
       this.granulizer = VectorCursorGranularizer.create(storageAdapter, cursor, query.getGranularity(), queryInterval);
 
@@ -362,6 +369,7 @@ public class VectorGroupByEngine
       } else {
         grouper = new HashVectorGrouper(
             Suppliers.ofInstance(processingBuffer),
+            numHashTables,
             keySize,
             AggregatorAdapters.factorizeVector(
                 cursor.getColumnSelectorFactory(),
@@ -446,7 +454,7 @@ public class VectorGroupByEngine
       );
 
       return new CloseableGrouperIterator<>(
-          vectorGrouper.iterator(bufferComparator), // TODO: must be sorted iterator
+          vectorGrouper.iterator(null), // TODO: must be sorted iterator
           entry -> {
             final PerSegmentEncodedResultRow resultRow =
                 PerSegmentEncodedResultRow.create(query.getResultRowSizeWithoutPostAggregators());
