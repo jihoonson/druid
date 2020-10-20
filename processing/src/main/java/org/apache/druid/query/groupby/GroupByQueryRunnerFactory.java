@@ -29,7 +29,9 @@ import org.apache.druid.query.DictionaryMergingQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
+import org.apache.druid.query.QueryRunner2;
 import org.apache.druid.query.QueryRunnerFactory;
+import org.apache.druid.query.QueryRunnerFactory2;
 import org.apache.druid.query.QueryToolChest;
 import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.query.context.ResponseContext;
@@ -37,12 +39,14 @@ import org.apache.druid.query.groupby.strategy.GroupByStrategySelector;
 import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.Segment;
 
+import javax.annotation.Nullable;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 /**
  *
  */
-public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, GroupByQuery>
+public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, GroupByQuery>, QueryRunnerFactory2<ResultRow, GroupByQuery>
 {
   private final GroupByStrategySelector strategySelector;
   private final GroupByQueryQueryToolChest toolChest;
@@ -68,6 +72,36 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
   {
     throw new UnsupportedOperationException();
   }
+
+  @Override
+  public QueryRunner2<ResultRow> createRunner2(SegmentIdMapper segmentIdMapper, Segment segment)
+  {
+    return new GroupByQueryRunner2(segmentIdMapper, segment, strategySelector);
+  }
+
+  @Override
+  public QueryRunner<ResultRow> mergeRunners2(
+      ExecutorService exec,
+      Iterable<QueryRunner2<ResultRow>> queryRunners,
+      @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner
+  )
+  {
+    // mergeRunners should take ListeningExecutorService at some point
+    final ListeningExecutorService queryExecutor = MoreExecutors.listeningDecorator(exec);
+
+    return new QueryRunner<ResultRow>()
+    {
+      @Override
+      public Sequence<ResultRow> run(QueryPlus<ResultRow> queryPlus, ResponseContext responseContext)
+      {
+        QueryRunner<ResultRow> rowQueryRunner = strategySelector
+            .strategize((GroupByQuery) queryPlus.getQuery())
+            .mergeRunners2(queryExecutor, queryRunners, dictionaryMergingRunner);
+        return rowQueryRunner.run(queryPlus, responseContext);
+      }
+    };
+  }
+
 
   @Override
   public QueryRunner<ResultRow> mergeRunners(
@@ -140,5 +174,37 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
   public GroupByStrategySelector getStrategySelector()
   {
     return strategySelector;
+  }
+
+  private static class GroupByQueryRunner2 implements QueryRunner2<ResultRow>
+  {
+    private final IdentifiableStorageAdapter adapter;
+    private final GroupByStrategySelector strategySelector;
+
+    public GroupByQueryRunner2(
+        SegmentIdMapper segmentIdMapper,
+        Segment segment,
+        final GroupByStrategySelector strategySelector
+    )
+    {
+      this.adapter = new IdentifiableStorageAdapter(
+          segmentIdMapper.applyAsInt(segment.getId()),
+          segment.asStorageAdapter()
+      );
+      this.strategySelector = strategySelector;
+    }
+
+    @Override
+    public List<Sequence<ResultRow>> run(
+        QueryPlus<ResultRow> queryPlus, ResponseContext responseContext
+    )
+    {
+      Query<ResultRow> query = queryPlus.getQuery();
+      if (!(query instanceof GroupByQuery)) {
+        throw new ISE("Got a [%s] which isn't a %s", query.getClass(), GroupByQuery.class);
+      }
+
+      return strategySelector.strategize((GroupByQuery) query).process2((GroupByQuery) query, adapter);
+    }
   }
 }

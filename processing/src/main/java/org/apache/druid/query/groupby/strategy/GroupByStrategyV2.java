@@ -48,6 +48,7 @@ import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryDataSource;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
+import org.apache.druid.query.QueryRunner2;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.ResourceLimitExceededException;
 import org.apache.druid.query.ResultMergeQueryRunner;
@@ -611,6 +612,28 @@ public class GroupByStrategyV2 implements GroupByStrategy
   public Sequence<ResultRow> process(GroupByQuery query, IdentifiableStorageAdapter storageAdapter)
   {
     return GroupByQueryEngineV2.process(
+        query,
+        storageAdapter,
+        bufferPool,
+        configSupplier.get().withOverrides(query),
+        processingConfig
+    );
+  }
+
+  @Override
+  public QueryRunner<ResultRow> mergeRunners2(
+      ListeningExecutorService exec,
+      Iterable<QueryRunner2<ResultRow>> queryRunners,
+      DictionaryMergingQueryRunner dictionaryMergingRunner
+  )
+  {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public List<Sequence<ResultRow>> process2(GroupByQuery query, IdentifiableStorageAdapter storageAdapter)
+  {
+    return GroupByQueryEngineV2.process2(
         query,
         storageAdapter,
         bufferPool,

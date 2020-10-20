@@ -136,7 +136,7 @@ public class VectorGroupByEngine
       final Interval interval,
       final GroupByQueryConfig config,
       final DruidProcessingConfig processingConfig
-      )
+  )
   {
     if (!canVectorize(query, storageAdapter, filter)) {
       throw new ISE("Cannot vectorize");

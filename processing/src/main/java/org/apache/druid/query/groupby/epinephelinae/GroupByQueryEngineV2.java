@@ -53,6 +53,7 @@ import org.apache.druid.query.groupby.epinephelinae.column.LongGroupByColumnSele
 import org.apache.druid.query.groupby.epinephelinae.column.NullableNumericGroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.epinephelinae.column.StringGroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine;
+import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.LimitSpec;
 import org.apache.druid.query.groupby.orderby.OrderByColumnSpec;
@@ -181,6 +182,64 @@ public class GroupByQueryEngineV2
       }
 
       return result.withBaggage(bufferHolder);
+    }
+    catch (Throwable e) {
+      bufferHolder.close();
+      throw e;
+    }
+  }
+
+  public static List<Sequence<ResultRow>> process2(
+      final GroupByQuery query,
+      @Nullable final IdentifiableStorageAdapter storageAdapter,
+      final NonBlockingPool<ByteBuffer> intermediateResultsBufferPool,
+      final GroupByQueryConfig querySpecificConfig,
+      final DruidProcessingConfig processingConfig
+  )
+  {
+    if (storageAdapter == null) {
+      throw new ISE(
+          "Null storage adapter found. Probably trying to issue a query against a segment being memory unmapped."
+      );
+    }
+
+    final List<Interval> intervals = query.getQuerySegmentSpec().getIntervals();
+    if (intervals.size() != 1) {
+      throw new IAE("Should only have one interval, got[%s]", intervals);
+    }
+
+    final ResourceHolder<ByteBuffer> bufferHolder = intermediateResultsBufferPool.take();
+
+    try {
+      final String fudgeTimestampString = NullHandling.emptyToNullIfNeeded(
+          query.getContextValue(GroupByStrategyV2.CTX_KEY_FUDGE_TIMESTAMP, null)
+      );
+
+      final DateTime fudgeTimestamp = fudgeTimestampString == null
+                                      ? null
+                                      : DateTimes.utc(Long.parseLong(fudgeTimestampString));
+
+      final Filter filter = Filters.convertToCNFFromQueryContext(query, Filters.toFilter(query.getFilter()));
+      final Interval interval = Iterables.getOnlyElement(query.getIntervals());
+
+      final boolean doVectorize = QueryContexts.getVectorize(query).shouldVectorize(
+          VectorGroupByEngine.canVectorize(query, storageAdapter, filter)
+      );
+
+      if (doVectorize) {
+        return VectorGroupByEngine2.process(
+            query,
+            storageAdapter,
+            bufferHolder.get(),
+            fudgeTimestamp,
+            filter,
+            interval,
+            querySpecificConfig,
+            processingConfig
+        );
+      } else {
+        throw new UnsupportedOperationException();
+      }
     }
     catch (Throwable e) {
       bufferHolder.close();

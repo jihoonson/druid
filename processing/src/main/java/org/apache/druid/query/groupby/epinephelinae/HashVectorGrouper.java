@@ -30,6 +30,7 @@ import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.query.groupby.epinephelinae.collection.HashTableUtils;
 import org.apache.druid.query.groupby.epinephelinae.collection.MemoryOpenHashTable;
 
@@ -38,10 +39,14 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 /**
@@ -267,6 +272,58 @@ public class HashVectorGrouper implements VectorGrouper
       );
       hashTables[i] = new HashTableStuff(bufferOrigin, bufferSlice, tableStart, hashTable);
     }
+  }
+
+  public List<CloseableIterator<Entry<Memory>>> iterators()
+  {
+    if (!initialized) {
+      // it's possible for iterator() to be called before initialization when
+      // a nested groupBy's subquery has an empty result set (see testEmptySubquery() in GroupByQueryRunnerTest)
+      final List<CloseableIterator<Entry<Memory>>> emptyIterators = IntStream
+          .range(0, numTables)
+          .mapToObj(i -> CloseableIterators.withEmptyBaggage(Collections.<Entry<Memory>>emptyIterator()))
+          .collect(Collectors.toList());
+      return emptyIterators;
+    }
+
+    final List<CloseableIterator<Entry<Memory>>> iterators = new ArrayList<>(numTables);
+    for (int i = 0; i < numTables; i++) {
+      final MemoryOpenHashTable hashTable = hashTables[i].hashTable;
+      final IntIterator baseIterator = hashTable.bucketIterator();
+      iterators.add(
+          CloseableIterators.withEmptyBaggage(
+              new Iterator<Entry<Memory>>()
+              {
+                @Override
+                public boolean hasNext()
+                {
+                  return baseIterator.hasNext();
+                }
+
+                @Override
+                public Entry<Memory> next()
+                {
+                  final int bucket = baseIterator.nextInt();
+                  final int bucketPosition = hashTable.bucketMemoryPosition(bucket);
+
+                  final Memory keyMemory = hashTable.memory().region(
+                      bucketPosition + hashTable.bucketKeyOffset(),
+                      hashTable.keySize()
+                  );
+
+                  final Object[] values = new Object[aggregators.size()];
+                  final int aggregatorsOffset = bucketPosition + hashTable.bucketValueOffset();
+                  for (int i = 0; i < aggregators.size(); i++) {
+                    values[i] = aggregators.get(hashTable.memory().getByteBuffer(), aggregatorsOffset, i);
+                  }
+
+                  return new Grouper.Entry<>(keyMemory, values);
+                }
+              }
+          )
+      );
+    }
+    return iterators;
   }
 
   @Override
