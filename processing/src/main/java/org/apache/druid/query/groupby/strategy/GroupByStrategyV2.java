@@ -62,9 +62,9 @@ import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.GroupByBinaryFnV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2;
-import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV3;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByRowProcessor;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.LimitSpec;
 import org.apache.druid.query.groupby.orderby.NoopLimitSpec;
@@ -627,7 +627,18 @@ public class GroupByStrategyV2 implements GroupByStrategy
       DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
-    throw new UnsupportedOperationException();
+    return new GroupByShuffleMergingQueryRunner(
+        configSupplier.get(),
+        exec,
+        queryWatcher,
+        queryRunners,
+        processingConfig.getNumThreads(),
+        mergeBufferPool,
+        processingConfig.intermediateComputeSizeBytes(),
+        spillMapper,
+        processingConfig.getTmpDir(),
+        dictionaryMergingRunner
+    );
   }
 
   @Override

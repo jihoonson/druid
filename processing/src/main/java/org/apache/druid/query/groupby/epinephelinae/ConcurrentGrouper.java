@@ -260,30 +260,30 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
       throw new ISE("Grouper is closed");
     }
 
-    if (!spilling) {
-      final SpillingGrouper<KeyType> hashBasedGrouper = groupers.get(grouperNumberForKeyHash(keyHash));
-
-      synchronized (hashBasedGrouper) {
-        if (!spilling) {
-          final AggregateResult aggregateResult = hashBasedGrouper.aggregate(key, keyHash);
-          if (aggregateResult.isOk()) {
-            return AggregateResult.ok();
-          } else {
-            // Expecting all-or-nothing behavior.
-            assert aggregateResult.getCount() == 0;
-            spilling = true;
-          }
-        }
-      }
-    }
+//    if (!spilling) {
+//      final SpillingGrouper<KeyType> hashBasedGrouper = groupers.get(grouperNumberForKeyHash(keyHash));
+//
+//      synchronized (hashBasedGrouper) {
+//        if (!spilling) {
+//          final AggregateResult aggregateResult = hashBasedGrouper.aggregate(key, keyHash);
+//          if (aggregateResult.isOk()) {
+//            return AggregateResult.ok();
+//          } else {
+//            // Expecting all-or-nothing behavior.
+//            assert aggregateResult.getCount() == 0;
+//            spilling = true;
+//          }
+//        }
+//      }
+//    }
 
     // At this point we know spilling = true
     final SpillingGrouper<KeyType> tlGrouper = threadLocalGrouper.get();
 
-    synchronized (tlGrouper) {
-      tlGrouper.setSpillingAllowed(true);
+//    synchronized (tlGrouper) {
+//      tlGrouper.setSpillingAllowed(true);
       return tlGrouper.aggregate(key, keyHash);
-    }
+//    }
   }
 
   @Override

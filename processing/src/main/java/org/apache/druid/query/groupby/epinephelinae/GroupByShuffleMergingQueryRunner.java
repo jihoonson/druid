@@ -20,12 +20,9 @@
 package org.apache.druid.query.groupby.epinephelinae;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Function;
 import com.google.common.base.Predicates;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Futures;
@@ -36,16 +33,16 @@ import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.collections.Releaser;
 import org.apache.druid.common.guava.GuavaUtils;
-import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.Accumulator;
 import org.apache.druid.java.util.common.guava.BaseSequence;
+import org.apache.druid.java.util.common.guava.ConcatSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.query.AbstractPrioritizedCallable;
-import org.apache.druid.query.ChainedExecutionQueryRunner;
 import org.apache.druid.query.DictionaryConversion;
 import org.apache.druid.query.DictionaryMergeQuery;
 import org.apache.druid.query.DictionaryMergingQueryRunner;
@@ -65,6 +62,7 @@ import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBas
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
@@ -238,64 +236,50 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   ReferenceCountingResourceHolder.fromCloseable(grouper);
               resources.register(grouperHolder);
 
-//              mergedDictionariesSupplier.get();
-
-              // TODO: modify this so that each thread processes a list of sequences of the same hash
-              List<ListenableFuture<AggregateResult>> futures = Lists.newArrayList(
+              List<List<Sequence<ResultRow>>> hashedSequencesList = Lists.newArrayList(
                   Iterables.transform(
-                      queryables, // each queryable performs a blocking operation processing a segment
-                      new Function<QueryRunner2<ResultRow>, ListenableFuture<AggregateResult>>()
-                      {
-                        @Override
-                        public ListenableFuture<AggregateResult> apply(final QueryRunner2<ResultRow> input)
-                        {
-                          if (input == null) {
-                            throw new ISE("Null queryRunner! Looks to be some segment unmapping action happening");
-                          }
-
-                          ListenableFuture<AggregateResult> future = exec.submit(
-                              new AbstractPrioritizedCallable<AggregateResult>(priority)
-                              {
-                                @Override
-                                public AggregateResult call()
-                                {
-                                  try (
-                                      // These variables are used to close releasers automatically.
-                                      @SuppressWarnings("unused")
-                                      Releaser bufferReleaser = mergeBufferHolder.increment();
-                                      @SuppressWarnings("unused")
-                                      Releaser grouperReleaser = grouperHolder.increment()
-                                  ) {
-
-                                    // Return true if OK, false if resources were exhausted.
-                                    return input.run(queryPlusForRunners, responseContext)
-                                                .accumulate(AggregateResult.ok(), accumulator);
-                                  }
-                                  catch (QueryInterruptedException e) {
-                                    throw e;
-                                  }
-                                  catch (Exception e) {
-                                    log.error(e, "Exception with one of the sequences!");
-                                    throw new RuntimeException(e);
-                                  }
-                                }
-                              }
-                          );
-
-                          if (isSingleThreaded) {
-                            waitForFutureCompletion(
-                                query,
-                                ImmutableList.of(future),
-                                hasTimeout,
-                                timeoutAt - System.currentTimeMillis()
-                            );
-                          }
-
-                          return future;
-                        }
-                      }
+                      queryables,
+                      runner2 -> runner2.run(queryPlusForRunners, responseContext)
                   )
               );
+
+              final List<ListenableFuture<AggregateResult>> futures = new ArrayList<>();
+              final int numHashBuckets = hashedSequencesList.get(0).size();
+              for (int i = 0; i < numHashBuckets; i++) {
+                final List<Sequence<ResultRow>> sequencesToProcess = new ArrayList<>(hashedSequencesList.size()); // # of queryables
+                for (List<Sequence<ResultRow>> sequencesPerQueryable : hashedSequencesList) {
+                  sequencesToProcess.add(sequencesPerQueryable.get(i));
+                }
+                final Sequence<ResultRow> concatSequence = new ConcatSequence<>(Sequences.simple(sequencesToProcess));
+                ListenableFuture<AggregateResult> future = exec.submit(
+                    new AbstractPrioritizedCallable<AggregateResult>(priority)
+                    {
+                      @Override
+                      public AggregateResult call()
+                      {
+                        try (
+                            // These variables are used to close releasers automatically.
+                            @SuppressWarnings("unused")
+                            Releaser bufferReleaser = mergeBufferHolder.increment();
+                            @SuppressWarnings("unused")
+                            Releaser grouperReleaser = grouperHolder.increment()
+                        ) {
+
+                          // Return true if OK, false if resources were exhausted.
+                          return concatSequence.accumulate(AggregateResult.ok(), accumulator);
+                        }
+                        catch (QueryInterruptedException e) {
+                          throw e;
+                        }
+                        catch (Exception e) {
+                          log.error(e, "Exception with one of the sequences!");
+                          throw new RuntimeException(e);
+                        }
+                      }
+                    }
+                );
+                futures.add(future);
+              }
 
               if (!isSingleThreaded) {
                 waitForFutureCompletion(
