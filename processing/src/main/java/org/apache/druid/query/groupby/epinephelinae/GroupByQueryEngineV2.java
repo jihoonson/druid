@@ -20,6 +20,7 @@
 package org.apache.druid.query.groupby.epinephelinae;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -31,6 +32,7 @@ import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.query.ColumnSelectorPlus;
 import org.apache.druid.query.DruidProcessingConfig;
@@ -77,6 +79,7 @@ import org.joda.time.Interval;
 
 import javax.annotation.Nullable;
 import java.io.Closeable;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -208,7 +211,12 @@ public class GroupByQueryEngineV2
       throw new IAE("Should only have one interval, got[%s]", intervals);
     }
 
-    final ResourceHolder<ByteBuffer> bufferHolder = intermediateResultsBufferPool.take();
+    final Closer bufferCloser = Closer.create();
+    final Supplier<ByteBuffer> bufferSupplier = () -> {
+      final ResourceHolder<ByteBuffer> bufferHolder = intermediateResultsBufferPool.take();
+      bufferCloser.register(bufferHolder);
+      return bufferHolder.get();
+    };
 
     try {
       final String fudgeTimestampString = NullHandling.emptyToNullIfNeeded(
@@ -230,7 +238,7 @@ public class GroupByQueryEngineV2
         return VectorGroupByEngine2.process(
             query,
             storageAdapter,
-            bufferHolder.get(),
+            bufferSupplier,
             fudgeTimestamp,
             filter,
             interval,
@@ -242,7 +250,12 @@ public class GroupByQueryEngineV2
       }
     }
     catch (Throwable e) {
-      bufferHolder.close();
+      try {
+        bufferCloser.close();
+      }
+      catch (IOException ioException) {
+        e.addSuppressed(ioException);
+      }
       throw e;
     }
   }

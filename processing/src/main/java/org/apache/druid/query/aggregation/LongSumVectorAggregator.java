@@ -78,7 +78,6 @@ public class LongSumVectorAggregator implements VectorAggregator
       final int position = positions[i] + positionOffset;
       buf[i].putLong(position, buf[i].getLong(position) + vector[rows != null ? rows[i] : i]);
     }
-
   }
 
   @Override

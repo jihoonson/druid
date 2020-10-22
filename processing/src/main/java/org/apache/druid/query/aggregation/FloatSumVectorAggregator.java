@@ -71,6 +71,17 @@ public class FloatSumVectorAggregator implements VectorAggregator
   }
 
   @Override
+  public void aggregate(ByteBuffer[] buf, int numRows, int[] positions, @Nullable int[] rows, int positionOffset)
+  {
+    final float[] vector = selector.getFloatVector();
+
+    for (int i = 0; i < numRows; i++) {
+      final int position = positions[i] + positionOffset;
+      buf[i].putFloat(position, buf[i].getFloat(position) + vector[rows != null ? rows[i] : i]);
+    }
+  }
+
+  @Override
   public Object get(final ByteBuffer buf, final int position)
   {
     return buf.getFloat(position);

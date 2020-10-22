@@ -63,6 +63,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -72,7 +73,7 @@ public class VectorGroupByEngine2
   public static List<Sequence<ResultRow>> process(
       final GroupByQuery query,
       final IdentifiableStorageAdapter storageAdapter,
-      final ByteBuffer processingBuffer,
+      Supplier<ByteBuffer> bufferSupplier,
       @Nullable final DateTime fudgeTimestamp,
       @Nullable final Filter filter,
       final Interval interval,
@@ -87,7 +88,7 @@ public class VectorGroupByEngine2
     // processingConfig.numThreads == numHashTables
     final int numHashTables = processingConfig.getNumThreads();
 
-    Supplier<List<CloseableGrouperIterator<Memory, ResultRow>>> grouperIteratorsSupplier = Suppliers.memoize(
+    Supplier<List<CloseableIterator<ResultRow>>> grouperIteratorsSupplier = Suppliers.memoize(
         () -> {
           final VectorCursor cursor = storageAdapter.makeVectorCursor(
               Filters.toFilter(query.getDimFilter()),
@@ -125,7 +126,7 @@ public class VectorGroupByEngine2
                   cursor,
                   interval,
                   dimensions,
-                  processingBuffer,
+                  bufferSupplier,
                   fudgeTimestamp,
                   processingConfig.getNumThreads()
               );
@@ -139,7 +140,7 @@ public class VectorGroupByEngine2
               }
               throw e;
             }
-            return iterators.grouperIterators();
+            return iterators.totalIterators(numHashTables);
           }
         }
     );
@@ -183,11 +184,11 @@ public class VectorGroupByEngine2
     private final StorageAdapter storageAdapter;
     private final VectorCursor cursor;
     private final List<GroupByVectorColumnSelector> selectors;
-    private final ByteBuffer processingBuffer;
+    private final Supplier<ByteBuffer> bufferSupplier;
     private final DateTime fudgeTimestamp;
     private final int keySize;
     private final WritableMemory keySpace;
-    private final HashVectorGrouper vectorGrouper;
+//    private final HashVectorGrouper vectorGrouper;
 
     @Nullable
     private final VectorCursorGranularizer granulizer;
@@ -213,7 +214,7 @@ public class VectorGroupByEngine2
         final VectorCursor cursor,
         final Interval queryInterval,
         final List<GroupByVectorColumnSelector> selectors,
-        final ByteBuffer processingBuffer,
+        Supplier<ByteBuffer> bufferSupplier,
         @Nullable final DateTime fudgeTimestamp,
         final int numHashTables
     )
@@ -224,12 +225,12 @@ public class VectorGroupByEngine2
       this.storageAdapter = storageAdapter;
       this.cursor = cursor;
       this.selectors = selectors;
-      this.processingBuffer = processingBuffer;
+      this.bufferSupplier = bufferSupplier;
       this.fudgeTimestamp = fudgeTimestamp;
       this.keySize = selectors.stream().mapToInt(GroupByVectorColumnSelector::getGroupingKeySize).sum();
       this.keySpace = WritableMemory.allocate(keySize * cursor.getMaxVectorSize());
       this.numHashTables = numHashTables;
-      this.vectorGrouper = makeGrouper();
+//      this.vectorGrouper = makeGrouper();
       this.granulizer = VectorCursorGranularizer.create(storageAdapter, cursor, query.getGranularity(), queryInterval);
 
       if (granulizer != null) {
@@ -248,7 +249,7 @@ public class VectorGroupByEngine2
       final HashVectorGrouper grouper;
 
       grouper = new HashVectorGrouper(
-          Suppliers.ofInstance(processingBuffer),
+          bufferSupplier,
           numHashTables,
           keySize,
           AggregatorAdapters.factorizeVector(
@@ -265,6 +266,62 @@ public class VectorGroupByEngine2
       return grouper;
     }
 
+    private List<CloseableIterator<ResultRow>> totalIterators(int numHashTables)
+    {
+      // list of hash-partitioned iterators
+      final List<List<CloseableGrouperIterator<Memory, ResultRow>>> iteratorLists = new ArrayList<>();
+      iteratorLists.add(grouperIterators());
+      final List<CloseableIterator<ResultRow>> iterators = new ArrayList<>(numHashTables);
+      for (int i = 0; i < numHashTables; i++) {
+        final int tablePointer = i;
+        iterators.add(
+            new CloseableIterator<ResultRow>()
+            {
+              int currentIteratorPointer = 0;
+              CloseableGrouperIterator<Memory, ResultRow> iterator = iteratorLists.get(currentIteratorPointer).get(tablePointer);
+
+              @Override
+              public boolean hasNext()
+              {
+                while (!iterator.hasNext()) {
+                  iterator.close();
+                  currentIteratorPointer++;
+                  if (currentIteratorPointer == iteratorLists.size()) {
+                    if (!cursor.isDone()) {
+                      iteratorLists.add(grouperIterators());
+                    }
+                  }
+                  if (currentIteratorPointer < iteratorLists.size()) {
+                    iterator = iteratorLists.get(currentIteratorPointer).get(tablePointer);
+                  } else {
+                    break;
+                  }
+                }
+                return iterator.hasNext();
+              }
+
+              @Override
+              public ResultRow next()
+              {
+                if (!iterator.hasNext()) {
+                  throw new NoSuchElementException();
+                }
+                return iterator.next();
+              }
+
+              @Override
+              public void close() throws IOException
+              {
+                for (int i = currentIteratorPointer; i < iteratorLists.size(); i++) {
+                  iteratorLists.get(i).get(tablePointer).close();
+                }
+              }
+            }
+        );
+      }
+      return iterators;
+    }
+
     private List<CloseableGrouperIterator<Memory, ResultRow>> grouperIterators()
     {
       // Method must not be called unless there's a current bucketInterval.
@@ -273,6 +330,8 @@ public class VectorGroupByEngine2
       final DateTime timestamp = fudgeTimestamp != null
                                  ? fudgeTimestamp
                                  : query.getGranularity().toDateTime(bucketInterval.getStartMillis());
+
+      final HashVectorGrouper vectorGrouper = makeGrouper();
 
       while (!cursor.isDone()) {
         final int startOffset;
@@ -317,7 +376,7 @@ public class VectorGroupByEngine2
         } else if (!granulizer.advanceCursorWithinBucket()) {
           // Advance bucketInterval.
           bucketInterval = bucketIterator.hasNext() ? bucketIterator.next() : null;
-//          break;
+          break;
         }
       }
 
@@ -370,11 +429,11 @@ public class VectorGroupByEngine2
                   resultRow.set(resultRowAggregatorStart + i, segmentId, entry.getValues()[i]);
                 }
 
-//            System.err.println("query interval: " + query.getIntervals() + " segmentId: " + segmentId + ", row: " + resultRow);
+                System.err.println(Thread.currentThread().getName() + ", query interval: " + query.getIntervals() + " segmentId: " + segmentId + ", row: " + resultRow);
 
                 return (ResultRow) resultRow;
               },
-              this::close
+              vectorGrouper
           ))
           .collect(Collectors.toList());
     }
@@ -384,7 +443,6 @@ public class VectorGroupByEngine2
     {
       if (closed.compareAndSet(false, true)) {
         Closer closer = Closer.create();
-        closer.register(vectorGrouper);
         closer.register(cursor);
         closer.close();
       }

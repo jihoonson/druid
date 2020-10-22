@@ -70,6 +70,17 @@ public class DoubleSumVectorAggregator implements VectorAggregator
   }
 
   @Override
+  public void aggregate(ByteBuffer[] buf, int numRows, int[] positions, @Nullable int[] rows, int positionOffset)
+  {
+    final double[] vector = selector.getDoubleVector();
+
+    for (int i = 0; i < numRows; i++) {
+      final int position = positions[i] + positionOffset;
+      buf[i].putDouble(position, buf[i].getDouble(position) + vector[rows != null ? rows[i] : i]);
+    }
+  }
+
+  @Override
   public Object get(final ByteBuffer buf, final int position)
   {
     return buf.getDouble(position);

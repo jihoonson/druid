@@ -30,6 +30,7 @@ import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
+import org.apache.druid.query.QueryRunnerFactory;
 import org.apache.druid.query.QueryRunnerTestHelper;
 import org.apache.druid.query.TableDataSource;
 import org.apache.druid.query.aggregation.CountAggregatorFactory;
@@ -112,7 +113,7 @@ public class MapVirtualColumnGroupByTest extends InitializedNullHandlingTest
     );
 
     runner = QueryRunnerTestHelper.makeQueryRunner(
-        factory,
+        (QueryRunnerFactory) factory,
         SegmentId.dummy("index"),
         new IncrementalIndexSegment(incrementalIndex, SegmentId.dummy("index")),
         "incremental"

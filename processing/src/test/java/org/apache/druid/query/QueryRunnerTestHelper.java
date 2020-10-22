@@ -355,32 +355,38 @@ public class QueryRunnerTestHelper
     return !("rtIndex".equals(runnerName) || "noRollupRtIndex".equals(runnerName));
   }
 
+  public static boolean isTestRunnerVectorizable(QueryRunner2 runner)
+  {
+    return true;
+  }
+
   public static <T, QueryType extends Query<T>> List<QueryRunner<T>> makeQueryRunners(
       QueryRunnerFactory<T, QueryType> factory
   )
   {
-    final SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
-    final IncrementalIndex rtIndex = TestIndex.getIncrementalTestIndex();
-    final IncrementalIndex noRollupRtIndex = TestIndex.getNoRollupIncrementalTestIndex();
-    final QueryableIndex mMappedTestIndex = TestIndex.getMMappedTestIndex();
-    final QueryableIndex noRollupMMappedTestIndex = TestIndex.getNoRollupMMappedTestIndex();
-    final QueryableIndex mergedRealtimeIndex = TestIndex.mergedRealtimeIndex();
-    return ImmutableList.of(
-        makeQueryRunner(factory, new IncrementalIndexSegment(rtIndex, SEGMENT_ID), ("rtIndex"), segmentIdMapper),
-        makeQueryRunner(factory, new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex", segmentIdMapper),
-        makeQueryRunner(factory, new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", segmentIdMapper),
-        makeQueryRunner(
-            factory,
-            new QueryableIndexSegment(noRollupMMappedTestIndex, SEGMENT_ID),
-            "noRollupMMappedTestIndex",
-            segmentIdMapper
-        ),
-        makeQueryRunner(factory, new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID), "mergedRealtimeIndex", segmentIdMapper)
-    );
+//    final SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
+//    final IncrementalIndex rtIndex = TestIndex.getIncrementalTestIndex();
+//    final IncrementalIndex noRollupRtIndex = TestIndex.getNoRollupIncrementalTestIndex();
+//    final QueryableIndex mMappedTestIndex = TestIndex.getMMappedTestIndex();
+//    final QueryableIndex noRollupMMappedTestIndex = TestIndex.getNoRollupMMappedTestIndex();
+//    final QueryableIndex mergedRealtimeIndex = TestIndex.mergedRealtimeIndex();
+//    return ImmutableList.of(
+//        makeQueryRunner(factory, new IncrementalIndexSegment(rtIndex, SEGMENT_ID), ("rtIndex"), segmentIdMapper),
+//        makeQueryRunner(factory, new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex", segmentIdMapper),
+//        makeQueryRunner(factory, new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", segmentIdMapper),
+//        makeQueryRunner(
+//            factory,
+//            new QueryableIndexSegment(noRollupMMappedTestIndex, SEGMENT_ID),
+//            "noRollupMMappedTestIndex",
+//            segmentIdMapper
+//        ),
+//        makeQueryRunner(factory, new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID), "mergedRealtimeIndex", segmentIdMapper)
+//    );
+    throw new UnsupportedOperationException();
   }
 
-  public static <T, QueryType extends Query<T>> List<Pair<QueryRunner<T>, QueryRunner<List<Iterator<DictionaryConversion>>>>> makeQueryRunnersAndDictScanRunners(
-      QueryRunnerFactory<T, QueryType> factory
+  public static <T, QueryType extends Query<T>> List<Pair<QueryRunner2<T>, QueryRunner<List<Iterator<DictionaryConversion>>>>> makeQueryRunnersAndDictScanRunners(
+      QueryRunnerFactory2<T, QueryType> factory
   )
   {
     final SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
@@ -446,11 +452,20 @@ public class QueryRunnerTestHelper
       final String runnerName
   )
   {
+    throw new UnsupportedOperationException();
+  }
+
+  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner(
+      QueryRunnerFactory2<T, QueryType> factory,
+      String resourceFileName,
+      final String runnerName
+  )
+  {
     return makeQueryRunner(factory, resourceFileName, runnerName, null);
   }
 
-  public static <T, QueryType extends Query<T>> QueryRunner<T> makeQueryRunner(
-      QueryRunnerFactory<T, QueryType> factory,
+  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner(
+      QueryRunnerFactory2<T, QueryType> factory,
       String resourceFileName,
       final String runnerName,
       @Nullable SegmentIdMapper segmentIdMapper
@@ -471,11 +486,20 @@ public class QueryRunnerTestHelper
       final String runnerName
   )
   {
+    throw new UnsupportedOperationException();
+  }
+
+  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner(
+      QueryRunnerFactory2<T, QueryType> factory,
+      Segment adapter,
+      final String runnerName
+  )
+  {
     return makeQueryRunner(factory, adapter, runnerName, null);
   }
 
-  public static <T, QueryType extends Query<T>> QueryRunner<T> makeQueryRunner(
-      QueryRunnerFactory<T, QueryType> factory,
+  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner(
+      QueryRunnerFactory2<T, QueryType> factory,
       Segment adapter,
       final String runnerName,
       @Nullable SegmentIdMapper segmentIdMapper
@@ -491,22 +515,35 @@ public class QueryRunnerTestHelper
       final String runnerName
   )
   {
+    throw new UnsupportedOperationException();
+  }
+
+  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner(
+      QueryRunnerFactory2<T, QueryType> factory,
+      SegmentId segmentId,
+      Segment adapter,
+      final String runnerName
+  )
+  {
     return makeQueryRunner(factory, segmentId, adapter, runnerName, null);
   }
 
-  public static <T, QueryType extends Query<T>> QueryRunner<T> makeQueryRunner(
-      QueryRunnerFactory<T, QueryType> factory,
+  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner(
+      QueryRunnerFactory2<T, QueryType> factory,
       SegmentId segmentId,
       Segment adapter,
       final String runnerName,
       @Nullable SegmentIdMapper segmentIdMapper // TODO: is this nullable? maybe null for topN
   )
   {
-    return new FinalizeResultsQueryRunner<T>(
-        new BySegmentQueryRunner<>(segmentId, adapter.getDataInterval().getStart(), factory.createRunner(segmentIdMapper, adapter)),
-        (QueryToolChest<T, Query<T>>) factory.getToolchest()
-    )
+    return new QueryRunner2<T>()
     {
+      @Override
+      public List<Sequence<T>> run(QueryPlus<T> queryPlus, ResponseContext responseContext)
+      {
+        return factory.createRunner2(segmentIdMapper, adapter).run(queryPlus, responseContext);
+      }
+
       @Override
       public String toString()
       {
