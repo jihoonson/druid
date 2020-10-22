@@ -249,7 +249,7 @@ public class VectorGroupByEngine2
       final HashVectorGrouper grouper;
 
       grouper = new HashVectorGrouper(
-          bufferSupplier,
+          Suppliers.ofInstance(bufferSupplier.get()),
           numHashTables,
           keySize,
           AggregatorAdapters.factorizeVector(
@@ -287,7 +287,9 @@ public class VectorGroupByEngine2
                   iterator.close();
                   currentIteratorPointer++;
                   if (currentIteratorPointer == iteratorLists.size()) {
-                    if (!cursor.isDone()) {
+                    final boolean moreToRead = !cursor.isDone() || partiallyAggregatedRows >= 0;
+
+                    if (bucketInterval != null && moreToRead) {
                       iteratorLists.add(grouperIterators());
                     }
                   }

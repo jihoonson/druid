@@ -57,6 +57,7 @@ public class CountVectorAggregator implements VectorAggregator
   {
     for (int i = 0; i < numRows; i++) {
       final int position = positions[i] + positionOffset;
+      System.err.println("count vector, buf: " + buf[i] + " i: " + i + " pos: " + position);
       buf[i].putLong(position, buf[i].getLong(position) + 1);
     }
   }
