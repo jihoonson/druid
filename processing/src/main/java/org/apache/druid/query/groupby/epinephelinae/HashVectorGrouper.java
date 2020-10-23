@@ -71,9 +71,6 @@ public class HashVectorGrouper implements VectorGrouper
   private final int bucketSize;
   private final float maxLoadFactor;
 
-//  private ByteBuffer buffer;
-//  private int tableStart = 0;
-
   private ByteBuffer totalBuffer;
 
   private HashTableStuff[] hashTables;
@@ -103,12 +100,6 @@ public class HashVectorGrouper implements VectorGrouper
   private int[] vAggregationPositions = null;
   @Nullable
   private int[] vAggregationRows = null;
-//  @Nullable
-//  private int[] vAggregatorStartOffset = null;
-//  @Nullable
-//  private HashTableStuff[] vHashTables = null;
-//  @Nullable
-//  private ByteBuffer[] vHashTableBuffers = null;
 
   public HashVectorGrouper(
       final Supplier<ByteBuffer> bufferSupplier,
@@ -160,11 +151,6 @@ public class HashVectorGrouper implements VectorGrouper
 
       initialized = true;
     }
-  }
-
-  private HashTableStuff getHashTable(int keyHashCode)
-  {
-    return hashTables[Math.abs(keyHashCode) % hashTables.length];
   }
 
   private int hashTablePointer(int keyHashCode)
