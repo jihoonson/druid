@@ -60,6 +60,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -187,8 +188,9 @@ public class VectorGroupByEngine2
     private final Supplier<ByteBuffer> bufferSupplier;
     private final DateTime fudgeTimestamp;
     private final int keySize;
-    private final WritableMemory keySpace;
+    private final WritableMemory[] keySpaces;
 //    private final HashVectorGrouper vectorGrouper;
+    private final HashVectorGrouper[] vectorGroupers;
 
     @Nullable
     private final VectorCursorGranularizer granulizer;
@@ -228,8 +230,16 @@ public class VectorGroupByEngine2
       this.bufferSupplier = bufferSupplier;
       this.fudgeTimestamp = fudgeTimestamp;
       this.keySize = selectors.stream().mapToInt(GroupByVectorColumnSelector::getGroupingKeySize).sum();
-      this.keySpace = WritableMemory.allocate(keySize * cursor.getMaxVectorSize());
+//      this.keySpace = WritableMemory.allocate(keySize * cursor.getMaxVectorSize());
+      this.keySpaces = new WritableMemory[numHashTables];
+      for (int i = 0; i < numHashTables; i++) {
+        this.keySpaces[i] = WritableMemory.allocate(keySize * cursor.getMaxVectorSize());
+      }
       this.numHashTables = numHashTables;
+      this.vectorGroupers = new HashVectorGrouper[numHashTables];
+      for (int i = 0; i < numHashTables; i++) {
+        this.vectorGroupers[i] = makeGrouper();
+      }
 //      this.vectorGrouper = makeGrouper();
       this.granulizer = VectorCursorGranularizer.create(storageAdapter, cursor, query.getGranularity(), queryInterval);
 
@@ -249,8 +259,9 @@ public class VectorGroupByEngine2
       final HashVectorGrouper grouper;
 
       grouper = new HashVectorGrouper(
+          // TODO: split buffer
           Suppliers.ofInstance(bufferSupplier.get()),
-          numHashTables,
+//          numHashTables,
           keySize,
           AggregatorAdapters.factorizeVector(
               cursor.getColumnSelectorFactory(),
@@ -334,8 +345,8 @@ public class VectorGroupByEngine2
       final DateTime timestamp = fudgeTimestamp != null
                                  ? fudgeTimestamp
                                  : query.getGranularity().toDateTime(bucketInterval.getStartMillis());
-
-      final HashVectorGrouper vectorGrouper = makeGrouper();
+      int[] keyOffsets = new int[numHashTables];
+      int[] numKeysWritten = new int[numHashTables];
 
       while (!cursor.isDone()) {
         final int startOffset;
@@ -349,9 +360,12 @@ public class VectorGroupByEngine2
 
         if (granulizer.getEndOffset() > startOffset) {
           // Write keys to the keySpace.
-          int keyOffset = 0;
+          Arrays.fill(keyOffsets, 0);
           for (final GroupByVectorColumnSelector selector : selectors) {
-            selector.writeKeys(keySpace, keySize, keyOffset, startOffset, granulizer.getEndOffset());
+            selector.writeKeys(keySpaces, keySize, keyOffsets, startOffset, granulizer.getEndOffset(), numKeysWritten);
+            for (int i = 0; i < numHashTables; i++) {
+              keyOffsets[i] = numKeysWritten[i] * selector.getGroupingKeySize();
+            }
             keyOffset += selector.getGroupingKeySize();
           }
 
