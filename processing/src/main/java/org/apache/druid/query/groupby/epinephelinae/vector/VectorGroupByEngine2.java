@@ -277,6 +277,7 @@ public class VectorGroupByEngine2
         iterators.add(
             new CloseableIterator<ResultRow>()
             {
+              
               int currentIteratorPointer = 0;
               CloseableGrouperIterator<Memory, ResultRow> iterator = iteratorLists.get(currentIteratorPointer).get(tablePointer);
 
@@ -296,6 +297,7 @@ public class VectorGroupByEngine2
                   if (currentIteratorPointer < iteratorLists.size()) {
                     iterator = iteratorLists.get(currentIteratorPointer).get(tablePointer);
                   } else {
+                    assert !iterator.hasNext();
                     break;
                   }
                 }
@@ -387,6 +389,7 @@ public class VectorGroupByEngine2
       final int resultRowAggregatorStart = query.getResultRowAggregatorStart();
 
       final List<CloseableIterator<Entry<Memory>>> entryIterators = vectorGrouper.iterators();
+      System.err.println("new entry iterators for timestamp " + timestamp.getMillis() + ", grouper: " + vectorGrouper);
       return entryIterators
           .stream()
           .map(entryIterator -> new CloseableGrouperIterator<>(
@@ -431,7 +434,7 @@ public class VectorGroupByEngine2
                   resultRow.set(resultRowAggregatorStart + i, segmentId, entry.getValues()[i]);
                 }
 
-                System.err.println(Thread.currentThread().getName() + ", query interval: " + query.getIntervals() + " segmentId: " + segmentId + ", row: " + resultRow);
+                System.err.println(Thread.currentThread().getName() + ", query interval: " + query.getIntervals() + " segmentId: " + segmentId + ", row: " + resultRow + " timestamp: " + timestamp.getMillis());
 
                 return (ResultRow) resultRow;
               },
