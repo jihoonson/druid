@@ -56,29 +56,22 @@ public class SingleValueStringGroupByVectorColumnSelector implements GroupByVect
 
   @Override
   public void writeKeys(
-      final WritableMemory[] keySpaces,
+      final WritableMemory keySpace,
       final int keySize,
-      final int[] keyOffsets,
+      final int keyOffset,
       final int startRow,
-      final int endRow,
-      final int[] numKeysWritten
+      final int endRow
   )
   {
     final int[] vector = selector.getRowVector();
 
-    for (int i = startRow; i < endRow; i++) {
-      final int hash = vector[i] % keySpaces.length;
-      keySpaces[hash].putInt(keyOffsets[hash] + numKeysWritten[hash] * keySize, vector[i]);
-      numKeysWritten[hash]++;
+    if (keySize == Integer.BYTES) {
+      keySpace.putIntArray(keyOffset, vector, startRow, endRow - startRow);
+    } else {
+      for (int i = startRow, j = keyOffset; i < endRow; i++, j += keySize) {
+        keySpace.putInt(j, vector[i]);
+      }
     }
-
-//    if (keySize == Integer.BYTES) {
-//      keySpace.putIntArray(keyOffset, vector, startRow, endRow - startRow);
-//    } else {
-//      for (int i = startRow, j = keyOffset; i < endRow; i++, j += keySize) {
-//        keySpace.putInt(j, vector[i]);
-//      }
-//    }
   }
 
   @Override
