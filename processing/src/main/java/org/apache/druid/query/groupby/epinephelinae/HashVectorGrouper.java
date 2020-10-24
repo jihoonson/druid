@@ -192,7 +192,7 @@ public class HashVectorGrouper implements VectorGrouper
         }
       }
       final int numRowsToProcess = i;
-      System.err.println("hashTablePointer: " + hashTablePointer + " vKeyHashCodes: " + Arrays.toString(vKeyHashCodes) + " numRowsToProcess: " + numRowsToProcess + " startRow: " + startRow + ", numRows: " + numRows);
+//      System.err.println("hashTablePointer: " + hashTablePointer + " vKeyHashCodes: " + Arrays.toString(vKeyHashCodes) + " numRowsToProcess: " + numRowsToProcess + " startRow: " + startRow + ", numRows: " + numRows);
       final HashTableStuff hashTableStuff = hashTables[hashTablePointer];
 
       final AggregateResult partialResult = aggregateOneTable(keySpace, startRow, numRowsToProcess, hashTableStuff);
@@ -200,61 +200,6 @@ public class HashVectorGrouper implements VectorGrouper
         return partialResult;
       }
     }
-
-
-
-
-
-
-//    resetHashTableStuffs(numRows);
-//
-//    System.err.println(Thread.currentThread() + ", " + Arrays.toString(vKeyHashCodes));
-//
-//    int aggregationStartRow = startRow;
-//    int aggregationNumRows = 0;
-//
-//    for (int rowNum = 0, keySpacePosition = 0; rowNum < numRows; rowNum++, keySpacePosition += keySize) {
-//      // Find, and if the table is full, expand and find again.
-//      int bucket = vHashTables[rowNum].hashTable.findBucket(vKeyHashCodes[rowNum], keySpace, keySpacePosition);
-//
-//      if (bucket < 0) {
-//        // Bucket not yet initialized.
-//        if (vHashTables[rowNum].hashTable.canInsertNewBucket()) {
-//          // There's space, initialize it and move on.
-//          bucket = -(bucket + 1);
-//          initBucket(vHashTables[rowNum].hashTable, bucket, keySpace, keySpacePosition);
-//        } else {
-//          // Out of space. Finish up unfinished aggregations, then try to grow.
-//          if (aggregationNumRows > 0) {
-//            doAggregateVector(aggregationStartRow, aggregationNumRows);
-//            aggregationStartRow = aggregationStartRow + aggregationNumRows;
-//            aggregationNumRows = 0;
-//          }
-//
-//          if (grow(vHashTables[rowNum]) && vHashTables[rowNum].hashTable.canInsertNewBucket()) {
-//            resetHashTableStuffs(numRows);
-//            bucket = vHashTables[rowNum].hashTable.findBucket(vKeyHashCodes[rowNum], keySpace, keySpacePosition);
-//            bucket = -(bucket + 1);
-//            initBucket(vHashTables[rowNum].hashTable, bucket, keySpace, keySpacePosition);
-//          } else {
-//            // This may just trigger a spill and get ignored, which is ok. If it bubbles up to the user, the message
-//            // will be correct.
-//            return Groupers.hashTableFull(rowNum);
-//          }
-//        }
-//      }
-//
-//      // Schedule the current row for aggregation.
-//      vAggregationPositions[aggregationNumRows] = bucket * bucketSize + vAggregatorStartOffset[rowNum];
-//      System.err.println("table: " + vHashTables[rowNum].hashTable + ", bucket " + bucket + ", pos: " + vAggregationPositions[aggregationNumRows]);
-//      aggregationNumRows++;
-//    }
-//
-//    // Aggregate any remaining rows.
-//    if (aggregationNumRows > 0) {
-//      System.err.println("aggregate remaining");
-//      doAggregateVector(aggregationStartRow, aggregationNumRows);
-//    }
 
     return AggregateResult.ok();
   }
@@ -270,7 +215,7 @@ public class HashVectorGrouper implements VectorGrouper
       final int keySpacePosition = vHashedRows[rowNum] * keySize;
       // Find, and if the table is full, expand and find again.
       int bucket = hashTableStuff.hashTable.findBucket(vKeyHashCodes[rowNum], keySpace, keySpacePosition);
-      System.err.println("Aggregating hash " + vKeyHashCodes[rowNum]);
+//      System.err.println("Aggregating hash " + vKeyHashCodes[rowNum]);
 
       if (bucket < 0) {
         // Bucket not yet initialized.
@@ -300,13 +245,13 @@ public class HashVectorGrouper implements VectorGrouper
 
       // Schedule the current row for aggregation.
       vAggregationPositions[aggregationNumRows] = bucket * bucketSize + aggregatorStartOffset;
-      System.err.println("table: " + hashTableStuff.hashTable + ", bucket " + bucket + ", pos: " + vAggregationPositions[aggregationNumRows]);
+//      System.err.println("table: " + hashTableStuff.hashTable + ", bucket " + bucket + ", pos: " + vAggregationPositions[aggregationNumRows]);
       aggregationNumRows++;
     }
 
     // Aggregate any remaining rows.
     if (aggregationNumRows > 0) {
-      System.err.println("aggregate remaining");
+//      System.err.println("aggregate remaining");
       doAggregateVector(hashTableStuff, startRowOffset, aggregationStartRow, aggregationNumRows);
     }
 
@@ -375,7 +320,7 @@ public class HashVectorGrouper implements VectorGrouper
     final List<CloseableIterator<Entry<Memory>>> iterators = new ArrayList<>(numTables);
     for (int i = 0; i < numTables; i++) {
       final MemoryOpenHashTable hashTable = hashTables[i].hashTable;
-      System.err.println(Thread.currentThread() + ", hash table size: " + hashTables[i].hashTable.size());
+//      System.err.println(Thread.currentThread() + ", hash table size: " + hashTables[i].hashTable.size());
       final IntIterator baseIterator = hashTable.bucketIterator();
       iterators.add(
           CloseableIterators.withEmptyBaggage(
@@ -578,7 +523,7 @@ public class HashVectorGrouper implements VectorGrouper
   private void initBucket(MemoryOpenHashTable hashTable, final int bucket, final Memory keySpace, final int keySpacePosition)
   {
     assert bucket >= 0 && bucket < maxNumBuckets && hashTable != null && hashTable.canInsertNewBucket();
-    System.err.println("init bucket: " + hashTable + ", bucket " + bucket + ", table buffer: " + hashTable.memory().getByteBuffer() + ", init pos: " + (bucket * bucketSize + hashTable.bucketValueOffset()));
+//    System.err.println("init bucket: " + hashTable + ", bucket " + bucket + ", table buffer: " + hashTable.memory().getByteBuffer() + ", init pos: " + (bucket * bucketSize + hashTable.bucketValueOffset()));
     hashTable.initBucket(bucket, keySpace, keySpacePosition);
     aggregators.init(hashTable.memory().getByteBuffer(), bucket * bucketSize + hashTable.bucketValueOffset());
   }
@@ -627,8 +572,8 @@ public class HashVectorGrouper implements VectorGrouper
     );
 
     hashTableStuff.hashTable.copyTo(newHashTable, new HashVectorGrouperBucketCopyHandler(aggregators, hashTableStuff.hashTable.bucketValueOffset()));
-    System.err.println("growing " + hashTableStuff.hashTable + " -> " + newHashTable);
-    System.err.println("growing " + hashTableStuff.hashTable.size() + " -> " + newHashTable.size());
+//    System.err.println("growing " + hashTableStuff.hashTable + " -> " + newHashTable);
+//    System.err.println("growing " + hashTableStuff.hashTable.size() + " -> " + newHashTable.size());
     hashTableStuff.hashTable = newHashTable;
     hashTableStuff.start = newTableStart;
     hashTableStuff.buffer = newTableBuffer;

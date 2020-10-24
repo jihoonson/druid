@@ -218,8 +218,6 @@ public class BufferHashGrouper<KeyType> extends AbstractBufferHashGrouper<KeyTyp
           }
       );
 
-      System.err.println(Thread.currentThread() + ", size: " + getSize());
-
       return new CloseableIterator<Entry<KeyType>>()
       {
         int curr = 0;

@@ -389,7 +389,7 @@ public class VectorGroupByEngine2
       final int resultRowAggregatorStart = query.getResultRowAggregatorStart();
 
       final List<CloseableIterator<Entry<Memory>>> entryIterators = vectorGrouper.iterators();
-      System.err.println("new entry iterators for timestamp " + timestamp.getMillis() + ", grouper: " + vectorGrouper);
+//      System.err.println("new entry iterators for timestamp " + timestamp.getMillis() + ", grouper: " + vectorGrouper);
       return entryIterators
           .stream()
           .map(entryIterator -> new CloseableGrouperIterator<>(
@@ -434,7 +434,7 @@ public class VectorGroupByEngine2
                   resultRow.set(resultRowAggregatorStart + i, segmentId, entry.getValues()[i]);
                 }
 
-                System.err.println(Thread.currentThread().getName() + ", query interval: " + query.getIntervals() + " segmentId: " + segmentId + ", row: " + resultRow + " timestamp: " + timestamp.getMillis());
+//                System.err.println(Thread.currentThread().getName() + ", query interval: " + query.getIntervals() + " segmentId: " + segmentId + ", row: " + resultRow + " timestamp: " + timestamp.getMillis());
 
                 return (ResultRow) resultRow;
               },

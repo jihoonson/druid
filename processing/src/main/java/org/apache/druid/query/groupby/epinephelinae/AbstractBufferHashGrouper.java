@@ -119,7 +119,7 @@ public abstract class AbstractBufferHashGrouper<KeyType> implements Grouper<KeyT
   @Override
   public AggregateResult aggregate(KeyType key, int keyHash)
   {
-    System.err.println(Thread.currentThread() + ", aggregate: " + keyHash);
+//    System.err.println(Thread.currentThread() + ", aggregate: " + keyHash);
     final ByteBuffer keyBuffer = keySerde.toByteBuffer(key);
     if (keyBuffer == null) {
       // This may just trigger a spill and get ignored, which is ok. If it bubbles up to the user, the message will

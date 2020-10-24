@@ -631,7 +631,7 @@ public class RowBasedGrouperHelper
             resultRow.set(resultRowAggregatorStart + i, entry.getValues()[i]);
           }
 
-          System.err.println(Thread.currentThread().getName() + ", query interval: " + query.getIntervals() + ", row: " + resultRow);
+//          System.err.println(Thread.currentThread().getName() + ", query interval: " + query.getIntervals() + ", row: " + resultRow);
 
           return resultRow;
         },
