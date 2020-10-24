@@ -30,6 +30,7 @@ import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.vector.SingleValueDimensionVectorSelector;
 
 import javax.annotation.Nullable;
+import java.util.Arrays;
 
 public class SingleValueStringGroupByVectorColumnSelector implements GroupByVectorColumnSelector
 {
@@ -66,6 +67,7 @@ public class SingleValueStringGroupByVectorColumnSelector implements GroupByVect
     final int[] vector = selector.getRowVector();
 
     if (keySize == Integer.BYTES) {
+      System.err.println("vector: " + Arrays.toString(Arrays.copyOfRange(vector, startRow, endRow)) + " at offset " + keyOffset);
       keySpace.putIntArray(keyOffset, vector, startRow, endRow - startRow);
     } else {
       for (int i = startRow, j = keyOffset; i < endRow; i++, j += keySize) {

@@ -100,6 +100,8 @@ public class HashVectorGrouper implements VectorGrouper
   private int[] vAggregationPositions = null;
   @Nullable
   private int[] vAggregationRows = null;
+  @Nullable
+  private int[] vHashedRows = null;
 
   public HashVectorGrouper(
       final Supplier<ByteBuffer> bufferSupplier,
@@ -145,6 +147,7 @@ public class HashVectorGrouper implements VectorGrouper
       this.vKeyHashCodes = new int[maxVectorSize];
       this.vAggregationPositions = new int[maxVectorSize];
       this.vAggregationRows = new int[maxVectorSize];
+      this.vHashedRows = new int[maxVectorSize];
 //      this.vAggregatorStartOffset = new int[maxVectorSize];
 //      this.vHashTables = new HashTableStuff[maxVectorSize];
 //      this.vHashTableBuffers = new ByteBuffer[maxVectorSize];
@@ -184,14 +187,18 @@ public class HashVectorGrouper implements VectorGrouper
       int i = 0;
       for (int rowNum = 0; rowNum < numRows; rowNum++) {
         if (hashTablePointer(vAllKeyHashCodes[rowNum]) == hashTablePointer) {
-          vKeyHashCodes[i++] = vAllKeyHashCodes[rowNum];
+          vKeyHashCodes[i] = vAllKeyHashCodes[rowNum];
+          vHashedRows[i++] = rowNum;
         }
       }
       final int numRowsToProcess = i;
-      System.err.println("hashTablePointer: " + hashTablePointer + " vKeyHashCodes: " + Arrays.toString(vKeyHashCodes) + " numRowsToProcess: " + numRowsToProcess);
+      System.err.println("hashTablePointer: " + hashTablePointer + " vKeyHashCodes: " + Arrays.toString(vKeyHashCodes) + " numRowsToProcess: " + numRowsToProcess + " startRow: " + startRow + ", numRows: " + numRows);
       final HashTableStuff hashTableStuff = hashTables[hashTablePointer];
 
-      aggregateOneTable(keySpace, startRow, numRowsToProcess, hashTableStuff);
+      final AggregateResult partialResult = aggregateOneTable(keySpace, startRow, numRowsToProcess, hashTableStuff);
+      if (!partialResult.isOk()) {
+        return partialResult;
+      }
     }
 
 
@@ -252,14 +259,15 @@ public class HashVectorGrouper implements VectorGrouper
     return AggregateResult.ok();
   }
 
-  private AggregateResult aggregateOneTable(final Memory keySpace, final int startRow, final int numRows, final HashTableStuff hashTableStuff)
+  private AggregateResult aggregateOneTable(final Memory keySpace, final int startRowOffset, final int numRows, final HashTableStuff hashTableStuff)
   {
-    int aggregationStartRow = startRow;
-    int aggregationNumRows = 0;
+    int aggregationStartRow = 0; // pointer to vHashedRows
+    int aggregationNumRows = 0; // numRows to aggregate in vHashedRows
 
     final int aggregatorStartOffset = hashTableStuff.hashTable.bucketValueOffset();
 
-    for (int rowNum = 0, keySpacePosition = 0; rowNum < numRows; rowNum++, keySpacePosition += keySize) {
+    for (int rowNum = 0; rowNum < numRows; rowNum++) {
+      final int keySpacePosition = vHashedRows[rowNum] * keySize;
       // Find, and if the table is full, expand and find again.
       int bucket = hashTableStuff.hashTable.findBucket(vKeyHashCodes[rowNum], keySpace, keySpacePosition);
       System.err.println("Aggregating hash " + vKeyHashCodes[rowNum]);
@@ -273,7 +281,7 @@ public class HashVectorGrouper implements VectorGrouper
         } else {
           // Out of space. Finish up unfinished aggregations, then try to grow.
           if (aggregationNumRows > 0) {
-            doAggregateVector(hashTableStuff, aggregationStartRow, aggregationNumRows);
+            doAggregateVector(hashTableStuff, startRowOffset, aggregationStartRow, aggregationNumRows);
             aggregationStartRow = aggregationStartRow + aggregationNumRows;
             aggregationNumRows = 0;
           }
@@ -299,7 +307,7 @@ public class HashVectorGrouper implements VectorGrouper
     // Aggregate any remaining rows.
     if (aggregationNumRows > 0) {
       System.err.println("aggregate remaining");
-      doAggregateVector(hashTableStuff, aggregationStartRow, aggregationNumRows);
+      doAggregateVector(hashTableStuff, startRowOffset, aggregationStartRow, aggregationNumRows);
     }
 
     return AggregateResult.ok();
@@ -579,14 +587,17 @@ public class HashVectorGrouper implements VectorGrouper
    * Aggregate the current vector from "startRow" (inclusive) to "endRow" (exclusive) into aggregation positions
    * given by {@link #vAggregationPositions}.
    */
-  private void doAggregateVector(HashTableStuff hashTableStuff, final int startRow, final int numRows)
+  private void doAggregateVector(HashTableStuff hashTableStuff, int startRowOffset, final int startRow, final int numRows)
   {
-    System.err.println(Thread.currentThread() + ", startRow: " + startRow + " numRows: " + numRows);
+    for (int i = 0; i < numRows; i++) {
+      vAggregationRows[i] = vHashedRows[i + startRow] + startRowOffset;
+    }
     aggregators.aggregateVector(
-        hashTableStuff.buffer,
+        hashTableStuff.hashTable.memory().getByteBuffer(),
         numRows,
         vAggregationPositions,
-        Groupers.writeAggregationRows(vAggregationRows, startRow, startRow + numRows)
+//        Groupers.writeAggregationRows(vAggregationRows, startRow, startRow + numRows)
+        vAggregationRows
     );
   }
 
