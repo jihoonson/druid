@@ -47,6 +47,7 @@ import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryDataSource;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
+import org.apache.druid.query.QueryRunner2;
 import org.apache.druid.query.QueryToolChest;
 import org.apache.druid.query.SubqueryQueryRunner;
 import org.apache.druid.query.aggregation.AggregatorFactory;
@@ -493,6 +494,36 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<ResultRow, GroupB
           }
         }
     );
+  }
+
+  public QueryRunner2<ResultRow> preMergeQueryDecoration(final QueryRunner2<ResultRow> runner)
+  {
+    return new QueryRunner2<ResultRow>()
+    {
+      @Override
+      public List<Sequence<ResultRow>> run(QueryPlus<ResultRow> queryPlus, ResponseContext responseContext)
+      {
+        GroupByQuery groupByQuery = (GroupByQuery) queryPlus.getQuery();
+        final List<DimensionSpec> dimensionSpecs = new ArrayList<>();
+        final BitSet optimizedDimensions = extractionsToRewrite(groupByQuery);
+        final List<DimensionSpec> dimensions = groupByQuery.getDimensions();
+        for (int i = 0; i < dimensions.size(); i++) {
+          final DimensionSpec dimensionSpec = dimensions.get(i);
+          if (optimizedDimensions.get(i)) {
+            dimensionSpecs.add(
+                new DefaultDimensionSpec(dimensionSpec.getDimension(), dimensionSpec.getOutputName())
+            );
+          } else {
+            dimensionSpecs.add(dimensionSpec);
+          }
+        }
+
+        return runner.run(
+            queryPlus.withQuery(groupByQuery.withDimensionSpecs(dimensionSpecs)),
+            responseContext
+        );
+      }
+    };
   }
 
   @Override

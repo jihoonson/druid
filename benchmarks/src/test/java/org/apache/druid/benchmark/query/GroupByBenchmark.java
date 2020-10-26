@@ -48,6 +48,7 @@ import org.apache.druid.query.FinalizeResultsQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
+import org.apache.druid.query.QueryRunner2;
 import org.apache.druid.query.QueryRunnerFactory;
 import org.apache.druid.query.QueryToolChest;
 import org.apache.druid.query.SegmentIdMapper;
@@ -133,8 +134,8 @@ public class GroupByBenchmark
 //      "5",
 //      "6",
 //      "7",
-      "8",
-      "16"
+//      "8",
+//      "16"
   })
   private int numProcessingThreads;
 
@@ -194,7 +195,7 @@ public class GroupByBenchmark
   private IncrementalIndex anIncrementalIndex;
   private List<QueryableIndex> queryableIndexes;
 
-  private QueryRunnerFactory<ResultRow, GroupByQuery> factory;
+  private GroupByQueryRunnerFactory factory;
 
   private GeneratorSchemaInfo schemaInfo;
   private GroupByQuery query;
@@ -242,7 +243,18 @@ public class GroupByBenchmark
           .setDimensions(new DefaultDimensionSpec("dimSequential", null), new DefaultDimensionSpec("dimZipf", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(queryGranularity))
-          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge, "parallelMergeParallelism", parallelMergeParallelism))
+          .setContext(
+              ImmutableMap.of(
+                  "vectorize",
+                  vectorize,
+                  "earlyDictMerge",
+                  earlyDictMerge,
+                  "parallelMergeParallelism",
+                  parallelMergeParallelism,
+                  "bufferGrouperInitialBuckets",
+                  10240
+              )
+          )
           .build();
 
       basicQueries.put("A", queryA);
@@ -752,9 +764,9 @@ public class GroupByBenchmark
     SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
     QueryRunner<ResultRow> theRunner = new FinalizeResultsQueryRunner<>(
         toolChest.mergeResults(
-            factory.mergeRunners(
+            factory.mergeRunners2(
                 executorService,
-                makeMultiRunners(segmentIdMapper),
+                makeMultiRunners2(segmentIdMapper),
                 earlyDictMerge.equals("true")
                 ? new DictionaryMergingQueryRunnerFactory().mergeRunners(executorService, makeDictScanRunners(segmentIdMapper))
                 : null
@@ -827,6 +839,22 @@ public class GroupByBenchmark
           segmentIdMapper
       );
       runners.add(factory.getToolchest().preMergeQueryDecoration(runner));
+    }
+    return runners;
+  }
+
+  private List<QueryRunner2<ResultRow>> makeMultiRunners2(SegmentIdMapper segmentIdMapper)
+  {
+    List<QueryRunner2<ResultRow>> runners = new ArrayList<>();
+    for (int i = 0; i < numSegments; i++) {
+      String segmentName = "qIndex " + i;
+      QueryRunner2<ResultRow> runner = QueryBenchmarkUtil.makeQueryRunner2(
+          factory,
+          SegmentId.dummy(segmentName),
+          new QueryableIndexSegment(queryableIndexes.get(i), SegmentId.dummy(segmentName)),
+          segmentIdMapper
+      );
+      runners.add(((GroupByQueryQueryToolChest) factory.getToolchest()).preMergeQueryDecoration(runner));
     }
     return runners;
   }

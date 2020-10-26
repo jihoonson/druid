@@ -29,7 +29,9 @@ import org.apache.druid.query.IdentifiableQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
+import org.apache.druid.query.QueryRunner2;
 import org.apache.druid.query.QueryRunnerFactory;
+import org.apache.druid.query.QueryRunnerFactory2;
 import org.apache.druid.query.QueryToolChest;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.SegmentIdMapper;
@@ -68,6 +70,24 @@ public class QueryBenchmarkUtil
         (QueryToolChest<T, Query<T>>) factory.getToolchest()
     );
   }
+
+  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner2(
+      QueryRunnerFactory2<T, QueryType> factory,
+      SegmentId segmentId,
+      Segment adapter,
+      @Nullable SegmentIdMapper segmentIdMapper // TODO: is this nullable? maybe null for topN
+  )
+  {
+    return new QueryRunner2<T>()
+    {
+      @Override
+      public List<Sequence<T>> run(QueryPlus<T> queryPlus, ResponseContext responseContext)
+      {
+        return factory.createRunner2(segmentIdMapper, adapter).run(queryPlus, responseContext);
+      }
+    };
+  }
+
 
   public static QueryRunner<List<Iterator<DictionaryConversion>>> makeDictionaryScanRunner(
       SegmentId segmentId,

@@ -214,6 +214,7 @@ public class GroupByQueryEngineV2
     final Closer bufferCloser = Closer.create();
     final Supplier<ByteBuffer> bufferSupplier = () -> {
       final ResourceHolder<ByteBuffer> bufferHolder = intermediateResultsBufferPool.take();
+      // TODO: how to close?
       bufferCloser.register(bufferHolder);
       return bufferHolder.get();
     };
