@@ -432,7 +432,7 @@ public class ParallelCombiner<KeyType>
     return new Pair<>(grouper.iterator(), future);
   }
 
-  private static class SettableColumnSelectorFactory implements ColumnSelectorFactory
+  public static class SettableColumnSelectorFactory implements ColumnSelectorFactory
   {
     private static final int UNKNOWN_COLUMN_INDEX = -1;
     private final Object2IntMap<String> columnIndexMap;
@@ -474,6 +474,7 @@ public class ParallelCombiner<KeyType>
     @Override
     public ColumnValueSelector makeColumnValueSelector(String columnName)
     {
+      final int columnIndex = checkAndGetColumnIndex(columnName);
       return new ObjectColumnSelector()
       {
         @Override
@@ -491,7 +492,7 @@ public class ParallelCombiner<KeyType>
         @Override
         public Object getObject()
         {
-          return values[checkAndGetColumnIndex(columnName)];
+          return values[columnIndex];
         }
       };
     }

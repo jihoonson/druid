@@ -404,15 +404,6 @@ public class RowBasedGrouperHelper
         query.getResultRowSignature(),
         false
     );
-//    if (mergedDictionarySupplier == null) {
-//    } else {
-//      return new DictionaryEncodedRowBasedColumnSelectorFactory(
-//          supplier::get,
-//          adapter,
-//          mergedDictionarySupplier::get,
-//          query.getResultRowSignature()
-//      );
-//    }
   }
 
   /**
@@ -492,12 +483,12 @@ public class RowBasedGrouperHelper
     }
   }
 
-  private interface ValueExtractFunction
+  public interface ValueExtractFunction
   {
     Comparable[] apply(ResultRow row, Comparable[] key);
   }
 
-  private static ValueExtractFunction makeValueExtractFunction(
+  public static ValueExtractFunction makeValueExtractFunction(
       final GroupByQuery query,
       final boolean combining,
       final boolean includeTimestamp,

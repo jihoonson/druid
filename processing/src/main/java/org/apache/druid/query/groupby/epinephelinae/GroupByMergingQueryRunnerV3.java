@@ -55,10 +55,14 @@ import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
+import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKey;
+import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.ValueExtractFunction;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.OrderByColumnSpec;
 import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.query.ordering.StringComparators;
+import org.apache.druid.segment.ColumnSelectorFactory;
 import org.apache.druid.segment.DimensionHandlerUtils;
 import org.apache.druid.segment.column.RowSignature;
 import org.apache.druid.segment.column.ValueType;
@@ -131,6 +135,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
         hasTimeout,
         timeoutAt
     );
+
     final List<Sequence<ResultRow>> sequences = FluentIterable
         .from(queryables)
         .transform(runner -> {
@@ -192,10 +197,22 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
         })
         .toList();
 
+  }
+
+  private Sequence<ResultRow> mergeSequences(
+      GroupByQuery query,
+      List<Sequence<ResultRow>> sequences,
+      Supplier<MergedDictionary[]> mergedDictionariesSupplier,
+      int priority,
+      boolean hasTimeout,
+      long queryTimeout
+  )
+  {
+
     final ParallelMergeCombiningSequence<ResultRow> mergeCombiningSequence = new ParallelMergeCombiningSequence<>(
         pool,
         sequences,
-        getRowOrdering(query), // TODO: this compares strings. i need dictionary-based ordering
+        getRowOrdering(query),
         new GroupByBinaryFnV2(query),
         hasTimeout,
         queryTimeout,
@@ -212,7 +229,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
 //        new GroupByBinaryFnV2(query)
 //    );
 
-    final MappedSequence<ResultRow, ResultRow> mappedSequence = new MappedSequence<>(
+    return new MappedSequence<>(
         mergeCombiningSequence,
         row -> {
           final MergedDictionary[] mergedDictionaries = mergedDictionariesSupplier.get(); // TODO: per row??
@@ -225,8 +242,38 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
           return row;
         }
     );
+  }
 
-    return mappedSequence;
+  private Sequence<ResultRow> mergeAndCombine(
+      GroupByQuery query,
+      Supplier<MergedDictionary[]> mergedDictionariesSupplier,
+      int priority,
+      boolean hasTimeout,
+      long queryTimeout,
+      List<Sequence<ResultRow>> sequences
+  )
+  {
+    final ThreadLocal<ResultRow> columnSelectorRow = new ThreadLocal<>();
+
+    final ColumnSelectorFactory columnSelectorFactory = RowBasedGrouperHelper.createResultRowBasedColumnSelectorFactory(
+        query,
+        columnSelectorRow::get,
+        mergedDictionariesSupplier
+    );
+    final List<ValueType> valueTypes = DimensionHandlerUtils.getValueTypesFromDimensionSpecs(query.getDimensions());
+    final ValueExtractFunction valueExtractFunction = RowBasedGrouperHelper.makeValueExtractFunction(
+        query,
+        true,
+        query.getResultRowHasTimestamp(),
+        columnSelectorFactory,
+        valueTypes
+    );
+    final int keySize = query.getResultRowHasTimestamp() ? query.getDimensions().size() + 1 : query.getDimensions().size();
+
+    // TODO: something something similar to ParallelCombiner..
+    // it should accept sequences instead of CloseableIterators
+    // it should also use the mergedDictionarySupplier instead of dictionary
+
   }
 
   private ResultRow decode(MergedDictionary[] mergedDictionaries, ResultRow row, int dimStart, int dimEnd)
