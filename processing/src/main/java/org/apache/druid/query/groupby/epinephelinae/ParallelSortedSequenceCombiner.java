@@ -19,78 +19,54 @@
 
 package org.apache.druid.query.groupby.epinephelinae;
 
-import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
-import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
-import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.collections.Releaser;
+import org.apache.druid.common.guava.SettableSupplier;
 import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.guava.BaseSequence;
+import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
+import org.apache.druid.java.util.common.guava.CloseQuietly;
+import org.apache.druid.java.util.common.guava.MergeSequence;
+import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.AbstractPrioritizedCallable;
 import org.apache.druid.query.QueryInterruptedException;
 import org.apache.druid.query.aggregation.AggregatorFactory;
-import org.apache.druid.query.dimension.DimensionSpec;
+import org.apache.druid.query.groupby.GroupByQuery;
+import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.KeySerdeFactory;
-import org.apache.druid.query.monomorphicprocessing.RuntimeShapeInspector;
+import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKey;
+import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.ValueExtractFunction;
 import org.apache.druid.segment.ColumnSelectorFactory;
-import org.apache.druid.segment.ColumnValueSelector;
-import org.apache.druid.segment.DimensionSelector;
-import org.apache.druid.segment.ObjectColumnSelector;
-import org.apache.druid.segment.column.ColumnCapabilities;
-
-import javax.annotation.Nullable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-/**
- * ParallelCombiner builds a combining tree which asynchronously aggregates input entries.  Each node of the combining
- * tree is a combining task executed in parallel which aggregates inputs from the child nodes.
- */
-public class ParallelCombiner<KeyType>
+public class ParallelSortedSequenceCombiner
 {
-  // The combining tree created by this class can have two different degrees for intermediate nodes.
-  // The "leaf combine degree (LCD)" is the number of leaf nodes combined together, while the "intermediate combine
-  // degree (ICD)" is the number of non-leaf nodes combined together. The below picture shows an example where LCD = 2
-  // and ICD = 4.
-  //
-  //        o         <- non-leaf node
-  //     / / \ \      <- ICD = 4
-  //  o   o   o   o   <- non-leaf nodes
-  // / \ / \ / \ / \  <- LCD = 2
-  // o o o o o o o o  <- leaf nodes
-  //
-  // The reason why we need two different degrees is to optimize the number of non-leaf nodes which are run by
-  // different threads at the same time. Note that the leaf nodes are sorted iterators of SpillingGroupers which
-  // generally returns multiple rows of the same grouping key which in turn should be combined, while the non-leaf nodes
-  // are iterators of StreamingMergeSortedGroupers and always returns a single row per grouping key. Generally, the
-  // performance will get better as LCD becomes low while ICD is some value larger than LCD because the amount of work
-  // each thread has to do can be properly tuned. The optimal values for LCD and ICD may vary with query and data. Here,
-  // we use a simple heuristic to avoid complex optimization. That is, ICD is fixed as a user-configurable value and the
-  // minimum LCD satisfying the memory restriction is searched. See findLeafCombineDegreeAndNumBuffers() for more
-  // details.
   private static final int MINIMUM_LEAF_COMBINE_DEGREE = 2;
 
   private final ReferenceCountingResourceHolder<ByteBuffer> combineBufferHolder;
   private final AggregatorFactory[] combiningFactories;
-  private final KeySerdeFactory<KeyType> combineKeySerdeFactory;
+  private final KeySerdeFactory<RowBasedKey> combineKeySerdeFactory;
   private final ListeningExecutorService executor;
-  private final Comparator<Entry<KeyType>> keyObjComparator;
+  private final Comparator<Entry<RowBasedKey>> keyObjComparator;
   private final int concurrencyHint;
   private final int priority;
   private final long queryTimeoutAt;
@@ -99,10 +75,10 @@ public class ParallelCombiner<KeyType>
   // rows for the same grouping key.
   private final int intermediateCombineDegree;
 
-  public ParallelCombiner(
+  public ParallelSortedSequenceCombiner(
       ReferenceCountingResourceHolder<ByteBuffer> combineBufferHolder,
       AggregatorFactory[] combiningFactories,
-      KeySerdeFactory<KeyType> combineKeySerdeFactory,
+      KeySerdeFactory<RowBasedKey> combineKeySerdeFactory, // TODO: make sure that this serdeFactory has the merged dictionary fed
       ListeningExecutorService executor,
       boolean sortHasNonGroupingFields,
       int concurrencyHint,
@@ -119,22 +95,12 @@ public class ParallelCombiner<KeyType>
     this.concurrencyHint = concurrencyHint;
     this.priority = priority;
     this.intermediateCombineDegree = intermediateCombineDegree;
-
     this.queryTimeoutAt = queryTimeoutAt;
   }
 
-  /**
-   * Build a combining tree for the input iterators which combine input entries asynchronously.  Each node in the tree
-   * is a combining task which iterates through child iterators, aggregates the inputs from those iterators, and returns
-   * an iterator for the result of aggregation.
-   * <p>
-   * This method is called when data is spilled and thus streaming combine is preferred to avoid too many disk accesses.
-   *
-   * @return an iterator of the root grouper of the combining tree
-   */
-  public CloseableIterator<Entry<KeyType>> combine(
-      List<? extends CloseableIterator<Entry<KeyType>>> sortedIterators,
-      List<String> mergedDictionary
+  public Sequence<ResultRow> combine(
+      List<Sequence<ResultRow>> sortedSequences,
+      Supplier<MergedDictionary[]> mergedDictionariesSupplier
   )
   {
     // CombineBuffer is initialized when this method is called and closed after the result iterator is done
@@ -142,7 +108,7 @@ public class ParallelCombiner<KeyType>
     try {
       final ByteBuffer combineBuffer = combineBufferHolder.get();
       final int minimumRequiredBufferCapacity = StreamingMergeSortedGrouper.requiredBufferCapacity(
-          combineKeySerdeFactory.factorizeWithDictionary(mergedDictionary),
+          combineKeySerdeFactory.factorize(),
           combiningFactories
       );
       // We want to maximize the parallelism while the size of buffer slice is greater than the minimum buffer size
@@ -152,7 +118,7 @@ public class ParallelCombiner<KeyType>
           combineBuffer,
           minimumRequiredBufferCapacity,
           concurrencyHint,
-          sortedIterators.size()
+          sortedSequences.size()
       );
 
       final int leafCombineDegree = degreeAndNumBuffers.lhs;
@@ -161,20 +127,35 @@ public class ParallelCombiner<KeyType>
 
       final Supplier<ByteBuffer> bufferSupplier = createCombineBufferSupplier(combineBuffer, numBuffers, sliceSize);
 
-      final Pair<List<CloseableIterator<Entry<KeyType>>>, List<Future>> combineIteratorAndFutures = buildCombineTree(
-          sortedIterators,
+      final Pair<List<CloseableIterator<Entry<RowBasedKey>>>, List<Future>> combineIteratorAndFutures = buildCombineTree(
+          sortedSequences,
           bufferSupplier,
           combiningFactories,
           leafCombineDegree,
-          mergedDictionary
+          mergedDictionariesSupplier
       );
 
-      final CloseableIterator<Entry<KeyType>> combineIterator = Iterables.getOnlyElement(combineIteratorAndFutures.lhs);
+      final CloseableIterator<Entry<RowBasedKey>> combineIterator = Iterables.getOnlyElement(combineIteratorAndFutures.lhs);
       final List<Future> combineFutures = combineIteratorAndFutures.rhs;
 
       closer.register(() -> checkCombineFutures(combineFutures));
 
-      return CloseableIterators.wrap(combineIterator, closer);
+      return new BaseSequence<>(
+          new IteratorMaker<ResultRow, Iterator<ResultRow>>()
+          {
+            @Override
+            public Iterator<ResultRow> make()
+            {
+              return combineIterator;
+            }
+
+            @Override
+            public void cleanup(Iterator<ResultRow> iterFromMake)
+            {
+              CloseQuietly.close(closer);
+            }
+          }
+      );
     }
     catch (Throwable t) {
       try {
@@ -229,19 +210,6 @@ public class ParallelCombiner<KeyType>
     };
   }
 
-  /**
-   * Find a minimum size of the buffer slice and corresponding leafCombineDegree and number of slices.  Note that each
-   * node in the combining tree is executed by different threads.  This method assumes that combining the leaf nodes
-   * requires threads as many as possible, while combining intermediate nodes is not.  See the comment on
-   * {@link #MINIMUM_LEAF_COMBINE_DEGREE} for more details.
-   *
-   * @param combineBuffer                 entire buffer used for combining tree
-   * @param requiredMinimumBufferCapacity minimum buffer capacity for {@link StreamingMergeSortedGrouper}
-   * @param numAvailableThreads           number of available threads
-   * @param numLeafNodes                  number of leaf nodes of combining tree
-   *
-   * @return a pair of leafCombineDegree and number of buffers if found.
-   */
   private Pair<Integer, Integer> findLeafCombineDegreeAndNumBuffers(
       ByteBuffer combineBuffer,
       int requiredMinimumBufferCapacity,
@@ -269,18 +237,6 @@ public class ParallelCombiner<KeyType>
     );
   }
 
-  /**
-   * Recursively compute the number of required buffers for a combining tree in a bottom-up manner.  Since each node of
-   * the combining tree represents a combining task and each combining task requires one buffer, the number of required
-   * buffers is the number of nodes of the combining tree.
-   *
-   * @param numChildNodes number of child nodes
-   * @param combineDegree combine degree for the current level
-   *
-   * @return minimum number of buffers required for combining tree
-   *
-   * @see #buildCombineTree
-   */
   private int computeRequiredBufferNum(int numChildNodes, int combineDegree)
   {
     // numChildrenForLastNode used to determine that the last node is needed for the current level.
@@ -297,29 +253,16 @@ public class ParallelCombiner<KeyType>
     }
   }
 
-  /**
-   * Recursively build a combining tree in a bottom-up manner.  Each node of the tree is a task that combines input
-   * iterators asynchronously.
-   *
-   * @param childIterators     all iterators of the child level
-   * @param bufferSupplier     combining buffer supplier
-   * @param combiningFactories array of combining aggregator factories
-   * @param combineDegree      combining degree for the current level
-   * @param dictionary         merged dictionary
-   *
-   * @return a pair of a list of iterators of the current level in the combining tree and a list of futures of all
-   * executed combining tasks
-   */
-  private Pair<List<CloseableIterator<Entry<KeyType>>>, List<Future>> buildCombineTree(
-      List<? extends CloseableIterator<Entry<KeyType>>> childIterators,
+  private Pair<List<CloseableIterator<Entry<RowBasedKey>>>, List<Future>> buildCombineTree(
+      List<Sequence<ResultRow>> childSequences,
       Supplier<ByteBuffer> bufferSupplier,
       AggregatorFactory[] combiningFactories,
       int combineDegree,
-      List<String> dictionary
+      Supplier<MergedDictionary[]> mergedDictionariesSupplier
   )
   {
-    final int numChildLevelIterators = childIterators.size();
-    final List<CloseableIterator<Entry<KeyType>>> childIteratorsOfNextLevel = new ArrayList<>();
+    final int numChildLevelIterators = childSequences.size();
+    final List<CloseableIterator<Entry<RowBasedKey>>> childIteratorsOfNextLevel = new ArrayList<>();
     final List<Future> combineFutures = new ArrayList<>();
 
     // The below algorithm creates the combining nodes of the current level. It first checks that the number of children
@@ -341,22 +284,22 @@ public class ParallelCombiner<KeyType>
 
     for (int i = 0; i < numChildLevelIterators; i += combineDegree) {
       if (i < numChildLevelIterators - 1) {
-        final List<? extends CloseableIterator<Entry<KeyType>>> subIterators = childIterators.subList(
+        final List<Sequence<ResultRow>> subIterators = childSequences.subList(
             i,
             Math.min(i + combineDegree, numChildLevelIterators)
         );
-        final Pair<CloseableIterator<Entry<KeyType>>, Future> iteratorAndFuture = runCombiner(
+        final Pair<CloseableIterator<Entry<RowBasedKey>>, Future> iteratorAndFuture = runCombiner(
             subIterators,
             bufferSupplier.get(),
             combiningFactories,
-            dictionary
+            mergedDictionariesSupplier
         );
 
         childIteratorsOfNextLevel.add(iteratorAndFuture.lhs);
         combineFutures.add(iteratorAndFuture.rhs);
       } else {
         // If there remains one child, it can be directly connected to a node of the parent level.
-        childIteratorsOfNextLevel.add(childIterators.get(i));
+        childIteratorsOfNextLevel.add(childSequences.get(i));
       }
     }
 
@@ -365,32 +308,38 @@ public class ParallelCombiner<KeyType>
       return Pair.of(childIteratorsOfNextLevel, combineFutures);
     } else {
       // Build the parent level iterators
-      final Pair<List<CloseableIterator<Entry<KeyType>>>, List<Future>> parentIteratorsAndFutures =
+      final Pair<List<CloseableIterator<Entry<RowBasedKey>>>, List<Future>> parentIteratorsAndFutures =
           buildCombineTree(
               childIteratorsOfNextLevel,
               bufferSupplier,
               combiningFactories,
               intermediateCombineDegree,
-              dictionary
+              mergedDictionariesSupplier
           );
       combineFutures.addAll(parentIteratorsAndFutures.rhs);
       return Pair.of(parentIteratorsAndFutures.lhs, combineFutures);
     }
   }
 
-  private Pair<CloseableIterator<Entry<KeyType>>, Future> runCombiner(
-      List<? extends CloseableIterator<Entry<KeyType>>> iterators,
+  private Pair<CloseableIterator<Entry<RowBasedKey>>, Future> runCombiner(
+      GroupByQuery query,
+      List<Sequence<ResultRow>> sequences,
+      ValueExtractFunction valueExtractFunction,
       ByteBuffer combineBuffer,
       AggregatorFactory[] combiningFactories,
-      List<String> dictionary
+      Supplier<MergedDictionary[]> mergedDictionariesSupplier
   )
   {
-    final SettableColumnSelectorFactory settableColumnSelectorFactory =
-        new SettableColumnSelectorFactory(combiningFactories);
-    final StreamingMergeSortedGrouper<KeyType> grouper = new StreamingMergeSortedGrouper<>(
+    final SettableSupplier<ResultRow> rowSupplier = new SettableSupplier<>();
+    final ColumnSelectorFactory columnSelectorFactory = RowBasedGrouperHelper.createResultRowBasedColumnSelectorFactory(
+        query,
+        rowSupplier,
+        mergedDictionariesSupplier
+    );
+    final StreamingMergeSortedGrouper<RowBasedKey> grouper = new StreamingMergeSortedGrouper<>(
         Suppliers.ofInstance(combineBuffer),
-        combineKeySerdeFactory.factorizeWithDictionary(dictionary),
-        settableColumnSelectorFactory,
+        combineKeySerdeFactory.factorize(),
+        columnSelectorFactory,
         combiningFactories,
         queryTimeoutAt
     );
@@ -403,8 +352,8 @@ public class ParallelCombiner<KeyType>
           public Void call()
           {
             try (
-                CloseableIterator<Entry<KeyType>> mergedIterator = CloseableIterators.mergeSorted(
-                    iterators,
+                CloseableIterator<Entry<RowBasedKey>> mergedIterator = CloseableIterators.mergeSorted(
+                    sequences,
                     keyObjComparator
                 );
                 // This variable is used to close releaser automatically.
@@ -412,7 +361,7 @@ public class ParallelCombiner<KeyType>
                 final Releaser releaser = combineBufferHolder.increment()
             ) {
               while (mergedIterator.hasNext()) {
-                final Entry<KeyType> next = mergedIterator.next();
+                final Entry<RowBasedKey> next = mergedIterator.next();
 
                 settableColumnSelectorFactory.set(next.values);
                 grouper.aggregate(next.key); // grouper always returns ok or throws an exception
@@ -430,77 +379,5 @@ public class ParallelCombiner<KeyType>
     );
 
     return new Pair<>(grouper.iterator(), future);
-  }
-
-  private static class SettableColumnSelectorFactory implements ColumnSelectorFactory
-  {
-    private static final int UNKNOWN_COLUMN_INDEX = -1;
-    private final Object2IntMap<String> columnIndexMap;
-
-    @Nullable
-    private Object[] values;
-
-    SettableColumnSelectorFactory(AggregatorFactory[] aggregatorFactories)
-    {
-      columnIndexMap = new Object2IntArrayMap<>(aggregatorFactories.length);
-      columnIndexMap.defaultReturnValue(UNKNOWN_COLUMN_INDEX);
-      for (int i = 0; i < aggregatorFactories.length; i++) {
-        columnIndexMap.put(aggregatorFactories[i].getName(), i);
-      }
-    }
-
-    public void set(@Nullable Object[] values)
-    {
-      this.values = values;
-    }
-
-    private int checkAndGetColumnIndex(String columnName)
-    {
-      final int columnIndex = columnIndexMap.getInt(columnName);
-      Preconditions.checkState(
-          columnIndex != UNKNOWN_COLUMN_INDEX,
-          "Cannot find a proper column index for column[%s]",
-          columnName
-      );
-      return columnIndex;
-    }
-
-    @Override
-    public DimensionSelector makeDimensionSelector(DimensionSpec dimensionSpec)
-    {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ColumnValueSelector makeColumnValueSelector(String columnName)
-    {
-      final int columnIndex = checkAndGetColumnIndex(columnName);
-      return new ObjectColumnSelector()
-      {
-        @Override
-        public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-        {
-          // do nothing
-        }
-
-        @Override
-        public Class classOfObject()
-        {
-          return Object.class;
-        }
-
-        @Override
-        public Object getObject()
-        {
-          return values[columnIndex];
-        }
-      };
-    }
-
-    @Override
-    public ColumnCapabilities getColumnCapabilities(String column)
-    {
-      return null;
-    }
   }
 }

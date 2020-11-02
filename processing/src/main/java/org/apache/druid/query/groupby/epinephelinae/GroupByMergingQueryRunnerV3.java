@@ -273,7 +273,10 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
     // TODO: something something similar to ParallelCombiner..
     // it should accept sequences instead of CloseableIterators
     // it should also use the mergedDictionarySupplier instead of dictionary
-
+    // it should be able to spill when it's full
+    //  - spilling should be a blocking operation for making things simple. in practice, reading and spilling will not likely happen at the same time.
+    //  - it can retry a couple of times when it's full before it starts spilling
+    //  - it can cancel spilling if some slots become available for writing
   }
 
   private ResultRow decode(MergedDictionary[] mergedDictionaries, ResultRow row, int dimStart, int dimEnd)
