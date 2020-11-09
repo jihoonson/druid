@@ -420,7 +420,7 @@ public class ConcurrentGrouper<KeyType> implements Grouper<KeyType>
     return keyHash % groupers.size();
   }
 
-  private AggregatorFactory[] getCombiningFactories(AggregatorFactory[] aggregatorFactories)
+  public static AggregatorFactory[] getCombiningFactories(AggregatorFactory[] aggregatorFactories)
   {
     final AggregatorFactory[] combiningFactories = new AggregatorFactory[aggregatorFactories.length];
     Arrays.setAll(combiningFactories, i -> aggregatorFactories[i].getCombiningFactory());

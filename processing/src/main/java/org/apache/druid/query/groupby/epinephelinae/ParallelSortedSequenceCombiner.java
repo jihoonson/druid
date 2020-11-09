@@ -22,22 +22,24 @@ package org.apache.druid.query.groupby.epinephelinae;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
-import org.apache.druid.collections.Releaser;
 import org.apache.druid.common.guava.SettableSupplier;
-import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.ISE;
+import org.apache.druid.java.util.common.NonnullPair;
 import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.guava.Accumulator;
 import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
-import org.apache.druid.java.util.common.guava.CloseQuietly;
 import org.apache.druid.java.util.common.guava.MergeSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.AbstractPrioritizedCallable;
+import org.apache.druid.query.BaseQuery;
 import org.apache.druid.query.QueryInterruptedException;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.groupby.GroupByQuery;
@@ -47,11 +49,11 @@ import org.apache.druid.query.groupby.epinephelinae.Grouper.KeySerdeFactory;
 import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKey;
 import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.ValueExtractFunction;
 import org.apache.druid.segment.ColumnSelectorFactory;
+import org.apache.druid.segment.DimensionHandlerUtils;
+import org.apache.druid.segment.column.ValueType;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CancellationException;
@@ -60,13 +62,14 @@ import java.util.concurrent.Future;
 
 public class ParallelSortedSequenceCombiner
 {
-  private static final int MINIMUM_LEAF_COMBINE_DEGREE = 2;
+  private static final int MINIMUM_LEAF_COMBINE_DEGREE = 1;
 
+  private final GroupByQuery query;
+  private final Ordering<ResultRow> rowOrdering;
   private final ReferenceCountingResourceHolder<ByteBuffer> combineBufferHolder;
   private final AggregatorFactory[] combiningFactories;
   private final KeySerdeFactory<RowBasedKey> combineKeySerdeFactory;
   private final ListeningExecutorService executor;
-  private final Comparator<Entry<RowBasedKey>> keyObjComparator;
   private final int concurrencyHint;
   private final int priority;
   private final long queryTimeoutAt;
@@ -76,22 +79,24 @@ public class ParallelSortedSequenceCombiner
   private final int intermediateCombineDegree;
 
   public ParallelSortedSequenceCombiner(
+      GroupByQuery query,
+      Ordering<ResultRow> rowOrdering,
       ReferenceCountingResourceHolder<ByteBuffer> combineBufferHolder,
       AggregatorFactory[] combiningFactories,
       KeySerdeFactory<RowBasedKey> combineKeySerdeFactory, // TODO: make sure that this serdeFactory has the merged dictionary fed
       ListeningExecutorService executor,
-      boolean sortHasNonGroupingFields,
       int concurrencyHint,
       int priority,
       long queryTimeoutAt,
       int intermediateCombineDegree
   )
   {
+    this.query = query;
+    this.rowOrdering = rowOrdering;
     this.combineBufferHolder = combineBufferHolder;
     this.combiningFactories = combiningFactories;
     this.combineKeySerdeFactory = combineKeySerdeFactory;
     this.executor = executor;
-    this.keyObjComparator = combineKeySerdeFactory.objectComparator(sortHasNonGroupingFields);
     this.concurrencyHint = concurrencyHint;
     this.priority = priority;
     this.intermediateCombineDegree = intermediateCombineDegree;
@@ -127,7 +132,7 @@ public class ParallelSortedSequenceCombiner
 
       final Supplier<ByteBuffer> bufferSupplier = createCombineBufferSupplier(combineBuffer, numBuffers, sliceSize);
 
-      final Pair<List<CloseableIterator<Entry<RowBasedKey>>>, List<Future>> combineIteratorAndFutures = buildCombineTree(
+      final NonnullPair<List<CloseableIterator<Entry<RowBasedKey>>>, List<Future<AggregateResult>>> combineIteratorAndFutures = buildCombineTree(
           sortedSequences,
           bufferSupplier,
           combiningFactories,
@@ -136,7 +141,7 @@ public class ParallelSortedSequenceCombiner
       );
 
       final CloseableIterator<Entry<RowBasedKey>> combineIterator = Iterables.getOnlyElement(combineIteratorAndFutures.lhs);
-      final List<Future> combineFutures = combineIteratorAndFutures.rhs;
+      final List<Future<AggregateResult>> combineFutures = combineIteratorAndFutures.rhs;
 
       closer.register(() -> checkCombineFutures(combineFutures));
 
@@ -146,13 +151,19 @@ public class ParallelSortedSequenceCombiner
             @Override
             public Iterator<ResultRow> make()
             {
-              return combineIterator;
+              return RowBasedGrouperHelper.makeGrouperIterator(
+                  combineIterator,
+                  query,
+                  null,
+                  closer,
+                  mergedDictionariesSupplier
+              );
             }
 
             @Override
             public void cleanup(Iterator<ResultRow> iterFromMake)
             {
-              CloseQuietly.close(closer);
+//              CloseQuietly.close(closer);
             }
           }
       );
@@ -168,9 +179,9 @@ public class ParallelSortedSequenceCombiner
     }
   }
 
-  private static void checkCombineFutures(List<Future> combineFutures)
+  private static void checkCombineFutures(List<Future<AggregateResult>> combineFutures)
   {
-    for (Future future : combineFutures) {
+    for (Future<AggregateResult> future : combineFutures) {
       try {
         if (!future.isDone()) {
           // Cancel futures if close() for the iterator is called early due to some reason (e.g., test failure)
@@ -253,7 +264,7 @@ public class ParallelSortedSequenceCombiner
     }
   }
 
-  private Pair<List<CloseableIterator<Entry<RowBasedKey>>>, List<Future>> buildCombineTree(
+  private NonnullPair<List<CloseableIterator<Entry<RowBasedKey>>>, List<Future<AggregateResult>>> buildCombineTree(
       List<Sequence<ResultRow>> childSequences,
       Supplier<ByteBuffer> bufferSupplier,
       AggregatorFactory[] combiningFactories,
@@ -263,7 +274,7 @@ public class ParallelSortedSequenceCombiner
   {
     final int numChildLevelIterators = childSequences.size();
     final List<CloseableIterator<Entry<RowBasedKey>>> childIteratorsOfNextLevel = new ArrayList<>();
-    final List<Future> combineFutures = new ArrayList<>();
+    final List<Future<AggregateResult>> combineFutures = new ArrayList<>();
 
     // The below algorithm creates the combining nodes of the current level. It first checks that the number of children
     // to be combined together is 1. If it is, the intermediate combining node for that child is not needed. Instead, it
@@ -283,48 +294,46 @@ public class ParallelSortedSequenceCombiner
     // manner.
 
     for (int i = 0; i < numChildLevelIterators; i += combineDegree) {
-      if (i < numChildLevelIterators - 1) {
-        final List<Sequence<ResultRow>> subIterators = childSequences.subList(
-            i,
-            Math.min(i + combineDegree, numChildLevelIterators)
-        );
-        final Pair<CloseableIterator<Entry<RowBasedKey>>, Future> iteratorAndFuture = runCombiner(
-            subIterators,
-            bufferSupplier.get(),
-            combiningFactories,
-            mergedDictionariesSupplier
-        );
+      final List<Sequence<ResultRow>> subSequences = childSequences.subList(
+          i,
+          Math.min(i + combineDegree, numChildLevelIterators)
+      );
+      final Pair<CloseableIterator<Entry<RowBasedKey>>, Future<AggregateResult>> iteratorAndFuture = runCombiner(
+          query,
+          subSequences,
+          rowOrdering,
+          bufferSupplier.get(),
+          combiningFactories,
+          mergedDictionariesSupplier
+      );
 
-        childIteratorsOfNextLevel.add(iteratorAndFuture.lhs);
-        combineFutures.add(iteratorAndFuture.rhs);
-      } else {
-        // If there remains one child, it can be directly connected to a node of the parent level.
-        childIteratorsOfNextLevel.add(childSequences.get(i));
-      }
+      childIteratorsOfNextLevel.add(iteratorAndFuture.lhs);
+      combineFutures.add(iteratorAndFuture.rhs);
     }
 
     if (childIteratorsOfNextLevel.size() == 1) {
       // This is the root
-      return Pair.of(childIteratorsOfNextLevel, combineFutures);
+      return new NonnullPair<>(childIteratorsOfNextLevel, combineFutures);
     } else {
-      // Build the parent level iterators
-      final Pair<List<CloseableIterator<Entry<RowBasedKey>>>, List<Future>> parentIteratorsAndFutures =
-          buildCombineTree(
-              childIteratorsOfNextLevel,
-              bufferSupplier,
-              combiningFactories,
-              intermediateCombineDegree,
-              mergedDictionariesSupplier
-          );
-      combineFutures.addAll(parentIteratorsAndFutures.rhs);
-      return Pair.of(parentIteratorsAndFutures.lhs, combineFutures);
+//      // Build the parent level iterators
+//      final Pair<List<CloseableIterator<Entry<RowBasedKey>>>, List<Future>> parentIteratorsAndFutures =
+//          buildCombineTree(
+//              childIteratorsOfNextLevel,
+//              bufferSupplier,
+//              combiningFactories,
+//              intermediateCombineDegree,
+//              mergedDictionariesSupplier
+//          );
+//      combineFutures.addAll(parentIteratorsAndFutures.rhs);
+//      return Pair.of(parentIteratorsAndFutures.lhs, combineFutures);
+      throw new UnsupportedOperationException();
     }
   }
 
-  private Pair<CloseableIterator<Entry<RowBasedKey>>, Future> runCombiner(
+  private Pair<CloseableIterator<Entry<RowBasedKey>>, Future<AggregateResult>> runCombiner(
       GroupByQuery query,
       List<Sequence<ResultRow>> sequences,
-      ValueExtractFunction valueExtractFunction,
+      Ordering<ResultRow> rowOrdering,
       ByteBuffer combineBuffer,
       AggregatorFactory[] combiningFactories,
       Supplier<MergedDictionary[]> mergedDictionariesSupplier
@@ -336,6 +345,16 @@ public class ParallelSortedSequenceCombiner
         rowSupplier,
         mergedDictionariesSupplier
     );
+    final int keySize = query.getResultRowHasTimestamp() ? query.getDimensions().size() + 1 : query.getDimensions().size();
+    final List<ValueType> valueTypes = DimensionHandlerUtils.getValueTypesFromDimensionSpecs(query.getDimensions());
+    final ValueExtractFunction valueExtractFn = RowBasedGrouperHelper.makeValueExtractFunction(
+        query,
+        false,
+        query.getResultRowHasTimestamp(),
+        columnSelectorFactory,
+        valueTypes
+    );
+
     final StreamingMergeSortedGrouper<RowBasedKey> grouper = new StreamingMergeSortedGrouper<>(
         Suppliers.ofInstance(combineBuffer),
         combineKeySerdeFactory.factorize(),
@@ -345,35 +364,37 @@ public class ParallelSortedSequenceCombiner
     );
     grouper.init(); // init() must be called before iterator(), so cannot be called inside the below callable.
 
-    final ListenableFuture future = executor.submit(
-        new AbstractPrioritizedCallable<Void>(priority)
+    final Sequence<ResultRow> mergeSequence = Sequences.withBaggage(
+        new MergeSequence<>(rowOrdering, Sequences.simple(sequences)),
+        grouper::finish
+    );
+    final Accumulator<AggregateResult, ResultRow> accumulator = (priorResult, row) -> {
+      BaseQuery.checkInterrupted();
+
+      if (priorResult != null && !priorResult.isOk()) {
+        // Pass-through error returns without doing more work.
+        return priorResult;
+      }
+
+      rowSupplier.set(row);
+
+      final Comparable[] key = new Comparable[keySize];
+      valueExtractFn.apply(row, key);
+
+      final AggregateResult aggregateResult = grouper.aggregate(new RowBasedKey(key));
+      rowSupplier.set(null);
+
+      return aggregateResult;
+    };
+
+    final ListenableFuture<AggregateResult> future = executor.submit(
+        new AbstractPrioritizedCallable<AggregateResult>(priority)
         {
           @Override
-          public Void call()
+          public AggregateResult call()
           {
-            try (
-                CloseableIterator<Entry<RowBasedKey>> mergedIterator = CloseableIterators.mergeSorted(
-                    sequences,
-                    keyObjComparator
-                );
-                // This variable is used to close releaser automatically.
-                @SuppressWarnings("unused")
-                final Releaser releaser = combineBufferHolder.increment()
-            ) {
-              while (mergedIterator.hasNext()) {
-                final Entry<RowBasedKey> next = mergedIterator.next();
-
-                settableColumnSelectorFactory.set(next.values);
-                grouper.aggregate(next.key); // grouper always returns ok or throws an exception
-                settableColumnSelectorFactory.set(null);
-              }
-            }
-            catch (IOException e) {
-              throw new RuntimeException(e);
-            }
-
-            grouper.finish();
-            return null;
+            System.err.println("executor submit");
+            return mergeSequence.accumulate(AggregateResult.ok(), accumulator);
           }
         }
     );

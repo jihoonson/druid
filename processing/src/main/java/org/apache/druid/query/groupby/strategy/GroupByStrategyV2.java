@@ -602,7 +602,8 @@ public class GroupByStrategyV2 implements GroupByStrategy
         queryRunners,
         dictionaryMergingRunner,
         processingConfig,
-        mergePool
+        mergePool,
+        mergeBufferPool
     );
   }
 

@@ -41,6 +41,7 @@ import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.granularity.AllGranularity;
 import org.apache.druid.java.util.common.guava.Accumulator;
 import org.apache.druid.java.util.common.guava.Comparators;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.BaseQuery;
 import org.apache.druid.query.ColumnSelectorPlus;
 import org.apache.druid.query.aggregation.AggregatorFactory;
@@ -54,6 +55,7 @@ import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.OrderByColumnSpec;
@@ -568,6 +570,17 @@ public class RowBasedGrouperHelper
       @Nullable final Supplier<MergedDictionary[]> mergedDictionarySupplier
   )
   {
+    return makeGrouperIterator(grouper.iterator(true), query, dimsToInclude, closeable, mergedDictionarySupplier);
+  }
+
+  public static CloseableGrouperIterator<RowBasedKey, ResultRow> makeGrouperIterator(
+      final CloseableIterator<Entry<RowBasedKey>> grouperIterator,
+      final GroupByQuery query,
+      @Nullable final List<String> dimsToInclude,
+      final Closeable closeable,
+      @Nullable final Supplier<MergedDictionary[]> mergedDictionarySupplier
+  )
+  {
     final boolean includeTimestamp = query.getResultRowHasTimestamp();
     final BitSet dimsToIncludeBitSet = new BitSet(query.getDimensions().size());
     final int resultRowDimensionStart = query.getResultRowDimensionStart();
@@ -582,7 +595,7 @@ public class RowBasedGrouperHelper
     }
 
     return new CloseableGrouperIterator<>(
-        grouper.iterator(true),
+        grouperIterator,
         entry -> {
           final ResultRow resultRow = ResultRow.create(query.getResultRowSizeWithoutPostAggregators());
 
@@ -777,7 +790,7 @@ public class RowBasedGrouperHelper
     return functions;
   }
 
-  private static class RowBasedKeySerdeFactory implements Grouper.KeySerdeFactory<RowBasedKey>
+  public static class RowBasedKeySerdeFactory implements Grouper.KeySerdeFactory<RowBasedKey>
   {
     private final boolean includeTimestamp;
     private final boolean sortByDimsFirst;
@@ -789,7 +802,7 @@ public class RowBasedGrouperHelper
     @Nullable
     private final Supplier<MergedDictionary[]> mergedDictionarySupplier;
 
-    RowBasedKeySerdeFactory(
+    public RowBasedKeySerdeFactory(
         boolean includeTimestamp,
         boolean sortByDimsFirst,
         List<DimensionSpec> dimensions,

@@ -22,6 +22,7 @@ package org.apache.druid.query.groupby.epinephelinae;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.FluentIterable;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -30,12 +31,15 @@ import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
+import org.apache.druid.collections.BlockingPool;
+import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
 import org.apache.druid.java.util.common.guava.LazySequence;
 import org.apache.druid.java.util.common.guava.MappedSequence;
 import org.apache.druid.java.util.common.guava.ParallelMergeCombiningSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.guava.Yielder;
 import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.java.util.common.logger.Logger;
@@ -49,26 +53,27 @@ import org.apache.druid.query.QueryInterruptedException;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryWatcher;
+import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
-import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.KeySerdeFactory;
 import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKey;
-import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.ValueExtractFunction;
+import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKeySerdeFactory;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.OrderByColumnSpec;
 import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.query.ordering.StringComparators;
-import org.apache.druid.segment.ColumnSelectorFactory;
 import org.apache.druid.segment.DimensionHandlerUtils;
 import org.apache.druid.segment.column.RowSignature;
 import org.apache.druid.segment.column.ValueType;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -94,6 +99,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
   private final DictionaryMergingQueryRunner dictionaryMergingRunner;
   private final DruidProcessingConfig processingConfig;
   private final ForkJoinPool pool;
+  private final BlockingPool<ByteBuffer> mergeBufferPool;
 
   public GroupByMergingQueryRunnerV3(
       GroupByQueryConfig config,
@@ -102,7 +108,8 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
       Iterable<QueryRunner<ResultRow>> queryables,
       DictionaryMergingQueryRunner dictionaryMergingRunner,
       DruidProcessingConfig processingConfig,
-      ForkJoinPool pool
+      ForkJoinPool pool,
+      BlockingPool<ByteBuffer> mergeBufferPool
   )
   {
     this.config = config;
@@ -112,6 +119,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
     this.dictionaryMergingRunner = dictionaryMergingRunner;
     this.processingConfig = processingConfig;
     this.pool = pool;
+    this.mergeBufferPool = mergeBufferPool;
   }
 
   @Override
@@ -197,6 +205,34 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
         })
         .toList();
 
+    final AggregatorFactory[] aggregatorFactories = query.getAggregatorSpecs().toArray(new AggregatorFactory[0]);
+    final List<ValueType> valueTypes = DimensionHandlerUtils.getValueTypesFromDimensionSpecs(query.getDimensions());
+    final Grouper.KeySerdeFactory<RowBasedKey> combineKeySerdeFactory = new RowBasedKeySerdeFactory(
+        query.getResultRowHasTimestamp(),
+        query.getContextSortByDimsFirst(),
+        query.getDimensions(),
+        Long.MAX_VALUE,
+        valueTypes,
+        aggregatorFactories,
+        null,
+        mergedDictionariesSupplier
+    );
+
+    final ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder = Iterables.getOnlyElement(mergeBufferPool.takeBatch(1));
+    return Sequences.withBaggage(
+        mergeAndCombine(
+            query,
+            mergedDictionariesSupplier,
+            mergeBufferHolder, // TODO: handle timeout and error better
+            ConcurrentGrouper.getCombiningFactories(aggregatorFactories),
+            combineKeySerdeFactory,
+            priority,
+            hasTimeout,
+            queryTimeout,
+            sequences
+        ),
+        mergeBufferHolder
+    );
   }
 
   private Sequence<ResultRow> mergeSequences(
@@ -247,28 +283,30 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
   private Sequence<ResultRow> mergeAndCombine(
       GroupByQuery query,
       Supplier<MergedDictionary[]> mergedDictionariesSupplier,
+      ReferenceCountingResourceHolder<ByteBuffer> combineBufferHolder,
+      AggregatorFactory[] combiningFactories,
+      KeySerdeFactory<RowBasedKey> combineKeySerdeFactory,
       int priority,
       boolean hasTimeout,
       long queryTimeout,
       List<Sequence<ResultRow>> sequences
   )
   {
-    final ThreadLocal<ResultRow> columnSelectorRow = new ThreadLocal<>();
+    final long timeoutAt = System.currentTimeMillis() + queryTimeout;
+    final ParallelSortedSequenceCombiner sequenceCombiner = new ParallelSortedSequenceCombiner(
+        query,
+        getRowOrdering(query),
+        combineBufferHolder,
+        combiningFactories,
+        combineKeySerdeFactory,
+        exec,
+        processingConfig.getNumThreads(),
+        priority,
+        timeoutAt,
+        4 // TODO: auto decide
+    );
 
-    final ColumnSelectorFactory columnSelectorFactory = RowBasedGrouperHelper.createResultRowBasedColumnSelectorFactory(
-        query,
-        columnSelectorRow::get,
-        mergedDictionariesSupplier
-    );
-    final List<ValueType> valueTypes = DimensionHandlerUtils.getValueTypesFromDimensionSpecs(query.getDimensions());
-    final ValueExtractFunction valueExtractFunction = RowBasedGrouperHelper.makeValueExtractFunction(
-        query,
-        true,
-        query.getResultRowHasTimestamp(),
-        columnSelectorFactory,
-        valueTypes
-    );
-    final int keySize = query.getResultRowHasTimestamp() ? query.getDimensions().size() + 1 : query.getDimensions().size();
+    return sequenceCombiner.combine(sequences, mergedDictionariesSupplier);
 
     // TODO: something something similar to ParallelCombiner..
     // it should accept sequences instead of CloseableIterators
