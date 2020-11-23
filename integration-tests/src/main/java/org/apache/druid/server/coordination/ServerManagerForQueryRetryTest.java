@@ -45,6 +45,7 @@ import org.apache.druid.server.initialization.ServerConfig;
 import org.apache.druid.timeline.VersionedIntervalTimeline;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -106,7 +107,8 @@ public class ServerManagerForQueryRetryTest extends ServerManager
       QueryToolChest<T, Query<T>> toolChest,
       VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline,
       Function<SegmentReference, SegmentReference> segmentMapFn,
-      AtomicLong cpuTimeAccumulator
+      AtomicLong cpuTimeAccumulator,
+      Optional<byte[]> cacheKeyPrefix
   )
   {
     if (query.getContextBoolean(QUERY_RETRY_TEST_CONTEXT_KEY, false)) {
@@ -138,7 +140,8 @@ public class ServerManagerForQueryRetryTest extends ServerManager
         toolChest,
         timeline,
         segmentMapFn,
-        cpuTimeAccumulator
+        cpuTimeAccumulator,
+        cacheKeyPrefix
     );
   }
 }
