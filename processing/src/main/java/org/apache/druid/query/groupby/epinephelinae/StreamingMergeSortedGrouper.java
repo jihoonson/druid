@@ -191,7 +191,7 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
   @Override
   public AggregateResult aggregate(KeyType key)
   {
-    System.err.println("aggregate");
+//    System.err.println("aggregate: " + key);
     try {
       final ByteBuffer keyBuffer = keySerde.toByteBuffer(key);
 

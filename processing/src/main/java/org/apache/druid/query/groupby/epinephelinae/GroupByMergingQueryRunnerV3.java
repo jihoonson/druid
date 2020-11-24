@@ -218,6 +218,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
         mergedDictionariesSupplier
     );
 
+    // TODO: check deadlock
     final ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder = Iterables.getOnlyElement(mergeBufferPool.takeBatch(1));
     return Sequences.withBaggage(
         mergeAndCombine(

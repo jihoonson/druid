@@ -52,7 +52,6 @@ import org.apache.druid.query.filter.Filter;
 import org.apache.druid.query.filter.ValueMatcher;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
-import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
@@ -87,6 +86,7 @@ import java.util.BitSet;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -377,19 +377,38 @@ public class RowBasedGrouperHelper
           public Function<ResultRow, Object> columnFunction(final String columnName)
           {
             if (mergedDictionarySupplier != null) {
-              final boolean isDimension = query.getDimensions()
-                                               .stream()
-                                               .anyMatch(dimensionSpec -> dimensionSpec.getDimension().equals(columnName));
-              if (isDimension) {
-                final int dimensionIndex = query.getResultRowSignature().indexOf(columnName) - query.getResultRowDimensionStart();
-                return row -> {
-                  final PerSegmentEncodedResultRow perSegmentEncodedResultRow = (PerSegmentEncodedResultRow) row;
-                  return mergedDictionarySupplier.get()[dimensionIndex].getNewDictId(
-                      perSegmentEncodedResultRow.getSegmentId(dimensionIndex),
-                      perSegmentEncodedResultRow.getInt(dimensionIndex)
-                  );
-                };
+              final Optional<DimensionSpec> columnSpec = query
+                  .getDimensions()
+                  .stream()
+                  .filter(dimensionSpec -> dimensionSpec.getDimension().equals(columnName))
+                  .findAny();
+              if (columnSpec.isPresent()) {
+                final int dimensionIndex = query.getResultRowSignature().indexOf(columnSpec.get().getOutputName());
+                if (dimensionIndex < 0) {
+                  return row -> null;
+                } else {
+                  return row -> row.getInt(dimensionIndex);
+                }
               }
+
+//              final boolean isDimension = query.getDimensions()
+//                                               .stream()
+//                                               .anyMatch(dimensionSpec -> dimensionSpec.getDimension().equals(columnName));
+//              if (isDimension) {
+//                final int dimensionIndex = query.getResultRowSignature().indexOf(columnName) - query.getResultRowDimensionStart();
+//                if (dimensionIndex < 0) {
+//                  return row -> null;
+//                } else {
+//                  return row -> {
+////                  final PerSegmentEncodedResultRow perSegmentEncodedResultRow = (PerSegmentEncodedResultRow) row;
+////                  return mergedDictionarySupplier.get()[dimensionIndex].getNewDictId(
+////                      perSegmentEncodedResultRow.getSegmentId(dimensionIndex),
+////                      perSegmentEncodedResultRow.getInt(dimensionIndex)
+////                  );
+//                    return row.getInt(dimensionIndex);
+//                  };
+//                }
+//              }
             }
             final int columnIndex = query.getResultRowSignature().indexOf(columnName);
             if (columnIndex < 0) {

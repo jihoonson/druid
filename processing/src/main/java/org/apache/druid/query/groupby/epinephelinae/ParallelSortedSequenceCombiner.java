@@ -33,6 +33,7 @@ import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.guava.Accumulator;
 import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
+import org.apache.druid.java.util.common.guava.CloseQuietly;
 import org.apache.druid.java.util.common.guava.MergeSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
@@ -42,6 +43,7 @@ import org.apache.druid.query.AbstractPrioritizedCallable;
 import org.apache.druid.query.BaseQuery;
 import org.apache.druid.query.QueryInterruptedException;
 import org.apache.druid.query.aggregation.AggregatorFactory;
+import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
@@ -49,16 +51,22 @@ import org.apache.druid.query.groupby.epinephelinae.Grouper.KeySerdeFactory;
 import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKey;
 import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.ValueExtractFunction;
 import org.apache.druid.segment.ColumnSelectorFactory;
+import org.apache.druid.segment.DictionaryEncodedRowBasedColumnSelectorFactory;
 import org.apache.druid.segment.DimensionHandlerUtils;
+import org.apache.druid.segment.RowAdapter;
 import org.apache.druid.segment.column.ValueType;
 
+import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 public class ParallelSortedSequenceCombiner
 {
@@ -163,7 +171,7 @@ public class ParallelSortedSequenceCombiner
             @Override
             public void cleanup(Iterator<ResultRow> iterFromMake)
             {
-//              CloseQuietly.close(closer);
+              CloseQuietly.close(closer);
             }
           }
       );
@@ -340,7 +348,7 @@ public class ParallelSortedSequenceCombiner
   )
   {
     final SettableSupplier<ResultRow> rowSupplier = new SettableSupplier<>();
-    final ColumnSelectorFactory columnSelectorFactory = RowBasedGrouperHelper.createResultRowBasedColumnSelectorFactory(
+    final ColumnSelectorFactory columnSelectorFactory = createResultRowBasedColumnSelectorFactory(
         query,
         rowSupplier,
         mergedDictionariesSupplier
@@ -380,6 +388,7 @@ public class ParallelSortedSequenceCombiner
 
       final Comparable[] key = new Comparable[keySize];
       valueExtractFn.apply(row, key);
+//      System.err.println("row: " + row);
 
       final AggregateResult aggregateResult = grouper.aggregate(new RowBasedKey(key));
       rowSupplier.set(null);
@@ -393,12 +402,87 @@ public class ParallelSortedSequenceCombiner
           @Override
           public AggregateResult call()
           {
-            System.err.println("executor submit");
+//            System.err.println("executor submit");
             return mergeSequence.accumulate(AggregateResult.ok(), accumulator);
           }
         }
     );
 
     return new Pair<>(grouper.iterator(), future);
+  }
+
+  private static ColumnSelectorFactory createResultRowBasedColumnSelectorFactory(
+      final GroupByQuery query,
+      final Supplier<ResultRow> supplier,
+      @Nullable final Supplier<MergedDictionary[]> mergedDictionarySupplier
+  )
+  {
+    final RowAdapter<ResultRow> adapter =
+        new RowAdapter<ResultRow>()
+        {
+          @Override
+          public ToLongFunction<ResultRow> timestampFunction()
+          {
+            if (query.getResultRowHasTimestamp()) {
+              return row -> row.getLong(0);
+            } else {
+              final long timestamp = query.getUniversalTimestamp().getMillis();
+              return row -> timestamp;
+            }
+          }
+
+          @Override
+          public Function<ResultRow, Object> columnFunction(final String columnName)
+          {
+            if (mergedDictionarySupplier != null) {
+              final Optional<DimensionSpec> columnSpec = query
+                  .getDimensions()
+                  .stream()
+                  .filter(dimensionSpec -> dimensionSpec.getDimension().equals(columnName))
+                  .findAny();
+              if (columnSpec.isPresent()) {
+                final int dimensionIndex = query.getResultRowSignature().indexOf(columnSpec.get().getOutputName());
+                if (dimensionIndex < 0) {
+                  return row -> null;
+                } else {
+                  return row -> row.getInt(dimensionIndex);
+                }
+              }
+
+//              final boolean isDimension = query.getDimensions()
+//                                               .stream()
+//                                               .anyMatch(dimensionSpec -> dimensionSpec.getDimension().equals(columnName));
+//              if (isDimension) {
+//                final int dimensionIndex = query.getResultRowSignature().indexOf(columnName) - query.getResultRowDimensionStart();
+//                if (dimensionIndex < 0) {
+//                  return row -> null;
+//                } else {
+//                  return row -> {
+////                  final PerSegmentEncodedResultRow perSegmentEncodedResultRow = (PerSegmentEncodedResultRow) row;
+////                  return mergedDictionarySupplier.get()[dimensionIndex].getNewDictId(
+////                      perSegmentEncodedResultRow.getSegmentId(dimensionIndex),
+////                      perSegmentEncodedResultRow.getInt(dimensionIndex)
+////                  );
+//                    return row.getInt(dimensionIndex);
+//                  };
+//                }
+//              }
+            }
+            final int columnIndex = query.getResultRowSignature().indexOf(columnName);
+            if (columnIndex < 0) {
+              return row -> null;
+            } else {
+              return row -> row.get(columnIndex);
+            }
+          }
+        };
+
+    return new DictionaryEncodedRowBasedColumnSelectorFactory(
+        query,
+        supplier::get,
+        adapter,
+        mergedDictionarySupplier::get,
+        query.getResultRowSignature()
+    );
   }
 }

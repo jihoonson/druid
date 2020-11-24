@@ -24,9 +24,9 @@ import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.extraction.ExtractionFn;
 import org.apache.druid.query.filter.ValueMatcher;
+import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.MergedDictionary;
-import org.apache.druid.query.groupby.strategy.GroupByStrategyV2;
 import org.apache.druid.query.monomorphicprocessing.RuntimeShapeInspector;
 import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.column.ColumnCapabilitiesImpl;
@@ -41,25 +41,35 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
-// TODO: should take care of non-string types too
+// TODO: should take care of non-string types too?
 public class DictionaryEncodedRowBasedColumnSelectorFactory implements ColumnSelectorFactory
 {
   private final Supplier<ResultRow> supplier;
   private final RowAdapter<ResultRow> adapter;
   private final Supplier<MergedDictionary[]> mergedDictionary;
   private final RowSignature rowSignature;
+  private final RowBasedColumnSelectorFactory nonDimensionColumnSelectorFactory;
+  private final GroupByQuery query;
 
   public DictionaryEncodedRowBasedColumnSelectorFactory(
+      GroupByQuery query,
       Supplier<ResultRow> supplier,
       RowAdapter<ResultRow> adapter,
       Supplier<MergedDictionary[]> mergedDictionary,
       RowSignature rowSignature
   )
   {
+    this.query = query;
     this.supplier = supplier;
     this.adapter = adapter;
     this.mergedDictionary = mergedDictionary;
     this.rowSignature = rowSignature;
+    this.nonDimensionColumnSelectorFactory = RowBasedColumnSelectorFactory.create(
+        adapter,
+        supplier,
+        rowSignature,
+        false
+    );
   }
 
   @Override
@@ -73,7 +83,7 @@ public class DictionaryEncodedRowBasedColumnSelectorFactory implements ColumnSel
     final String dimension = dimensionSpec.getDimension();
     final ExtractionFn extractionFn = dimensionSpec.getExtractionFn();
 
-    if (ColumnHolder.TIME_COLUMN_NAME.equals(dimensionSpec.getDimension())) {
+    if (ColumnHolder.TIME_COLUMN_NAME.equals(dimension)) {
       if (extractionFn == null) {
         throw new UnsupportedOperationException("time dimension must provide an extraction function");
       }
@@ -95,7 +105,7 @@ public class DictionaryEncodedRowBasedColumnSelectorFactory implements ColumnSel
           inspector.visit("extractionFn", extractionFn);
         }
       };
-    } else {
+    } else if (query.getDimensions().stream().anyMatch(d -> d.getDimension().equals(dimension))) {
       // TODO: dimFunction returns a pair of (segmentId, dictionaryId)
       // need to modify below
       final Function<ResultRow, Object> dimFunction = adapter.columnFunction(dimension);
@@ -116,10 +126,7 @@ public class DictionaryEncodedRowBasedColumnSelectorFactory implements ColumnSel
         public IndexedInts getRow()
         {
           // TODO: multi-values??
-          final long encoded = (long) dimFunction.apply(supplier.get());
-          final int segmentId = GroupByStrategyV2.segmentId(encoded);
-          final int originalDictId = GroupByStrategyV2.dictionaryId(encoded);
-          final int newDictId = dictToUse.getNewDictId(segmentId, originalDictId);
+          final int newDictId = (int) dimFunction.apply(supplier.get());
           indexedInt.setValue(newDictId);
           return indexedInt;
         }
@@ -247,16 +254,13 @@ public class DictionaryEncodedRowBasedColumnSelectorFactory implements ColumnSel
         @Override
         public int getValueCardinality()
         {
-          return dictToUse.size();
+          return dictToUse == null ? 0 : dictToUse.size();
         }
 
         @Override
         public String lookupName(int id)
         {
-          final long encoded = (long) dimFunction.apply(supplier.get());
-          final int segmentId = GroupByStrategyV2.segmentId(encoded);
-          final int originalDictId = GroupByStrategyV2.dictionaryId(encoded);
-          final int newDictId = dictToUse.getNewDictId(segmentId, originalDictId);
+          final int newDictId = (int) dimFunction.apply(supplier.get());
           final String value;
           if (newDictId == DimensionDictionarySelector.CARDINALITY_UNKNOWN) {
             value = NullHandling.defaultStringValue();
@@ -286,10 +290,7 @@ public class DictionaryEncodedRowBasedColumnSelectorFactory implements ColumnSel
         @Override
         public Integer getObject()
         {
-          final long encoded = (long) dimFunction.apply(supplier.get());
-          final int segmentId = GroupByStrategyV2.segmentId(encoded);
-          final int originalDictId = GroupByStrategyV2.dictionaryId(encoded);
-          return dictToUse.getNewDictId(segmentId, originalDictId);
+          return (int) dimFunction.apply(supplier.get());
         }
 
         @Override
@@ -306,6 +307,8 @@ public class DictionaryEncodedRowBasedColumnSelectorFactory implements ColumnSel
           inspector.visit("extractionFn", extractionFn);
         }
       };
+    } else {
+      return nonDimensionColumnSelectorFactory.makeDimensionSelector(dimensionSpec);
     }
   }
 
@@ -337,16 +340,16 @@ public class DictionaryEncodedRowBasedColumnSelectorFactory implements ColumnSel
         }
       }
       return new TimeLongColumnSelector();
-    } else {
+    } else if (query.getDimensions().stream().anyMatch(dimensionSpec -> dimensionSpec.getDimension().equals(columnName))) {
       final Function<ResultRow, Object> columnFunction = adapter.columnFunction(columnName);
-      @Nullable final MergedDictionary dictToUse;
-      final int columnIndex = rowSignature.indexOf(columnName);
-      if (columnIndex < 0) {
-        // TODO: null?? or always return -1 when it's null?
-        dictToUse = null;
-      } else {
-        dictToUse = mergedDictionary.get()[columnIndex];
-      }
+//      @Nullable final MergedDictionary dictToUse;
+//      final int columnIndex = rowSignature.indexOf(columnName);
+//      if (columnIndex < 0) {
+//        // TODO: null?? or always return -1 when it's null?
+//        dictToUse = null;
+//      } else {
+//        dictToUse = mergedDictionary.get()[columnIndex];
+//      }
 
       return new ColumnValueSelector<Object>()
       {
@@ -403,12 +406,11 @@ public class DictionaryEncodedRowBasedColumnSelectorFactory implements ColumnSel
 
         private int getCurrentDictId()
         {
-          final long encoded = (long) getCurrentValue();
-          final int segmentId = GroupByStrategyV2.segmentId(encoded);
-          final int originalDictId = GroupByStrategyV2.dictionaryId(encoded);
-          return dictToUse.getNewDictId(segmentId, originalDictId);
+          return (int) getCurrentValue();
         }
       };
+    } else {
+      return nonDimensionColumnSelectorFactory.makeColumnValueSelector(columnName);
     }
   }
 
@@ -419,7 +421,7 @@ public class DictionaryEncodedRowBasedColumnSelectorFactory implements ColumnSel
     if (ColumnHolder.TIME_COLUMN_NAME.equals(column)) {
       // TIME_COLUMN_NAME is handled specially; override the provided rowSignature.
       return ColumnCapabilitiesImpl.createSimpleNumericColumnCapabilities(ValueType.LONG);
-    } else {
+    } else if (query.getDimensions().stream().anyMatch(dimensionSpec -> dimensionSpec.getDimension().equals(column))) {
       final ValueType valueType = rowSignature.getColumnType(column).orElse(null);
 
       if (valueType != null) {
@@ -442,6 +444,8 @@ public class DictionaryEncodedRowBasedColumnSelectorFactory implements ColumnSel
       } else {
         return null;
       }
+    } else {
+      return nonDimensionColumnSelectorFactory.getColumnCapabilities(column);
     }
   }
 }
