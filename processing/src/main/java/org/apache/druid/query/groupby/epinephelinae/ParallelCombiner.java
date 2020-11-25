@@ -33,6 +33,7 @@ import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.io.Closer;
+import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.AbstractPrioritizedCallable;
 import org.apache.druid.query.QueryInterruptedException;
@@ -64,6 +65,8 @@ import java.util.concurrent.Future;
  */
 public class ParallelCombiner<KeyType>
 {
+  private static final Logger LOG = new Logger(ParallelCombiner.class);
+
   // The combining tree created by this class can have two different degrees for intermediate nodes.
   // The "leaf combine degree (LCD)" is the number of leaf nodes combined together, while the "intermediate combine
   // degree (ICD)" is the number of non-leaf nodes combined together. The below picture shows an example where LCD = 2
@@ -84,7 +87,7 @@ public class ParallelCombiner<KeyType>
   // we use a simple heuristic to avoid complex optimization. That is, ICD is fixed as a user-configurable value and the
   // minimum LCD satisfying the memory restriction is searched. See findLeafCombineDegreeAndNumBuffers() for more
   // details.
-  private static final int MINIMUM_LEAF_COMBINE_DEGREE = 2;
+  private static final int MINIMUM_LEAF_COMBINE_DEGREE = 1;
 
   private final ReferenceCountingResourceHolder<ByteBuffer> combineBufferHolder;
   private final AggregatorFactory[] combiningFactories;
@@ -134,17 +137,25 @@ public class ParallelCombiner<KeyType>
    */
   public CloseableIterator<Entry<KeyType>> combine(
       List<? extends CloseableIterator<Entry<KeyType>>> sortedIterators,
-      List<String> mergedDictionary
+      @Nullable List<String> mergedDictionary
   )
   {
     // CombineBuffer is initialized when this method is called and closed after the result iterator is done
     final Closer closer = Closer.create();
     try {
       final ByteBuffer combineBuffer = combineBufferHolder.get();
-      final int minimumRequiredBufferCapacity = StreamingMergeSortedGrouper.requiredBufferCapacity(
-          combineKeySerdeFactory.factorizeWithDictionary(mergedDictionary),
-          combiningFactories
-      );
+      final int minimumRequiredBufferCapacity;
+      if (mergedDictionary != null) {
+        minimumRequiredBufferCapacity = StreamingMergeSortedGrouper.requiredBufferCapacity(
+            combineKeySerdeFactory.factorizeWithDictionary(mergedDictionary),
+            combiningFactories
+        );
+      } else {
+        minimumRequiredBufferCapacity = StreamingMergeSortedGrouper.requiredBufferCapacity(
+            combineKeySerdeFactory.factorize(),
+            combiningFactories
+        );
+      }
       // We want to maximize the parallelism while the size of buffer slice is greater than the minimum buffer size
       // required by StreamingMergeSortedGrouper. Here, we find the leafCombineDegree of the cominbing tree and the
       // required number of buffers maximizing the parallelism.
@@ -155,9 +166,13 @@ public class ParallelCombiner<KeyType>
           sortedIterators.size()
       );
 
-      final int leafCombineDegree = degreeAndNumBuffers.lhs;
-      final int numBuffers = degreeAndNumBuffers.rhs;
+//      final int leafCombineDegree = degreeAndNumBuffers.lhs;
+//      final int numBuffers = degreeAndNumBuffers.rhs;
+      final int leafCombineDegree = 4;
+      final int numBuffers = 5;
       final int sliceSize = combineBuffer.capacity() / numBuffers;
+
+      LOG.info("leafCombineDegree: " + leafCombineDegree);
 
       final Supplier<ByteBuffer> bufferSupplier = createCombineBufferSupplier(combineBuffer, numBuffers, sliceSize);
 
@@ -172,6 +187,7 @@ public class ParallelCombiner<KeyType>
       final CloseableIterator<Entry<KeyType>> combineIterator = Iterables.getOnlyElement(combineIteratorAndFutures.lhs);
       final List<Future> combineFutures = combineIteratorAndFutures.rhs;
 
+      closer.register(combineIterator);
       closer.register(() -> checkCombineFutures(combineFutures));
 
       return CloseableIterators.wrap(combineIterator, closer);
@@ -223,7 +239,7 @@ public class ParallelCombiner<KeyType>
         if (i < numBuffers) {
           return Groupers.getSlice(combineBuffer, sliceSize, i++);
         } else {
-          throw new ISE("Requested number[%d] of buffer slices exceeds the planned one[%d]", i++, numBuffers);
+          throw new ISE("Requested number[%d] of buffer slices exceeds the planned one[%d]", ++i, numBuffers);
         }
       }
     };
@@ -315,7 +331,7 @@ public class ParallelCombiner<KeyType>
       Supplier<ByteBuffer> bufferSupplier,
       AggregatorFactory[] combiningFactories,
       int combineDegree,
-      List<String> dictionary
+      @Nullable List<String> dictionary
   )
   {
     final int numChildLevelIterators = childIterators.size();
@@ -349,7 +365,8 @@ public class ParallelCombiner<KeyType>
             subIterators,
             bufferSupplier.get(),
             combiningFactories,
-            dictionary
+            dictionary,
+            combineDegree
         );
 
         childIteratorsOfNextLevel.add(iteratorAndFuture.lhs);
@@ -382,14 +399,17 @@ public class ParallelCombiner<KeyType>
       List<? extends CloseableIterator<Entry<KeyType>>> iterators,
       ByteBuffer combineBuffer,
       AggregatorFactory[] combiningFactories,
-      List<String> dictionary
+      @Nullable List<String> dictionary,
+      int combineDegree
   )
   {
     final SettableColumnSelectorFactory settableColumnSelectorFactory =
         new SettableColumnSelectorFactory(combiningFactories);
     final StreamingMergeSortedGrouper<KeyType> grouper = new StreamingMergeSortedGrouper<>(
         Suppliers.ofInstance(combineBuffer),
-        combineKeySerdeFactory.factorizeWithDictionary(dictionary),
+        dictionary == null
+        ? combineKeySerdeFactory.factorize()
+        : combineKeySerdeFactory.factorizeWithDictionary(dictionary),
         settableColumnSelectorFactory,
         combiningFactories,
         queryTimeoutAt
@@ -402,6 +422,7 @@ public class ParallelCombiner<KeyType>
           @Override
           public Void call()
           {
+            LOG.info("i'm merging " + combineDegree + " children using grouper " + grouper);
             try (
                 CloseableIterator<Entry<KeyType>> mergedIterator = CloseableIterators.mergeSorted(
                     iterators,
@@ -413,6 +434,7 @@ public class ParallelCombiner<KeyType>
             ) {
               while (mergedIterator.hasNext()) {
                 final Entry<KeyType> next = mergedIterator.next();
+//                LOG.info("next: " + next);
 
                 settableColumnSelectorFactory.set(next.values);
                 grouper.aggregate(next.key); // grouper always returns ok or throws an exception
@@ -429,6 +451,7 @@ public class ParallelCombiner<KeyType>
         }
     );
 
+    LOG.info("i'm consuming the grouper " + grouper + ", combineDegree " + combineDegree);
     return new Pair<>(grouper.iterator(), future);
   }
 

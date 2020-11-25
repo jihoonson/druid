@@ -303,7 +303,8 @@ public class RowBasedGrouperHelper
         combining,
         includeTimestamp,
         columnSelectorFactory,
-        valueTypes
+        valueTypes,
+        false
     );
 
     final Predicate<ResultRow> rowPredicate;
@@ -514,14 +515,15 @@ public class RowBasedGrouperHelper
       final boolean combining,
       final boolean includeTimestamp,
       final ColumnSelectorFactory columnSelectorFactory,
-      final List<ValueType> valueTypes
+      final List<ValueType> valueTypes,
+      final boolean dictionaryEncodedStringTypes
   )
   {
     final TimestampExtractFunction timestampExtractFn = includeTimestamp ?
                                                         makeTimestampExtractFunction(query, combining) :
                                                         null;
 
-    final Function<Comparable, Comparable>[] valueConvertFns = makeValueConvertFunctions(valueTypes);
+    final Function<Comparable, Comparable>[] valueConvertFns = makeValueConvertFunctions(valueTypes, dictionaryEncodedStringTypes);
 
     if (!combining) {
       final Supplier<Comparable>[] inputRawSuppliers = getValueSuppliersForDimensions(
@@ -636,6 +638,8 @@ public class RowBasedGrouperHelper
                 final int dictId;
                 if (entry.getKey().getKey()[i] instanceof Number) {
                   dictId = ((Number) entry.getKey().getKey()[i]).intValue();
+                } else if (entry.getKey().getKey()[i] instanceof String) {
+                  dictId = Integer.parseInt((String) entry.getKey().getKey()[i]);
                 } else {
                   throw new ISE("wth?");
                 }
@@ -796,14 +800,22 @@ public class RowBasedGrouperHelper
 
   @SuppressWarnings("unchecked")
   private static Function<Comparable, Comparable>[] makeValueConvertFunctions(
-      final List<ValueType> valueTypes
+      final List<ValueType> valueTypes,
+      final boolean dictionaryEncodedStringTypes
   )
   {
     final Function<Comparable, Comparable>[] functions = new Function[valueTypes.size()];
     for (int i = 0; i < functions.length; i++) {
       // Subquery post-aggs aren't added to the rowSignature (see rowSignatureFor() in GroupByQueryHelper) because
       // their types aren't known, so default to String handling.
-      final ValueType type = valueTypes.get(i) == null ? ValueType.STRING : valueTypes.get(i);
+      // TODO: string types now can have dictionary which is an int type
+//      final ValueType type = valueTypes.get(i) == null ? ValueType.STRING : valueTypes.get(i);
+      final ValueType type;
+      if (valueTypes.get(i) == null || valueTypes.get(i) == ValueType.STRING) {
+        type = dictionaryEncodedStringTypes ? ValueType.LONG : ValueType.STRING;
+      } else {
+        type = valueTypes.get(i);
+      }
       functions[i] = input -> DimensionHandlerUtils.convertObjectToType(input, type);
     }
     return functions;
@@ -1607,6 +1619,8 @@ public class RowBasedGrouperHelper
         // TODO: this is too bad
         if (key.getKey()[idx] instanceof String) {
           dictIndex = Integer.valueOf((String) key.getKey()[idx]);
+        } else if (key.getKey()[idx] instanceof Number) {
+          dictIndex = ((Number) key.getKey()[idx]).intValue();
         } else {
           dictIndex = (int) key.getKey()[idx];
         }

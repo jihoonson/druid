@@ -524,7 +524,7 @@ public class QueryRunnerTestHelper
     return makeDictionaryScanRunner(SEGMENT_ID, adapter, runnerName, segmentIdMapper);
   }
 
-  private static QueryRunner<List<Iterator<DictionaryConversion>>> makeDictionaryScanRunner(
+  public static QueryRunner<List<Iterator<DictionaryConversion>>> makeDictionaryScanRunner(
       SegmentId segmentId,
       Segment adapter,
       final String runnerName,

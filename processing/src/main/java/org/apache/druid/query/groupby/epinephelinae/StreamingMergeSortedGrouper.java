@@ -209,6 +209,7 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
         // one slot becomes available.
         initNewSlot(keyBuffer);
       }
+//      LOG.info("aggregate at " + curWriteIndex);
 
       final int curRecordOffset = curWriteIndex * recordSize;
       for (int i = 0; i < aggregatorOffsets.length; i++) {

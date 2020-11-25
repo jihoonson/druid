@@ -33,9 +33,7 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
-import org.apache.druid.java.util.common.guava.BaseSequence;
-import org.apache.druid.java.util.common.guava.BaseSequence.IteratorMaker;
-import org.apache.druid.java.util.common.guava.LazySequence;
+import org.apache.druid.common.guava.SettableSupplier;
 import org.apache.druid.java.util.common.guava.MappedSequence;
 import org.apache.druid.java.util.common.guava.ParallelMergeCombiningSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
@@ -60,14 +58,19 @@ import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.KeySerdeFactory;
 import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKey;
 import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKeySerdeFactory;
+import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.ValueExtractFunction;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.OrderByColumnSpec;
 import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.query.ordering.StringComparators;
+import org.apache.druid.segment.ColumnSelectorFactory;
+import org.apache.druid.segment.DictionaryEncodedRowBasedColumnSelectorFactory;
 import org.apache.druid.segment.DimensionHandlerUtils;
+import org.apache.druid.segment.RowAdapter;
 import org.apache.druid.segment.column.RowSignature;
 import org.apache.druid.segment.column.ValueType;
 
@@ -75,10 +78,12 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -87,6 +92,8 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
 {
@@ -144,69 +151,80 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
         timeoutAt
     );
 
-    final List<Sequence<ResultRow>> sequences = FluentIterable
+    final int keySize = query.getResultRowHasTimestamp() ? query.getDimensions().size() + 1 : query.getDimensions().size();
+    final List<ValueType> valueTypes = DimensionHandlerUtils.getValueTypesFromDimensionSpecs(query.getDimensions());
+
+    final List<? extends CloseableIterator<Entry<RowBasedKey>>> iterators = FluentIterable
         .from(queryables)
         .transform(runner -> {
-          final Future<Yielder<ResultRow>> future = exec.submit(() -> Yielders.each(
+          final SettableSupplier<ResultRow> rowSupplier = new SettableSupplier<>();
+          final ColumnSelectorFactory columnSelectorFactory = createResultRowBasedColumnSelectorFactory(
+              query,
+              rowSupplier,
+              mergedDictionariesSupplier
+          );
+          final ValueExtractFunction valueExtractFn = RowBasedGrouperHelper.makeValueExtractFunction(
+              query,
+              false,
+              query.getResultRowHasTimestamp(),
+              columnSelectorFactory,
+              valueTypes,
+              true
+          );
+
+          final Future<Yielder<Entry<RowBasedKey>>> future = exec.submit(() -> Yielders.each(
               runner.run(queryPlusForRunners, responseContext).map(row -> {
-                final MergedDictionary[] mergedDictionaries = mergedDictionariesSupplier.get(); // TODO: per row??
                 final PerSegmentEncodedResultRow encodedResultRow = (PerSegmentEncodedResultRow) row;
-//          System.err.println("encodedResultRow: " + encodedResultRow + " decoded: " + decode(mergedDictionaries, encodedResultRow, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
-                final ResultRow resultRow = ResultRow.create(row.length());
-
-                for (int i = 0; i < query.getResultRowDimensionStart(); i++) {
-                  resultRow.set(i, encodedResultRow.get(i));
+                rowSupplier.set(row);
+                final Comparable[] key = new Comparable[keySize];
+                valueExtractFn.apply(row, key);
+                final RowBasedKey rowBasedKey = new RowBasedKey(key);
+                final Object[] values = new Object[query.getAggregatorSpecs().size()];
+                for (int i = 0; i < values.length; i++) {
+                  values[i] = encodedResultRow.get(i + query.getResultRowAggregatorStart());
                 }
-
-                // (segmentId, oldDictId) -> newDictId
-                for (int i = query.getResultRowDimensionStart(); i < query.getResultRowAggregatorStart(); i++) {
-                  final int dimIndex = i - query.getResultRowDimensionStart();
-                  final MergedDictionary mergedDictionary = mergedDictionaries[dimIndex];
-                  resultRow.set(i, mergedDictionary.getNewDictId(encodedResultRow.getSegmentId(i), encodedResultRow.getInt(i)));
-                }
-
-                for (int i = query.getResultRowAggregatorStart(); i < row.length(); i++) {
-                  resultRow.set(i, encodedResultRow.get(i));
-                }
-//          System.err.println(query.getIntervals() + " new row: " + resultRow + " decoded: " + decode(mergedDictionaries, resultRow, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
-                return resultRow;
+//                System.err.println("runner: " + runner + ", key: " + rowBasedKey + ", values: " + Arrays.toString(values));
+                return new Entry<>(rowBasedKey, values);
               })
           ));
-          return (Sequence<ResultRow>) new LazySequence<>(() -> {
-            final Yielder<ResultRow> yielder;
-            try {
-              yielder = future.get();
-            }
-            catch (InterruptedException | ExecutionException e) {
-              throw new RuntimeException(e);
-            }
-            return new BaseSequence<>(
-                new IteratorMaker<ResultRow, CloseableIterator<ResultRow>>()
-                {
-                  @Override
-                  public CloseableIterator<ResultRow> make()
-                  {
-                    return Yielders.iterator(yielder);
-                  }
 
-                  @Override
-                  public void cleanup(CloseableIterator<ResultRow> iterFromMake)
-                  {
-                    try {
-                      iterFromMake.close();
-                    }
-                    catch (IOException e) {
-                      throw new RuntimeException(e);
-                    }
-                  }
+          return new CloseableIterator<Entry<RowBasedKey>>()
+          {
+            CloseableIterator<Entry<RowBasedKey>> delegate;
+            
+            @Override
+            public boolean hasNext()
+            {
+              if (delegate == null) {
+                try {
+                  delegate = Yielders.iterator(future.get());
                 }
-            );
-          });
+                catch (InterruptedException | ExecutionException e) {
+                  Thread.currentThread().interrupt();
+                  throw new RuntimeException(e);
+                }
+              }
+              return delegate.hasNext();
+            }
+
+            @Override
+            public Entry<RowBasedKey> next()
+            {
+              Entry<RowBasedKey> entry = delegate.next();
+//              System.err.println("entry: " + entry);
+              return entry;
+            }
+
+            @Override
+            public void close() throws IOException
+            {
+              delegate.close();
+            }
+          };
         })
         .toList();
 
     final AggregatorFactory[] aggregatorFactories = query.getAggregatorSpecs().toArray(new AggregatorFactory[0]);
-    final List<ValueType> valueTypes = DimensionHandlerUtils.getValueTypesFromDimensionSpecs(query.getDimensions());
     final Grouper.KeySerdeFactory<RowBasedKey> combineKeySerdeFactory = new RowBasedKeySerdeFactory(
         query.getResultRowHasTimestamp(),
         query.getContextSortByDimsFirst(),
@@ -220,7 +238,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
 
     // TODO: check deadlock
     final ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder = Iterables.getOnlyElement(mergeBufferPool.takeBatch(1));
-    return Sequences.withBaggage(
+    final CloseableGrouperIterator<RowBasedKey, ResultRow> combineIterator = RowBasedGrouperHelper.makeGrouperIterator(
         mergeAndCombine(
             query,
             mergedDictionariesSupplier,
@@ -230,11 +248,213 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
             priority,
             hasTimeout,
             queryTimeout,
-            sequences
+            iterators
         ),
-        mergeBufferHolder
+        query,
+        null,
+        mergeBufferHolder::close,
+        mergedDictionariesSupplier
+    );
+    return Sequences.withBaggage(
+        Sequences.simple(() -> combineIterator),
+        combineIterator
     );
   }
+
+  private static ColumnSelectorFactory createResultRowBasedColumnSelectorFactory(
+      final GroupByQuery query,
+      final Supplier<ResultRow> supplier,
+      @Nullable final Supplier<MergedDictionary[]> mergedDictionarySupplier
+  )
+  {
+    final RowAdapter<ResultRow> adapter =
+        new RowAdapter<ResultRow>()
+        {
+          @Override
+          public ToLongFunction<ResultRow> timestampFunction()
+          {
+            if (query.getResultRowHasTimestamp()) {
+              return row -> row.getLong(0);
+            } else {
+              final long timestamp = query.getUniversalTimestamp().getMillis();
+              return row -> timestamp;
+            }
+          }
+
+          @Override
+          public Function<ResultRow, Object> columnFunction(final String columnName)
+          {
+            if (mergedDictionarySupplier != null) {
+              final Optional<DimensionSpec> columnSpec = query
+                  .getDimensions()
+                  .stream()
+                  .filter(dimensionSpec -> dimensionSpec.getDimension().equals(columnName))
+                  .findAny();
+              if (columnSpec.isPresent()) {
+                final int dimensionIndex = query.getResultRowSignature().indexOf(columnSpec.get().getOutputName());
+                if (dimensionIndex < 0) {
+                  return row -> null;
+                } else {
+                  return row -> {
+                    final PerSegmentEncodedResultRow perSegmentEncodedResultRow = (PerSegmentEncodedResultRow) row;
+                    return mergedDictionarySupplier.get()[dimensionIndex - query.getResultRowDimensionStart()].getNewDictId(
+                        perSegmentEncodedResultRow.getSegmentId(dimensionIndex),
+                        perSegmentEncodedResultRow.getInt(dimensionIndex)
+                    );
+                  };
+                }
+              }
+
+//              final boolean isDimension = query.getDimensions()
+//                                               .stream()
+//                                               .anyMatch(dimensionSpec -> dimensionSpec.getDimension().equals(columnName));
+//              if (isDimension) {
+//                final int dimensionIndex = query.getResultRowSignature().indexOf(columnName) - query.getResultRowDimensionStart();
+//                if (dimensionIndex < 0) {
+//                  return row -> null;
+//                } else {
+//                  return row -> {
+////                  final PerSegmentEncodedResultRow perSegmentEncodedResultRow = (PerSegmentEncodedResultRow) row;
+////                  return mergedDictionarySupplier.get()[dimensionIndex].getNewDictId(
+////                      perSegmentEncodedResultRow.getSegmentId(dimensionIndex),
+////                      perSegmentEncodedResultRow.getInt(dimensionIndex)
+////                  );
+//                    return row.getInt(dimensionIndex);
+//                  };
+//                }
+//              }
+            }
+            final int columnIndex = query.getResultRowSignature().indexOf(columnName);
+            if (columnIndex < 0) {
+              return row -> null;
+            } else {
+              return row -> row.get(columnIndex);
+            }
+          }
+        };
+
+    return new DictionaryEncodedRowBasedColumnSelectorFactory(
+        query,
+        supplier::get,
+        adapter,
+        mergedDictionarySupplier::get,
+        query.getResultRowSignature()
+    );
+  }
+
+//  @Override
+//  public Sequence<ResultRow> run(QueryPlus<ResultRow> queryPlus, ResponseContext responseContext)
+//  {
+//    final GroupByQuery query = (GroupByQuery) queryPlus.getQuery();
+//
+//    final QueryPlus<ResultRow> queryPlusForRunners = queryPlus
+//        .withQuery(query)
+//        .withoutThreadUnsafeState();
+//
+//    final int priority = QueryContexts.getPriority(query);
+//
+//    // Figure out timeoutAt
+//    final long queryTimeout = QueryContexts.getTimeout(query);
+//    final boolean hasTimeout = QueryContexts.hasTimeout(query);
+//    final long timeoutAt = System.currentTimeMillis() + queryTimeout;
+//
+//    final Supplier<MergedDictionary[]> mergedDictionariesSupplier = createMergedDictionariesSupplier(
+//        query,
+//        hasTimeout,
+//        timeoutAt
+//    );
+//
+//    final List<Sequence<ResultRow>> sequences = FluentIterable
+//        .from(queryables)
+//        .transform(runner -> {
+//          final Future<Yielder<ResultRow>> future = exec.submit(() -> Yielders.each(
+//              runner.run(queryPlusForRunners, responseContext).map(row -> {
+//                final MergedDictionary[] mergedDictionaries = mergedDictionariesSupplier.get(); // TODO: per row??
+//                final PerSegmentEncodedResultRow encodedResultRow = (PerSegmentEncodedResultRow) row;
+////          System.err.println("encodedResultRow: " + encodedResultRow + " decoded: " + decode(mergedDictionaries, encodedResultRow, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
+//                final ResultRow resultRow = ResultRow.create(row.length());
+//
+//                for (int i = 0; i < query.getResultRowDimensionStart(); i++) {
+//                  resultRow.set(i, encodedResultRow.get(i));
+//                }
+//
+//                // (segmentId, oldDictId) -> newDictId
+//                for (int i = query.getResultRowDimensionStart(); i < query.getResultRowAggregatorStart(); i++) {
+//                  final int dimIndex = i - query.getResultRowDimensionStart();
+//                  final MergedDictionary mergedDictionary = mergedDictionaries[dimIndex];
+//                  resultRow.set(i, mergedDictionary.getNewDictId(encodedResultRow.getSegmentId(i), encodedResultRow.getInt(i)));
+//                }
+//
+//                for (int i = query.getResultRowAggregatorStart(); i < row.length(); i++) {
+//                  resultRow.set(i, encodedResultRow.get(i));
+//                }
+////          System.err.println(query.getIntervals() + " new row: " + resultRow + " decoded: " + decode(mergedDictionaries, resultRow, query.getResultRowDimensionStart(), query.getResultRowAggregatorStart()));
+//                return resultRow;
+//              })
+//          ));
+//          return (Sequence<ResultRow>) new LazySequence<>(() -> {
+//            final Yielder<ResultRow> yielder;
+//            try {
+//              yielder = future.get();
+//            }
+//            catch (InterruptedException | ExecutionException e) {
+//              throw new RuntimeException(e);
+//            }
+//            return new BaseSequence<>(
+//                new IteratorMaker<ResultRow, CloseableIterator<ResultRow>>()
+//                {
+//                  @Override
+//                  public CloseableIterator<ResultRow> make()
+//                  {
+//                    return Yielders.iterator(yielder);
+//                  }
+//
+//                  @Override
+//                  public void cleanup(CloseableIterator<ResultRow> iterFromMake)
+//                  {
+//                    try {
+//                      iterFromMake.close();
+//                    }
+//                    catch (IOException e) {
+//                      throw new RuntimeException(e);
+//                    }
+//                  }
+//                }
+//            );
+//          });
+//        })
+//        .toList();
+//
+//    final AggregatorFactory[] aggregatorFactories = query.getAggregatorSpecs().toArray(new AggregatorFactory[0]);
+//    final List<ValueType> valueTypes = DimensionHandlerUtils.getValueTypesFromDimensionSpecs(query.getDimensions());
+//    final Grouper.KeySerdeFactory<RowBasedKey> combineKeySerdeFactory = new RowBasedKeySerdeFactory(
+//        query.getResultRowHasTimestamp(),
+//        query.getContextSortByDimsFirst(),
+//        query.getDimensions(),
+//        Long.MAX_VALUE,
+//        valueTypes,
+//        aggregatorFactories,
+//        null,
+//        mergedDictionariesSupplier
+//    );
+//
+//    // TODO: check deadlock
+//    final ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder = Iterables.getOnlyElement(mergeBufferPool.takeBatch(1));
+//    return Sequences.withBaggage(
+//        mergeAndCombine(
+//            query,
+//            mergedDictionariesSupplier,
+//            mergeBufferHolder, // TODO: handle timeout and error better
+//            ConcurrentGrouper.getCombiningFactories(aggregatorFactories),
+//            combineKeySerdeFactory,
+//            priority,
+//            hasTimeout,
+//            queryTimeout,
+//            sequences
+//        ),
+//        mergeBufferHolder
+//    );
+//  }
 
   private Sequence<ResultRow> mergeSequences(
       GroupByQuery query,
@@ -281,7 +501,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
     );
   }
 
-  private Sequence<ResultRow> mergeAndCombine(
+  private CloseableIterator<Entry<RowBasedKey>> mergeAndCombine(
       GroupByQuery query,
       Supplier<MergedDictionary[]> mergedDictionariesSupplier,
       ReferenceCountingResourceHolder<ByteBuffer> combineBufferHolder,
@@ -290,24 +510,23 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
       int priority,
       boolean hasTimeout,
       long queryTimeout,
-      List<Sequence<ResultRow>> sequences
+      List<? extends CloseableIterator<Entry<RowBasedKey>>> iterators
   )
   {
     final long timeoutAt = System.currentTimeMillis() + queryTimeout;
-    final ParallelSortedSequenceCombiner sequenceCombiner = new ParallelSortedSequenceCombiner(
-        query,
-        getRowOrdering(query),
+    final ParallelCombiner<RowBasedKey> sequenceCombiner = new ParallelCombiner<>(
         combineBufferHolder,
         combiningFactories,
         combineKeySerdeFactory,
         exec,
+        false, // TODO: set properly
         processingConfig.getNumThreads(),
         priority,
         timeoutAt,
-        4 // TODO: auto decide
+        1024 // TODO: not a param. the tree height can be always 2
     );
 
-    return sequenceCombiner.combine(sequences, mergedDictionariesSupplier);
+    return sequenceCombiner.combine(iterators, null);
 
     // TODO: something something similar to ParallelCombiner..
     // it should accept sequences instead of CloseableIterators

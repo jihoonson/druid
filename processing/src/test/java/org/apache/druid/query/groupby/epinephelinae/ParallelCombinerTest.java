@@ -28,6 +28,7 @@ import org.apache.druid.query.groupby.epinephelinae.ConcurrentGrouperTest.TestKe
 import org.apache.druid.query.groupby.epinephelinae.ConcurrentGrouperTest.TestResourceHolder;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.KeySerdeFactory;
+import org.apache.druid.testing.InitializedNullHandlingTest;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Test;
@@ -38,7 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
-public class ParallelCombinerTest
+public class ParallelCombinerTest extends InitializedNullHandlingTest
 {
   private static final int THREAD_NUM = 8;
   private static final ExecutorService SERVICE = Execs.multiThreaded(THREAD_NUM, "parallel-combiner-test-%d");
@@ -102,13 +103,13 @@ public class ParallelCombinerTest
         4
     );
 
-    final int numRows = 1000;
+    final int numRows = 1000000;
     final List<Entry<Long>> baseIterator = new ArrayList<>(numRows);
     for (long i = 0; i < numRows; i++) {
       baseIterator.add(new Entry<>(i, new Object[]{i * 10}));
     }
 
-    final int leafNum = 8;
+    final int leafNum = 16;
     final List<TestIterator> iterators = new ArrayList<>(leafNum);
     for (int i = 0; i < leafNum; i++) {
       iterators.add(new TestIterator(baseIterator.iterator()));
@@ -116,9 +117,12 @@ public class ParallelCombinerTest
 
     try (final CloseableIterator<Entry<Long>> iterator = combiner.combine(iterators, new ArrayList<>())) {
       long expectedKey = 0;
+      int count = 0;
       while (iterator.hasNext()) {
         Assert.assertEquals(new Entry<>(expectedKey, new Object[]{expectedKey++ * leafNum * 10}), iterator.next());
+        count++;
       }
+      Assert.assertEquals(numRows, count);
     }
 
     iterators.forEach(it -> Assert.assertTrue(it.isClosed()));

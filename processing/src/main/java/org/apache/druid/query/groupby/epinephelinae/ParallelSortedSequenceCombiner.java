@@ -360,7 +360,8 @@ public class ParallelSortedSequenceCombiner
         false,
         query.getResultRowHasTimestamp(),
         columnSelectorFactory,
-        valueTypes
+        valueTypes,
+        true
     );
 
     final StreamingMergeSortedGrouper<RowBasedKey> grouper = new StreamingMergeSortedGrouper<>(
@@ -376,6 +377,7 @@ public class ParallelSortedSequenceCombiner
         new MergeSequence<>(rowOrdering, Sequences.simple(sequences)),
         grouper::finish
     );
+    final Comparable[] key = new Comparable[keySize];
     final Accumulator<AggregateResult, ResultRow> accumulator = (priorResult, row) -> {
       BaseQuery.checkInterrupted();
 
@@ -386,7 +388,6 @@ public class ParallelSortedSequenceCombiner
 
       rowSupplier.set(row);
 
-      final Comparable[] key = new Comparable[keySize];
       valueExtractFn.apply(row, key);
 //      System.err.println("row: " + row);
 
