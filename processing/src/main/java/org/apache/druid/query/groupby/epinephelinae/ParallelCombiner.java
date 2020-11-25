@@ -172,7 +172,7 @@ public class ParallelCombiner<KeyType>
       final int numBuffers = 5;
       final int sliceSize = combineBuffer.capacity() / numBuffers;
 
-      LOG.info("leafCombineDegree: " + leafCombineDegree);
+//      LOG.info("leafCombineDegree: " + leafCombineDegree);
 
       final Supplier<ByteBuffer> bufferSupplier = createCombineBufferSupplier(combineBuffer, numBuffers, sliceSize);
 
@@ -422,7 +422,7 @@ public class ParallelCombiner<KeyType>
           @Override
           public Void call()
           {
-            LOG.info("i'm merging " + combineDegree + " children using grouper " + grouper);
+//            LOG.info("i'm merging " + combineDegree + " children using grouper " + grouper);
             try (
                 CloseableIterator<Entry<KeyType>> mergedIterator = CloseableIterators.mergeSorted(
                     iterators,
@@ -451,7 +451,7 @@ public class ParallelCombiner<KeyType>
         }
     );
 
-    LOG.info("i'm consuming the grouper " + grouper + ", combineDegree " + combineDegree);
+//    LOG.info("i'm consuming the grouper " + grouper + ", combineDegree " + combineDegree);
     return new Pair<>(grouper.iterator(), future);
   }
 

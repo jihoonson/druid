@@ -124,16 +124,16 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 5)
 public class GroupByBenchmark
 {
-  @Param({"4"})
+  @Param({"16"})
   private int numSegments;
 
   @Param({
 //      "2",
-      "4",
+//      "4",
 //      "5",
 //      "6",
 //      "7",
-      "8",
+//      "8",
       "16"
   })
   private int numProcessingThreads;
@@ -765,7 +765,7 @@ public class GroupByBenchmark
 
     Sequence<ResultRow> queryResult = theRunner.run(QueryPlus.wrap(query), ResponseContext.createEmpty());
     List<ResultRow> results = queryResult.toList();
-    System.err.println(results.size());
+//    System.err.println(results.size());
     blackhole.consume(results);
   }
 
