@@ -350,6 +350,10 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
   @Override
   public void close()
   {
+//    LOG.info("Closing " + this);
+    if (!finished) {
+      finish();
+    }
     for (BufferAggregator aggregator : aggregators) {
       try {
         aggregator.close();
@@ -369,6 +373,7 @@ public class StreamingMergeSortedGrouper<KeyType> implements Grouper<KeyType>
     // Once finished is set, curWriteIndex must not be changed. This guarantees that the remaining number of items in
     // the array is always decreased as the reading thread proceeds. See hasNext() and remaining() below.
     finished = true;
+//    LOG.info("Finished " + this);
   }
 
   /**

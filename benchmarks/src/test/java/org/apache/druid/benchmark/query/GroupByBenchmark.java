@@ -38,6 +38,8 @@ import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Yielder;
+import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.math.expr.ExprMacroTable;
 import org.apache.druid.offheap.OffheapBufferGenerator;
@@ -767,6 +769,32 @@ public class GroupByBenchmark
     List<ResultRow> results = queryResult.toList();
 //    System.err.println(results.size());
     blackhole.consume(results);
+  }
+
+  @Benchmark
+  @BenchmarkMode(Mode.AverageTime)
+  @OutputTimeUnit(TimeUnit.MICROSECONDS)
+  public void queryMultiQueryableIndexTTFB(Blackhole blackhole) throws IOException
+  {
+    QueryToolChest<ResultRow, GroupByQuery> toolChest = factory.getToolchest();
+    SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
+    QueryRunner<ResultRow> theRunner = new FinalizeResultsQueryRunner<>(
+        toolChest.mergeResults(
+            factory.mergeRunners(
+                executorService,
+                makeMultiRunners(segmentIdMapper),
+                earlyDictMerge.equals("true")
+                ? new DictionaryMergingQueryRunnerFactory().mergeRunners(executorService, makeDictScanRunners(segmentIdMapper))
+                : null
+            )
+        ),
+        (QueryToolChest) toolChest
+    );
+
+    Sequence<ResultRow> queryResult = theRunner.run(QueryPlus.wrap(query), ResponseContext.createEmpty());
+    Yielder<ResultRow> yielder = Yielders.each(queryResult);
+    blackhole.consume(yielder.get());
+    yielder.close();
   }
 
 //  @Benchmark

@@ -35,6 +35,8 @@ import org.apache.druid.java.util.common.FileUtils;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.guava.Yielder;
+import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.math.expr.ExprMacroTable;
 import org.apache.druid.offheap.OffheapBufferGenerator;
 import org.apache.druid.query.DictionaryConversion;
@@ -96,9 +98,9 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
   private static final Map<String, Map<String, GroupByQuery>> SCHEMA_QUERY_MAP = new LinkedHashMap<>();
   private static final ObjectMapper JSON_MAPPER = new DefaultObjectMapper();
   private static final int RNG_SEED = 9999;
-  private static final int ROWS_PER_SEGMENT = 100;
-  private static final int NUM_SEGMENTS = 4;
-  private static final int NUM_PROCESSING_THREADS = 2;
+  private static final int ROWS_PER_SEGMENT = 100000;
+  private static final int NUM_SEGMENTS = 16;
+  private static final int NUM_PROCESSING_THREADS = 16;
 
   private static IndexMergerV9 INDEX_MERGER;
   private static IndexIO INDEX_IO;
@@ -331,6 +333,27 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
     List<ResultRow> results = queryResult.toList();
 
     Assert.assertEquals(expectedResults, results);
+  }
+
+  @Test
+  public void queryMultiQueryableIndexTTFB() throws IOException
+  {
+    QueryToolChest<ResultRow, GroupByQuery> toolChest = FACTORY.getToolchest();
+    SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
+    QueryRunner<ResultRow> theRunner = new FinalizeResultsQueryRunner<>(
+        toolChest.mergeResults(
+            FACTORY.mergeRunners(
+                executorService,
+                makeMultiRunners(segmentIdMapper),
+                new DictionaryMergingQueryRunnerFactory().mergeRunners(executorService, makeDictScanRunners(segmentIdMapper))
+            )
+        ),
+        (QueryToolChest) toolChest
+    );
+
+    Sequence<ResultRow> queryResult = theRunner.run(QueryPlus.wrap(query), ResponseContext.createEmpty());
+    Yielder<ResultRow> yielder = Yielders.each(queryResult);
+    yielder.close();
   }
 
   private List<QueryRunner<ResultRow>> makeMultiRunners(SegmentIdMapper segmentIdMapper)

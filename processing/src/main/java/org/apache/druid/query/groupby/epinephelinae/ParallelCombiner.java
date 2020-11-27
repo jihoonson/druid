@@ -169,7 +169,7 @@ public class ParallelCombiner<KeyType>
 //      final int leafCombineDegree = degreeAndNumBuffers.lhs;
 //      final int numBuffers = degreeAndNumBuffers.rhs;
       final int leafCombineDegree = 4;
-      final int numBuffers = 16;
+      final int numBuffers = 5;
       final int sliceSize = combineBuffer.capacity() / numBuffers;
 
 //      LOG.info("leafCombineDegree: " + leafCombineDegree);
@@ -420,7 +420,7 @@ public class ParallelCombiner<KeyType>
           @Override
           public Void call()
           {
-            LOG.info("i'm merging " + iterators.size() + " children using grouper " + grouper);
+//            LOG.info("i'm merging " + iterators.size() + " children using grouper " + grouper);
             long before = System.currentTimeMillis();
             try (
                 CloseableIterator<Entry<KeyType>> mergedIterator = CloseableIterators.mergeSorted(
@@ -446,14 +446,21 @@ public class ParallelCombiner<KeyType>
 
             grouper.finish();
             long after = System.currentTimeMillis();
-            LOG.info("Grouper [%s] took %s ms to combine %d children", grouper, (after - before), iterators.size());
+//            LOG.info("Grouper [%s] took %s ms to combine %d children", grouper, (after - before), iterators.size());
             return null;
           }
         }
     );
 
 //    LOG.info("i'm consuming the grouper " + grouper + ", combineDegree " + combineDegree);
-    return new Pair<>(grouper.iterator(), future);
+    final Closer closer = Closer.create();
+    closer.registerAll(iterators);
+    closer.register(grouper.iterator());
+    closer.register(grouper);
+    return new Pair<>(
+        CloseableIterators.wrap(grouper.iterator(), closer),
+        future
+    );
   }
 
   private static class SettableColumnSelectorFactory implements ColumnSelectorFactory
