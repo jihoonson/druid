@@ -126,6 +126,9 @@ public class DictionaryEncodedRowBasedColumnSelectorFactory implements ColumnSel
         public IndexedInts getRow()
         {
           // TODO: multi-values??
+          // 1. get a resultRow from supplier
+          // 2. retrieve column value from the resultRow. here, dictionary conversion is done.
+          // 3. set newDictId in indexedInt.
           final int newDictId = (int) dimFunction.apply(supplier.get());
           indexedInt.setValue(newDictId);
           return indexedInt;

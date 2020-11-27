@@ -292,12 +292,13 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
                   .findAny();
               if (columnSpec.isPresent()) {
                 final int dimensionIndex = query.getResultRowSignature().indexOf(columnSpec.get().getOutputName());
+                final int mergedDictionaryIndex = dimensionIndex - query.getResultRowDimensionStart();
                 if (dimensionIndex < 0) {
                   return row -> null;
                 } else {
                   return row -> {
                     final PerSegmentEncodedResultRow perSegmentEncodedResultRow = (PerSegmentEncodedResultRow) row;
-                    return mergedDictionarySupplier.get()[dimensionIndex - query.getResultRowDimensionStart()].getNewDictId(
+                    return mergedDictionarySupplier.get()[mergedDictionaryIndex].getNewDictId(
                         perSegmentEncodedResultRow.getSegmentId(dimensionIndex),
                         perSegmentEncodedResultRow.getInt(dimensionIndex)
                     );
@@ -523,7 +524,7 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
         processingConfig.getNumThreads(),
         priority,
         timeoutAt,
-        1024 // TODO: not a param. the tree height can be always 2
+        4 // TODO: not a param. the tree height can be always 2, or should it be?
     );
 
     return sequenceCombiner.combine(iterators, null);

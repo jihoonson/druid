@@ -169,7 +169,7 @@ public class ParallelCombiner<KeyType>
 //      final int leafCombineDegree = degreeAndNumBuffers.lhs;
 //      final int numBuffers = degreeAndNumBuffers.rhs;
       final int leafCombineDegree = 4;
-      final int numBuffers = 5;
+      final int numBuffers = 16;
       final int sliceSize = combineBuffer.capacity() / numBuffers;
 
 //      LOG.info("leafCombineDegree: " + leafCombineDegree);
@@ -365,8 +365,7 @@ public class ParallelCombiner<KeyType>
             subIterators,
             bufferSupplier.get(),
             combiningFactories,
-            dictionary,
-            combineDegree
+            dictionary
         );
 
         childIteratorsOfNextLevel.add(iteratorAndFuture.lhs);
@@ -399,8 +398,7 @@ public class ParallelCombiner<KeyType>
       List<? extends CloseableIterator<Entry<KeyType>>> iterators,
       ByteBuffer combineBuffer,
       AggregatorFactory[] combiningFactories,
-      @Nullable List<String> dictionary,
-      int combineDegree
+      @Nullable List<String> dictionary
   )
   {
     final SettableColumnSelectorFactory settableColumnSelectorFactory =
@@ -422,7 +420,8 @@ public class ParallelCombiner<KeyType>
           @Override
           public Void call()
           {
-//            LOG.info("i'm merging " + combineDegree + " children using grouper " + grouper);
+            LOG.info("i'm merging " + iterators.size() + " children using grouper " + grouper);
+            long before = System.currentTimeMillis();
             try (
                 CloseableIterator<Entry<KeyType>> mergedIterator = CloseableIterators.mergeSorted(
                     iterators,
@@ -446,6 +445,8 @@ public class ParallelCombiner<KeyType>
             }
 
             grouper.finish();
+            long after = System.currentTimeMillis();
+            LOG.info("Grouper [%s] took %s ms to combine %d children", grouper, (after - before), iterators.size());
             return null;
           }
         }

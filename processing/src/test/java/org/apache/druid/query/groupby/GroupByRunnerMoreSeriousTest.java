@@ -96,9 +96,9 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
   private static final Map<String, Map<String, GroupByQuery>> SCHEMA_QUERY_MAP = new LinkedHashMap<>();
   private static final ObjectMapper JSON_MAPPER = new DefaultObjectMapper();
   private static final int RNG_SEED = 9999;
-  private static final int ROWS_PER_SEGMENT = 100000;
+  private static final int ROWS_PER_SEGMENT = 100;
   private static final int NUM_SEGMENTS = 4;
-  private static final int NUM_PROCESSING_THREADS = 4;
+  private static final int NUM_PROCESSING_THREADS = 2;
 
   private static IndexMergerV9 INDEX_MERGER;
   private static IndexIO INDEX_IO;
