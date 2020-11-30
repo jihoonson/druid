@@ -168,8 +168,8 @@ public class ParallelCombiner<KeyType>
 
 //      final int leafCombineDegree = degreeAndNumBuffers.lhs;
 //      final int numBuffers = degreeAndNumBuffers.rhs;
-      final int leafCombineDegree = 4;
-      final int numBuffers = 5;
+      final int leafCombineDegree = 2;
+      final int numBuffers = 11;
       final int sliceSize = combineBuffer.capacity() / numBuffers;
 
 //      LOG.info("leafCombineDegree: " + leafCombineDegree);
