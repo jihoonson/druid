@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import junitparams.converters.Nullable;
+import org.apache.datasketches.memory.Memory;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
@@ -33,6 +34,7 @@ import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.MergeSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.js.JavaScriptConfig;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.CountAggregatorFactory;
@@ -54,6 +56,7 @@ import org.apache.druid.query.aggregation.post.ConstantPostAggregator;
 import org.apache.druid.query.aggregation.post.FieldAccessPostAggregator;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.query.spec.MultipleIntervalSegmentSpec;
 import org.apache.druid.query.spec.QuerySegmentSpec;
 import org.apache.druid.query.spec.SpecificSegmentSpec;
@@ -355,7 +358,7 @@ public class QueryRunnerTestHelper
     return !("rtIndex".equals(runnerName) || "noRollupRtIndex".equals(runnerName));
   }
 
-  public static boolean isTestRunnerVectorizable(QueryRunner2 runner)
+  public static boolean isTestRunnerVectorizable(SegmentGroupByQueryProcessor runner)
   {
     return true;
   }
@@ -385,7 +388,7 @@ public class QueryRunnerTestHelper
     throw new UnsupportedOperationException();
   }
 
-  public static <T, QueryType extends Query<T>> List<Pair<QueryRunner2<T>, QueryRunner<List<Iterator<DictionaryConversion>>>>> makeQueryRunnersAndDictScanRunners(
+  public static <T, QueryType extends Query<T>> List<Pair<SegmentGroupByQueryProcessor<T>, QueryRunner<List<Iterator<DictionaryConversion>>>>> makeQueryRunnersAndDictScanRunners(
       QueryRunnerFactory2<T, QueryType> factory
   )
   {
@@ -455,7 +458,7 @@ public class QueryRunnerTestHelper
     throw new UnsupportedOperationException();
   }
 
-  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner(
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner(
       QueryRunnerFactory2<T, QueryType> factory,
       String resourceFileName,
       final String runnerName
@@ -464,7 +467,7 @@ public class QueryRunnerTestHelper
     return makeQueryRunner(factory, resourceFileName, runnerName, null);
   }
 
-  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner(
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner(
       QueryRunnerFactory2<T, QueryType> factory,
       String resourceFileName,
       final String runnerName,
@@ -489,7 +492,7 @@ public class QueryRunnerTestHelper
     throw new UnsupportedOperationException();
   }
 
-  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner(
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner(
       QueryRunnerFactory2<T, QueryType> factory,
       Segment adapter,
       final String runnerName
@@ -498,7 +501,7 @@ public class QueryRunnerTestHelper
     return makeQueryRunner(factory, adapter, runnerName, null);
   }
 
-  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner(
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner(
       QueryRunnerFactory2<T, QueryType> factory,
       Segment adapter,
       final String runnerName,
@@ -518,7 +521,7 @@ public class QueryRunnerTestHelper
     throw new UnsupportedOperationException();
   }
 
-  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner(
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner(
       QueryRunnerFactory2<T, QueryType> factory,
       SegmentId segmentId,
       Segment adapter,
@@ -528,7 +531,7 @@ public class QueryRunnerTestHelper
     return makeQueryRunner(factory, segmentId, adapter, runnerName, null);
   }
 
-  public static <T, QueryType extends Query<T>> QueryRunner2<T> makeQueryRunner(
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner(
       QueryRunnerFactory2<T, QueryType> factory,
       SegmentId segmentId,
       Segment adapter,
@@ -536,12 +539,14 @@ public class QueryRunnerTestHelper
       @Nullable SegmentIdMapper segmentIdMapper // TODO: is this nullable? maybe null for topN
   )
   {
-    return new QueryRunner2<T>()
+    return new SegmentGroupByQueryProcessor<T>()
     {
       @Override
-      public List<Sequence<T>> run(QueryPlus<T> queryPlus, ResponseContext responseContext)
+      public CloseableIterator<CloseableIterator<Entry<Memory>>[]> process(
+          QueryPlus<T> queryPlus, ResponseContext responseContext
+      )
       {
-        return factory.createRunner2(segmentIdMapper, adapter).run(queryPlus, responseContext);
+        return factory.createRunner2(segmentIdMapper, adapter).process(queryPlus, responseContext);
       }
 
       @Override

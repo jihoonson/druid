@@ -23,16 +23,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Predicates;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import org.apache.datasketches.memory.Memory;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.collections.Releaser;
 import org.apache.druid.common.guava.GuavaUtils;
+import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.Accumulator;
@@ -42,6 +44,7 @@ import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.logger.Logger;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.AbstractPrioritizedCallable;
 import org.apache.druid.query.DictionaryConversion;
 import org.apache.druid.query.DictionaryMergeQuery;
@@ -50,19 +53,24 @@ import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryInterruptedException;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
-import org.apache.druid.query.QueryRunner2;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.ResourceLimitExceededException;
+import org.apache.druid.query.SegmentGroupByQueryProcessor;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV3.MergingDictionary;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKey;
+import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
+import org.joda.time.DateTime;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
@@ -71,13 +79,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 {
   private static final Logger log = new Logger(GroupByMergingQueryRunnerV2.class);
 
   private final GroupByQueryConfig config;
-  private final Iterable<QueryRunner2<ResultRow>> queryables;
+  private final Iterable<SegmentGroupByQueryProcessor<ResultRow>> queryables;
   private final ListeningExecutorService exec;
   private final QueryWatcher queryWatcher;
   private final int concurrencyHint;
@@ -86,18 +95,20 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
   private final String processingTmpDir;
   private final int mergeBufferSize;
   private final DictionaryMergingQueryRunner dictionaryMergingRunner;
+  private final int numHashBuckets;
 
   public GroupByShuffleMergingQueryRunner(
       GroupByQueryConfig config,
       ExecutorService exec,
       QueryWatcher queryWatcher,
-      Iterable<QueryRunner2<ResultRow>> queryables,
+      Iterable<SegmentGroupByQueryProcessor<ResultRow>> queryables,
       int concurrencyHint,
       BlockingPool<ByteBuffer> mergeBufferPool,
       int mergeBufferSize,
       ObjectMapper spillMapper,
       String processingTmpDir,
-      DictionaryMergingQueryRunner dictionaryMergingRunner
+      DictionaryMergingQueryRunner dictionaryMergingRunner,
+      int numHashBuckets
   )
   {
     this.config = config;
@@ -110,6 +121,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     this.processingTmpDir = processingTmpDir;
     this.mergeBufferSize = mergeBufferSize;
     this.dictionaryMergingRunner = dictionaryMergingRunner;
+    this.numHashBuckets = numHashBuckets;
   }
 
   @Override
@@ -236,15 +248,65 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   ReferenceCountingResourceHolder.fromCloseable(grouper);
               resources.register(grouperHolder);
 
-              List<List<Sequence<ResultRow>>> hashedSequencesList = Lists.newArrayList(
-                  Iterables.transform(
-                      queryables,
-                      runner2 -> runner2.run(queryPlusForRunners, responseContext)
-                  )
+              List<CloseableIterator<TimestampedIterators>> hashedSequencesList = FluentIterable
+                  .from(queryables)
+                  .transform(runner2 -> runner2.process(queryPlusForRunners, responseContext))
+                  .toList();
+              CloseableIterator<TimestampedIterators> timeSortedHashedIterators = CloseableIterators.mergeSorted(
+                  hashedSequencesList,
+                  Comparator.comparing(TimestampedIterators::getTimestamp)
               );
 
-              final List<ListenableFuture<AggregateResult>> futures = new ArrayList<>();
-              final int numHashBuckets = hashedSequencesList.get(0).size();
+              DateTime currentTime = null;
+              TimestampedIterators timestampedIterators = null;
+              while (timeSortedHashedIterators.hasNext()) {
+                List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators = new List[numHashBuckets];
+                for (int i = 0; i < numHashBuckets; i++) {
+                  partitionedIterators[i] = new ArrayList<>();
+                }
+                if (timestampedIterators != null) {
+                  currentTime = timestampedIterators.getTimestamp();
+                  for (int i = 0; i < timestampedIterators.iterators.length; i++) {
+                    partitionedIterators[i].add(timestampedIterators.iterators[i]);
+                  }
+                  timestampedIterators = null;
+                }
+                while (timeSortedHashedIterators.hasNext()) {
+                  timestampedIterators = timeSortedHashedIterators.next();
+                  if (currentTime == null || currentTime.equals(timestampedIterators.getTimestamp())) {
+                    currentTime = timestampedIterators.getTimestamp();
+                    for (int i = 0; i < timestampedIterators.iterators.length; i++) {
+                      partitionedIterators[i].add(timestampedIterators.iterators[i]);
+                    }
+                  } else {
+                    break;
+                  }
+                }
+
+                final List<ListenableFuture<AggregateResult>> futures = new ArrayList<>();
+                exec.submit(() -> {
+
+                });
+              }
+
+
+
+              List<TimestampedIterator<Entry<Memory>>[]> partitionedIteratorsForQueryables = hashedSequencesList
+                  .stream()
+                  .filter(Iterator::hasNext)
+                  .map(Iterator::next)
+                  .collect(Collectors.toList());
+
+              while (!partitionedIteratorsForQueryables.isEmpty()) {
+                // group iterators by hash bucket
+                TimestampedIterator<Entry<Memory>>[] groupedIterators = new TimestampedIterator[numHashBuckets];
+                for (int i = 0; i < numHashBuckets; i++) {
+
+                }
+              }
+
+
+
               for (int i = 0; i < numHashBuckets; i++) {
                 final List<Sequence<ResultRow>> sequencesToProcess = new ArrayList<>(hashedSequencesList.size()); // # of queryables
                 for (List<Sequence<ResultRow>> sequencesPerQueryable : hashedSequencesList) {
@@ -316,6 +378,28 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           }
         }
     );
+  }
+
+  public static class TimestampedIterators
+  {
+    private final TimestampedIterator<Entry<Memory>>[] iterators;
+
+    TimestampedIterators(TimestampedIterator<Entry<Memory>>[] iterators)
+    {
+      this.iterators = iterators;
+    }
+
+    @Nullable
+    DateTime getTimestamp()
+    {
+      return iterators[0].getTimestamp();
+    }
+
+    TimestampedIterator<Entry<Memory>> getIterator(int hashBucket)
+    {
+      assert hashBucket < iterators.length;
+      return iterators[hashBucket];
+    }
   }
 
   private List<ReferenceCountingResourceHolder<ByteBuffer>> getMergeBuffersHolder(

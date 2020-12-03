@@ -20,24 +20,27 @@
 package org.apache.druid.query.groupby.strategy;
 
 import com.google.common.util.concurrent.ListeningExecutorService;
+import org.apache.datasketches.memory.Memory;
 import org.apache.druid.java.util.common.UOE;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.DictionaryMergingQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
-import org.apache.druid.query.QueryRunner2;
 import org.apache.druid.query.QueryRunnerFactory;
+import org.apache.druid.query.SegmentGroupByQueryProcessor;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryQueryToolChest;
 import org.apache.druid.query.groupby.ResultRow;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
+import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
 import org.apache.druid.query.groupby.resource.GroupByQueryResource;
 import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.StorageAdapter;
 
 import javax.annotation.Nullable;
 import java.util.Comparator;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BinaryOperator;
 
@@ -186,7 +189,7 @@ public interface GroupByStrategy
 
   default QueryRunner<ResultRow> mergeRunners2(
       ListeningExecutorService exec,
-      Iterable<QueryRunner2<ResultRow>> queryRunners,
+      Iterable<SegmentGroupByQueryProcessor<ResultRow>> queryRunners,
       DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
@@ -207,7 +210,10 @@ public interface GroupByStrategy
    */
   Sequence<ResultRow> process(GroupByQuery query, IdentifiableStorageAdapter storageAdapter);
 
-  default List<Sequence<ResultRow>> process2(GroupByQuery query, IdentifiableStorageAdapter storageAdapter)
+  default CloseableIterator<TimestampedIterator<Entry<Memory>>[]> process2(
+      GroupByQuery query,
+      IdentifiableStorageAdapter storageAdapter
+  )
   {
     throw new UnsupportedOperationException();
   }

@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.inject.Inject;
+import org.apache.datasketches.memory.Memory;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.NonBlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
@@ -39,6 +40,7 @@ import org.apache.druid.java.util.common.guava.CloseQuietly;
 import org.apache.druid.java.util.common.guava.LazySequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.DataSource;
 import org.apache.druid.query.DictionaryMergingQueryRunner;
 import org.apache.druid.query.DruidProcessingConfig;
@@ -48,10 +50,10 @@ import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryDataSource;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
-import org.apache.druid.query.QueryRunner2;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.ResourceLimitExceededException;
 import org.apache.druid.query.ResultMergeQueryRunner;
+import org.apache.druid.query.SegmentGroupByQueryProcessor;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.PostAggregator;
 import org.apache.druid.query.context.ResponseContext;
@@ -65,6 +67,8 @@ import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByRowProcessor;
 import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
+import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.LimitSpec;
 import org.apache.druid.query.groupby.orderby.NoopLimitSpec;
@@ -623,7 +627,7 @@ public class GroupByStrategyV2 implements GroupByStrategy
   @Override
   public QueryRunner<ResultRow> mergeRunners2(
       ListeningExecutorService exec,
-      Iterable<QueryRunner2<ResultRow>> queryRunners,
+      Iterable<SegmentGroupByQueryProcessor<ResultRow>> queryRunners,
       DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
@@ -642,7 +646,7 @@ public class GroupByStrategyV2 implements GroupByStrategy
   }
 
   @Override
-  public List<Sequence<ResultRow>> process2(GroupByQuery query, IdentifiableStorageAdapter storageAdapter)
+  public CloseableIterator<TimestampedIterator<Entry<Memory>>[]> process2(GroupByQuery query, IdentifiableStorageAdapter storageAdapter)
   {
     return GroupByQueryEngineV2.process2(
         query,

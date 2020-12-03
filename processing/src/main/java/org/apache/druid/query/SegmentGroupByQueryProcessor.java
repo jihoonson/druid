@@ -19,12 +19,12 @@
 
 package org.apache.druid.query;
 
-import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.context.ResponseContext;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
 
-import java.util.List;
-
-public interface QueryRunner2<T>
+public interface SegmentGroupByQueryProcessor<T>
 {
-  List<Sequence<T>> run(QueryPlus<T> queryPlus, ResponseContext responseContext);
+  // interval iterator -> iterators per hash partition
+  CloseableIterator<TimestampedIterators> process(QueryPlus<T> queryPlus, ResponseContext responseContext);
 }

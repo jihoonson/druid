@@ -34,12 +34,14 @@ import com.google.common.base.Functions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.inject.Inject;
+import org.apache.datasketches.memory.Memory;
 import org.apache.druid.data.input.Row;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.MappedSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.CacheStrategy;
 import org.apache.druid.query.DataSource;
 import org.apache.druid.query.Query;
@@ -47,8 +49,8 @@ import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryDataSource;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
-import org.apache.druid.query.QueryRunner2;
 import org.apache.druid.query.QueryToolChest;
+import org.apache.druid.query.SegmentGroupByQueryProcessor;
 import org.apache.druid.query.SubqueryQueryRunner;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.MetricManipulationFn;
@@ -59,6 +61,8 @@ import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
 import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.extraction.ExtractionFn;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
+import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
 import org.apache.druid.query.groupby.resource.GroupByQueryResource;
 import org.apache.druid.query.groupby.strategy.GroupByStrategy;
 import org.apache.druid.query.groupby.strategy.GroupByStrategySelector;
@@ -496,12 +500,14 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<ResultRow, GroupB
     );
   }
 
-  public QueryRunner2<ResultRow> preMergeQueryDecoration(final QueryRunner2<ResultRow> runner)
+  public SegmentGroupByQueryProcessor<ResultRow> preMergeQueryDecoration(final SegmentGroupByQueryProcessor<ResultRow> runner)
   {
-    return new QueryRunner2<ResultRow>()
+    return new SegmentGroupByQueryProcessor<ResultRow>()
     {
       @Override
-      public List<Sequence<ResultRow>> run(QueryPlus<ResultRow> queryPlus, ResponseContext responseContext)
+      public CloseableIterator<TimestampedIterator<Entry<Memory>>[]> process(
+          QueryPlus<ResultRow> queryPlus, ResponseContext responseContext
+      )
       {
         GroupByQuery groupByQuery = (GroupByQuery) queryPlus.getQuery();
         final List<DimensionSpec> dimensionSpecs = new ArrayList<>();
@@ -518,7 +524,7 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<ResultRow, GroupB
           }
         }
 
-        return runner.run(
+        return runner.process(
             queryPlus.withQuery(groupByQuery.withDimensionSpecs(dimensionSpecs)),
             responseContext
         );

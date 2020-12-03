@@ -26,11 +26,11 @@ import java.util.concurrent.ExecutorService;
 
 public interface QueryRunnerFactory2<T, QueryType extends Query<T>>
 {
-  QueryRunner2<T> createRunner2(SegmentIdMapper segmentIdMapper, Segment segment);
+  SegmentGroupByQueryProcessor<T> createRunner2(SegmentIdMapper segmentIdMapper, Segment segment);
 
   QueryRunner<T> mergeRunners2(
       ExecutorService queryExecutor,
-      Iterable<QueryRunner2<T>> queryRunners,
+      Iterable<SegmentGroupByQueryProcessor<T>> queryRunners,
       @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner
   );
 }

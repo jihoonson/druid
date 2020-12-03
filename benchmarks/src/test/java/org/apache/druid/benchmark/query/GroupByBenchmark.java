@@ -50,7 +50,7 @@ import org.apache.druid.query.FinalizeResultsQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
-import org.apache.druid.query.QueryRunner2;
+import org.apache.druid.query.SegmentGroupByQueryProcessor;
 import org.apache.druid.query.QueryRunnerFactory;
 import org.apache.druid.query.QueryToolChest;
 import org.apache.druid.query.SegmentIdMapper;
@@ -900,12 +900,12 @@ public class GroupByBenchmark
     return runners;
   }
 
-  private List<QueryRunner2<ResultRow>> makeMultiRunners2(SegmentIdMapper segmentIdMapper)
+  private List<SegmentGroupByQueryProcessor<ResultRow>> makeMultiRunners2(SegmentIdMapper segmentIdMapper)
   {
-    List<QueryRunner2<ResultRow>> runners = new ArrayList<>();
+    List<SegmentGroupByQueryProcessor<ResultRow>> runners = new ArrayList<>();
     for (int i = 0; i < numSegments; i++) {
       String segmentName = "qIndex " + i;
-      QueryRunner2<ResultRow> runner = QueryBenchmarkUtil.makeQueryRunner2(
+      SegmentGroupByQueryProcessor<ResultRow> runner = QueryBenchmarkUtil.makeQueryRunner2(
           factory,
           SegmentId.dummy(segmentName),
           new QueryableIndexSegment(queryableIndexes.get(i), SegmentId.dummy(segmentName)),

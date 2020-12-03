@@ -23,24 +23,27 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.inject.Inject;
+import org.apache.datasketches.memory.Memory;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.guava.Sequence;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.DictionaryMergingQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
-import org.apache.druid.query.QueryRunner2;
 import org.apache.druid.query.QueryRunnerFactory;
 import org.apache.druid.query.QueryRunnerFactory2;
 import org.apache.druid.query.QueryToolChest;
+import org.apache.druid.query.SegmentGroupByQueryProcessor;
 import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.query.context.ResponseContext;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
+import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
 import org.apache.druid.query.groupby.strategy.GroupByStrategySelector;
 import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.Segment;
 
 import javax.annotation.Nullable;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -74,7 +77,7 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
   }
 
   @Override
-  public QueryRunner2<ResultRow> createRunner2(SegmentIdMapper segmentIdMapper, Segment segment)
+  public SegmentGroupByQueryProcessor<ResultRow> createRunner2(SegmentIdMapper segmentIdMapper, Segment segment)
   {
     return new GroupByQueryRunner2(segmentIdMapper, segment, strategySelector);
   }
@@ -82,7 +85,7 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
   @Override
   public QueryRunner<ResultRow> mergeRunners2(
       ExecutorService exec,
-      Iterable<QueryRunner2<ResultRow>> queryRunners,
+      Iterable<SegmentGroupByQueryProcessor<ResultRow>> queryRunners,
       @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
@@ -176,7 +179,7 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
     return strategySelector;
   }
 
-  private static class GroupByQueryRunner2 implements QueryRunner2<ResultRow>
+  private static class GroupByQueryRunner2 implements SegmentGroupByQueryProcessor<ResultRow>
   {
     private final IdentifiableStorageAdapter adapter;
     private final GroupByStrategySelector strategySelector;
@@ -195,8 +198,9 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
     }
 
     @Override
-    public List<Sequence<ResultRow>> run(
-        QueryPlus<ResultRow> queryPlus, ResponseContext responseContext
+    public CloseableIterator<TimestampedIterator<Entry<Memory>>[]> process(
+        QueryPlus<ResultRow> queryPlus,
+        ResponseContext responseContext
     )
     {
       Query<ResultRow> query = queryPlus.getQuery();
