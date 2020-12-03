@@ -771,10 +771,14 @@ public class GroupByBenchmark
     blackhole.consume(results);
   }
 
+  /**
+   * Measure the time to produce the first ResultRow unlike {@link #queryMultiQueryableIndexX} measures total query
+   * processing time. This measure is useful since the Broker can start merging as soon as the first result is returned.
+   */
   @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
-  public void queryMultiQueryableIndexTTFB(Blackhole blackhole) throws IOException
+  public void queryMultiQueryableIndexTTFR(Blackhole blackhole) throws IOException
   {
     QueryToolChest<ResultRow, GroupByQuery> toolChest = factory.getToolchest();
     SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
@@ -818,7 +822,33 @@ public class GroupByBenchmark
     blackhole.consume(results);
   }
 
+  /**
+   * Measure the time to produce the first ResultRow unlike {@link #queryMultiQueryableIndexWithSpilling} measures
+   * total query processing time. This measure is useful since the Broker can start merging as soon as the first
+   * result is returned.
+   */
 //  @Benchmark
+  @BenchmarkMode(Mode.AverageTime)
+  @OutputTimeUnit(TimeUnit.MICROSECONDS)
+  public void queryMultiQueryableIndexWithSpillingTTFR(Blackhole blackhole) throws IOException
+  {
+    QueryToolChest<ResultRow, GroupByQuery> toolChest = factory.getToolchest();
+    QueryRunner<ResultRow> theRunner = new FinalizeResultsQueryRunner<>(
+        toolChest.mergeResults(
+            factory.mergeRunners(executorService, makeMultiRunners(new SegmentIdMapper()))
+        ),
+        (QueryToolChest) toolChest
+    );
+
+    final GroupByQuery spillingQuery = query.withOverriddenContext(
+        ImmutableMap.of("bufferGrouperMaxSize", 4000)
+    );
+    Sequence<ResultRow> queryResult = theRunner.run(QueryPlus.wrap(spillingQuery), ResponseContext.createEmpty());
+    Yielder<ResultRow> yielder = Yielders.each(queryResult);
+    yielder.close();
+  }
+
+  @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @OutputTimeUnit(TimeUnit.MICROSECONDS)
   public void queryMultiQueryableIndexWithSerde(Blackhole blackhole)
