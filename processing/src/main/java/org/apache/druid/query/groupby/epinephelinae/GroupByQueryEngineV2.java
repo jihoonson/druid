@@ -1055,7 +1055,7 @@ public class GroupByQueryEngineV2
     }
   }
 
-  private static class GroupByEngineKeySerde implements Grouper.KeySerde<ByteBuffer>
+  public static class GroupByEngineKeySerde implements Grouper.KeySerde<ByteBuffer>
   {
     private final int keySize;
     private final GroupByColumnSelectorPlus[] dims;

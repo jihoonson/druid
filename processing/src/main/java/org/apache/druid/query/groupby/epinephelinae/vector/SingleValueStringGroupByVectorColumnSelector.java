@@ -30,7 +30,6 @@ import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.vector.SingleValueDimensionVectorSelector;
 
 import javax.annotation.Nullable;
-import java.util.Arrays;
 
 public class SingleValueStringGroupByVectorColumnSelector implements GroupByVectorColumnSelector
 {
@@ -99,7 +98,10 @@ public class SingleValueStringGroupByVectorColumnSelector implements GroupByVect
     final boolean canCompareInts = StringGroupByColumnSelectorStrategy.canUseDictionary(columnCapabilities);
     final StringComparator comparator = stringComparator == null ? StringComparators.LEXICOGRAPHIC : stringComparator;
     if (canCompareInts && StringComparators.LEXICOGRAPHIC.equals(comparator)) {
-      return (lhs, rhs, lhsOffset, rhsOffset) -> Integer.compare(lhs.getInt(lhsOffset + keyOffset), rhs.getInt(rhsOffset + keyOffset));
+      return (lhs, rhs, lhsOffset, rhsOffset) -> Integer.compare(
+          lhs.getInt(lhsOffset + keyOffset),
+          rhs.getInt(rhsOffset + keyOffset)
+      );
     } else {
       throw new UnsupportedOperationException("not implemented");
     }

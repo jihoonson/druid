@@ -24,6 +24,7 @@ import com.google.common.base.Predicates;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.FluentIterable;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -35,9 +36,7 @@ import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.collections.Releaser;
 import org.apache.druid.common.guava.GuavaUtils;
 import org.apache.druid.java.util.common.CloseableIterators;
-import org.apache.druid.java.util.common.Pair;
 import org.apache.druid.java.util.common.StringUtils;
-import org.apache.druid.java.util.common.guava.Accumulator;
 import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.ConcatSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
@@ -56,13 +55,18 @@ import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.ResourceLimitExceededException;
 import org.apache.druid.query.SegmentGroupByQueryProcessor;
+import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV3.MergingDictionary;
+import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2.GroupByEngineKeySerde;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.KeySerde;
 import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKey;
+import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelectorPlus;
 import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
 import org.joda.time.DateTime;
 
@@ -177,9 +181,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               resources.registerAll(mergeBufferHolders);
 
               final ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder = mergeBufferHolders.get(0);
-              final ReferenceCountingResourceHolder<ByteBuffer> combineBufferHolder = numMergeBuffers == 2 ?
-                                                                                      mergeBufferHolders.get(1) :
-                                                                                      null;
+              final ByteBuffer mergeBuffer = mergeBufferHolder.get();
+              final int sliceSize = mergeBufferSize / numHashBuckets;
 
               final Supplier<MergedDictionary[]> mergedDictionariesSupplier;
               if (config.isEarlyDictMerge() && dictionaryMergingRunner != null) { // TODO: no null check
@@ -223,31 +226,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                 mergedDictionariesSupplier = null;
               }
 
-              Pair<Grouper<RowBasedKey>, Accumulator<AggregateResult, ResultRow>> pair =
-                  RowBasedGrouperHelper.createGrouperAccumulatorPair(
-                      query,
-                      null,
-                      config,
-                      Suppliers.ofInstance(mergeBufferHolder.get()),
-                      combineBufferHolder,
-                      concurrencyHint,
-                      temporaryStorage,
-                      spillMapper,
-                      exec,
-                      priority,
-                      hasTimeout,
-                      timeoutAt,
-                      mergeBufferSize,
-                      mergedDictionariesSupplier
-                  );
-              final Grouper<RowBasedKey> grouper = pair.lhs;
-              final Accumulator<AggregateResult, ResultRow> accumulator = pair.rhs;
-              grouper.init();
-
-              final ReferenceCountingResourceHolder<Grouper<RowBasedKey>> grouperHolder =
-                  ReferenceCountingResourceHolder.fromCloseable(grouper);
-              resources.register(grouperHolder);
-
               List<CloseableIterator<TimestampedIterators>> hashedSequencesList = FluentIterable
                   .from(queryables)
                   .transform(runner2 -> runner2.process(queryPlusForRunners, responseContext))
@@ -283,10 +261,20 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   }
                 }
 
-                final List<ListenableFuture<AggregateResult>> futures = new ArrayList<>();
-                exec.submit(() -> {
+                final List<ListenableFuture<CloseableIterator<Entry<ByteBuffer>>>> futures = new ArrayList<>();
+                for (int i = 0; i < numHashBuckets; i++) {
+                  final CloseableIterator<Entry<Memory>> concatIterator = CloseableIterators.concat(
+                      partitionedIterators[i]
+                  );
+                  final Grouper<ByteBuffer> grouper = new BufferHashGrouper<>(
+                      Suppliers.ofInstance(Groupers.getSlice(mergeBuffer, sliceSize, i)),
+                      new GroupByEngineKeySerde()
+                  );
+                  while (concatIterator.hasNext()) {
+                    final Entry<Memory> memoryEntry = concatIterator.next();
 
-                });
+                  }
+                }
               }
 
 
@@ -523,6 +511,77 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     catch (ExecutionException e) {
       GuavaUtils.cancelAll(true, future, futures);
       throw new RuntimeException(e);
+    }
+  }
+
+  private static class MemoryKeySerde implements KeySerde<Memory>
+  {
+    private final int keySize;
+    private final GroupByColumnSelectorPlus[] dims;
+    private final GroupByQuery query;
+
+    public MemoryKeySerde(GroupByColumnSelectorPlus[] dims, GroupByQuery query)
+    {
+      this.dims = dims;
+      int keySize = 0;
+      for (GroupByColumnSelectorPlus selectorPlus : dims) {
+        keySize += selectorPlus.getColumnSelectorStrategy().getGroupingKeySize();
+      }
+      this.keySize = keySize;
+
+      this.query = query;
+    }
+
+    @Override
+    public int keySize()
+    {
+      return keySize;
+    }
+
+    @Override
+    public Class<Memory> keyClazz()
+    {
+      return Memory.class;
+    }
+
+    @Override
+    public List<String> getDictionary()
+    {
+      return ImmutableList.of(); // TODO: this is for spilling dictionary. do i need it? or do we every need it if we use merged dictionary?
+    }
+
+    @Nullable
+    @Override
+    public ByteBuffer toByteBuffer(Memory key)
+    {
+      return key.getByteBuffer(); // TODO: is this correct?
+    }
+
+    @Override
+    public Memory fromByteBuffer(ByteBuffer buffer, int position)
+    {
+      return null;
+    }
+
+    @Override
+    public BufferComparator bufferComparator()
+    {
+      return null;
+    }
+
+    @Override
+    public BufferComparator bufferComparatorWithAggregators(
+        AggregatorFactory[] aggregatorFactories,
+        int[] aggregatorOffsets
+    )
+    {
+      return null;
+    }
+
+    @Override
+    public void reset()
+    {
+
     }
   }
 }

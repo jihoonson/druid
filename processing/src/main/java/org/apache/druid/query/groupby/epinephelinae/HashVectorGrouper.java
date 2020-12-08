@@ -35,19 +35,15 @@ import org.apache.druid.query.groupby.epinephelinae.collection.HashTableUtils;
 import org.apache.druid.query.groupby.epinephelinae.collection.MemoryOpenHashTable;
 
 import javax.annotation.Nullable;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 
 /**
  * An implementation of {@link VectorGrouper} backed by a growable {@link MemoryOpenHashTable}. Growability is
@@ -338,6 +334,7 @@ public class HashVectorGrouper implements VectorGrouper
                   final int bucket = baseIterator.nextInt();
                   final int bucketPosition = hashTable.bucketMemoryPosition(bucket);
 
+                  // TODO: region is expensive
                   final Memory keyMemory = hashTable.memory().region(
                       bucketPosition + hashTable.bucketKeyOffset(),
                       hashTable.keySize()
