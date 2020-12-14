@@ -55,6 +55,7 @@ import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.ResourceLimitExceededException;
 import org.apache.druid.query.SegmentGroupByQueryProcessor;
+import org.apache.druid.query.aggregation.AggregatorAdapters;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.groupby.GroupByQuery;
@@ -266,13 +267,87 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   final CloseableIterator<Entry<Memory>> concatIterator = CloseableIterators.concat(
                       partitionedIterators[i]
                   );
-                  final Grouper<ByteBuffer> grouper = new BufferHashGrouper<>(
+                  // TODO: memory -> byteBuffer & dictionary conversion
+
+                  // TODO: maybe i can just use Grouper<ByteBuffer> with GroupByEngineKeySerde
+                  final Grouper<Memory> grouper = new BufferHashGrouper<>(
                       Suppliers.ofInstance(Groupers.getSlice(mergeBuffer, sliceSize, i)),
-                      new GroupByEngineKeySerde()
+                      new KeySerde<Memory>()
+                      {
+                        @Override
+                        public int keySize()
+                        {
+                          // TODO
+                          return 0;
+                        }
+
+                        @Override
+                        public Class<Memory> keyClazz()
+                        {
+                          return Memory.class;
+                        }
+
+                        @Override
+                        public List<String> getDictionary()
+                        {
+                          // no dictionary to spill
+                          return null;
+                        }
+
+                        @Nullable
+                        @Override
+                        public ByteBuffer toByteBuffer(Memory key)
+                        {
+                          return key.getByteBuffer();
+                        }
+
+                        @Override
+                        public Memory fromByteBuffer(ByteBuffer buffer, int position)
+                        {
+                          if (buffer.position() != position && buffer.limit() != position + keySize()) {
+                            buffer.position(position);
+                            buffer.limit(position + keySize());
+                            return Memory.wrap(buffer.slice());
+                          } else {
+                            return Memory.wrap(buffer);
+                          }
+                        }
+
+                        @Override
+                        public BufferComparator bufferComparator()
+                        {
+                          // TODO
+                          return null;
+                        }
+
+                        @Override
+                        public BufferComparator bufferComparatorWithAggregators(
+                            AggregatorFactory[] aggregatorFactories,
+                            int[] aggregatorOffsets
+                        )
+                        {
+                          throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public void reset()
+                        {
+                          // nothing to reset
+                        }
+                      },
+                      AggregatorAdapters.factorizeBuffered(
+                          selectorFactory,
+                          query.getAggregatorSpecs()
+                      ),
+                      querySpecificConfig.getBufferGrouperMaxSize(),
+                      querySpecificConfig.getBufferGrouperMaxLoadFactor(),
+                      querySpecificConfig.getBufferGrouperInitialBuckets(),
+                      true
                   );
                   while (concatIterator.hasNext()) {
                     final Entry<Memory> memoryEntry = concatIterator.next();
-
+                    // TODO: update metrics columnValueSelector
+                    grouper.aggregate(memoryEntry.getKey());
                   }
                 }
               }
@@ -366,6 +441,36 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           }
         }
     );
+  }
+
+  private interface MemoryColumnFunction
+  {
+    int serializedSize();
+
+    Comparable[] deserialize(Memory memory);
+  }
+
+  private static class StringMemoryColumnFunction implements MemoryColumnFunction
+  {
+    private final long offset;
+
+    private StringMemoryColumnFunction(long offset)
+    {
+      this.offset = offset;
+    }
+
+    @Override
+    public int serializedSize()
+    {
+      return Integer.BYTES;
+    }
+
+    @Override
+    public Comparable[] deserialize(Memory memory)
+    {
+      // TODO: handle multi-valued columns later..
+      return new Comparable[]{memory.getInt(offset)};
+    }
   }
 
   public static class TimestampedIterators
