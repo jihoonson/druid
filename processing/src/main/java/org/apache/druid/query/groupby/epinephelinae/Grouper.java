@@ -31,6 +31,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.ToIntFunction;
 
 /**
@@ -126,6 +127,18 @@ public interface Grouper<KeyType> extends Closeable
   {
     final T key;
     final Object[] values;
+    final int segmentId;
+
+    public Entry(
+        @JsonProperty("k") T key,
+        @JsonProperty("v") Object[] values,
+        int segmentId
+    )
+    {
+      this.key = key;
+      this.values = values;
+      this.segmentId = segmentId;
+    }
 
     @JsonCreator
     public Entry(
@@ -133,8 +146,7 @@ public interface Grouper<KeyType> extends Closeable
         @JsonProperty("v") Object[] values
     )
     {
-      this.key = key;
-      this.values = values;
+      this(key, values, -1);
     }
 
     @JsonProperty("k")
@@ -149,6 +161,11 @@ public interface Grouper<KeyType> extends Closeable
       return values;
     }
 
+    public int getSegmentId()
+    {
+      return segmentId;
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -158,21 +175,16 @@ public interface Grouper<KeyType> extends Closeable
       if (o == null || getClass() != o.getClass()) {
         return false;
       }
-
       Entry<?> entry = (Entry<?>) o;
-
-      if (!key.equals(entry.key)) {
-        return false;
-      }
-      // Probably incorrect - comparing Object[] arrays with Arrays.equals
-      return Arrays.equals(values, entry.values);
-
+      return segmentId == entry.segmentId &&
+             key.equals(entry.key) &&
+             Arrays.equals(values, entry.values);
     }
 
     @Override
     public int hashCode()
     {
-      int result = key.hashCode();
+      int result = Objects.hash(key, segmentId);
       result = 31 * result + Arrays.hashCode(values);
       return result;
     }
@@ -183,6 +195,7 @@ public interface Grouper<KeyType> extends Closeable
       return "Entry{" +
              "key=" + key +
              ", values=" + Arrays.toString(values) +
+             ", segmentId=" + segmentId +
              '}';
     }
   }

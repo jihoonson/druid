@@ -104,10 +104,10 @@ import java.util.stream.Stream;
  */
 public class GroupByQueryEngineV2
 {
-  private static final GroupByStrategyFactory STRATEGY_FACTORY_ENCODE_STRINGS = new GroupByStrategyFactory(true);
-  private static final GroupByStrategyFactory STRATEGY_FACTORY_NO_ENCODE = new GroupByStrategyFactory(false);
+  public static final GroupByStrategyFactory STRATEGY_FACTORY_ENCODE_STRINGS = new GroupByStrategyFactory(true);
+  public static final GroupByStrategyFactory STRATEGY_FACTORY_NO_ENCODE = new GroupByStrategyFactory(false);
 
-  private static GroupByColumnSelectorPlus[] createGroupBySelectorPlus(
+  public static GroupByColumnSelectorPlus[] createGroupBySelectorPlus(
       ColumnSelectorPlus<GroupByColumnSelectorStrategy>[] baseSelectorPlus,
       int dimensionStart
   )

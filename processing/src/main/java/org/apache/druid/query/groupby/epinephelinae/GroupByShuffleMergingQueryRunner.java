@@ -35,7 +35,9 @@ import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.collections.Releaser;
 import org.apache.druid.common.guava.GuavaUtils;
+import org.apache.druid.common.guava.SettableSupplier;
 import org.apache.druid.java.util.common.CloseableIterators;
+import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.ConcatSequence;
@@ -45,6 +47,7 @@ import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.AbstractPrioritizedCallable;
+import org.apache.druid.query.ColumnSelectorPlus;
 import org.apache.druid.query.DictionaryConversion;
 import org.apache.druid.query.DictionaryMergeQuery;
 import org.apache.druid.query.DictionaryMergingQueryRunner;
@@ -58,6 +61,7 @@ import org.apache.druid.query.SegmentGroupByQueryProcessor;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.context.ResponseContext;
+import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.ResultRow;
@@ -68,7 +72,16 @@ import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.KeySerde;
 import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKey;
 import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelectorPlus;
+import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
+import org.apache.druid.query.monomorphicprocessing.RuntimeShapeInspector;
+import org.apache.druid.segment.ColumnSelectorFactory;
+import org.apache.druid.segment.ColumnValueSelector;
+import org.apache.druid.segment.DimensionHandlerUtils;
+import org.apache.druid.segment.DimensionSelector;
+import org.apache.druid.segment.column.ColumnCapabilities;
+import org.apache.druid.segment.column.ColumnCapabilitiesImpl;
+import org.apache.druid.segment.column.ValueType;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
@@ -85,6 +98,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 {
@@ -238,6 +252,20 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
               DateTime currentTime = null;
               TimestampedIterators timestampedIterators = null;
+
+              final int numDimensions = query.getResultRowAggregatorStart();
+              final int[] keyOffsets = new int[numDimensions];
+              int offset = 0;
+              int dimIndex = 0;
+              if (query.getResultRowHasTimestamp()) {
+                keyOffsets[dimIndex++] = offset;
+                offset += typeSize(ValueType.LONG);
+              }
+              for (; dimIndex < numDimensions; dimIndex++) {
+                keyOffsets[dimIndex] = offset;
+                offset += typeSize(query.getDimensions().get(dimIndex - query.getResultRowDimensionStart()).getOutputType());
+              }
+
               while (timeSortedHashedIterators.hasNext()) {
                 List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators = new List[numHashBuckets];
                 for (int i = 0; i < numHashBuckets; i++) {
@@ -264,79 +292,49 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
                 final List<ListenableFuture<CloseableIterator<Entry<ByteBuffer>>>> futures = new ArrayList<>();
                 for (int i = 0; i < numHashBuckets; i++) {
-                  final CloseableIterator<Entry<Memory>> concatIterator = CloseableIterators.concat(
+                  final CloseableIterator<Entry<ByteBuffer>> concatIterator = CloseableIterators.concat(
                       partitionedIterators[i]
+                  ).map(entry -> {
+                    final Memory keyMemory = entry.getKey();
+                    final ByteBuffer keyBuffer = keyMemory.getByteBuffer();
+
+                    if (mergedDictionariesSupplier != null) {
+                      for (int j = query.getResultRowDimensionStart(); j < query.getResultRowAggregatorStart(); j++) {
+                        if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
+                          final int oldDictId = keyBuffer.getInt(keyOffsets[j]);
+                          assert entry.segmentId > -1;
+                          final int newDictId = mergedDictionariesSupplier.get()[j].getNewDictId(entry.segmentId, oldDictId);
+                          keyBuffer.putInt(newDictId);
+                        }
+                      }
+                    }
+
+                    return new Entry<>(keyBuffer, entry.getValues());
+                  });
+                  final SettableSupplier<Entry<ByteBuffer>> currentBufferSupplier = new SettableSupplier<>();
+                  final ColumnSelectorFactory columnSelectorFactory = new ByteBufferColumnSelectorFactory(
+                      query,
+                      currentBufferSupplier,
+                      keyOffsets
                   );
-                  // TODO: memory -> byteBuffer & dictionary conversion
+                  final ColumnSelectorPlus<GroupByColumnSelectorStrategy>[] selectorPlus = DimensionHandlerUtils
+                      .createColumnSelectorPluses(
+                          querySpecificConfig.isEarlyDictMerge()
+                          ? GroupByQueryEngineV2.STRATEGY_FACTORY_ENCODE_STRINGS
+                          : GroupByQueryEngineV2.STRATEGY_FACTORY_NO_ENCODE,
+                          query.getDimensions(),
+                          columnSelectorFactory
+                      );
+                  final GroupByColumnSelectorPlus[] dims = GroupByQueryEngineV2.createGroupBySelectorPlus(
+                      selectorPlus,
+                      query.getResultRowDimensionStart()
+                  );
 
-                  // TODO: maybe i can just use Grouper<ByteBuffer> with GroupByEngineKeySerde
-                  final Grouper<Memory> grouper = new BufferHashGrouper<>(
+                  final Grouper<ByteBuffer> grouper = new BufferHashGrouper<>(
                       Suppliers.ofInstance(Groupers.getSlice(mergeBuffer, sliceSize, i)),
-                      new KeySerde<Memory>()
-                      {
-                        @Override
-                        public int keySize()
-                        {
-                          // TODO
-                          return 0;
-                        }
-
-                        @Override
-                        public Class<Memory> keyClazz()
-                        {
-                          return Memory.class;
-                        }
-
-                        @Override
-                        public List<String> getDictionary()
-                        {
-                          // no dictionary to spill
-                          return null;
-                        }
-
-                        @Nullable
-                        @Override
-                        public ByteBuffer toByteBuffer(Memory key)
-                        {
-                          return key.getByteBuffer();
-                        }
-
-                        @Override
-                        public Memory fromByteBuffer(ByteBuffer buffer, int position)
-                        {
-                          if (buffer.position() != position && buffer.limit() != position + keySize()) {
-                            buffer.position(position);
-                            buffer.limit(position + keySize());
-                            return Memory.wrap(buffer.slice());
-                          } else {
-                            return Memory.wrap(buffer);
-                          }
-                        }
-
-                        @Override
-                        public BufferComparator bufferComparator()
-                        {
-                          // TODO
-                          return null;
-                        }
-
-                        @Override
-                        public BufferComparator bufferComparatorWithAggregators(
-                            AggregatorFactory[] aggregatorFactories,
-                            int[] aggregatorOffsets
-                        )
-                        {
-                          throw new UnsupportedOperationException();
-                        }
-
-                        @Override
-                        public void reset()
-                        {
-                          // nothing to reset
-                        }
-                      },
+                      new GroupByEngineKeySerde(dims, query),
                       AggregatorAdapters.factorizeBuffered(
-                          selectorFactory,
+                          columnSelectorFactory,
                           query.getAggregatorSpecs()
                       ),
                       querySpecificConfig.getBufferGrouperMaxSize(),
@@ -344,11 +342,15 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                       querySpecificConfig.getBufferGrouperInitialBuckets(),
                       true
                   );
+
+                  // TODO: run this concurrently
                   while (concatIterator.hasNext()) {
-                    final Entry<Memory> memoryEntry = concatIterator.next();
-                    // TODO: update metrics columnValueSelector
-                    grouper.aggregate(memoryEntry.getKey());
+                    final Entry<ByteBuffer> entry = concatIterator.next();
+                    currentBufferSupplier.set(entry);
+                    grouper.aggregate(entry.getKey());
                   }
+
+                  // TODO: should close stuffs
                 }
               }
 
@@ -441,6 +443,288 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           }
         }
     );
+  }
+
+  private int typeSize(ValueType valueType)
+  {
+    switch (valueType) {
+      case DOUBLE:
+        return Double.BYTES;
+      case FLOAT:
+        return Float.BYTES;
+      case LONG:
+        return Long.BYTES;
+      case STRING:
+        return Integer.BYTES;
+      default:
+        throw new UnsupportedOperationException(valueType.name());
+    }
+  }
+
+  private static class ByteBufferColumnSelectorFactory implements ColumnSelectorFactory
+  {
+    private final GroupByQuery query;
+    private final Supplier<Entry<ByteBuffer>> currentEntrySupplier;
+    private final int[] keyOffsets;
+
+    private ByteBufferColumnSelectorFactory(GroupByQuery query, Supplier<Entry<ByteBuffer>> currentEntrySupplier, int[] keyOffsets)
+    {
+      this.query = query;
+      this.currentEntrySupplier = currentEntrySupplier;
+      this.keyOffsets = keyOffsets;
+    }
+
+    @Override
+    public DimensionSelector makeDimensionSelector(DimensionSpec dimensionSpec)
+    {
+      throw new UnsupportedOperationException();
+    }
+
+    private int dimIndex(String columnName)
+    {
+      return IntStream.range(query.getResultRowDimensionStart(), query.getResultRowAggregatorStart())
+                      .filter(i -> query.getDimensions().get(i).getOutputName().equals(columnName))
+                      .findAny()
+                      .orElse(-1);
+    }
+
+    private int aggIndex(String columnName)
+    {
+      return IntStream.range(0, query.getResultRowPostAggregatorStart() - query.getResultRowAggregatorStart())
+                      .filter(i -> query.getAggregatorSpecs().get(i).getName().equals(columnName))
+                      .findAny()
+                      .orElse(-1);
+    }
+
+    private ValueType dimType(int dimIndex)
+    {
+      return query.getDimensions().get(dimIndex - query.getResultRowDimensionStart()).getOutputType();
+    }
+
+    private ValueType aggType(int aggIndex)
+    {
+      return query.getAggregatorSpecs().get(aggIndex).getType();
+    }
+
+    @Override
+    public ColumnValueSelector makeColumnValueSelector(String columnName)
+    {
+      final int dimIndex = dimIndex(columnName);
+      if (dimIndex > -1) {
+        final ValueType valueType = dimType(dimIndex);
+        return new ColumnValueSelector()
+        {
+          @Override
+          public double getDouble()
+          {
+            switch (valueType) {
+              case DOUBLE:
+                return currentEntrySupplier.get().getKey().getDouble(keyOffsets[dimIndex]);
+              case FLOAT:
+                return currentEntrySupplier.get().getKey().getFloat(keyOffsets[dimIndex]);
+              case LONG:
+                return currentEntrySupplier.get().getKey().getLong(keyOffsets[dimIndex]);
+              case STRING:
+                return currentEntrySupplier.get().getKey().getInt(keyOffsets[dimIndex]);
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+          }
+
+          @Override
+          public float getFloat()
+          {
+            switch (valueType) {
+              case DOUBLE:
+                return (float) currentEntrySupplier.get().getKey().getDouble(keyOffsets[dimIndex]);
+              case FLOAT:
+                return currentEntrySupplier.get().getKey().getFloat(keyOffsets[dimIndex]);
+              case LONG:
+                return currentEntrySupplier.get().getKey().getLong(keyOffsets[dimIndex]);
+              case STRING:
+                return currentEntrySupplier.get().getKey().getInt(keyOffsets[dimIndex]);
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+          }
+
+          @Override
+          public long getLong()
+          {
+            switch (valueType) {
+              case DOUBLE:
+                return (long) currentEntrySupplier.get().getKey().getDouble(keyOffsets[dimIndex]);
+              case FLOAT:
+                return (long) currentEntrySupplier.get().getKey().getFloat(keyOffsets[dimIndex]);
+              case LONG:
+                return currentEntrySupplier.get().getKey().getLong(keyOffsets[dimIndex]);
+              case STRING:
+                return currentEntrySupplier.get().getKey().getInt(keyOffsets[dimIndex]);
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+          }
+
+          @Override
+          public void inspectRuntimeShape(RuntimeShapeInspector inspector)
+          {
+          }
+
+          @Override
+          public boolean isNull()
+          {
+            // TODO
+            return false;
+          }
+
+          @Nullable
+          @Override
+          public Object getObject()
+          {
+            switch (valueType) {
+              case DOUBLE:
+                return currentEntrySupplier.get().getKey().getDouble(keyOffsets[dimIndex]);
+              case FLOAT:
+                return currentEntrySupplier.get().getKey().getFloat(keyOffsets[dimIndex]);
+              case LONG:
+                return currentEntrySupplier.get().getKey().getLong(keyOffsets[dimIndex]);
+              case STRING:
+                return currentEntrySupplier.get().getKey().getInt(keyOffsets[dimIndex]);
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+          }
+
+          @Override
+          public Class classOfObject()
+          {
+            switch (valueType) {
+              case DOUBLE:
+                return Double.class;
+              case FLOAT:
+                return Float.class;
+              case LONG:
+                return Long.class;
+              case STRING:
+                return Integer.class;
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+          }
+        };
+      } else {
+        final int aggIndex = aggIndex(columnName);
+        if (aggIndex < 0) {
+          throw new ISE("Cannot find column[%s]", columnName);
+        }
+        final ValueType valueType = aggType(aggIndex);
+        return new ColumnValueSelector()
+        {
+          @Override
+          public double getDouble()
+          {
+            switch (valueType) {
+              case DOUBLE:
+              case FLOAT:
+              case LONG:
+                return ((Number) currentEntrySupplier.get().getValues()[aggIndex]).doubleValue();
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+          }
+
+          @Override
+          public float getFloat()
+          {
+            switch (valueType) {
+              case DOUBLE:
+              case FLOAT:
+              case LONG:
+                return ((Number) currentEntrySupplier.get().getValues()[aggIndex]).floatValue();
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+          }
+
+          @Override
+          public long getLong()
+          {
+            switch (valueType) {
+              case DOUBLE:
+              case FLOAT:
+              case LONG:
+                return ((Number) currentEntrySupplier.get().getValues()[aggIndex]).longValue();
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+          }
+
+          @Override
+          public void inspectRuntimeShape(RuntimeShapeInspector inspector)
+          {
+          }
+
+          @Override
+          public boolean isNull()
+          {
+            // TODO
+            return false;
+          }
+
+          @Nullable
+          @Override
+          public Object getObject()
+          {
+            switch (valueType) {
+              case DOUBLE:
+              case FLOAT:
+              case LONG:
+                return currentEntrySupplier.get().getValues()[aggIndex];
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+          }
+
+          @Override
+          public Class classOfObject()
+          {
+            switch (valueType) {
+              case DOUBLE:
+                return Double.class;
+              case FLOAT:
+                return Float.class;
+              case LONG:
+                return Long.class;
+              case STRING:
+                return Integer.class;
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+          }
+        };
+      }
+    }
+
+    @Nullable
+    @Override
+    public ColumnCapabilities getColumnCapabilities(String column)
+    {
+      final int dimIndex = dimIndex(column);
+      final ValueType valueType = dimType(dimIndex);
+      switch (valueType) {
+        case DOUBLE:
+        case FLOAT:
+        case LONG:
+          return ColumnCapabilitiesImpl.createSimpleNumericColumnCapabilities(valueType);
+        case STRING:
+          return ColumnCapabilitiesImpl.createDefault()
+                                       .setDictionaryEncoded(true)
+                                       .setDictionaryValuesSorted(true)
+                                       .setDictionaryValuesUnique(true);
+        default:
+          throw new UnsupportedOperationException(valueType.name());
+      }
+    }
   }
 
   private interface MemoryColumnFunction

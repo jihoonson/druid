@@ -335,7 +335,7 @@ public class VectorGroupByEngine2
 
       final boolean resultRowHasTimestamp = query.getResultRowHasTimestamp();
 
-      final List<CloseableIterator<Entry<Memory>>> entryIterators = vectorGrouper.iterators();
+      final List<CloseableIterator<Entry<Memory>>> entryIterators = vectorGrouper.iterators(segmentId);
 //      System.err.println("new entry iterators for timestamp " + timestamp.getMillis() + ", grouper: " + vectorGrouper);
       return entryIterators
           .stream()

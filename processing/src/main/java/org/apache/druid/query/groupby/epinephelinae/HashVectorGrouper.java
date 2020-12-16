@@ -301,7 +301,7 @@ public class HashVectorGrouper implements VectorGrouper
     }
   }
 
-  public List<CloseableIterator<Entry<Memory>>> iterators()
+  public List<CloseableIterator<Entry<Memory>>> iterators(int segmentId)
   {
     if (!initialized) {
       // it's possible for iterator() to be called before initialization when
@@ -346,7 +346,7 @@ public class HashVectorGrouper implements VectorGrouper
                     values[i] = aggregators.get(hashTable.memory().getByteBuffer(), aggregatorsOffset, i);
                   }
 
-                  return new Grouper.Entry<>(keyMemory, values);
+                  return new Grouper.Entry<>(keyMemory, values, segmentId);
                 }
               }
           )
