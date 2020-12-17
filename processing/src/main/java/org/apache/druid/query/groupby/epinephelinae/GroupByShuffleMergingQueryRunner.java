@@ -64,6 +64,7 @@ import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV3.MergingDictionary;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2.GroupByEngineKeySerde;
@@ -196,7 +197,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               resources.registerAll(mergeBufferHolders);
 
               final ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder = mergeBufferHolders.get(0);
-              final ByteBuffer mergeBuffer = mergeBufferHolder.get();
               final int sliceSize = mergeBufferSize / numHashBuckets;
 
               final Supplier<MergedDictionary[]> mergedDictionariesSupplier;
@@ -223,7 +223,11 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                         for (int i = 0; i < conversions.size(); i++) {
                           while (conversions.get(i).hasNext()) {
                             final DictionaryConversion conversion = conversions.get(i).next();
-                            accumulated[i].add(conversion.getVal(), conversion.getSegmentId(), conversion.getOldDictionaryId());
+                            accumulated[i].add(
+                                conversion.getVal(),
+                                conversion.getSegmentId(),
+                                conversion.getOldDictionaryId()
+                            );
                           }
                         }
                         return accumulated;
@@ -245,6 +249,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   .from(queryables)
                   .transform(runner2 -> runner2.process(queryPlusForRunners, responseContext))
                   .toList();
+              // this iterator is blocking whenever hasNext() is called. Maybe better to block when next() is called.
               CloseableIterator<TimestampedIterators> timeSortedHashedIterators = CloseableIterators.mergeSorted(
                   hashedSequencesList,
                   Comparator.comparing(TimestampedIterators::getTimestamp)
@@ -263,8 +268,14 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               }
               for (; dimIndex < numDimensions; dimIndex++) {
                 keyOffsets[dimIndex] = offset;
-                offset += typeSize(query.getDimensions().get(dimIndex - query.getResultRowDimensionStart()).getOutputType());
+                offset += typeSize(query.getDimensions()
+                                        .get(dimIndex - query.getResultRowDimensionStart())
+                                        .getOutputType());
               }
+              final List<ColumnCapabilities> dimensionCapabilities = IntStream
+                  .range(0, numDimensions)
+                  .mapToObj(i -> ColumnCapabilitiesImpl.createDefault())
+                  .collect(Collectors.toList());
 
               while (timeSortedHashedIterators.hasNext()) {
                 List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators = new List[numHashBuckets];
@@ -290,139 +301,21 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   }
                 }
 
-                final List<ListenableFuture<CloseableIterator<Entry<ByteBuffer>>>> futures = new ArrayList<>();
-                for (int i = 0; i < numHashBuckets; i++) {
-                  final CloseableIterator<Entry<ByteBuffer>> concatIterator = CloseableIterators.concat(
-                      partitionedIterators[i]
-                  ).map(entry -> {
-                    final Memory keyMemory = entry.getKey();
-                    final ByteBuffer keyBuffer = keyMemory.getByteBuffer();
-
-                    if (mergedDictionariesSupplier != null) {
-                      for (int j = query.getResultRowDimensionStart(); j < query.getResultRowAggregatorStart(); j++) {
-                        if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
-                          final int oldDictId = keyBuffer.getInt(keyOffsets[j]);
-                          assert entry.segmentId > -1;
-                          final int newDictId = mergedDictionariesSupplier.get()[j].getNewDictId(entry.segmentId, oldDictId);
-                          keyBuffer.putInt(newDictId);
-                        }
-                      }
-                    }
-
-                    return new Entry<>(keyBuffer, entry.getValues());
-                  });
-                  final SettableSupplier<Entry<ByteBuffer>> currentBufferSupplier = new SettableSupplier<>();
-                  final ColumnSelectorFactory columnSelectorFactory = new ByteBufferColumnSelectorFactory(
-                      query,
-                      currentBufferSupplier,
-                      keyOffsets
-                  );
-                  final ColumnSelectorPlus<GroupByColumnSelectorStrategy>[] selectorPlus = DimensionHandlerUtils
-                      .createColumnSelectorPluses(
-                          querySpecificConfig.isEarlyDictMerge()
-                          ? GroupByQueryEngineV2.STRATEGY_FACTORY_ENCODE_STRINGS
-                          : GroupByQueryEngineV2.STRATEGY_FACTORY_NO_ENCODE,
-                          query.getDimensions(),
-                          columnSelectorFactory
-                      );
-                  final GroupByColumnSelectorPlus[] dims = GroupByQueryEngineV2.createGroupBySelectorPlus(
-                      selectorPlus,
-                      query.getResultRowDimensionStart()
-                  );
-
-                  final Grouper<ByteBuffer> grouper = new BufferHashGrouper<>(
-                      Suppliers.ofInstance(Groupers.getSlice(mergeBuffer, sliceSize, i)),
-                      new GroupByEngineKeySerde(dims, query),
-                      AggregatorAdapters.factorizeBuffered(
-                          columnSelectorFactory,
-                          query.getAggregatorSpecs()
-                      ),
-                      querySpecificConfig.getBufferGrouperMaxSize(),
-                      querySpecificConfig.getBufferGrouperMaxLoadFactor(),
-                      querySpecificConfig.getBufferGrouperInitialBuckets(),
-                      true
-                  );
-
-                  // TODO: run this concurrently
-                  while (concatIterator.hasNext()) {
-                    final Entry<ByteBuffer> entry = concatIterator.next();
-                    currentBufferSupplier.set(entry);
-                    grouper.aggregate(entry.getKey());
-                  }
-
-                  // TODO: should close stuffs
-                }
+                // TODO: create an outer iterator that keeps all states above and calls nextDelegate() when current
+                // delegate.hasNext() returns false
+                nextDelegate(
+                    currentTime,
+                    mergedDictionariesSupplier,
+                    partitionedIterators,
+                    keyOffsets,
+                    mergeBufferHolder,
+                    sliceSize,
+                    dimensionCapabilities
+                )
               }
+              // TODO: convert to sequence
 
 
-
-              List<TimestampedIterator<Entry<Memory>>[]> partitionedIteratorsForQueryables = hashedSequencesList
-                  .stream()
-                  .filter(Iterator::hasNext)
-                  .map(Iterator::next)
-                  .collect(Collectors.toList());
-
-              while (!partitionedIteratorsForQueryables.isEmpty()) {
-                // group iterators by hash bucket
-                TimestampedIterator<Entry<Memory>>[] groupedIterators = new TimestampedIterator[numHashBuckets];
-                for (int i = 0; i < numHashBuckets; i++) {
-
-                }
-              }
-
-
-
-              for (int i = 0; i < numHashBuckets; i++) {
-                final List<Sequence<ResultRow>> sequencesToProcess = new ArrayList<>(hashedSequencesList.size()); // # of queryables
-                for (List<Sequence<ResultRow>> sequencesPerQueryable : hashedSequencesList) {
-                  sequencesToProcess.add(sequencesPerQueryable.get(i));
-                }
-                final Sequence<ResultRow> concatSequence = new ConcatSequence<>(Sequences.simple(sequencesToProcess));
-                ListenableFuture<AggregateResult> future = exec.submit(
-                    new AbstractPrioritizedCallable<AggregateResult>(priority)
-                    {
-                      @Override
-                      public AggregateResult call()
-                      {
-                        try (
-                            // These variables are used to close releasers automatically.
-                            @SuppressWarnings("unused")
-                            Releaser bufferReleaser = mergeBufferHolder.increment();
-                            @SuppressWarnings("unused")
-                            Releaser grouperReleaser = grouperHolder.increment()
-                        ) {
-
-                          // Return true if OK, false if resources were exhausted.
-                          return concatSequence.accumulate(AggregateResult.ok(), accumulator);
-                        }
-                        catch (QueryInterruptedException e) {
-                          throw e;
-                        }
-                        catch (Exception e) {
-                          log.error(e, "Exception with one of the sequences!");
-                          throw new RuntimeException(e);
-                        }
-                      }
-                    }
-                );
-                futures.add(future);
-              }
-
-              if (!isSingleThreaded) {
-                waitForFutureCompletion(
-                    query,
-                    futures,
-                    hasTimeout,
-                    timeoutAt - System.currentTimeMillis()
-                );
-              }
-
-              return RowBasedGrouperHelper.makeGrouperIterator(
-                  grouper,
-                  query,
-                  resources,
-                  mergedDictionariesSupplier
-              );
             }
             catch (Throwable t) {
               // Exception caught while setting up the iterator; release resources.
@@ -432,8 +325,150 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               catch (Exception ex) {
                 t.addSuppressed(ex);
               }
-              throw t;
+              throw new RuntimeException(t); // TODO: proper exception handling
             }
+          }
+
+          private CloseableIterator<ResultRow> nextDelegate(
+              DateTime currentTime,
+              Supplier<MergedDictionary[]> mergedDictionariesSupplier,
+              List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators,
+              int[] keyOffsets,
+              ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder,
+              int sliceSize,
+              List<ColumnCapabilities> dimensionCapabilities
+          ) throws ExecutionException, InterruptedException
+          {
+            final List<ListenableFuture<CloseableIterator<ResultRow>>> futures = new ArrayList<>();
+            for (int i = 0; i < numHashBuckets; i++) {
+              final CloseableIterator<Entry<ByteBuffer>> concatIterator = CloseableIterators.concat(
+                  partitionedIterators[i]
+              ).map(entry -> {
+                final Memory keyMemory = entry.getKey();
+                final ByteBuffer keyBuffer = keyMemory.getByteBuffer();
+
+                if (mergedDictionariesSupplier != null) {
+                  for (int j = query.getResultRowDimensionStart(); j < query.getResultRowAggregatorStart(); j++) {
+                    if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
+                      final int oldDictId = keyBuffer.getInt(keyOffsets[j]);
+                      assert entry.segmentId > -1;
+                      final int newDictId = mergedDictionariesSupplier.get()[j].getNewDictId(
+                          entry.segmentId,
+                          oldDictId
+                      );
+                      keyBuffer.putInt(newDictId);
+                    }
+                  }
+                }
+
+                return new Entry<>(keyBuffer, entry.getValues());
+              });
+
+              final SettableSupplier<Entry<ByteBuffer>> currentBufferSupplier = new SettableSupplier<>();
+              final ColumnSelectorFactory columnSelectorFactory = new EntryColumnSelectorFactory(
+                  query,
+                  currentBufferSupplier,
+                  keyOffsets
+              );
+              final ColumnSelectorPlus<GroupByColumnSelectorStrategy>[] selectorPlus = DimensionHandlerUtils
+                  .createColumnSelectorPluses(
+                      querySpecificConfig.isEarlyDictMerge()
+                      ? GroupByQueryEngineV2.STRATEGY_FACTORY_ENCODE_STRINGS
+                      : GroupByQueryEngineV2.STRATEGY_FACTORY_NO_ENCODE,
+                      query.getDimensions(),
+                      columnSelectorFactory
+                  );
+              final GroupByColumnSelectorPlus[] dims = GroupByQueryEngineV2.createGroupBySelectorPlus(
+                  selectorPlus,
+                  query.getResultRowDimensionStart()
+              );
+
+              final Grouper<ByteBuffer> grouper = new BufferHashGrouper<>(
+                  Suppliers.ofInstance(Groupers.getSlice(mergeBufferHolder.get(), sliceSize, i)),
+                  new GroupByEngineKeySerde(dims, query),
+                  AggregatorAdapters.factorizeBuffered(
+                      columnSelectorFactory,
+                      query.getAggregatorSpecs()
+                  ),
+                  querySpecificConfig.getBufferGrouperMaxSize(),
+                  querySpecificConfig.getBufferGrouperMaxLoadFactor(),
+                  querySpecificConfig.getBufferGrouperInitialBuckets(),
+                  true
+              );
+
+              futures.add(
+                  exec.submit(() -> {
+                    //noinspection unused
+                    try (Releaser releaser = mergeBufferHolder.increment();
+                         CloseableIterator<Entry<ByteBuffer>> iteratorCloser = concatIterator) {
+                      while (concatIterator.hasNext()) {
+                        final Entry<ByteBuffer> entry = concatIterator.next();
+                        currentBufferSupplier.set(entry);
+                        grouper.aggregate(entry.getKey());
+                      }
+                      return grouper.iterator(true)
+                                    .map(entry -> {
+                                      final PerSegmentEncodedResultRow resultRow = PerSegmentEncodedResultRow.create(
+                                          query.getResultRowSizeWithoutPostAggregators()
+                                      );
+                                      if (query.getResultRowHasTimestamp()) {
+                                        resultRow.set(0, currentTime.getMillis());
+                                      }
+
+                                      for (int j = 0; j < dims.length; j++) {
+                                        dims[j].getColumnSelectorStrategy().processValueFromGroupingKey(
+                                            dims[j],
+                                            entry.getKey(),
+                                            resultRow,
+                                            dims[j].getKeyBufferPosition(),
+                                            0
+                                        );
+                                        // Decode dictionaries
+                                        if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
+                                          resultRow.set(
+                                              dims[j].getResultRowPosition(),
+                                              mergedDictionariesSupplier.get()[j].lookup(resultRow.getInt(dims[j].getResultRowPosition()))
+                                          );
+                                        }
+                                      }
+                                      GroupByQueryEngineV2.convertRowTypesToOutputTypes(
+                                          query.getDimensions(),
+                                          resultRow,
+                                          query.getResultRowDimensionStart(),
+                                          0,
+                                          dimensionCapabilities,
+                                          false
+                                      );
+
+                                      for (int j = 0; j < entry.getValues().length; j++) {
+                                        resultRow.set(
+                                            query.getResultRowAggregatorStart() + j,
+                                            0,
+                                            entry.getValues()[j]
+                                        );
+                                      }
+                                      return resultRow;
+                                    });
+                    }
+                  })
+              );
+            }
+
+            // TODO: handle timeout
+            Futures.allAsList(futures).get();
+            final List<CloseableIterator<ResultRow>> resultIterators = futures.stream().map(f -> {
+              try {
+                return f.get();
+              }
+              catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException(e);
+              }
+            }).collect(Collectors.toList());
+
+            return CloseableIterators.mergeSorted(
+                resultIterators,
+                query.getRowOrdering(true)
+            );
           }
 
           @Override
@@ -461,13 +496,13 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
   }
 
-  private static class ByteBufferColumnSelectorFactory implements ColumnSelectorFactory
+  private static class EntryColumnSelectorFactory implements ColumnSelectorFactory
   {
     private final GroupByQuery query;
     private final Supplier<Entry<ByteBuffer>> currentEntrySupplier;
     private final int[] keyOffsets;
 
-    private ByteBufferColumnSelectorFactory(GroupByQuery query, Supplier<Entry<ByteBuffer>> currentEntrySupplier, int[] keyOffsets)
+    private EntryColumnSelectorFactory(GroupByQuery query, Supplier<Entry<ByteBuffer>> currentEntrySupplier, int[] keyOffsets)
     {
       this.query = query;
       this.currentEntrySupplier = currentEntrySupplier;
