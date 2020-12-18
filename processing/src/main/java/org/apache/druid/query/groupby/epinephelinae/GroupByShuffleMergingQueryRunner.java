@@ -20,6 +20,7 @@
 package org.apache.druid.query.groupby.epinephelinae;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
@@ -58,6 +59,7 @@ import org.apache.druid.query.SegmentGroupByQueryProcessor;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DimensionSpec;
+import org.apache.druid.query.filter.ValueMatcher;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
@@ -69,13 +71,17 @@ import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelector
 import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
 import org.apache.druid.query.monomorphicprocessing.RuntimeShapeInspector;
+import org.apache.druid.segment.AbstractDimensionSelector;
 import org.apache.druid.segment.ColumnSelectorFactory;
 import org.apache.druid.segment.ColumnValueSelector;
 import org.apache.druid.segment.DimensionHandlerUtils;
 import org.apache.druid.segment.DimensionSelector;
+import org.apache.druid.segment.IdLookup;
 import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.column.ColumnCapabilitiesImpl;
 import org.apache.druid.segment.column.ValueType;
+import org.apache.druid.segment.data.IndexedInts;
+import org.apache.druid.segment.data.SingleIndexedInt;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
@@ -89,6 +95,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -382,10 +389,11 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
                 if (mergedDictionariesSupplier != null) {
                   for (int j = query.getResultRowDimensionStart(); j < query.getResultRowAggregatorStart(); j++) {
-                    if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
-                      final int oldDictId = keyBuffer.getInt(keyOffsets[j]);
+                    final int dimIndex = j - query.getResultRowDimensionStart();
+                    if (query.getDimensions().get(dimIndex).getOutputType() == ValueType.STRING) {
+                      final int oldDictId = keyBuffer.getInt(keyOffsets[dimIndex]);
                       assert entry.segmentId > -1;
-                      final int newDictId = mergedDictionariesSupplier.get()[j].getNewDictId(
+                      final int newDictId = mergedDictionariesSupplier.get()[dimIndex].getNewDictId(
                           entry.segmentId,
                           oldDictId
                       );
@@ -401,7 +409,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               final ColumnSelectorFactory columnSelectorFactory = new EntryColumnSelectorFactory(
                   query,
                   currentBufferSupplier,
-                  keyOffsets
+                  keyOffsets,
+                  mergedDictionariesSupplier
               );
               final ColumnSelectorPlus<GroupByColumnSelectorStrategy>[] selectorPlus = DimensionHandlerUtils
                   .createColumnSelectorPluses(
@@ -551,19 +560,122 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     private final GroupByQuery query;
     private final Supplier<Entry<ByteBuffer>> currentEntrySupplier;
     private final int[] keyOffsets;
+    private final Supplier<MergedDictionary[]> mergedDictionariesSupplier;
 
-    private EntryColumnSelectorFactory(GroupByQuery query, Supplier<Entry<ByteBuffer>> currentEntrySupplier, int[] keyOffsets)
+    private EntryColumnSelectorFactory(
+        GroupByQuery query,
+        Supplier<Entry<ByteBuffer>> currentEntrySupplier,
+        int[] keyOffsets,
+        Supplier<MergedDictionary[]> mergedDictionariesSupplier
+    )
     {
       this.query = query;
       this.currentEntrySupplier = currentEntrySupplier;
       this.keyOffsets = keyOffsets;
+      this.mergedDictionariesSupplier = mergedDictionariesSupplier;
     }
 
     @Override
     public DimensionSelector makeDimensionSelector(DimensionSpec dimensionSpec)
     {
-      // TODO: should implement this for string dimensions
-      throw new UnsupportedOperationException();
+      // TODO: should be able to handle non-string types
+      final int dimIndex = dimIndex(dimensionSpec.getDimension());
+      if (dimIndex < 0) {
+        throw new ISE("Cannot find dimension[%s]", dimensionSpec.getDimension());
+      }
+
+      return new AbstractDimensionSelector()
+      {
+        final SingleIndexedInt indexedInts = new SingleIndexedInt();
+
+        private int getCurrentVal()
+        {
+          return currentEntrySupplier.get().getKey().getInt(keyOffsets[dimIndex]);
+        }
+
+        @Override
+        public IndexedInts getRow()
+        {
+          indexedInts.setValue(getCurrentVal());
+          return indexedInts;
+        }
+
+        @Override
+        public ValueMatcher makeValueMatcher(@Nullable String value)
+        {
+          return new ValueMatcher()
+          {
+            @Override
+            public boolean matches()
+            {
+              return Objects.equals(
+                  mergedDictionariesSupplier.get()[dimIndex].lookup(getCurrentVal()),
+                  value
+              );
+            }
+
+            @Override
+            public void inspectRuntimeShape(RuntimeShapeInspector inspector)
+            {
+            }
+          };
+        }
+
+        @Override
+        public ValueMatcher makeValueMatcher(Predicate<String> predicate)
+        {
+          return new ValueMatcher()
+          {
+            @Override
+            public boolean matches()
+            {
+              return predicate.apply(mergedDictionariesSupplier.get()[dimIndex].lookup(getCurrentVal()));
+            }
+
+            @Override
+            public void inspectRuntimeShape(RuntimeShapeInspector inspector)
+            {
+            }
+          };
+        }
+
+        @Override
+        public void inspectRuntimeShape(RuntimeShapeInspector inspector)
+        {
+        }
+
+        @Override
+        public Class<?> classOfObject()
+        {
+          return String.class;
+        }
+
+        @Override
+        public int getValueCardinality()
+        {
+          return mergedDictionariesSupplier.get()[dimIndex].size();
+        }
+
+        @Nullable
+        @Override
+        public String lookupName(int id)
+        {
+          return mergedDictionariesSupplier.get()[dimIndex].lookup(id);
+        }
+
+        @Override
+        public boolean nameLookupPossibleInAdvance()
+        {
+          return true;
+        }
+
+        @Nullable
+        @Override
+        public IdLookup idLookup()
+        {
+          return null;
+        }
+      };
     }
 
     private int dimIndex(String columnName)
@@ -577,7 +689,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     private int aggIndex(String columnName)
     {
       return IntStream.range(0, query.getResultRowPostAggregatorStart() - query.getResultRowAggregatorStart())
-                      .filter(i -> query.getAggregatorSpecs().get(i).getName().equals(columnName))
+                      // TODO: this seems.. wrong
+                      .filter(i -> query.getAggregatorSpecs().get(i).requiredFields().contains(columnName))
                       .findAny()
                       .orElse(-1);
     }
@@ -813,6 +926,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           return ColumnCapabilitiesImpl.createSimpleNumericColumnCapabilities(valueType);
         case STRING:
           return ColumnCapabilitiesImpl.createDefault()
+                                       .setType(ValueType.STRING)
                                        .setDictionaryEncoded(true)
                                        .setDictionaryValuesSorted(true)
                                        .setDictionaryValuesUnique(true);
