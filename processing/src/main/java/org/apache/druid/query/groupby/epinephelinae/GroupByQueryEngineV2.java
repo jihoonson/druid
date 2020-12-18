@@ -518,7 +518,7 @@ public class GroupByQueryEngineV2
         ColumnValueSelector selector
     )
     {
-      ValueType type = capabilities.getType();
+      ValueType type = capabilities.getType() == null ? ValueType.STRING : capabilities.getType();
       switch (type) {
         case STRING:
           DimensionSelector dimSelector = (DimensionSelector) selector;

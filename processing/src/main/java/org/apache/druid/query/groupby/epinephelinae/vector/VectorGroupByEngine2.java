@@ -89,7 +89,7 @@ public class VectorGroupByEngine2
     {
       CloseableIterator<TimestampedIterators> delegate;
 
-      private CloseableIterator<TimestampedIterator<Entry<Memory>>[]> initDelegate()
+      private CloseableIterator<TimestampedIterators> initDelegate()
       {
         final VectorCursor cursor = storageAdapter.makeVectorCursor(
             Filters.toFilter(query.getDimFilter()),
@@ -144,7 +144,7 @@ public class VectorGroupByEngine2
       public boolean hasNext()
       {
         if (delegate == null) {
-          initDelegate();
+          delegate = initDelegate();
         }
         return delegate.hasNext();
       }
@@ -168,7 +168,7 @@ public class VectorGroupByEngine2
     };
   }
 
-  static class VectorGroupByEngineIterator implements CloseableIterator<TimestampedIterator<Entry<Memory>>[]>
+  static class VectorGroupByEngineIterator implements CloseableIterator<TimestampedIterators>
   {
     private final int segmentId;
     private final GroupByQuery query;
@@ -239,7 +239,7 @@ public class VectorGroupByEngine2
     }
 
     @Override
-    public TimestampedIterator<Entry<Memory>>[] next()
+    public TimestampedIterators next()
     {
       if (!hasNext()) {
         throw new NoSuchElementException();
@@ -276,7 +276,7 @@ public class VectorGroupByEngine2
       return grouper;
     }
 
-    private TimestampedIterator<Entry<Memory>>[] makeGrouperIterators()
+    private TimestampedIterators makeGrouperIterators()
     {
       // Method must not be called unless there's a current bucketInterval.
       assert bucketInterval != null;
@@ -338,41 +338,43 @@ public class VectorGroupByEngine2
 
       final List<CloseableIterator<Entry<Memory>>> entryIterators = vectorGrouper.iterators(segmentId);
 //      System.err.println("new entry iterators for timestamp " + timestamp.getMillis() + ", grouper: " + vectorGrouper);
-      return entryIterators
-          .stream()
-          .map(entryIterator -> new TimestampedIterator<Entry<Memory>>() {
-            @Nullable
-            @Override
-            public DateTime getTimestamp()
-            {
-              return resultRowHasTimestamp ? timestamp : null;
-            }
+      return new TimestampedIterators(
+          entryIterators
+              .stream()
+              .map(entryIterator -> new TimestampedIterator<Entry<Memory>>() {
+                @Nullable
+                @Override
+                public DateTime getTimestamp()
+                {
+                  return resultRowHasTimestamp ? timestamp : null;
+                }
 
-            @Override
-            public boolean hasNext()
-            {
-              return entryIterator.hasNext();
-            }
+                @Override
+                public boolean hasNext()
+                {
+                  return entryIterator.hasNext();
+                }
 
-            @Override
-            public Entry<Memory> next()
-            {
-              if (!hasNext()) {
-                throw new NoSuchElementException();
-              }
-              return entryIterator.next();
-            }
+                @Override
+                public Entry<Memory> next()
+                {
+                  if (!hasNext()) {
+                    throw new NoSuchElementException();
+                  }
+                  return entryIterator.next();
+                }
 
-            @Override
-            public void close() throws IOException
-            {
-              Closer closer = Closer.create();
-              closer.register(vectorGrouper);
-              closer.register(entryIterator);
-              closer.close();
-            }
-          })
-          .collect(Collectors.toList()).toArray(new TimestampedIterator[0]);
+                @Override
+                public void close() throws IOException
+                {
+                  Closer closer = Closer.create();
+                  closer.register(vectorGrouper);
+                  closer.register(entryIterator);
+                  closer.close();
+                }
+              })
+              .collect(Collectors.toList()).toArray(new TimestampedIterator[0])
+      );
     }
 
     private MemoryComparator[] getDimensionComparators(LimitSpec limitSpec)

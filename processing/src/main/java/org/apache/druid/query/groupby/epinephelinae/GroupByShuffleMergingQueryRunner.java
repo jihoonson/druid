@@ -562,13 +562,14 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     @Override
     public DimensionSelector makeDimensionSelector(DimensionSpec dimensionSpec)
     {
+      // TODO: should implement this for string dimensions
       throw new UnsupportedOperationException();
     }
 
     private int dimIndex(String columnName)
     {
-      return IntStream.range(query.getResultRowDimensionStart(), query.getResultRowAggregatorStart())
-                      .filter(i -> query.getDimensions().get(i).getOutputName().equals(columnName))
+      return IntStream.range(0, query.getResultRowAggregatorStart() - query.getResultRowDimensionStart())
+                      .filter(i -> query.getDimensions().get(i).getDimension().equals(columnName))
                       .findAny()
                       .orElse(-1);
     }
@@ -583,7 +584,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
     private ValueType dimType(int dimIndex)
     {
-      return query.getDimensions().get(dimIndex - query.getResultRowDimensionStart()).getOutputType();
+      return query.getDimensions().get(dimIndex).getOutputType();
     }
 
     private ValueType aggType(int aggIndex)
@@ -794,8 +795,17 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     @Override
     public ColumnCapabilities getColumnCapabilities(String column)
     {
-      final int dimIndex = dimIndex(column);
-      final ValueType valueType = dimType(dimIndex);
+      final ValueType valueType;
+      int colIndex = dimIndex(column);
+      if (colIndex > -1) {
+        valueType = dimType(colIndex);
+      } else {
+        colIndex = aggIndex(column);
+        if (colIndex < 0) {
+          throw new ISE("Cannot find column[%s]", column);
+        }
+        valueType = aggType(colIndex);
+      }
       switch (valueType) {
         case DOUBLE:
         case FLOAT:
@@ -823,7 +833,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
   {
     private final TimestampedIterator<Entry<Memory>>[] iterators;
 
-    TimestampedIterators(TimestampedIterator<Entry<Memory>>[] iterators)
+    public TimestampedIterators(TimestampedIterator<Entry<Memory>>[] iterators)
     {
       this.iterators = iterators;
     }
