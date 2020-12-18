@@ -27,7 +27,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.inject.Inject;
-import org.apache.datasketches.memory.Memory;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.NonBlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
@@ -67,8 +66,7 @@ import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByRowProcessor;
 import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner;
-import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
-import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.LimitSpec;
 import org.apache.druid.query.groupby.orderby.NoopLimitSpec;
@@ -646,7 +644,7 @@ public class GroupByStrategyV2 implements GroupByStrategy
   }
 
   @Override
-  public CloseableIterator<TimestampedIterator<Entry<Memory>>[]> process2(GroupByQuery query, IdentifiableStorageAdapter storageAdapter)
+  public CloseableIterator<TimestampedIterators> process2(GroupByQuery query, IdentifiableStorageAdapter storageAdapter)
   {
     return GroupByQueryEngineV2.process2(
         query,

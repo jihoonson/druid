@@ -20,7 +20,6 @@
 package org.apache.druid.query.groupby.strategy;
 
 import com.google.common.util.concurrent.ListeningExecutorService;
-import org.apache.datasketches.memory.Memory;
 import org.apache.druid.java.util.common.UOE;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
@@ -33,8 +32,7 @@ import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryQueryToolChest;
 import org.apache.druid.query.groupby.ResultRow;
-import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
-import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
 import org.apache.druid.query.groupby.resource.GroupByQueryResource;
 import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.StorageAdapter;
@@ -210,7 +208,7 @@ public interface GroupByStrategy
    */
   Sequence<ResultRow> process(GroupByQuery query, IdentifiableStorageAdapter storageAdapter);
 
-  default CloseableIterator<TimestampedIterator<Entry<Memory>>[]> process2(
+  default CloseableIterator<TimestampedIterators> process2(
       GroupByQuery query,
       IdentifiableStorageAdapter storageAdapter
   )

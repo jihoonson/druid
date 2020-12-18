@@ -24,7 +24,6 @@ import com.google.common.base.Predicates;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.FluentIterable;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -34,15 +33,13 @@ import org.apache.datasketches.memory.Memory;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.collections.Releaser;
-import org.apache.druid.common.guava.GuavaUtils;
 import org.apache.druid.common.guava.SettableSupplier;
 import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.guava.BaseSequence;
-import org.apache.druid.java.util.common.guava.ConcatSequence;
+import org.apache.druid.java.util.common.guava.CloseQuietly;
 import org.apache.druid.java.util.common.guava.Sequence;
-import org.apache.druid.java.util.common.guava.Sequences;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
@@ -59,7 +56,6 @@ import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.ResourceLimitExceededException;
 import org.apache.druid.query.SegmentGroupByQueryProcessor;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
-import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.groupby.GroupByQuery;
@@ -68,10 +64,7 @@ import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV3.MergingDictionary;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2.GroupByEngineKeySerde;
-import org.apache.druid.query.groupby.epinephelinae.Grouper.BufferComparator;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
-import org.apache.druid.query.groupby.epinephelinae.Grouper.KeySerde;
-import org.apache.druid.query.groupby.epinephelinae.RowBasedGrouperHelper.RowBasedKey;
 import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelectorPlus;
 import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
@@ -86,12 +79,16 @@ import org.apache.druid.segment.column.ValueType;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
+import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -127,8 +124,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       int mergeBufferSize,
       ObjectMapper spillMapper,
       String processingTmpDir,
-      DictionaryMergingQueryRunner dictionaryMergingRunner,
-      int numHashBuckets
+      DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
     this.config = config;
@@ -141,7 +137,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     this.processingTmpDir = processingTmpDir;
     this.mergeBufferSize = mergeBufferSize;
     this.dictionaryMergingRunner = dictionaryMergingRunner;
-    this.numHashBuckets = numHashBuckets;
+    this.numHashBuckets = concurrencyHint;
   }
 
   @Override
@@ -153,8 +149,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     final QueryPlus<ResultRow> queryPlusForRunners = queryPlus
         .withQuery(query)
         .withoutThreadUnsafeState();
-
-    final boolean isSingleThreaded = querySpecificConfig.isSingleThreaded();
 
     final File temporaryStorageDirectory = new File(
         processingTmpDir,
@@ -170,10 +164,10 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     final long timeoutAt = System.currentTimeMillis() + queryTimeout;
 
     return new BaseSequence<>(
-        new BaseSequence.IteratorMaker<ResultRow, CloseableGrouperIterator<RowBasedKey, ResultRow>>()
+        new BaseSequence.IteratorMaker<ResultRow, CloseableIterator<ResultRow>>()
         {
           @Override
-          public CloseableGrouperIterator<RowBasedKey, ResultRow> make()
+          public CloseableIterator<ResultRow> make()
           {
             final Closer resources = Closer.create();
 
@@ -211,29 +205,35 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                 );
 
                 // TODO: maybe i don't need this accumulation at all if i just compute these maps in the queryRunner
-                final ListenableFuture<MergingDictionary[]> dictionaryMergingFuture = exec.submit(() -> {
-                  final MergingDictionary[] merging = new MergingDictionary[query.getDimensions().size()];
-                  for (int i = 0; i < merging.length; i++) {
-                    merging[i] = new MergingDictionary(dictionaryMergingRunner.getNumQueryRunners());
-                  }
-                  return conversionSequence.accumulate(
-                      merging,
-                      (accumulated, conversions) -> {
-                        assert accumulated.length == conversions.size();
-                        for (int i = 0; i < conversions.size(); i++) {
-                          while (conversions.get(i).hasNext()) {
-                            final DictionaryConversion conversion = conversions.get(i).next();
-                            accumulated[i].add(
-                                conversion.getVal(),
-                                conversion.getSegmentId(),
-                                conversion.getOldDictionaryId()
-                            );
-                          }
+                final ListenableFuture<MergingDictionary[]> dictionaryMergingFuture = exec.submit(
+                    new AbstractPrioritizedCallable<MergingDictionary[]>(priority)
+                    {
+                      @Override
+                      public MergingDictionary[] call()
+                      {
+                        final MergingDictionary[] merging = new MergingDictionary[query.getDimensions().size()];
+                        for (int i = 0; i < merging.length; i++) {
+                          merging[i] = new MergingDictionary(dictionaryMergingRunner.getNumQueryRunners());
                         }
-                        return accumulated;
+                        return conversionSequence.accumulate(
+                            merging,
+                            (accumulated, conversions) -> {
+                              assert accumulated.length == conversions.size();
+                              for (int i = 0; i < conversions.size(); i++) {
+                                while (conversions.get(i).hasNext()) {
+                                  final DictionaryConversion conversion = conversions.get(i).next();
+                                  accumulated[i].add(
+                                      conversion.getVal(),
+                                      conversion.getSegmentId(),
+                                      conversion.getOldDictionaryId()
+                                  );
+                                }
+                              }
+                              return accumulated;
+                            }
+                        );
                       }
-                  );
-                });
+                    });
                 mergedDictionariesSupplier = Suppliers.memoize(() -> waitForDictionaryMergeFutureCompletion(
                     query,
                     dictionaryMergingFuture,
@@ -255,9 +255,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   Comparator.comparing(TimestampedIterators::getTimestamp)
               );
 
-              DateTime currentTime = null;
-              TimestampedIterators timestampedIterators = null;
-
               final int numDimensions = query.getResultRowAggregatorStart();
               final int[] keyOffsets = new int[numDimensions];
               int offset = 0;
@@ -277,45 +274,81 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   .mapToObj(i -> ColumnCapabilitiesImpl.createDefault())
                   .collect(Collectors.toList());
 
-              while (timeSortedHashedIterators.hasNext()) {
-                List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators = new List[numHashBuckets];
-                for (int i = 0; i < numHashBuckets; i++) {
-                  partitionedIterators[i] = new ArrayList<>();
-                }
-                if (timestampedIterators != null) {
-                  currentTime = timestampedIterators.getTimestamp();
-                  for (int i = 0; i < timestampedIterators.iterators.length; i++) {
-                    partitionedIterators[i].add(timestampedIterators.iterators[i]);
-                  }
-                  timestampedIterators = null;
-                }
-                while (timeSortedHashedIterators.hasNext()) {
-                  timestampedIterators = timeSortedHashedIterators.next();
-                  if (currentTime == null || currentTime.equals(timestampedIterators.getTimestamp())) {
-                    currentTime = timestampedIterators.getTimestamp();
-                    for (int i = 0; i < timestampedIterators.iterators.length; i++) {
-                      partitionedIterators[i].add(timestampedIterators.iterators[i]);
+              return new CloseableIterator<ResultRow>()
+              {
+                final List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators = new List[numHashBuckets];
+                @Nullable CloseableIterator<ResultRow> delegate;
+                @Nullable DateTime currentTime = null;
+                @Nullable TimestampedIterators timestampedIterators = null;
+
+                @Override
+                public boolean hasNext()
+                {
+                  while ((delegate == null || !delegate.hasNext()) && timeSortedHashedIterators.hasNext()) {
+                    if (delegate != null) {
+                      try {
+                        delegate.close();
+                      }
+                      catch (IOException e) {
+                        throw new RuntimeException(e);
+                      }
                     }
-                  } else {
-                    break;
+                    for (int i = 0; i < numHashBuckets; i++) {
+                      partitionedIterators[i] = new ArrayList<>();
+                    }
+                    if (timestampedIterators != null) {
+                      currentTime = timestampedIterators.getTimestamp();
+                      for (int i = 0; i < timestampedIterators.iterators.length; i++) {
+                        partitionedIterators[i].add(timestampedIterators.iterators[i]);
+                      }
+                      timestampedIterators = null;
+                    }
+                    while (timeSortedHashedIterators.hasNext()) {
+                      timestampedIterators = timeSortedHashedIterators.next();
+                      if (currentTime == null || currentTime.equals(timestampedIterators.getTimestamp())) {
+                        currentTime = timestampedIterators.getTimestamp();
+                        for (int i = 0; i < timestampedIterators.iterators.length; i++) {
+                          partitionedIterators[i].add(timestampedIterators.iterators[i]);
+                        }
+                      } else {
+                        break;
+                      }
+                    }
+
+                    delegate = nextDelegate(
+                        currentTime,
+                        mergedDictionariesSupplier,
+                        partitionedIterators,
+                        keyOffsets,
+                        mergeBufferHolder,
+                        sliceSize,
+                        dimensionCapabilities
+                    );
                   }
+                  return delegate != null && delegate.hasNext();
                 }
 
-                // TODO: create an outer iterator that keeps all states above and calls nextDelegate() when current
-                // delegate.hasNext() returns false
-                nextDelegate(
-                    currentTime,
-                    mergedDictionariesSupplier,
-                    partitionedIterators,
-                    keyOffsets,
-                    mergeBufferHolder,
-                    sliceSize,
-                    dimensionCapabilities
-                )
-              }
-              // TODO: convert to sequence
+                @Override
+                public ResultRow next()
+                {
+                  if (!hasNext()) {
+                    throw new NoSuchElementException();
+                  }
+                  return delegate.next();
+                }
 
-
+                @Override
+                public void close() throws IOException
+                {
+                  Closer closer = Closer.create();
+                  if (delegate != null) {
+                    closer.register(delegate);
+                  }
+                  closer.register(timeSortedHashedIterators);
+                  closer.register(timestampedIterators);
+                  closer.close();
+                }
+              };
             }
             catch (Throwable t) {
               // Exception caught while setting up the iterator; release resources.
@@ -330,14 +363,14 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           }
 
           private CloseableIterator<ResultRow> nextDelegate(
-              DateTime currentTime,
+              @Nullable DateTime currentTime,
               Supplier<MergedDictionary[]> mergedDictionariesSupplier,
               List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators,
               int[] keyOffsets,
               ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder,
               int sliceSize,
               List<ColumnCapabilities> dimensionCapabilities
-          ) throws ExecutionException, InterruptedException
+          )
           {
             final List<ListenableFuture<CloseableIterator<ResultRow>>> futures = new ArrayList<>();
             for (int i = 0; i < numHashBuckets; i++) {
@@ -397,71 +430,83 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               );
 
               futures.add(
-                  exec.submit(() -> {
-                    //noinspection unused
-                    try (Releaser releaser = mergeBufferHolder.increment();
-                         CloseableIterator<Entry<ByteBuffer>> iteratorCloser = concatIterator) {
-                      while (concatIterator.hasNext()) {
-                        final Entry<ByteBuffer> entry = concatIterator.next();
-                        currentBufferSupplier.set(entry);
-                        grouper.aggregate(entry.getKey());
-                      }
-                      return grouper.iterator(true)
-                                    .map(entry -> {
-                                      final PerSegmentEncodedResultRow resultRow = PerSegmentEncodedResultRow.create(
-                                          query.getResultRowSizeWithoutPostAggregators()
-                                      );
-                                      if (query.getResultRowHasTimestamp()) {
-                                        resultRow.set(0, currentTime.getMillis());
-                                      }
+                  exec.submit(
+                      new AbstractPrioritizedCallable<CloseableIterator<ResultRow>>(priority)
+                      {
+                        @Override
+                        public CloseableIterator<ResultRow> call() throws Exception
+                        {
+                          //noinspection unused
+                          try (Releaser releaser = mergeBufferHolder.increment();
+                               CloseableIterator<Entry<ByteBuffer>> iteratorCloser = concatIterator) {
+                            while (concatIterator.hasNext()) {
+                              final Entry<ByteBuffer> entry = concatIterator.next();
+                              currentBufferSupplier.set(entry);
+                              grouper.aggregate(entry.getKey());
+                            }
+                            return grouper.iterator(true)
+                                          .map(entry -> {
+                                            final PerSegmentEncodedResultRow resultRow = PerSegmentEncodedResultRow.create(
+                                                query.getResultRowSizeWithoutPostAggregators()
+                                            );
+                                            if (query.getResultRowHasTimestamp()) {
+                                              assert currentTime != null;
+                                              resultRow.set(0, currentTime.getMillis());
+                                            }
 
-                                      for (int j = 0; j < dims.length; j++) {
-                                        dims[j].getColumnSelectorStrategy().processValueFromGroupingKey(
-                                            dims[j],
-                                            entry.getKey(),
-                                            resultRow,
-                                            dims[j].getKeyBufferPosition(),
-                                            0
-                                        );
-                                        // Decode dictionaries
-                                        if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
-                                          resultRow.set(
-                                              dims[j].getResultRowPosition(),
-                                              mergedDictionariesSupplier.get()[j].lookup(resultRow.getInt(dims[j].getResultRowPosition()))
-                                          );
-                                        }
-                                      }
-                                      GroupByQueryEngineV2.convertRowTypesToOutputTypes(
-                                          query.getDimensions(),
-                                          resultRow,
-                                          query.getResultRowDimensionStart(),
-                                          0,
-                                          dimensionCapabilities,
-                                          false
-                                      );
+                                            for (int j = 0; j < dims.length; j++) {
+                                              dims[j].getColumnSelectorStrategy().processValueFromGroupingKey(
+                                                  dims[j],
+                                                  entry.getKey(),
+                                                  resultRow,
+                                                  dims[j].getKeyBufferPosition(),
+                                                  0
+                                              );
+                                              // Decode dictionaries
+                                              if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
+                                                resultRow.set(
+                                                    dims[j].getResultRowPosition(),
+                                                    mergedDictionariesSupplier.get()[j].lookup(resultRow.getInt(dims[j].getResultRowPosition()))
+                                                );
+                                              }
+                                            }
+                                            GroupByQueryEngineV2.convertRowTypesToOutputTypes(
+                                                query.getDimensions(),
+                                                resultRow,
+                                                query.getResultRowDimensionStart(),
+                                                0,
+                                                dimensionCapabilities,
+                                                false
+                                            );
 
-                                      for (int j = 0; j < entry.getValues().length; j++) {
-                                        resultRow.set(
-                                            query.getResultRowAggregatorStart() + j,
-                                            0,
-                                            entry.getValues()[j]
-                                        );
-                                      }
-                                      return resultRow;
-                                    });
-                    }
-                  })
+                                            for (int j = 0; j < entry.getValues().length; j++) {
+                                              resultRow.set(
+                                                  query.getResultRowAggregatorStart() + j,
+                                                  0,
+                                                  entry.getValues()[j]
+                                              );
+                                            }
+                                            return resultRow;
+                                          });
+                          }
+                        }
+                      })
               );
             }
 
             // TODO: handle timeout
-            Futures.allAsList(futures).get();
+            try {
+              Futures.allAsList(futures).get();
+            }
+            catch (InterruptedException | ExecutionException e) {
+              throw new RuntimeException(e); // TODO: exception handling
+            }
             final List<CloseableIterator<ResultRow>> resultIterators = futures.stream().map(f -> {
               try {
                 return f.get();
               }
               catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
+                throw new RuntimeException(e); // TODO: exception handling
               }
             }).collect(Collectors.toList());
 
@@ -472,9 +517,14 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           }
 
           @Override
-          public void cleanup(CloseableGrouperIterator<RowBasedKey, ResultRow> iterFromMake)
+          public void cleanup(CloseableIterator<ResultRow> iterFromMake)
           {
-            iterFromMake.close();
+            try {
+              iterFromMake.close();
+            }
+            catch (IOException e) {
+              CloseQuietly.close(iterFromMake);
+            }
           }
         }
     );
@@ -762,37 +812,14 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
   }
 
-  private interface MemoryColumnFunction
-  {
-    int serializedSize();
+//  private interface MemoryColumnFunction
+//  {
+//    int serializedSize();
+//
+//    Comparable[] deserialize(Memory memory);
+//  }
 
-    Comparable[] deserialize(Memory memory);
-  }
-
-  private static class StringMemoryColumnFunction implements MemoryColumnFunction
-  {
-    private final long offset;
-
-    private StringMemoryColumnFunction(long offset)
-    {
-      this.offset = offset;
-    }
-
-    @Override
-    public int serializedSize()
-    {
-      return Integer.BYTES;
-    }
-
-    @Override
-    public Comparable[] deserialize(Memory memory)
-    {
-      // TODO: handle multi-valued columns later..
-      return new Comparable[]{memory.getInt(offset)};
-    }
-  }
-
-  public static class TimestampedIterators
+  public static class TimestampedIterators implements Closeable
   {
     private final TimestampedIterator<Entry<Memory>>[] iterators;
 
@@ -807,10 +834,12 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       return iterators[0].getTimestamp();
     }
 
-    TimestampedIterator<Entry<Memory>> getIterator(int hashBucket)
+    @Override
+    public void close() throws IOException
     {
-      assert hashBucket < iterators.length;
-      return iterators[hashBucket];
+      Closer closer = Closer.create();
+      Arrays.stream(iterators).forEach(closer::register);
+      closer.close();
     }
   }
 
@@ -892,120 +921,120 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
   }
 
-  private void waitForFutureCompletion(
-      GroupByQuery query,
-      List<ListenableFuture<AggregateResult>> futures,
-      boolean hasTimeout,
-      long timeout
-  )
-  {
-    ListenableFuture<List<AggregateResult>> future = Futures.allAsList(futures);
-    try {
-      if (queryWatcher != null) {
-        queryWatcher.registerQueryFuture(query, future);
-      }
-
-      if (hasTimeout && timeout <= 0) {
-        throw new TimeoutException();
-      }
-
-      final List<AggregateResult> results = hasTimeout ? future.get(timeout, TimeUnit.MILLISECONDS) : future.get();
-
-      for (AggregateResult result : results) {
-        if (!result.isOk()) {
-          GuavaUtils.cancelAll(true, future, futures);
-          throw new ResourceLimitExceededException(result.getReason());
-        }
-      }
-    }
-    catch (InterruptedException e) {
-      log.warn(e, "Query interrupted, cancelling pending results, query id [%s]", query.getId());
-      GuavaUtils.cancelAll(true, future, futures);
-      throw new QueryInterruptedException(e);
-    }
-    catch (CancellationException e) {
-      GuavaUtils.cancelAll(true, future, futures);
-      throw new QueryInterruptedException(e);
-    }
-    catch (TimeoutException e) {
-      log.info("Query timeout, cancelling pending results for query id [%s]", query.getId());
-      GuavaUtils.cancelAll(true, future, futures);
-      throw new QueryInterruptedException(e);
-    }
-    catch (ExecutionException e) {
-      GuavaUtils.cancelAll(true, future, futures);
-      throw new RuntimeException(e);
-    }
-  }
-
-  private static class MemoryKeySerde implements KeySerde<Memory>
-  {
-    private final int keySize;
-    private final GroupByColumnSelectorPlus[] dims;
-    private final GroupByQuery query;
-
-    public MemoryKeySerde(GroupByColumnSelectorPlus[] dims, GroupByQuery query)
-    {
-      this.dims = dims;
-      int keySize = 0;
-      for (GroupByColumnSelectorPlus selectorPlus : dims) {
-        keySize += selectorPlus.getColumnSelectorStrategy().getGroupingKeySize();
-      }
-      this.keySize = keySize;
-
-      this.query = query;
-    }
-
-    @Override
-    public int keySize()
-    {
-      return keySize;
-    }
-
-    @Override
-    public Class<Memory> keyClazz()
-    {
-      return Memory.class;
-    }
-
-    @Override
-    public List<String> getDictionary()
-    {
-      return ImmutableList.of(); // TODO: this is for spilling dictionary. do i need it? or do we every need it if we use merged dictionary?
-    }
-
-    @Nullable
-    @Override
-    public ByteBuffer toByteBuffer(Memory key)
-    {
-      return key.getByteBuffer(); // TODO: is this correct?
-    }
-
-    @Override
-    public Memory fromByteBuffer(ByteBuffer buffer, int position)
-    {
-      return null;
-    }
-
-    @Override
-    public BufferComparator bufferComparator()
-    {
-      return null;
-    }
-
-    @Override
-    public BufferComparator bufferComparatorWithAggregators(
-        AggregatorFactory[] aggregatorFactories,
-        int[] aggregatorOffsets
-    )
-    {
-      return null;
-    }
-
-    @Override
-    public void reset()
-    {
-
-    }
-  }
+//  private void waitForFutureCompletion(
+//      GroupByQuery query,
+//      List<ListenableFuture<AggregateResult>> futures,
+//      boolean hasTimeout,
+//      long timeout
+//  )
+//  {
+//    ListenableFuture<List<AggregateResult>> future = Futures.allAsList(futures);
+//    try {
+//      if (queryWatcher != null) {
+//        queryWatcher.registerQueryFuture(query, future);
+//      }
+//
+//      if (hasTimeout && timeout <= 0) {
+//        throw new TimeoutException();
+//      }
+//
+//      final List<AggregateResult> results = hasTimeout ? future.get(timeout, TimeUnit.MILLISECONDS) : future.get();
+//
+//      for (AggregateResult result : results) {
+//        if (!result.isOk()) {
+//          GuavaUtils.cancelAll(true, future, futures);
+//          throw new ResourceLimitExceededException(result.getReason());
+//        }
+//      }
+//    }
+//    catch (InterruptedException e) {
+//      log.warn(e, "Query interrupted, cancelling pending results, query id [%s]", query.getId());
+//      GuavaUtils.cancelAll(true, future, futures);
+//      throw new QueryInterruptedException(e);
+//    }
+//    catch (CancellationException e) {
+//      GuavaUtils.cancelAll(true, future, futures);
+//      throw new QueryInterruptedException(e);
+//    }
+//    catch (TimeoutException e) {
+//      log.info("Query timeout, cancelling pending results for query id [%s]", query.getId());
+//      GuavaUtils.cancelAll(true, future, futures);
+//      throw new QueryInterruptedException(e);
+//    }
+//    catch (ExecutionException e) {
+//      GuavaUtils.cancelAll(true, future, futures);
+//      throw new RuntimeException(e);
+//    }
+//  }
+//
+//  private static class MemoryKeySerde implements KeySerde<Memory>
+//  {
+//    private final int keySize;
+//    private final GroupByColumnSelectorPlus[] dims;
+//    private final GroupByQuery query;
+//
+//    public MemoryKeySerde(GroupByColumnSelectorPlus[] dims, GroupByQuery query)
+//    {
+//      this.dims = dims;
+//      int keySize = 0;
+//      for (GroupByColumnSelectorPlus selectorPlus : dims) {
+//        keySize += selectorPlus.getColumnSelectorStrategy().getGroupingKeySize();
+//      }
+//      this.keySize = keySize;
+//
+//      this.query = query;
+//    }
+//
+//    @Override
+//    public int keySize()
+//    {
+//      return keySize;
+//    }
+//
+//    @Override
+//    public Class<Memory> keyClazz()
+//    {
+//      return Memory.class;
+//    }
+//
+//    @Override
+//    public List<String> getDictionary()
+//    {
+//      return ImmutableList.of(); // TODO: this is for spilling dictionary. do i need it? or do we every need it if we use merged dictionary?
+//    }
+//
+//    @Nullable
+//    @Override
+//    public ByteBuffer toByteBuffer(Memory key)
+//    {
+//      return key.getByteBuffer(); // TODO: is this correct?
+//    }
+//
+//    @Override
+//    public Memory fromByteBuffer(ByteBuffer buffer, int position)
+//    {
+//      return null;
+//    }
+//
+//    @Override
+//    public BufferComparator bufferComparator()
+//    {
+//      return null;
+//    }
+//
+//    @Override
+//    public BufferComparator bufferComparatorWithAggregators(
+//        AggregatorFactory[] aggregatorFactories,
+//        int[] aggregatorOffsets
+//    )
+//    {
+//      return null;
+//    }
+//
+//    @Override
+//    public void reset()
+//    {
+//
+//    }
+//  }
 }

@@ -36,6 +36,7 @@ import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.epinephelinae.AggregateResult;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.query.groupby.epinephelinae.HashVectorGrouper;
 import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
@@ -65,7 +66,7 @@ import java.util.stream.Collectors;
 
 public class VectorGroupByEngine2
 {
-  public static CloseableIterator<TimestampedIterator<Entry<Memory>>[]> process(
+  public static CloseableIterator<TimestampedIterators> process(
       final GroupByQuery query,
       final IdentifiableStorageAdapter storageAdapter,
       Supplier<ByteBuffer> bufferSupplier,
@@ -84,9 +85,9 @@ public class VectorGroupByEngine2
     final int numHashTables = processingConfig.getNumThreads();
     final ByteBuffer processingBuffer = bufferSupplier.get();
 
-    return new CloseableIterator<TimestampedIterator<Entry<Memory>>[]>()
+    return new CloseableIterator<TimestampedIterators>()
     {
-      CloseableIterator<TimestampedIterator<Entry<Memory>>[]> delegate;
+      CloseableIterator<TimestampedIterators> delegate;
 
       private CloseableIterator<TimestampedIterator<Entry<Memory>>[]> initDelegate()
       {
@@ -149,7 +150,7 @@ public class VectorGroupByEngine2
       }
 
       @Override
-      public TimestampedIterator<Entry<Memory>>[] next()
+      public TimestampedIterators next()
       {
         if (!hasNext()) {
           throw new NoSuchElementException();

@@ -38,6 +38,7 @@ import org.apache.druid.query.QueryToolChest;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.query.context.ResponseContext;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.timeline.SegmentId;
@@ -84,7 +85,7 @@ public class QueryBenchmarkUtil
     return new SegmentGroupByQueryProcessor<T>()
     {
       @Override
-      public CloseableIterator<CloseableIterator<Entry<Memory>>[]> process(
+      public CloseableIterator<TimestampedIterators> process(
           QueryPlus<T> queryPlus, ResponseContext responseContext
       )
       {

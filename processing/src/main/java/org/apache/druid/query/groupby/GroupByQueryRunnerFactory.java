@@ -23,7 +23,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.inject.Inject;
-import org.apache.datasketches.memory.Memory;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
@@ -37,8 +36,7 @@ import org.apache.druid.query.QueryToolChest;
 import org.apache.druid.query.SegmentGroupByQueryProcessor;
 import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.query.context.ResponseContext;
-import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
-import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
 import org.apache.druid.query.groupby.strategy.GroupByStrategySelector;
 import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.Segment;
@@ -198,7 +196,7 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
     }
 
     @Override
-    public CloseableIterator<TimestampedIterator<Entry<Memory>>[]> process(
+    public CloseableIterator<TimestampedIterators> process(
         QueryPlus<ResultRow> queryPlus,
         ResponseContext responseContext
     )

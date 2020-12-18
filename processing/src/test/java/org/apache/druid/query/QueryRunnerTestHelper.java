@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import junitparams.converters.Nullable;
-import org.apache.datasketches.memory.Memory;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
@@ -56,7 +55,7 @@ import org.apache.druid.query.aggregation.post.ConstantPostAggregator;
 import org.apache.druid.query.aggregation.post.FieldAccessPostAggregator;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
-import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
 import org.apache.druid.query.spec.MultipleIntervalSegmentSpec;
 import org.apache.druid.query.spec.QuerySegmentSpec;
 import org.apache.druid.query.spec.SpecificSegmentSpec;
@@ -542,7 +541,7 @@ public class QueryRunnerTestHelper
     return new SegmentGroupByQueryProcessor<T>()
     {
       @Override
-      public CloseableIterator<CloseableIterator<Entry<Memory>>[]> process(
+      public CloseableIterator<TimestampedIterators> process(
           QueryPlus<T> queryPlus, ResponseContext responseContext
       )
       {
