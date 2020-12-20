@@ -57,6 +57,7 @@ import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.ResourceLimitExceededException;
 import org.apache.druid.query.SegmentGroupByQueryProcessor;
 import org.apache.druid.query.aggregation.AggregatorAdapters;
+import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.filter.ValueMatcher;
@@ -91,7 +92,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -257,25 +257,18 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   .transform(runner2 -> runner2.process(queryPlusForRunners, responseContext))
                   .toList();
               // this iterator is blocking whenever hasNext() is called. Maybe better to block when next() is called.
-              CloseableIterator<TimestampedIterators> timeSortedHashedIterators = CloseableIterators.mergeSorted(
-                  hashedSequencesList,
-                  Comparator.comparing(TimestampedIterators::getTimestamp)
-              );
+              TimeSortedIterators timeSortedHashedIterators = new TimeSortedIterators(hashedSequencesList);
 
-              final int numDimensions = query.getResultRowAggregatorStart();
+              final int numDimensions = query.getResultRowAggregatorStart() - query.getResultRowDimensionStart();
               final int[] keyOffsets = new int[numDimensions];
               int offset = 0;
-              int dimIndex = 0;
-              if (query.getResultRowHasTimestamp()) {
-                keyOffsets[dimIndex++] = offset;
-                offset += typeSize(ValueType.LONG);
-              }
-              for (; dimIndex < numDimensions; dimIndex++) {
+              int sumTypeSize = 0;
+              for (int dimIndex = 0; dimIndex < numDimensions; dimIndex++) {
                 keyOffsets[dimIndex] = offset;
-                offset += typeSize(query.getDimensions()
-                                        .get(dimIndex - query.getResultRowDimensionStart())
-                                        .getOutputType());
+                offset += typeSize(query.getDimensions().get(dimIndex).getOutputType());
+                sumTypeSize += typeSize(query.getDimensions().get(dimIndex).getOutputType());
               }
+              final int keySize = sumTypeSize;
               final List<ColumnCapabilities> dimensionCapabilities = IntStream
                   .range(0, numDimensions)
                   .mapToObj(i -> ColumnCapabilitiesImpl.createDefault())
@@ -286,7 +279,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                 final List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators = new List[numHashBuckets];
                 @Nullable CloseableIterator<ResultRow> delegate;
                 @Nullable DateTime currentTime = null;
-                @Nullable TimestampedIterators timestampedIterators = null;
 
                 @Override
                 public boolean hasNext()
@@ -303,22 +295,11 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                     for (int i = 0; i < numHashBuckets; i++) {
                       partitionedIterators[i] = new ArrayList<>();
                     }
-                    if (timestampedIterators != null) {
-                      currentTime = timestampedIterators.getTimestamp();
-                      for (int i = 0; i < timestampedIterators.iterators.length; i++) {
-                        partitionedIterators[i].add(timestampedIterators.iterators[i]);
-                      }
-                      timestampedIterators = null;
-                    }
-                    while (timeSortedHashedIterators.hasNext()) {
-                      timestampedIterators = timeSortedHashedIterators.next();
-                      if (currentTime == null || currentTime.equals(timestampedIterators.getTimestamp())) {
-                        currentTime = timestampedIterators.getTimestamp();
-                        for (int i = 0; i < timestampedIterators.iterators.length; i++) {
-                          partitionedIterators[i].add(timestampedIterators.iterators[i]);
-                        }
-                      } else {
-                        break;
+                    List<TimestampedIterators> iteratorsOfSameTimestamp = timeSortedHashedIterators.next();
+                    currentTime = iteratorsOfSameTimestamp.get(0).getTimestamp();
+                    for (TimestampedIterators eachIterators : iteratorsOfSameTimestamp) {
+                      for (int i = 0; i < eachIterators.iterators.length; i++) {
+                        partitionedIterators[i].add(eachIterators.iterators[i]);
                       }
                     }
 
@@ -326,6 +307,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                         currentTime,
                         mergedDictionariesSupplier,
                         partitionedIterators,
+                        keySize,
                         keyOffsets,
                         mergeBufferHolder,
                         sliceSize,
@@ -352,7 +334,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                     closer.register(delegate);
                   }
                   closer.register(timeSortedHashedIterators);
-                  closer.register(timestampedIterators);
                   closer.close();
                 }
               };
@@ -373,32 +354,48 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               @Nullable DateTime currentTime,
               Supplier<MergedDictionary[]> mergedDictionariesSupplier,
               List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators,
+              int keySize,
               int[] keyOffsets,
               ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder,
               int sliceSize,
               List<ColumnCapabilities> dimensionCapabilities
           )
           {
+            List<AggregatorFactory> combiningFactories = query
+                .getAggregatorSpecs()
+                .stream()
+                .map(AggregatorFactory::getCombiningFactory)
+                .collect(Collectors.toList());
+
+            final int numDims = query.getResultRowAggregatorStart() - query.getResultRowDimensionStart();
             final List<ListenableFuture<CloseableIterator<ResultRow>>> futures = new ArrayList<>();
             for (int i = 0; i < numHashBuckets; i++) {
+              // TODO: should not do this
+              final byte[] buf = new byte[keySize];
               final CloseableIterator<Entry<ByteBuffer>> concatIterator = CloseableIterators.concat(
                   partitionedIterators[i]
               ).map(entry -> {
                 final Memory keyMemory = entry.getKey();
-                final ByteBuffer keyBuffer = keyMemory.getByteBuffer();
+                final ByteBuffer keyBuffer = ByteBuffer.wrap(buf);
 
-                if (mergedDictionariesSupplier != null) {
-                  for (int j = query.getResultRowDimensionStart(); j < query.getResultRowAggregatorStart(); j++) {
-                    final int dimIndex = j - query.getResultRowDimensionStart();
-                    if (query.getDimensions().get(dimIndex).getOutputType() == ValueType.STRING) {
-                      final int oldDictId = keyBuffer.getInt(keyOffsets[dimIndex]);
+                // Convert dictionary
+                for (int j = 0; j < numDims; j++) {
+                  if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
+                    if (mergedDictionariesSupplier != null) {
+                      final int oldDictId = keyMemory.getInt(keyOffsets[j]);
                       assert entry.segmentId > -1;
-                      final int newDictId = mergedDictionariesSupplier.get()[dimIndex].getNewDictId(
+                      final int newDictId = mergedDictionariesSupplier.get()[j].getNewDictId(
                           entry.segmentId,
                           oldDictId
                       );
-                      keyBuffer.putInt(newDictId);
+//                      System.err.println("currentTime: " + currentTime.getMillis() + ", newDictId: " + newDictId + ", values: " + Arrays.toString(entry.getValues()));
+                      keyBuffer.putInt(keyOffsets[j], newDictId);
+                    } else {
+                      throw new UnsupportedOperationException();
                     }
+                  } else {
+                    final int thisKeyLen = j == numDims - 1 ? (keySize - keyOffsets[j]) : (keyOffsets[j + 1] - keyOffsets[j]);
+                    keyMemory.getByteArray(keyOffsets[j], buf, keyOffsets[j], thisKeyLen);
                   }
                 }
 
@@ -410,7 +407,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   query,
                   currentBufferSupplier,
                   keyOffsets,
-                  mergedDictionariesSupplier
+                  mergedDictionariesSupplier,
+                  combiningFactories
               );
               final ColumnSelectorPlus<GroupByColumnSelectorStrategy>[] selectorPlus = DimensionHandlerUtils
                   .createColumnSelectorPluses(
@@ -425,18 +423,20 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   query.getResultRowDimensionStart()
               );
 
+              // TODO: maybe can reuse
               final Grouper<ByteBuffer> grouper = new BufferHashGrouper<>(
                   Suppliers.ofInstance(Groupers.getSlice(mergeBufferHolder.get(), sliceSize, i)),
                   new GroupByEngineKeySerde(dims, query),
                   AggregatorAdapters.factorizeBuffered(
                       columnSelectorFactory,
-                      query.getAggregatorSpecs()
+                      combiningFactories
                   ),
                   querySpecificConfig.getBufferGrouperMaxSize(),
                   querySpecificConfig.getBufferGrouperMaxLoadFactor(),
                   querySpecificConfig.getBufferGrouperInitialBuckets(),
                   true
               );
+              grouper.init();
 
               futures.add(
                   exec.submit(
@@ -495,6 +495,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                                                   entry.getValues()[j]
                                               );
                                             }
+//                                            System.err.println(resultRow);
                                             return resultRow;
                                           });
                           }
@@ -561,18 +562,21 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     private final Supplier<Entry<ByteBuffer>> currentEntrySupplier;
     private final int[] keyOffsets;
     private final Supplier<MergedDictionary[]> mergedDictionariesSupplier;
+    private final List<AggregatorFactory> combiningFactories;
 
     private EntryColumnSelectorFactory(
         GroupByQuery query,
         Supplier<Entry<ByteBuffer>> currentEntrySupplier,
         int[] keyOffsets,
-        Supplier<MergedDictionary[]> mergedDictionariesSupplier
+        Supplier<MergedDictionary[]> mergedDictionariesSupplier,
+        List<AggregatorFactory> combiningFactories
     )
     {
       this.query = query;
       this.currentEntrySupplier = currentEntrySupplier;
       this.keyOffsets = keyOffsets;
       this.mergedDictionariesSupplier = mergedDictionariesSupplier;
+      this.combiningFactories = combiningFactories;
     }
 
     @Override
@@ -690,7 +694,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     {
       return IntStream.range(0, query.getResultRowPostAggregatorStart() - query.getResultRowAggregatorStart())
                       // TODO: this seems.. wrong
-                      .filter(i -> query.getAggregatorSpecs().get(i).requiredFields().contains(columnName))
+                      .filter(i -> combiningFactories.get(i).requiredFields().contains(columnName))
                       .findAny()
                       .orElse(-1);
     }
@@ -702,7 +706,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
     private ValueType aggType(int aggIndex)
     {
-      return query.getAggregatorSpecs().get(aggIndex).getType();
+      return combiningFactories.get(aggIndex).getType();
     }
 
     @Override
@@ -933,6 +937,64 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
         default:
           throw new UnsupportedOperationException(valueType.name());
       }
+    }
+  }
+
+  private static class TimeSortedIterators implements CloseableIterator<List<TimestampedIterators>>
+  {
+    private final List<CloseableIterator<TimestampedIterators>> baseIterators;
+    private final TimestampedIterators[] peeked;
+
+    private TimeSortedIterators(List<CloseableIterator<TimestampedIterators>> baseIterators)
+    {
+      this.baseIterators = baseIterators;
+      this.peeked = new TimestampedIterators[baseIterators.size()];
+    }
+
+    @Override
+    public boolean hasNext()
+    {
+      return Arrays.stream(peeked).anyMatch(Objects::nonNull) || baseIterators.stream().anyMatch(Iterator::hasNext);
+    }
+
+    @Override
+    public List<TimestampedIterators> next()
+    {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+
+      DateTime minTime = null;
+      for (int i = 0; i < peeked.length; i++) {
+        if (peeked[i] == null && baseIterators.get(i).hasNext()) {
+          peeked[i] = baseIterators.get(i).next();
+        }
+        if (peeked[i] != null
+            && (minTime == null || (peeked[i].getTimestamp() != null && minTime.isAfter(peeked[i].getTimestamp())))) {
+          minTime = peeked[i].getTimestamp();
+        }
+      }
+
+      final List<TimestampedIterators> iteratorsOfMinTime = new ArrayList<>();
+      for (int i = 0; i < peeked.length; i++) {
+        if (peeked[i] != null) {
+          if (peeked[i].getTimestamp() == null && minTime == null
+              || Objects.equals(peeked[i].getTimestamp(), minTime)) {
+            iteratorsOfMinTime.add(peeked[i]);
+            peeked[i] = null;
+          }
+        }
+      }
+
+      return iteratorsOfMinTime;
+    }
+
+    @Override
+    public void close() throws IOException
+    {
+      Closer closer = Closer.create();
+      closer.registerAll(baseIterators);
+      closer.close();
     }
   }
 

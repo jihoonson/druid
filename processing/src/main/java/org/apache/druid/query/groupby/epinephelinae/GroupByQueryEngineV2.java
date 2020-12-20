@@ -238,7 +238,7 @@ public class GroupByQueryEngineV2
       );
 
       if (doVectorize) {
-        return VectorGroupByEngine2.process(
+        final CloseableIterator<TimestampedIterators> delegate = VectorGroupByEngine2.process(
             query,
             storageAdapter,
             bufferSupplier,
@@ -248,6 +248,27 @@ public class GroupByQueryEngineV2
             querySpecificConfig,
             processingConfig
         );
+        return new CloseableIterator<TimestampedIterators>()
+        {
+          @Override
+          public boolean hasNext()
+          {
+            return delegate.hasNext();
+          }
+
+          @Override
+          public TimestampedIterators next()
+          {
+            return delegate.next();
+          }
+
+          @Override
+          public void close() throws IOException
+          {
+            bufferCloser.register(delegate);
+            bufferCloser.close();
+          }
+        };
       } else {
         throw new UnsupportedOperationException();
       }

@@ -38,6 +38,7 @@ import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -335,6 +336,7 @@ public class HashVectorGrouper implements VectorGrouper
                   final int bucketPosition = hashTable.bucketMemoryPosition(bucket);
 
                   // TODO: region is expensive
+                  // TODO: we can iterate by blocks, i.e., keyMemory containing a list of buckets
                   final Memory keyMemory = hashTable.memory().region(
                       bucketPosition + hashTable.bucketKeyOffset(),
                       hashTable.keySize()
@@ -345,6 +347,7 @@ public class HashVectorGrouper implements VectorGrouper
                   for (int i = 0; i < aggregators.size(); i++) {
                     values[i] = aggregators.get(hashTable.memory().getByteBuffer(), aggregatorsOffset, i);
                   }
+//                  System.err.println("values: " + Arrays.toString(values));
 
                   return new Grouper.Entry<>(keyMemory, values, segmentId);
                 }

@@ -43,11 +43,11 @@ public class PerSegmentEncodedResultRow extends ResultRow
     return segmentIds;
   }
 
-  @Override
-  public void set(final int i, @Nullable final Object o)
-  {
-    throw new UnsupportedOperationException();
-  }
+//  @Override
+//  public void set(final int i, @Nullable final Object o)
+//  {
+//    throw new UnsupportedOperationException();
+//  }
 
   @Override
   public int getInt(final int i)
