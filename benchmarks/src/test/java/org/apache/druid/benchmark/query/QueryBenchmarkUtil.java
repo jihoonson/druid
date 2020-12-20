@@ -94,7 +94,6 @@ public class QueryBenchmarkUtil
     };
   }
 
-
   public static QueryRunner<List<Iterator<DictionaryConversion>>> makeDictionaryScanRunner(
       SegmentId segmentId,
       Segment adapter,

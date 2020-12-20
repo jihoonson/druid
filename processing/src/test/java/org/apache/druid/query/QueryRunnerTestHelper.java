@@ -556,6 +556,25 @@ public class QueryRunnerTestHelper
     };
   }
 
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
+      QueryRunnerFactory2<T, QueryType> factory,
+      SegmentId segmentId,
+      Segment adapter,
+      @javax.annotation.Nullable SegmentIdMapper segmentIdMapper // TODO: is this nullable? maybe null for topN
+  )
+  {
+    return new SegmentGroupByQueryProcessor<T>()
+    {
+      @Override
+      public CloseableIterator<TimestampedIterators> process(
+          QueryPlus<T> queryPlus, ResponseContext responseContext
+      )
+      {
+        return factory.createRunner2(segmentIdMapper, adapter).process(queryPlus, responseContext);
+      }
+    };
+  }
+
   public static QueryRunner<List<Iterator<DictionaryConversion>>> makeDictionaryScanRunner(
       Segment adapter,
       final String runnerName,
@@ -565,7 +584,7 @@ public class QueryRunnerTestHelper
     return makeDictionaryScanRunner(SEGMENT_ID, adapter, runnerName, segmentIdMapper);
   }
 
-  private static QueryRunner<List<Iterator<DictionaryConversion>>> makeDictionaryScanRunner(
+  public static QueryRunner<List<Iterator<DictionaryConversion>>> makeDictionaryScanRunner(
       SegmentId segmentId,
       Segment adapter,
       final String runnerName,
