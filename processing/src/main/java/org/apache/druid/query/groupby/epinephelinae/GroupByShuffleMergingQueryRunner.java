@@ -198,7 +198,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               resources.registerAll(mergeBufferHolders);
 
               final ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder = mergeBufferHolders.get(0);
-              final int sliceSize = mergeBufferSize / numHashBuckets;
+              final int sliceSize = mergeBufferHolder.get().capacity() / numHashBuckets; // TODO: what is mergeBufferSize for?
 
               final Supplier<MergedDictionary[]> mergedDictionariesSupplier;
               if (config.isEarlyDictMerge() && dictionaryMergingRunner != null) { // TODO: no null check
@@ -257,7 +257,11 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   .transform(runner2 -> runner2.process(queryPlusForRunners, responseContext))
                   .toList();
               // this iterator is blocking whenever hasNext() is called. Maybe better to block when next() is called.
-              TimeSortedIterators timeSortedHashedIterators = new TimeSortedIterators(hashedSequencesList);
+              TimeSortedIterators timeSortedHashedIterators = new TimeSortedIterators(
+                  hashedSequencesList,
+                  exec,
+                  priority
+              );
 
               final int numDimensions = query.getResultRowAggregatorStart() - query.getResultRowDimensionStart();
               final int[] keyOffsets = new int[numDimensions];
@@ -320,7 +324,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                 @Override
                 public ResultRow next()
                 {
-                  if (!hasNext()) {
+                  if (delegate == null || !delegate.hasNext()) {
                     throw new NoSuchElementException();
                   }
                   return delegate.next();
@@ -334,6 +338,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                     closer.register(delegate);
                   }
                   closer.register(timeSortedHashedIterators);
+                  closer.register(resources);
                   closer.close();
                 }
               };
@@ -388,7 +393,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                           entry.segmentId,
                           oldDictId
                       );
-//                      System.err.println("currentTime: " + currentTime.getMillis() + ", newDictId: " + newDictId + ", values: " + Arrays.toString(entry.getValues()));
                       keyBuffer.putInt(keyOffsets[j], newDictId);
                     } else {
                       throw new UnsupportedOperationException();
@@ -398,6 +402,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                     keyMemory.getByteArray(keyOffsets[j], buf, keyOffsets[j], thisKeyLen);
                   }
                 }
+
+//                System.err.println(Thread.currentThread() + ", dict conversion: " + Groupers.deserializeToRow(keyMemory, entry.getValues()) + " -> " + Groupers.deserializeToRow(keyBuffer, entry.getValues()));
 
                 return new Entry<>(keyBuffer, entry.getValues());
               });
@@ -495,7 +501,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                                                   entry.getValues()[j]
                                               );
                                             }
-//                                            System.err.println(resultRow);
+//                                            System.err.println(Thread.currentThread() + ", row conversion: " + Groupers.deserializeToRow(entry.getKey(), entry.getValues()) + " -> " + resultRow);
                                             return resultRow;
                                           });
                           }
@@ -944,11 +950,21 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
   {
     private final List<CloseableIterator<TimestampedIterators>> baseIterators;
     private final TimestampedIterators[] peeked;
+    private final ListenableFuture<TimestampedIterators>[] futures;
+    private final ListeningExecutorService exec;
+    private final int priority;
 
-    private TimeSortedIterators(List<CloseableIterator<TimestampedIterators>> baseIterators)
+    private TimeSortedIterators(
+        List<CloseableIterator<TimestampedIterators>> baseIterators,
+        ListeningExecutorService exec,
+        int priority
+    )
     {
       this.baseIterators = baseIterators;
       this.peeked = new TimestampedIterators[baseIterators.size()];
+      this.futures = new ListenableFuture[baseIterators.size()];
+      this.exec = exec;
+      this.priority = priority;
     }
 
     @Override
@@ -964,10 +980,33 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
         throw new NoSuchElementException();
       }
 
-      DateTime minTime = null;
       for (int i = 0; i < peeked.length; i++) {
         if (peeked[i] == null && baseIterators.get(i).hasNext()) {
-          peeked[i] = baseIterators.get(i).next();
+          final CloseableIterator<TimestampedIterators> baseIterator = baseIterators.get(i);
+          // baseIterator.next() computes hash aggregation on one segment
+          futures[i] = exec.submit(
+              new AbstractPrioritizedCallable<TimestampedIterators>(priority)
+              {
+                @Override
+                public TimestampedIterators call()
+                {
+                  return baseIterator.next();
+                }
+              }
+          );
+        }
+      }
+
+      DateTime minTime = null;
+      for (int i = 0; i < peeked.length; i++) {
+        if (futures[i] != null) {
+          try {
+            peeked[i] = futures[i].get();
+            futures[i] = null;
+          }
+          catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e); // TODO: handle
+          }
         }
         if (peeked[i] != null
             && (minTime == null || (peeked[i].getTimestamp() != null && minTime.isAfter(peeked[i].getTimestamp())))) {

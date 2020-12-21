@@ -407,11 +407,11 @@ public class QueryRunnerTestHelper
 //            makeDictionaryScanRunner(new IncrementalIndexSegment(noRollupRtIndex, SEGMENT_ID), "noRollupRtIndex", segmentIdMapper)
 //        ),
         Pair.of(
-            makeQueryRunner(factory, new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", segmentIdMapper),
+            makeQueryRunner2(factory, new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", segmentIdMapper),
             makeDictionaryScanRunner(new QueryableIndexSegment(mMappedTestIndex, SEGMENT_ID), "mMappedTestIndex", segmentIdMapper)
         ),
         Pair.of(
-            makeQueryRunner(
+            makeQueryRunner2(
                 factory,
                 new QueryableIndexSegment(noRollupMMappedTestIndex, SEGMENT_ID),
                 "noRollupMMappedTestIndex",
@@ -424,7 +424,7 @@ public class QueryRunnerTestHelper
             )
         ),
         Pair.of(
-            makeQueryRunner(factory, new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID), "mergedRealtimeIndex", segmentIdMapper),
+            makeQueryRunner2(factory, new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID), "mergedRealtimeIndex", segmentIdMapper),
             makeDictionaryScanRunner(new QueryableIndexSegment(mergedRealtimeIndex, SEGMENT_ID), "mergedRealtimeIndex", segmentIdMapper)
         )
     );
@@ -457,23 +457,23 @@ public class QueryRunnerTestHelper
     throw new UnsupportedOperationException();
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner(
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       String resourceFileName,
       final String runnerName
   )
   {
-    return makeQueryRunner(factory, resourceFileName, runnerName, null);
+    return makeQueryRunner2(factory, resourceFileName, runnerName, null);
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner(
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       String resourceFileName,
       final String runnerName,
       @Nullable SegmentIdMapper segmentIdMapper
   )
   {
-    return makeQueryRunner(
+    return makeQueryRunner2(
         factory,
         SEGMENT_ID,
         new IncrementalIndexSegment(TestIndex.makeRealtimeIndex(resourceFileName), SEGMENT_ID),
@@ -491,23 +491,23 @@ public class QueryRunnerTestHelper
     throw new UnsupportedOperationException();
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner(
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       Segment adapter,
       final String runnerName
   )
   {
-    return makeQueryRunner(factory, adapter, runnerName, null);
+    return makeQueryRunner2(factory, adapter, runnerName, null);
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner(
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       Segment adapter,
       final String runnerName,
       @Nullable SegmentIdMapper segmentIdMapper
   )
   {
-    return makeQueryRunner(factory, SEGMENT_ID, adapter, runnerName, segmentIdMapper);
+    return makeQueryRunner2(factory, SEGMENT_ID, adapter, runnerName, segmentIdMapper);
   }
 
   public static <T, QueryType extends Query<T>> QueryRunner<T> makeQueryRunner(
@@ -517,20 +517,57 @@ public class QueryRunnerTestHelper
       final String runnerName
   )
   {
-    throw new UnsupportedOperationException();
+    return new QueryRunner<T>()
+    {
+      @Override
+      public Sequence<T> run(QueryPlus<T> queryPlus, ResponseContext responseContext)
+      {
+        return factory.createRunner(adapter).run(queryPlus, responseContext);
+      }
+
+      @Override
+      public String toString()
+      {
+        return runnerName;
+      }
+    };
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner(
+  public static <T, QueryType extends Query<T>> QueryRunner<T> makeQueryRunner(
+      QueryRunnerFactory<T, QueryType> factory,
+      SegmentId segmentId,
+      Segment adapter,
+      final String runnerName,
+      SegmentIdMapper segmentIdMapper
+  )
+  {
+    return new QueryRunner<T>()
+    {
+      @Override
+      public Sequence<T> run(QueryPlus<T> queryPlus, ResponseContext responseContext)
+      {
+        return factory.createRunner(segmentIdMapper, adapter).run(queryPlus, responseContext);
+      }
+
+      @Override
+      public String toString()
+      {
+        return runnerName;
+      }
+    };
+  }
+
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       SegmentId segmentId,
       Segment adapter,
       final String runnerName
   )
   {
-    return makeQueryRunner(factory, segmentId, adapter, runnerName, null);
+    return makeQueryRunner2(factory, segmentId, adapter, runnerName, null);
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner(
+  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       SegmentId segmentId,
       Segment adapter,

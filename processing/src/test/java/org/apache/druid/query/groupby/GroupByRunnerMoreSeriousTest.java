@@ -98,8 +98,8 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
   private static final Map<String, Map<String, GroupByQuery>> SCHEMA_QUERY_MAP = new LinkedHashMap<>();
   private static final ObjectMapper JSON_MAPPER = new DefaultObjectMapper();
   private static final int RNG_SEED = 9999;
-  private static final int ROWS_PER_SEGMENT = 100;
-  private static final int NUM_SEGMENTS = 16;
+  private static final int ROWS_PER_SEGMENT = 10;
+  private static final int NUM_SEGMENTS = 8;
   private static final int NUM_PROCESSING_THREADS = 16;
 
   private static IndexMergerV9 INDEX_MERGER;
@@ -312,11 +312,23 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
   {
     QueryToolChest<ResultRow, GroupByQuery> toolChest = FACTORY.getToolchest();
     SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
+
     QueryRunner<ResultRow> theRunner = new FinalizeResultsQueryRunner<>(
+        toolChest.mergeResults(
+            FACTORY.mergeRunners(
+                executorService,
+                makeMultiRunners(segmentIdMapper),
+                new DictionaryMergingQueryRunnerFactory().mergeRunners(executorService, makeDictScanRunners(segmentIdMapper))
+            )
+        ),
+        (QueryToolChest) toolChest
+    );
+
+    QueryRunner<ResultRow> theRunner2 = new FinalizeResultsQueryRunner<>(
         toolChest.mergeResults(
             FACTORY.mergeRunners2(
                 executorService,
-                makeMultiRunners(segmentIdMapper),
+                makeMultiRunners2(segmentIdMapper),
                 new DictionaryMergingQueryRunnerFactory().mergeRunners(executorService, makeDictScanRunners(segmentIdMapper))
             )
         ),
@@ -329,7 +341,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
     Sequence<ResultRow> queryResult = theRunner.run(QueryPlus.wrap(expectedQuery), ResponseContext.createEmpty());
     List<ResultRow> expectedResults = queryResult.toList();
 
-    queryResult = theRunner.run(QueryPlus.wrap(query), ResponseContext.createEmpty());
+    queryResult = theRunner2.run(QueryPlus.wrap(query), ResponseContext.createEmpty());
     List<ResultRow> results = queryResult.toList();
 
     Assert.assertEquals(expectedResults, results);
@@ -344,7 +356,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
         toolChest.mergeResults(
             FACTORY.mergeRunners2(
                 executorService,
-                makeMultiRunners(segmentIdMapper),
+                makeMultiRunners2(segmentIdMapper),
                 new DictionaryMergingQueryRunnerFactory().mergeRunners(executorService, makeDictScanRunners(segmentIdMapper))
             )
         ),
@@ -356,7 +368,24 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
     yielder.close();
   }
 
-  private List<SegmentGroupByQueryProcessor<ResultRow>> makeMultiRunners(SegmentIdMapper segmentIdMapper)
+  private List<QueryRunner<ResultRow>> makeMultiRunners(SegmentIdMapper segmentIdMapper)
+  {
+    List<QueryRunner<ResultRow>> runners = new ArrayList<>();
+    for (int i = 0; i < NUM_SEGMENTS; i++) {
+      String segmentName = "qIndex " + i;
+      QueryRunner<ResultRow> runner = QueryRunnerTestHelper.makeQueryRunner(
+          FACTORY,
+          SegmentId.dummy(segmentName),
+          new QueryableIndexSegment(QUERYABLE_INDEXES.get(i), SegmentId.dummy(segmentName)),
+          "groupByRunner",
+          segmentIdMapper
+      );
+      runners.add(FACTORY.getToolchest().preMergeQueryDecoration(runner));
+    }
+    return runners;
+  }
+
+  private List<SegmentGroupByQueryProcessor<ResultRow>> makeMultiRunners2(SegmentIdMapper segmentIdMapper)
   {
     List<SegmentGroupByQueryProcessor<ResultRow>> runners = new ArrayList<>();
     for (int i = 0; i < NUM_SEGMENTS; i++) {

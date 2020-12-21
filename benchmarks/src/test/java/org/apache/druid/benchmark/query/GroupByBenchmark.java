@@ -132,7 +132,7 @@ public class GroupByBenchmark
 
   @Param({
 //      "2",
-      "4",
+      "16",
 //      "5",
 //      "6",
 //      "7",

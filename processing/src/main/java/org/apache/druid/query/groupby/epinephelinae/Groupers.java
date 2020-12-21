@@ -19,8 +19,11 @@
 
 package org.apache.druid.query.groupby.epinephelinae;
 
+import org.apache.datasketches.memory.Memory;
+
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 public class Groupers
 {
@@ -115,5 +118,23 @@ public class Groupers
 
       return scratch;
     }
+  }
+
+  public static String deserializeToRow(Memory keyMemory, Object[] values)
+  {
+    final Object[] row = new Object[2 + values.length];
+    row[0] = keyMemory.getInt(0);
+    row[1] = keyMemory.getInt(4);
+    System.arraycopy(values, 0, row, 2, values.length);
+    return Arrays.toString(row);
+  }
+
+  public static String deserializeToRow(ByteBuffer keyMemory, Object[] values)
+  {
+    final Object[] row = new Object[2 + values.length];
+    row[0] = keyMemory.getInt(0);
+    row[1] = keyMemory.getInt(4);
+    System.arraycopy(values, 0, row, 2, values.length);
+    return Arrays.toString(row);
   }
 }
