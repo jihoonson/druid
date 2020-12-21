@@ -105,7 +105,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
   private static IndexMergerV9 INDEX_MERGER;
   private static IndexIO INDEX_IO;
 
-  private static final String QUERY_GRANULARITY = "all";
+  private static final String QUERY_GRANULARITY = "day";
   private static File TMP_DIR;
   private static List<QueryableIndex> QUERYABLE_INDEXES;
   private static GroupByQueryRunnerFactory FACTORY;

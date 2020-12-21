@@ -167,7 +167,7 @@ public class GroupByBenchmark
 
   @Param({
       "all",
-//      "day"
+      "day"
   })
   private String queryGranularity;
 
