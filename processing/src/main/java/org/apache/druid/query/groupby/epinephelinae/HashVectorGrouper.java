@@ -348,7 +348,7 @@ public class HashVectorGrouper implements VectorGrouper
                     values[i] = aggregators.get(hashTable.memory().getByteBuffer(), aggregatorsOffset, i);
                   }
 
-//                  System.err.println(Thread.currentThread() + ", row: " + Groupers.deserializeToRow(keyMemory, values));
+//                  System.err.println(Thread.currentThread() + ", row: " + Groupers.deserializeToRow(segmentId, keyMemory, values));
                   return new Grouper.Entry<>(keyMemory, values, segmentId);
                 }
               }

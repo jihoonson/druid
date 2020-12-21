@@ -20,6 +20,7 @@
 package org.apache.druid.query.groupby.epinephelinae;
 
 import org.apache.datasketches.memory.Memory;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
@@ -120,21 +121,21 @@ public class Groupers
     }
   }
 
-  public static String deserializeToRow(Memory keyMemory, Object[] values)
+  public static String deserializeToRow(int segmentId, Memory keyMemory, Object[] values)
   {
     final Object[] row = new Object[2 + values.length];
     row[0] = keyMemory.getInt(0);
     row[1] = keyMemory.getInt(4);
     System.arraycopy(values, 0, row, 2, values.length);
-    return Arrays.toString(row);
+    return "segmentId: " + segmentId + ", " + Arrays.toString(row);
   }
 
-  public static String deserializeToRow(ByteBuffer keyMemory, Object[] values)
+  public static String deserializeToRow(int segmentId, ByteBuffer keyBuffer, Object[] values)
   {
     final Object[] row = new Object[2 + values.length];
-    row[0] = keyMemory.getInt(0);
-    row[1] = keyMemory.getInt(4);
+    row[0] = keyBuffer.getInt(0);
+    row[1] = keyBuffer.getInt(4);
     System.arraycopy(values, 0, row, 2, values.length);
-    return Arrays.toString(row);
+    return "segmentId: " + segmentId + ", " + Arrays.toString(row);
   }
 }

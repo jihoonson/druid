@@ -403,7 +403,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   }
                 }
 
-//                System.err.println(Thread.currentThread() + ", dict conversion: " + Groupers.deserializeToRow(keyMemory, entry.getValues()) + " -> " + Groupers.deserializeToRow(keyBuffer, entry.getValues()));
+//                System.err.println(Thread.currentThread() + ", dict conversion: " + Groupers.deserializeToRow(entry.segmentId, keyMemory, entry.getValues()) + " -> " + Groupers.deserializeToRow(-1, keyBuffer, entry.getValues()));
 
                 return new Entry<>(keyBuffer, entry.getValues());
               });
@@ -501,7 +501,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                                                   entry.getValues()[j]
                                               );
                                             }
-//                                            System.err.println(Thread.currentThread() + ", row conversion: " + Groupers.deserializeToRow(entry.getKey(), entry.getValues()) + " -> " + resultRow);
+//                                            System.err.println(Thread.currentThread() + ", row conversion: " + Groupers.deserializeToRow(-1, entry.getKey(), entry.getValues()) + " -> " + resultRow);
                                             return resultRow;
                                           });
                           }

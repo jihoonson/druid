@@ -47,7 +47,8 @@ public class GeneratorBasicSchemas
     List<GeneratorColumnSchema> basicSchemaColumns = ImmutableList.of(
         // dims
         GeneratorColumnSchema.makeSequential("dimSequential", ValueType.STRING, false, 1, null, 0, 1000),
-        GeneratorColumnSchema.makeZipf("dimZipf", ValueType.STRING, false, 1, null, 1, 101, 1.0),
+        GeneratorColumnSchema.makeSequential("dimZipf", ValueType.STRING, false, 1, null, 1, 101),
+//        GeneratorColumnSchema.makeZipf("dimZipf", ValueType.STRING, false, 1, null, 1, 101, 1.0),
         GeneratorColumnSchema.makeDiscreteUniform("dimUniform", ValueType.STRING, false, 1, null, 1, 100000),
         GeneratorColumnSchema.makeSequential("dimSequentialHalfNull", ValueType.STRING, false, 1, 0.5, 0, 1000),
         GeneratorColumnSchema.makeEnumerated(

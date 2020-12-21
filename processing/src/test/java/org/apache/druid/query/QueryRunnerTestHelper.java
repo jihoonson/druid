@@ -597,7 +597,7 @@ public class QueryRunnerTestHelper
       QueryRunnerFactory2<T, QueryType> factory,
       SegmentId segmentId,
       Segment adapter,
-      @javax.annotation.Nullable SegmentIdMapper segmentIdMapper // TODO: is this nullable? maybe null for topN
+      @Nullable SegmentIdMapper segmentIdMapper // TODO: is this nullable? maybe null for topN
   )
   {
     return new SegmentGroupByQueryProcessor<T>()

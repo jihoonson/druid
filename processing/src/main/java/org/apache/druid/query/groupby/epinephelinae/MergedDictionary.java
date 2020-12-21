@@ -24,6 +24,7 @@ import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.List;
 
 // TODO: size limit
@@ -54,6 +55,11 @@ public class MergedDictionary
       dictIdConversion[i].forEach((k, v) -> localVar[k] = v);
     }
     this.dictionary = dictionary.toArray(new String[0]);
+
+//    for (int[] c : this.dictIdConversion) {
+//      System.err.print(Arrays.toString(c));
+//    }
+//    System.err.println();
   }
 
   public int getNewDictId(int segmentId, int originalDictId)
