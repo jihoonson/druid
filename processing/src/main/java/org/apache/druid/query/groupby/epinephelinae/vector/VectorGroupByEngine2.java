@@ -191,6 +191,8 @@ public class VectorGroupByEngine2
 
     private final int numHashTables;
 
+    private final HashVectorGrouper vectorGrouper;
+
     @Nullable
     private Interval bucketInterval;
 
@@ -219,6 +221,7 @@ public class VectorGroupByEngine2
       this.keySize = selectors.stream().mapToInt(GroupByVectorColumnSelector::getGroupingKeySize).sum();
       this.keySpace = WritableMemory.allocate(keySize * cursor.getMaxVectorSize());
       this.numHashTables = numHashTables;
+      this.vectorGrouper = makeGrouper();
       this.granulizer = VectorCursorGranularizer.create(storageAdapter, cursor, query.getGranularity(), queryInterval);
 
       if (granulizer != null) {
@@ -281,11 +284,11 @@ public class VectorGroupByEngine2
       // Method must not be called unless there's a current bucketInterval.
       assert bucketInterval != null;
 
+      vectorGrouper.reset();
+
       final DateTime timestamp = fudgeTimestamp != null
                                  ? fudgeTimestamp
                                  : query.getGranularity().toDateTime(bucketInterval.getStartMillis());
-
-      final HashVectorGrouper vectorGrouper = makeGrouper();
 
       while (!cursor.isDone()) {
         final int startOffset;
