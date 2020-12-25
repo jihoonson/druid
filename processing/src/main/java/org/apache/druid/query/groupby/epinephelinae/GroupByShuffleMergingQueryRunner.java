@@ -98,7 +98,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -1013,7 +1012,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       for (int i = 0; i < peeked.length; i++) {
         if (peeked[i] == null && baseIterators.get(i).hasNext()) {
           final CloseableIterator<TimestampedIterators> baseIterator = baseIterators.get(i);
-          // baseIterator.next() computes hash aggregation on one segment
+          // baseIterator.next() computes hash aggregation on one segment (VectorGroupByEngineIterator.next())
           final SettableFuture<TimestampedIterators> resultFuture = SettableFuture.create();
           processingCallableScheduler.schedule(
               new ProcessingTask<TimestampedIterators>()
@@ -1082,21 +1081,15 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
   }
 
-  /**
-   * A simple round-robin scheduler
-   */
-  private static class ProcessingCallableScheduler
+  public static class ProcessingCallableScheduler
   {
     private final ExecutorService exec;
     private final int numCallables;
     private final List<ProcessingCallable> callables;
     private final List<Future<Void>> callableFutures;
+    private final BlockingQueue<ProcessingTask> workQueue;
 
-    private int nextToSchedule;
-
-    private int numScheduled;
-
-    private ProcessingCallableScheduler(
+    public ProcessingCallableScheduler(
         ExecutorService exec,
         int priority,
         int concurrencyHint,
@@ -1108,27 +1101,22 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       this.numCallables = Math.min(concurrencyHint, Math.max(numHashBuckets, numQueryables));
       this.callables = new ArrayList<>(numCallables);
       this.callableFutures = new ArrayList<>(numCallables);
+      this.workQueue = new LinkedBlockingDeque<>();
       IntStream.range(0, numCallables).forEach(i -> {
-        final ProcessingCallable callable = new ProcessingCallable(priority, new LinkedBlockingDeque<>());
+        final ProcessingCallable callable = new ProcessingCallable(priority, workQueue);
         callableFutures.add(exec.submit(callable));
         callables.add(callable);
       });
     }
 
-    private int getNextToSchedule()
+    public void schedule(ProcessingTask<?> task)
     {
-      return nextToSchedule == numCallables ? 0 : nextToSchedule++;
+      workQueue.offer(task);
     }
 
-    private void schedule(ProcessingTask<?> task)
+    public void shutdown()
     {
-      callables.get(getNextToSchedule()).taskQueue.offer(task);
-      numScheduled++;
-    }
-
-    private void shutdown()
-    {
-//      System.err.println("numScheduled: " + numScheduled);
+      // TODO: fix how to shut down
       callables.forEach(c -> {
         c.taskQueue.offer(ShutdownTask.SHUTDOWN_TASK);
       });
@@ -1143,7 +1131,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
   }
 
-  private interface ProcessingTask<T>
+  public interface ProcessingTask<T>
   {
     T run() throws Exception;
 
@@ -1175,11 +1163,11 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
   }
 
-  private static class ProcessingCallable extends AbstractPrioritizedCallable<Void>
+  public static class ProcessingCallable extends AbstractPrioritizedCallable<Void>
   {
     private final BlockingQueue<ProcessingTask> taskQueue;
 
-    private ProcessingCallable(int priority, BlockingQueue<ProcessingTask> taskQueue)
+    public ProcessingCallable(int priority, BlockingQueue<ProcessingTask> taskQueue)
     {
       super(priority);
       this.taskQueue = taskQueue;
