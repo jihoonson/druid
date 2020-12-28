@@ -420,6 +420,7 @@ public class ParallelCombiner<KeyType>
           @Override
           public Void call()
           {
+//            System.err.println("submit combiner");
 //            LOG.info("i'm merging " + iterators.size() + " children using grouper " + grouper);
             long before = System.currentTimeMillis();
             try (

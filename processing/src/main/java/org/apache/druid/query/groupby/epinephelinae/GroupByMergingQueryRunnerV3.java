@@ -42,6 +42,7 @@ import org.apache.druid.java.util.common.guava.Yielder;
 import org.apache.druid.java.util.common.guava.Yielders;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
+import org.apache.druid.query.AbstractPrioritizedCallable;
 import org.apache.druid.query.DictionaryConversion;
 import org.apache.druid.query.DictionaryMergeQuery;
 import org.apache.druid.query.DictionaryMergingQueryRunner;
@@ -78,7 +79,6 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -172,31 +172,45 @@ public class GroupByMergingQueryRunnerV3 implements QueryRunner<ResultRow>
               true
           );
 
-          final Future<Yielder<Entry<RowBasedKey>>> future = exec.submit(() -> Yielders.each(
-              runner.run(queryPlusForRunners, responseContext).map(row -> {
-                final PerSegmentEncodedResultRow encodedResultRow = (PerSegmentEncodedResultRow) row;
-                rowSupplier.set(row);
-                final Comparable[] key = new Comparable[keySize];
-                valueExtractFn.apply(row, key);
-                final RowBasedKey rowBasedKey = new RowBasedKey(key);
-                final Object[] values = new Object[query.getAggregatorSpecs().size()];
-                for (int i = 0; i < values.length; i++) {
-                  values[i] = encodedResultRow.get(i + query.getResultRowAggregatorStart());
-                }
-//                System.err.println("runner: " + runner + ", key: " + rowBasedKey + ", values: " + Arrays.toString(values));
-                return new Entry<>(rowBasedKey, values);
-              })
-          ));
-
           return new CloseableIterator<Entry<RowBasedKey>>()
           {
             CloseableIterator<Entry<RowBasedKey>> delegate;
+
+            private Future<Yielder<Entry<RowBasedKey>>> executeRunnable()
+            {
+              return exec.submit(
+                  new AbstractPrioritizedCallable<Yielder<Entry<RowBasedKey>>>(priority)
+                  {
+                    @Override
+                    public Yielder<Entry<RowBasedKey>> call()
+                    {
+//                      System.err.println("submit queryable");
+                      return Yielders.each(
+                          runner.run(queryPlusForRunners, responseContext).map(row -> {
+                            final PerSegmentEncodedResultRow encodedResultRow = (PerSegmentEncodedResultRow) row;
+                            rowSupplier.set(row);
+                            final Comparable[] key = new Comparable[keySize];
+                            valueExtractFn.apply(row, key);
+                            final RowBasedKey rowBasedKey = new RowBasedKey(key);
+                            final Object[] values = new Object[query.getAggregatorSpecs().size()];
+                            for (int i = 0; i < values.length; i++) {
+                              values[i] = encodedResultRow.get(i + query.getResultRowAggregatorStart());
+                            }
+//                System.err.println("runner: " + runner + ", key: " + rowBasedKey + ", values: " + Arrays.toString(values));
+                            return new Entry<>(rowBasedKey, values);
+                          })
+                      );
+                    }
+                  }
+              );
+            }
             
             @Override
             public boolean hasNext()
             {
               if (delegate == null) {
                 try {
+                  final Future<Yielder<Entry<RowBasedKey>>> future = executeRunnable();
                   delegate = Yielders.iterator(future.get());
                 }
                 catch (InterruptedException | ExecutionException e) {

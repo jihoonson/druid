@@ -403,7 +403,7 @@ public class ParallelSortedSequenceCombiner
           @Override
           public AggregateResult call()
           {
-//            System.err.println("executor submit");
+//            System.err.println("submit combiner");
             return mergeSequence.accumulate(AggregateResult.ok(), accumulator);
           }
         }
