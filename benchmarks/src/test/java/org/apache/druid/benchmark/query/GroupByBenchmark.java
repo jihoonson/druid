@@ -153,7 +153,8 @@ public class GroupByBenchmark
   private int rowsPerSegment;
 
   @Param({
-      "basic.A",
+//      "basic.A",
+      "basic.B",
 //      "basic.nested",
 //      "basic.sorted2"
   })
@@ -262,7 +263,7 @@ public class GroupByBenchmark
       basicQueries.put("A", queryA);
     }
 
-    { // basic.A
+    { // basic.B
       QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(Collections.singletonList(basicSchema.getDataInterval()));
       List<AggregatorFactory> queryAggs = new ArrayList<>();
       queryAggs.add(new CountAggregatorFactory("cnt"));
@@ -518,6 +519,40 @@ public class GroupByBenchmark
       nullQueries.put("A", queryA);
     }
     SCHEMA_QUERY_MAP.put("nulls", nullQueries);
+
+    Map<String, GroupByQuery> wideQueries = new LinkedHashMap<>();
+    GeneratorSchemaInfo wideSchema = GeneratorBasicSchemas.SCHEMA_MAP.get("wide");
+
+    {
+      QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(Collections.singletonList(wideSchema.getDataInterval()));
+      List<AggregatorFactory> queryAggs = new ArrayList<>();
+      queryAggs.add(new CountAggregatorFactory("cnt"));
+      queryAggs.add(new LongSumAggregatorFactory("sumLongSequential", "sumLongSequential"));
+      GroupByQuery queryA = GroupByQuery
+          .builder()
+          .setDataSource("blah")
+          .setQuerySegmentSpec(intervalSpec)
+          .setDimensions(new DefaultDimensionSpec("dimSequential", null), new DefaultDimensionSpec("dimZipf", null))
+          .setAggregatorSpecs(queryAggs)
+          .setGranularity(Granularity.fromString(queryGranularity))
+          .setContext(
+              ImmutableMap.of(
+                  "vectorize",
+                  vectorize,
+                  "earlyDictMerge",
+                  earlyDictMerge,
+                  "parallelMergeParallelism",
+                  parallelMergeParallelism,
+                  "bufferGrouperInitialBuckets",
+                  10240
+              )
+          )
+          .build();
+
+      wideQueries.put("A", queryA);
+
+    }
+    SCHEMA_QUERY_MAP.put("wide", wideQueries);
   }
 
   @Setup(Level.Trial)

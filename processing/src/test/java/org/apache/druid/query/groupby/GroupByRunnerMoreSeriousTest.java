@@ -266,7 +266,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
 
     setupQueries();
     String schemaName = "basic";
-    String queryName = "A";
+    String queryName = "B";
 
     query = SCHEMA_QUERY_MAP.get(schemaName).get(queryName);
   }
@@ -302,6 +302,24 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
           .setContext(ImmutableMap.of("vectorize", true, "earlyDictMerge", true))
           .build();
       basicQueries.put("A", queryA);
+    }
+
+    { // basic.B
+      QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(Collections.singletonList(basicSchema.getDataInterval()));
+      List<AggregatorFactory> queryAggs = new ArrayList<>();
+      queryAggs.add(new CountAggregatorFactory("cnt"));
+      queryAggs.add(new LongSumAggregatorFactory("sumLongSequential", "sumLongSequential"));
+      GroupByQuery queryA = GroupByQuery
+          .builder()
+          .setDataSource("blah")
+          .setQuerySegmentSpec(intervalSpec)
+          .setDimensions(new DefaultDimensionSpec("dimHyperUnique", null), new DefaultDimensionSpec("dimUniform", null))
+          .setAggregatorSpecs(queryAggs)
+          .setGranularity(Granularity.fromString(QUERY_GRANULARITY))
+          .setContext(ImmutableMap.of("vectorize", true, "earlyDictMerge", true))
+          .build();
+
+      basicQueries.put("B", queryA);
     }
 
     SCHEMA_QUERY_MAP.put("basic", basicQueries);
