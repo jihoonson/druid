@@ -323,6 +323,38 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
     }
 
     SCHEMA_QUERY_MAP.put("basic", basicQueries);
+
+    Map<String, GroupByQuery> wideQueries = new LinkedHashMap<>();
+    GeneratorSchemaInfo wideSchema = GeneratorBasicSchemas.SCHEMA_MAP.get("wide");
+
+    {
+      QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(Collections.singletonList(wideSchema.getDataInterval()));
+      List<AggregatorFactory> queryAggs = new ArrayList<>();
+      queryAggs.add(new CountAggregatorFactory("cnt"));
+      queryAggs.add(new LongSumAggregatorFactory("sumLong1", "long1"));
+      GroupByQuery queryA = GroupByQuery
+          .builder()
+          .setDataSource("blah")
+          .setQuerySegmentSpec(intervalSpec)
+          .setDimensions(new DefaultDimensionSpec("string6", null))
+          .setAggregatorSpecs(queryAggs)
+          .setGranularity(Granularity.fromString(QUERY_GRANULARITY))
+          .setContext(
+              ImmutableMap.of(
+                  "vectorize",
+                  true,
+                  "earlyDictMerge",
+                  true,
+                  "bufferGrouperInitialBuckets",
+                  10240
+              )
+          )
+          .build();
+
+      wideQueries.put("A", queryA);
+
+    }
+    SCHEMA_QUERY_MAP.put("wide", wideQueries);
   }
 
   @Test

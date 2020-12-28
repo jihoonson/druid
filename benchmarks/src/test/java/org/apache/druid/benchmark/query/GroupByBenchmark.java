@@ -155,6 +155,7 @@ public class GroupByBenchmark
   @Param({
 //      "basic.A",
       "basic.B",
+//      "wide.A",
 //      "basic.nested",
 //      "basic.sorted2"
   })
@@ -253,9 +254,7 @@ public class GroupByBenchmark
                   "earlyDictMerge",
                   earlyDictMerge,
                   "parallelMergeParallelism",
-                  parallelMergeParallelism,
-                  "bufferGrouperInitialBuckets",
-                  10240
+                  parallelMergeParallelism
               )
           )
           .build();
@@ -527,12 +526,12 @@ public class GroupByBenchmark
       QuerySegmentSpec intervalSpec = new MultipleIntervalSegmentSpec(Collections.singletonList(wideSchema.getDataInterval()));
       List<AggregatorFactory> queryAggs = new ArrayList<>();
       queryAggs.add(new CountAggregatorFactory("cnt"));
-      queryAggs.add(new LongSumAggregatorFactory("sumLongSequential", "sumLongSequential"));
+      queryAggs.add(new LongSumAggregatorFactory("sumLong1", "long1"));
       GroupByQuery queryA = GroupByQuery
           .builder()
           .setDataSource("blah")
           .setQuerySegmentSpec(intervalSpec)
-          .setDimensions(new DefaultDimensionSpec("dimSequential", null), new DefaultDimensionSpec("dimZipf", null))
+          .setDimensions(new DefaultDimensionSpec("string6", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(queryGranularity))
           .setContext(
@@ -542,15 +541,12 @@ public class GroupByBenchmark
                   "earlyDictMerge",
                   earlyDictMerge,
                   "parallelMergeParallelism",
-                  parallelMergeParallelism,
-                  "bufferGrouperInitialBuckets",
-                  10240
+                  parallelMergeParallelism
               )
           )
           .build();
 
       wideQueries.put("A", queryA);
-
     }
     SCHEMA_QUERY_MAP.put("wide", wideQueries);
   }
