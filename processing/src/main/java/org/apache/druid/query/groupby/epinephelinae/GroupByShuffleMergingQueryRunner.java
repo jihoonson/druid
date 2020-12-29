@@ -474,51 +474,54 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                           currentBufferSupplier.set(entry);
                           grouper.aggregate(entry.getKey());
                         }
-                        return grouper.iterator(true)
-                                      .map(entry -> {
-                                        final PerSegmentEncodedResultRow resultRow = PerSegmentEncodedResultRow.create(
-                                            query.getResultRowSizeWithoutPostAggregators()
-                                        );
-                                        if (query.getResultRowHasTimestamp()) {
-                                          assert currentTime != null;
-                                          resultRow.set(0, currentTime.getMillis());
-                                        }
+                        return CloseableIterators.wrap(
+                            grouper.iterator(true)
+                                   .map(entry -> {
+                                     final PerSegmentEncodedResultRow resultRow = PerSegmentEncodedResultRow.create(
+                                         query.getResultRowSizeWithoutPostAggregators()
+                                     );
+                                     if (query.getResultRowHasTimestamp()) {
+                                       assert currentTime != null;
+                                       resultRow.set(0, currentTime.getMillis());
+                                     }
 
-                                        for (int j = 0; j < dims.length; j++) {
-                                          dims[j].getColumnSelectorStrategy().processValueFromGroupingKey(
-                                              dims[j],
-                                              entry.getKey(),
-                                              resultRow,
-                                              dims[j].getKeyBufferPosition(),
-                                              0
-                                          );
-                                          // Decode dictionaries
-                                          if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
-                                            resultRow.set(
-                                                dims[j].getResultRowPosition(),
-                                                mergedDictionariesSupplier.get()[j].lookup(resultRow.getInt(dims[j].getResultRowPosition()))
-                                            );
-                                          }
-                                        }
-                                        GroupByQueryEngineV2.convertRowTypesToOutputTypes(
-                                            query.getDimensions(),
-                                            resultRow,
-                                            query.getResultRowDimensionStart(),
-                                            0,
-                                            dimensionCapabilities,
-                                            false
-                                        );
+                                     for (int j = 0; j < dims.length; j++) {
+                                       dims[j].getColumnSelectorStrategy().processValueFromGroupingKey(
+                                           dims[j],
+                                           entry.getKey(),
+                                           resultRow,
+                                           dims[j].getKeyBufferPosition(),
+                                           0
+                                       );
+                                       // Decode dictionaries
+                                       if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
+                                         resultRow.set(
+                                             dims[j].getResultRowPosition(),
+                                             mergedDictionariesSupplier.get()[j].lookup(resultRow.getInt(dims[j].getResultRowPosition()))
+                                         );
+                                       }
+                                     }
+                                     GroupByQueryEngineV2.convertRowTypesToOutputTypes(
+                                         query.getDimensions(),
+                                         resultRow,
+                                         query.getResultRowDimensionStart(),
+                                         0,
+                                         dimensionCapabilities,
+                                         false
+                                     );
 
-                                        for (int j = 0; j < entry.getValues().length; j++) {
-                                          resultRow.set(
-                                              query.getResultRowAggregatorStart() + j,
-                                              0,
-                                              entry.getValues()[j]
-                                          );
-                                        }
+                                     for (int j = 0; j < entry.getValues().length; j++) {
+                                       resultRow.set(
+                                           query.getResultRowAggregatorStart() + j,
+                                           0,
+                                           entry.getValues()[j]
+                                       );
+                                     }
 //                                            System.err.println(Thread.currentThread() + ", row conversion: " + Groupers.deserializeToRow(-1, entry.getKey(), entry.getValues()) + " -> " + resultRow);
-                                        return resultRow;
-                                      });
+                                     return resultRow;
+                                   }),
+                            grouper
+                        );
                       }
                     }
 

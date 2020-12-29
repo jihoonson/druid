@@ -512,6 +512,7 @@ public class HashVectorGrouper implements VectorGrouper
   @Override
   public void close()
   {
+//    System.err.println("grow count: " + growCount);
     aggregators.close();
   }
 
@@ -546,12 +547,15 @@ public class HashVectorGrouper implements VectorGrouper
     );
   }
 
+//  int growCount;
+
   /**
    * Attempts to grow the table and returns whether or not it was possible. Each growth doubles the number of buckets
    * in the table.
    */
   private boolean grow(HashTableStuff hashTableStuff)
   {
+//    growCount++;
     if (hashTableStuff.hashTable.numBuckets() >= maxNumBuckets) {
       return false;
     }
