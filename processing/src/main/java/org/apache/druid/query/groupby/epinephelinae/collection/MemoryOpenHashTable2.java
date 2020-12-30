@@ -154,7 +154,12 @@ public class MemoryOpenHashTable2
   {
     final int container = bucket / Byte.SIZE;
     final int offset = bucket % Byte.SIZE;
-    return flagMemory.getByte(container) & (1 << offset);
+    return getFlagFromContainer(flagMemory.getByte(container), offset);
+  }
+
+  private byte getFlagFromContainer(byte container, int offset)
+  {
+    return (byte) (container & (1 << offset));
   }
 
   private void setUsedFlag(int bucket)
@@ -277,7 +282,10 @@ public class MemoryOpenHashTable2
     return new IntIterator()
     {
       private int curr = 0;
-      private int currBucket = -1;
+//      private int currBucket = -1;
+      private byte currContainer;
+      private int containerOffset = -1;
+      private int bitOffset = Byte.SIZE - 1;
 
       @Override
       public boolean hasNext()
@@ -292,16 +300,30 @@ public class MemoryOpenHashTable2
           throw new NoSuchElementException();
         }
 
-        currBucket++;
+        bitOffset++;
+        seekNextContainer();
 
-        while (!isBucketUsed(currBucket)) {
-          currBucket++;
+        while (getFlagFromContainer(currContainer, bitOffset) == 0) {
+          bitOffset++;
+          seekNextContainer(); // TODO: can filter early instead of doing this
+//          assert bitOffset < Byte.SIZE;
         }
 
         curr++;
-        return currBucket;
+        return containerOffset * Byte.SIZE + bitOffset;
+      }
+
+      private void seekNextContainer()
+      {
+        if (bitOffset == Byte.SIZE) {
+          containerOffset++;
+          bitOffset = 0;
+
+          while ((currContainer = flagMemory.getByte(containerOffset)) == 0) {
+            containerOffset++;
+          }
+        }
       }
     };
   }
-
 }
