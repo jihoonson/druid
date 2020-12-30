@@ -68,6 +68,11 @@ public abstract class AggregatorFactory implements Cacheable
     throw new UOE("Aggregator[%s] cannot vectorize", getClass().getName());
   }
 
+  public MemoryVectorAggregator factorizeMemoryVector(VectorColumnSelectorFactory selectorFactory)
+  {
+    throw new UOE("Aggregator[%s] cannot memory vectorize", getClass().getName());
+  }
+
   /**
    * Returns whether or not this aggregation class supports vectorization. The default implementation returns false.
    */

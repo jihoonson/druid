@@ -275,6 +275,8 @@ public class HashVectorGrouper implements VectorGrouper
       final int numBuckets = computeRoundedInitialNumBuckets(sliceSize, bucketSize, configuredInitialNumBuckets);
       assert numBuckets <= maxNumBuckets;
 
+//      System.err.println("maxNumBuckets: " + maxNumBuckets);
+
       final int tableStart;
       if (numBuckets == maxNumBuckets) {
         // Maximum-sized tables start at zero.
@@ -658,7 +660,7 @@ public class HashVectorGrouper implements VectorGrouper
    * @param bucketSize                  bucket size, in bytes
    * @param configuredInitialNumBuckets user-configured initial bucket count
    */
-  private static int computeRoundedInitialNumBuckets(
+  static int computeRoundedInitialNumBuckets(
       final int capacity,
       final int bucketSize,
       final int configuredInitialNumBuckets
@@ -688,7 +690,7 @@ public class HashVectorGrouper implements VectorGrouper
    * @param capacity   buffer capacity, in bytes
    * @param bucketSize bucket size, in bytes
    */
-  private static int computeMaxNumBucketsAfterGrowth(final int capacity, final int bucketSize)
+  static int computeMaxNumBucketsAfterGrowth(final int capacity, final int bucketSize)
   {
     // Tables start at some size (see computeRoundedInitialNumBuckets) and grow by doubling. The penultimate table ends
     // at the end of the buffer, and then the final table starts at the beginning of the buffer. This means the largest

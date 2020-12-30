@@ -517,7 +517,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                                            entry.getValues()[j]
                                        );
                                      }
-//                                            System.err.println(Thread.currentThread() + ", row conversion: " + Groupers.deserializeToRow(-1, entry.getKey(), entry.getValues()) + " -> " + resultRow);
+//                                     System.err.println(Thread.currentThread() + ", row conversion: " + Groupers.deserializeToRow(-1, entry.getKey(), entry.getValues()) + " -> " + resultRow);
                                      return resultRow;
                                    }),
                             grouper
@@ -1188,7 +1188,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           try {
             task.getResultFuture().set(task.run());
           }
-          catch (Exception e) {
+          catch (Throwable e) {
             task.getResultFuture().setException(e);
           }
         }

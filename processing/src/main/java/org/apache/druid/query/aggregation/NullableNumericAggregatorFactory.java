@@ -73,6 +73,19 @@ public abstract class NullableNumericAggregatorFactory<T extends BaseNullableCol
   }
 
   @Override
+  public MemoryVectorAggregator factorizeMemoryVector(VectorColumnSelectorFactory columnSelectorFactory)
+  {
+    Preconditions.checkState(canVectorize(columnSelectorFactory), "Cannot vectorize");
+    VectorValueSelector selector = vectorSelector(columnSelectorFactory);
+    MemoryVectorAggregator aggregator = factorizeMemoryVector(columnSelectorFactory, selector);
+    if (NullHandling.replaceWithDefault()) {
+      return aggregator;
+    } else {
+      throw new UnsupportedOperationException();
+    }
+  }
+
+  @Override
   public final AggregateCombiner makeNullableAggregateCombiner()
   {
     AggregateCombiner combiner = makeAggregateCombiner();
@@ -136,6 +149,18 @@ public abstract class NullableNumericAggregatorFactory<T extends BaseNullableCol
    * @see BufferAggregator
    */
   protected VectorAggregator factorizeVector(
+      VectorColumnSelectorFactory columnSelectorFactory,
+      VectorValueSelector selector
+  )
+  {
+    if (!canVectorize(columnSelectorFactory)) {
+      throw new UnsupportedOperationException("Cannot vectorize");
+    } else {
+      throw new UnsupportedOperationException("canVectorize returned true but 'factorizeVector' is not implemented");
+    }
+  }
+
+  protected MemoryVectorAggregator factorizeMemoryVector(
       VectorColumnSelectorFactory columnSelectorFactory,
       VectorValueSelector selector
   )

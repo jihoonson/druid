@@ -168,7 +168,7 @@ public class GroupByBenchmark
   private String defaultStrategy;
 
   @Param({
-      "all",
+//      "all",
       "day"
   })
   private String queryGranularity;
@@ -274,7 +274,7 @@ public class GroupByBenchmark
           .setDimensions(new DefaultDimensionSpec("dimHyperUnique", null), new DefaultDimensionSpec("dimUniform", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(queryGranularity))
-          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge, "parallelMergeParallelism", parallelMergeParallelism))
+          .setContext(ImmutableMap.of("vectorize", vectorize, "earlyDictMerge", earlyDictMerge, "parallelMergeParallelism", parallelMergeParallelism, "bufferGrouperInitialBuckets", 262144))
           .build();
 
       basicQueries.put("B", queryA);

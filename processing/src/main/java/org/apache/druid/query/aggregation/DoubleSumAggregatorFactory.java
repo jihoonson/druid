@@ -81,6 +81,15 @@ public class DoubleSumAggregatorFactory extends SimpleDoubleAggregatorFactory
   }
 
   @Override
+  protected MemoryVectorAggregator factorizeMemoryVector(
+      VectorColumnSelectorFactory columnSelectorFactory,
+      VectorValueSelector selector
+  )
+  {
+    return new DoubleSumMemoryVectorAggregator(selector);
+  }
+
+  @Override
   @Nullable
   public Object combine(@Nullable Object lhs, @Nullable Object rhs)
   {

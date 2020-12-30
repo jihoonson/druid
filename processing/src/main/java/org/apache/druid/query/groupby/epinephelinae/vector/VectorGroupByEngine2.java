@@ -30,15 +30,15 @@ import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.QueryContexts;
-import org.apache.druid.query.aggregation.AggregatorAdapters;
+import org.apache.druid.query.aggregation.MemoryVectorAggregators;
 import org.apache.druid.query.filter.Filter;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.epinephelinae.AggregateResult;
+import org.apache.druid.query.groupby.epinephelinae.FixedSizeHashVectorGrouper;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
-import org.apache.druid.query.groupby.epinephelinae.HashVectorGrouper;
 import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.LimitSpec;
@@ -256,13 +256,13 @@ public class VectorGroupByEngine2
     }
 
     @VisibleForTesting
-    HashVectorGrouper makeGrouper()
+    FixedSizeHashVectorGrouper makeGrouper()
     {
-      final HashVectorGrouper grouper = new HashVectorGrouper(
+      final FixedSizeHashVectorGrouper grouper = new FixedSizeHashVectorGrouper(
           Suppliers.ofInstance(processingBuffer),
           numHashTables,
           keySize,
-          AggregatorAdapters.factorizeVector(
+          MemoryVectorAggregators.factorizeVector(
               cursor.getColumnSelectorFactory(),
               query.getAggregatorSpecs()
           ),
@@ -285,7 +285,7 @@ public class VectorGroupByEngine2
                                  ? fudgeTimestamp
                                  : query.getGranularity().toDateTime(bucketInterval.getStartMillis());
 
-      final HashVectorGrouper vectorGrouper = makeGrouper();
+      final FixedSizeHashVectorGrouper vectorGrouper = makeGrouper();
 
       while (!cursor.isDone()) {
         final int startOffset;

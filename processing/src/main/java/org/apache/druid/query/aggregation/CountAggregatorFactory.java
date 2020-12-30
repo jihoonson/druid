@@ -68,6 +68,12 @@ public class CountAggregatorFactory extends AggregatorFactory
   }
 
   @Override
+  public MemoryVectorAggregator factorizeMemoryVector(VectorColumnSelectorFactory selectorFactory)
+  {
+    return new CountMemoryVectorAggregator();
+  }
+
+  @Override
   public Comparator getComparator()
   {
     return CountAggregator.COMPARATOR;
