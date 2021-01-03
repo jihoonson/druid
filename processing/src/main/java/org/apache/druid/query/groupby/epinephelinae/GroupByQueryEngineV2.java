@@ -83,6 +83,7 @@ import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -1122,7 +1123,7 @@ public class GroupByQueryEngineV2
     {
       final ByteBuffer dup = buffer.duplicate();
       dup.position(position).limit(position + keySize);
-      return dup.slice();
+      return dup.slice().order(ByteOrder.nativeOrder()); // TODO: does this work for other groupBy algorithms?
     }
 
     @Override

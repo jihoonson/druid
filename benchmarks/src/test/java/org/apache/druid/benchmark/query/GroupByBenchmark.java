@@ -168,7 +168,7 @@ public class GroupByBenchmark
   private String defaultStrategy;
 
   @Param({
-      "all",
+//      "all",
       "day"
   })
   private String queryGranularity;

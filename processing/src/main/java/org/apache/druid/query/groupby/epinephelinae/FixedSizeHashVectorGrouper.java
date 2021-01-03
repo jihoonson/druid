@@ -293,26 +293,30 @@ public class FixedSizeHashVectorGrouper implements VectorGrouper
     throw new UnsupportedOperationException();
   }
 
-  public List<CloseableIterator<Entry<Memory>>> iterators(int segmentId)
+  public List<CloseableIterator<Entry<ByteBuffer>>> iterators(int segmentId)
   {
     if (!initialized) {
       // it's possible for iterator() to be called before initialization when
       // a nested groupBy's subquery has an empty result set (see testEmptySubquery() in GroupByQueryRunnerTest)
-      final List<CloseableIterator<Entry<Memory>>> emptyIterators = IntStream
+      final List<CloseableIterator<Entry<ByteBuffer>>> emptyIterators = IntStream
           .range(0, numTables)
-          .mapToObj(i -> CloseableIterators.withEmptyBaggage(Collections.<Entry<Memory>>emptyIterator()))
+          .mapToObj(i -> CloseableIterators.withEmptyBaggage(Collections.<Entry<ByteBuffer>>emptyIterator()))
           .collect(Collectors.toList());
       return emptyIterators;
     }
 
-    final List<CloseableIterator<Entry<Memory>>> iterators = new ArrayList<>(numTables);
+    final List<CloseableIterator<Entry<ByteBuffer>>> iterators = new ArrayList<>(numTables);
     for (int i = 0; i < numTables; i++) {
       final MemoryOpenHashTable2 hashTable = hashTables[i].hashTable;
+      final ByteBuffer tmpBuffer = hashTable.memory().getByteBuffer().duplicate();
+      tmpBuffer.position(hashTable.bucketArenaOffset());
+      tmpBuffer.limit((int) hashTable.memory().getCapacity() + tmpBuffer.position());
+      final ByteBuffer tableBuffer = tmpBuffer.slice();
 //      System.err.println(Thread.currentThread() + ", hash table size: " + hashTables[i].hashTable.size());
       final IntIterator baseIterator = hashTable.bucketIterator();
       iterators.add(
           CloseableIterators.withEmptyBaggage(
-              new Iterator<Entry<Memory>>()
+              new Iterator<Entry<ByteBuffer>>()
               {
                 @Override
                 public boolean hasNext()
@@ -321,17 +325,22 @@ public class FixedSizeHashVectorGrouper implements VectorGrouper
                 }
 
                 @Override
-                public Entry<Memory> next()
+                public Entry<ByteBuffer> next()
                 {
                   final int bucket = baseIterator.nextInt();
                   final int bucketPosition = hashTable.bucketMemoryPosition(bucket);
 
                   // TODO: region is expensive
                   // TODO: we can iterate by blocks, i.e., keyMemory containing a list of buckets
-                  final Memory keyMemory = hashTable.memory().region(
-                      bucketPosition + hashTable.bucketKeyOffset(),
-                      hashTable.keySize()
-                  );
+//                  final Memory keyMemory = hashTable.memory().region(
+//                      bucketPosition + hashTable.bucketKeyOffset(),
+//                      hashTable.keySize()
+//                  );
+
+                  ByteBuffer keyBuffer = tableBuffer.duplicate();
+                  keyBuffer.position(bucketPosition + hashTable.bucketKeyOffset());
+                  keyBuffer.limit(keyBuffer.position() + hashTable.keySize());
+                  keyBuffer = keyBuffer.slice().order(ByteOrder.nativeOrder());
 
                   final Object[] values = new Object[aggregators.size()];
                   final int aggregatorsOffset = bucketPosition + hashTable.bucketValueOffset();
@@ -340,7 +349,7 @@ public class FixedSizeHashVectorGrouper implements VectorGrouper
                   }
 
 //                  System.err.println(Thread.currentThread() + ", bucket: " + bucket + ", row: " + Groupers.deserializeToRow(segmentId, keyMemory, values));
-                  return new Grouper.Entry<>(keyMemory, values, segmentId);
+                  return new Grouper.Entry<>(keyBuffer, values, segmentId);
                 }
               }
           )

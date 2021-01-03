@@ -336,12 +336,12 @@ public class VectorGroupByEngine2
 
       final boolean resultRowHasTimestamp = query.getResultRowHasTimestamp();
 
-      final List<CloseableIterator<Entry<Memory>>> entryIterators = vectorGrouper.iterators(segmentId);
+      final List<CloseableIterator<Entry<ByteBuffer>>> entryIterators = vectorGrouper.iterators(segmentId);
 //      System.err.println("new entry iterators for timestamp " + timestamp.getMillis() + ", grouper: " + vectorGrouper);
       return new TimestampedIterators(
           entryIterators
               .stream()
-              .map(entryIterator -> new TimestampedIterator<Entry<Memory>>() {
+              .map(entryIterator -> new TimestampedIterator<Entry<ByteBuffer>>() {
                 @Nullable
                 @Override
                 public DateTime getTimestamp()
@@ -356,7 +356,7 @@ public class VectorGroupByEngine2
                 }
 
                 @Override
-                public Entry<Memory> next()
+                public Entry<ByteBuffer> next()
                 {
                   if (!hasNext()) {
                     throw new NoSuchElementException();

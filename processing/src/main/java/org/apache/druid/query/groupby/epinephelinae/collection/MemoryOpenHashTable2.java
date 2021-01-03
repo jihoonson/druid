@@ -237,6 +237,11 @@ public class MemoryOpenHashTable2
     return valueSize;
   }
 
+  public int bucketArenaOffset()
+  {
+    return (int) flagMemory.getCapacity();
+  }
+
   /**
    * Returns the offset within each bucket where the key starts.
    */
