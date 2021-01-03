@@ -93,6 +93,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -206,48 +207,50 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
               final Supplier<MergedDictionary[]> mergedDictionariesSupplier;
               if (config.isEarlyDictMerge() && dictionaryMergingRunner != null) { // TODO: no null check
-                
-
-
-                final DictionaryMergeQuery dictionaryMergeQuery = new DictionaryMergeQuery(
-                    query.getDataSource(),
-                    query.getQuerySegmentSpec(),
-                    query.getDimensions()
-                );
-                final Sequence<List<Iterator<DictionaryConversion>>> conversionSequence = dictionaryMergingRunner.run(
-                    QueryPlus.wrap(dictionaryMergeQuery)
-                );
+                final List<ListenableFuture<MergingDictionary[]>> dictionaryMergingFutures = new ArrayList<>(query.getDimensions().size());
+                for (int i = 0; i < query.getDimensions().size(); i++) {
+                  final List<DimensionSpec> dimension = Collections.singletonList(query.getDimensions().get(i));
+                  final DictionaryMergeQuery dictionaryMergeQuery = new DictionaryMergeQuery(
+                      query.getDataSource(),
+                      query.getQuerySegmentSpec(),
+                      dimension
+                  );
+                  final Sequence<List<Iterator<DictionaryConversion>>> conversionSequence = dictionaryMergingRunner.run(
+                      QueryPlus.wrap(dictionaryMergeQuery)
+                  );
+                  // TODO: maybe i don't need this accumulation at all if i just compute these maps in the queryRunner
+                  dictionaryMergingFutures.add(
+                      exec.submit(
+                          new AbstractPrioritizedCallable<MergingDictionary[]>(priority)
+                          {
+                            @Override
+                            public MergingDictionary[] call()
+                            {
+                              final MergingDictionary[] merging = new MergingDictionary[1];
+                              merging[0] = new MergingDictionary(dictionaryMergingRunner.getNumQueryRunners());
+                              return conversionSequence.accumulate(
+                                  merging,
+                                  (accumulated, conversions) -> {
+//                                    assert accumulated.length == conversions.size();
+                                    assert conversions.size() == 1;
+                                    while (conversions.get(0).hasNext()) {
+                                      final DictionaryConversion conversion = conversions.get(0).next();
+                                      accumulated[0].add(
+                                          conversion.getVal(),
+                                          conversion.getSegmentId(),
+                                          conversion.getOldDictionaryId()
+                                      );
+                                    }
+                                    return accumulated;
+                                  }
+                              );
+                            }
+                          })
+                  );
+                }
 
                 // TODO: maybe i don't need this accumulation at all if i just compute these maps in the queryRunner
-                final ListenableFuture<MergingDictionary[]> dictionaryMergingFuture = exec.submit(
-                    new AbstractPrioritizedCallable<MergingDictionary[]>(priority)
-                    {
-                      @Override
-                      public MergingDictionary[] call()
-                      {
-                        final MergingDictionary[] merging = new MergingDictionary[query.getDimensions().size()];
-                        for (int i = 0; i < merging.length; i++) {
-                          merging[i] = new MergingDictionary(dictionaryMergingRunner.getNumQueryRunners());
-                        }
-                        return conversionSequence.accumulate(
-                            merging,
-                            (accumulated, conversions) -> {
-                              assert accumulated.length == conversions.size();
-                              for (int i = 0; i < conversions.size(); i++) {
-                                while (conversions.get(i).hasNext()) {
-                                  final DictionaryConversion conversion = conversions.get(i).next();
-                                  accumulated[i].add(
-                                      conversion.getVal(),
-                                      conversion.getSegmentId(),
-                                      conversion.getOldDictionaryId()
-                                  );
-                                }
-                              }
-                              return accumulated;
-                            }
-                        );
-                      }
-                    });
+                final ListenableFuture<List<MergingDictionary[]>> dictionaryMergingFuture = Futures.allAsList(dictionaryMergingFutures);
                 mergedDictionariesSupplier = Suppliers.memoize(() -> waitForDictionaryMergeFutureCompletion(
                     query,
                     dictionaryMergingFuture,
@@ -1267,7 +1270,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
   private MergedDictionary[] waitForDictionaryMergeFutureCompletion(
       GroupByQuery query,
-      ListenableFuture<MergingDictionary[]> future,
+      ListenableFuture<List<MergingDictionary[]>> future,
       boolean hasTimeout,
       long timeout
   )
@@ -1277,15 +1280,15 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
         throw new TimeoutException();
       }
 
-      final MergingDictionary[] result;
+      final List<MergingDictionary[]> result;
       if (hasTimeout) {
         result = future.get(timeout, TimeUnit.MILLISECONDS);
       } else {
         result = future.get();
       }
-      final MergedDictionary[] mergedDictionaries = new MergedDictionary[result.length];
+      final MergedDictionary[] mergedDictionaries = new MergedDictionary[result.size()];
       for (int i = 0; i < mergedDictionaries.length; i++) {
-        mergedDictionaries[i] = result[i].toImmutable();
+        mergedDictionaries[i] = result.get(i)[0].toImmutable();
       }
       return mergedDictionaries;
     }
