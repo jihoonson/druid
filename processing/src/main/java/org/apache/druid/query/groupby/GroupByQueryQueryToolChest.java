@@ -504,7 +504,8 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<ResultRow, GroupB
     {
       @Override
       public CloseableIterator<TimestampedIterators> process(
-          QueryPlus<ResultRow> queryPlus, ResponseContext responseContext
+          QueryPlus<ResultRow> queryPlus,
+          ResponseContext responseContext
       )
       {
         GroupByQuery groupByQuery = (GroupByQuery) queryPlus.getQuery();

@@ -123,7 +123,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
   private final ObjectMapper spillMapper;
   private final String processingTmpDir;
   private final int mergeBufferSize;
-  private final DictionaryMergingQueryRunner dictionaryMergingRunner;
+  private final @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner;
   private final int numHashBuckets;
 
   public GroupByShuffleMergingQueryRunner(
@@ -136,7 +136,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       int mergeBufferSize,
       ObjectMapper spillMapper,
       String processingTmpDir,
-      DictionaryMergingQueryRunner dictionaryMergingRunner
+      @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
     this.config = config;
@@ -475,6 +475,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                       //noinspection unused
                       try (Releaser releaser = mergeBufferHolder.increment();
                            CloseableIterator<Entry<ByteBuffer>> iteratorCloser = concatIterator) {
+                        // TODO: should do something like in groupByQueryEngineV2 when earlyDictMerge = false
                         while (concatIterator.hasNext()) {
                           final Entry<ByteBuffer> entry = concatIterator.next();
                           currentBufferSupplier.set(entry);

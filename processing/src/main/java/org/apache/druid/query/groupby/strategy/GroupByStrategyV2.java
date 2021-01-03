@@ -75,6 +75,7 @@ import org.apache.druid.query.spec.MultipleIntervalSegmentSpec;
 import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.VirtualColumns;
 
+import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -626,7 +627,7 @@ public class GroupByStrategyV2 implements GroupByStrategy
   public QueryRunner<ResultRow> mergeRunners2(
       ListeningExecutorService exec,
       Iterable<SegmentGroupByQueryProcessor<ResultRow>> queryRunners,
-      DictionaryMergingQueryRunner dictionaryMergingRunner
+      @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
     return new GroupByShuffleMergingQueryRunner(

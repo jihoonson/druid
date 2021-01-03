@@ -266,7 +266,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
 
     setupQueries();
     String schemaName = "basic";
-    String queryName = "B";
+    String queryName = "A";
 
     query = SCHEMA_QUERY_MAP.get(schemaName).get(queryName);
   }

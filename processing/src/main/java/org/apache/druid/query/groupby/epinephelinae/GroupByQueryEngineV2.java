@@ -196,7 +196,7 @@ public class GroupByQueryEngineV2
 
   public static CloseableIterator<TimestampedIterators> process2(
       final GroupByQuery query,
-      @Nullable final IdentifiableStorageAdapter storageAdapter,
+      final IdentifiableStorageAdapter storageAdapter,
       final NonBlockingPool<ByteBuffer> intermediateResultsBufferPool,
       final GroupByQueryConfig querySpecificConfig,
       final DruidProcessingConfig processingConfig
@@ -216,7 +216,6 @@ public class GroupByQueryEngineV2
     final Closer bufferCloser = Closer.create();
     final Supplier<ByteBuffer> bufferSupplier = () -> {
       final ResourceHolder<ByteBuffer> bufferHolder = intermediateResultsBufferPool.take();
-      // TODO: how to close?
       bufferCloser.register(bufferHolder);
       return bufferHolder.get();
     };
