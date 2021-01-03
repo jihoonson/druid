@@ -206,6 +206,9 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
               final Supplier<MergedDictionary[]> mergedDictionariesSupplier;
               if (config.isEarlyDictMerge() && dictionaryMergingRunner != null) { // TODO: no null check
+                
+
+
                 final DictionaryMergeQuery dictionaryMergeQuery = new DictionaryMergeQuery(
                     query.getDataSource(),
                     query.getQuerySegmentSpec(),

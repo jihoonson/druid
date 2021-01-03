@@ -544,7 +544,9 @@ public class GroupByQueryEngineV2
         case STRING:
           DimensionSelector dimSelector = (DimensionSelector) selector;
           // TODO: is this enough? or should we check the capabilities?
-          if (dimSelector.getValueCardinality() >= 0) {
+          // TODO: this if clause is not sufficient, but calling getValueCardinality waits for computing merge dictionary.. maybe i need to pass a flag indicating that i know cardinality?
+          if (encodeStrings) {
+//          if (dimSelector.getValueCardinality() >= 0) {
             return new StringGroupByColumnSelectorStrategy(dimSelector::lookupName, capabilities, encodeStrings);
           } else {
             return new DictionaryBuildingStringGroupByColumnSelectorStrategy();
