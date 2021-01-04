@@ -567,7 +567,9 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
             return CloseableIterators.mergeSorted(
                 resultIterators,
-                query.getRowOrdering(true)
+                // TODO: i don't have to compare timestamp at all because all rows should have the same timestamp
+                // in the one delegate iterator. however, this doesn't seem very expensive. so maybe i can fix it later.
+                query.getRowOrdering(false)
             );
           }
 
