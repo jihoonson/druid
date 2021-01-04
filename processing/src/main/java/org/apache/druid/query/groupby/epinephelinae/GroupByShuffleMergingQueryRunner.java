@@ -31,6 +31,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
+import org.apache.datasketches.memory.Memory;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.collections.Releaser;
@@ -277,7 +278,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               // this iterator is blocking whenever hasNext() is called. Maybe better to block when next() is called.
               TimeSortedIterators timeSortedHashedIterators = new TimeSortedIterators(
                   hashedSequencesList,
-                  processingCallableScheduler
+                  processingCallableScheduler,
+                  priority
               );
 
               final int numDimensions = query.getResultRowAggregatorStart() - query.getResultRowDimensionStart();
@@ -297,7 +299,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
               return new CloseableIterator<ResultRow>()
               {
-                final List<TimestampedIterator<Entry<ByteBuffer>>>[] partitionedIterators = new List[numHashBuckets];
+                final List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators = new List[numHashBuckets];
                 @Nullable CloseableIterator<ResultRow> delegate;
                 @Nullable DateTime currentTime = null;
 
@@ -378,7 +380,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               ProcessingCallableScheduler processingCallableScheduler,
               @Nullable DateTime currentTime,
               Supplier<MergedDictionary[]> mergedDictionariesSupplier,
-              List<TimestampedIterator<Entry<ByteBuffer>>>[] partitionedIterators,
+              List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators,
               int keySize,
               int[] keyOffsets,
               ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder,
@@ -396,17 +398,18 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
             final List<ListenableFuture<CloseableIterator<ResultRow>>> futures = new ArrayList<>();
             for (int i = 0; i < numHashBuckets; i++) {
               // TODO: should not do this
-//              final byte[] buf = new byte[keySize];
+              final byte[] buf = new byte[keySize];
               final CloseableIterator<Entry<ByteBuffer>> concatIterator = CloseableIterators.concat(
                   partitionedIterators[i]
               ).map(entry -> {
-                final ByteBuffer keyBuffer = entry.getKey();
+                final Memory keyMemory = entry.getKey();
+                final ByteBuffer keyBuffer = ByteBuffer.wrap(buf);
 
                 // Convert dictionary
                 for (int j = 0; j < numDims; j++) {
                   if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
                     if (mergedDictionariesSupplier != null) {
-                      final int oldDictId = keyBuffer.getInt(keyOffsets[j]);
+                      final int oldDictId = keyMemory.getInt(keyOffsets[j]);
                       assert entry.segmentId > -1;
                       final int newDictId = mergedDictionariesSupplier.get()[j].getNewDictId(
                           entry.segmentId,
@@ -416,9 +419,9 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                     } else {
                       throw new UnsupportedOperationException();
                     }
-//                  } else {
-//                    final int thisKeyLen = j == numDims - 1 ? (keySize - keyOffsets[j]) : (keyOffsets[j + 1] - keyOffsets[j]);
-//                    keyMemory.getByteArray(keyOffsets[j], buf, keyOffsets[j], thisKeyLen);
+                  } else {
+                    final int thisKeyLen = j == numDims - 1 ? (keySize - keyOffsets[j]) : (keyOffsets[j + 1] - keyOffsets[j]);
+                    keyMemory.getByteArray(keyOffsets[j], buf, keyOffsets[j], thisKeyLen);
                   }
                 }
 
@@ -564,9 +567,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
             return CloseableIterators.mergeSorted(
                 resultIterators,
-                // TODO: This comparator compares timestamp which is unnecessary here
-                // because all rows in the same delegate should have the same timestamp.
-                // However,
                 query.getRowOrdering(true)
             );
           }
@@ -991,16 +991,19 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     private final TimestampedIterators[] peeked;
     private final ListenableFuture<TimestampedIterators>[] futures;
     private final ProcessingCallableScheduler processingCallableScheduler;
+    private final int priority;
 
     private TimeSortedIterators(
         List<CloseableIterator<TimestampedIterators>> baseIterators,
-        ProcessingCallableScheduler processingCallableScheduler
+        ProcessingCallableScheduler processingCallableScheduler,
+        int priority
     )
     {
       this.baseIterators = baseIterators;
       this.peeked = new TimestampedIterators[baseIterators.size()];
       this.futures = new ListenableFuture[baseIterators.size()];
       this.processingCallableScheduler = processingCallableScheduler;
+      this.priority = priority;
     }
 
     @Override
@@ -1210,9 +1213,9 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
   public static class TimestampedIterators implements Closeable
   {
-    private final TimestampedIterator<Entry<ByteBuffer>>[] iterators;
+    private final TimestampedIterator<Entry<Memory>>[] iterators;
 
-    public TimestampedIterators(TimestampedIterator<Entry<ByteBuffer>>[] iterators)
+    public TimestampedIterators(TimestampedIterator<Entry<Memory>>[] iterators)
     {
       this.iterators = iterators;
     }

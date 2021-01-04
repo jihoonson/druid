@@ -684,15 +684,12 @@ public class GroupByQuery extends BaseQuery<ResultRow>
     }
   }
 
-  public int compareDims(List<DimensionSpec> dimensions, ResultRow lhs, ResultRow rhs)
+  private int compareDims(List<DimensionSpec> dimensions, ResultRow lhs, ResultRow rhs)
   {
     final int dimensionStart = getResultRowDimensionStart();
 
     for (int i = 0; i < dimensions.size(); i++) {
       DimensionSpec dimension = dimensions.get(i);
-//      if (lhs.get(dimensionStart + i).equals("102") || rhs.get(dimensionStart + i).equals("102")) {
-//        System.err.println("aa");
-//      }
       final int dimCompare = DimensionHandlerUtils.compareObjectsAsType(
           lhs.get(dimensionStart + i),
           rhs.get(dimensionStart + i),

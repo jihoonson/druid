@@ -395,8 +395,6 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
     queryResult = theRunner2.run(QueryPlus.wrap(query), ResponseContext.createEmpty());
     List<ResultRow> results = queryResult.toList();
 
-//    System.err.println(expectedResults);
-//    System.err.println(results);
     Assert.assertEquals(expectedResults, results);
   }
 
