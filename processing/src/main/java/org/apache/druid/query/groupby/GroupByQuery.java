@@ -825,6 +825,11 @@ public class GroupByQuery extends BaseQuery<ResultRow>
     return new Builder(this).setPostAggregatorSpecs(postAggregatorSpecs).build();
   }
 
+  public GroupByQuery withGranularity(final Granularity granularity)
+  {
+    return new Builder(this).setGranularity(granularity).build();
+  }
+
   private static void verifyOutputNames(
       List<DimensionSpec> dimensions,
       List<AggregatorFactory> aggregators,

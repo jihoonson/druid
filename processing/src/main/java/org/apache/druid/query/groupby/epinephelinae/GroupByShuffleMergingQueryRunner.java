@@ -39,6 +39,7 @@ import org.apache.druid.common.guava.SettableSupplier;
 import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.CloseQuietly;
 import org.apache.druid.java.util.common.guava.Sequence;
@@ -388,6 +389,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               List<ColumnCapabilities> dimensionCapabilities
           )
           {
+            final GroupByQuery queryWithoutTimestamp = query.withGranularity(Granularities.ALL);
             List<AggregatorFactory> combiningFactories = query
                 .getAggregatorSpecs()
                 .stream()
@@ -454,7 +456,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               // TODO: maybe can reuse
               final Grouper<ByteBuffer> grouper = new BufferHashGrouper<>(
                   Suppliers.ofInstance(Groupers.getSlice(mergeBufferHolder.get(), sliceSize, i)),
-                  new GroupByEngineKeySerde(dims, query),
+                  new GroupByEngineKeySerde(dims, queryWithoutTimestamp),
                   AggregatorAdapters.factorizeBuffered(
                       columnSelectorFactory,
                       combiningFactories
