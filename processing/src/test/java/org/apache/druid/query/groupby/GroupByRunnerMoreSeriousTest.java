@@ -19,6 +19,7 @@
 
 package org.apache.druid.query.groupby;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.InjectableValues;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
@@ -71,6 +72,7 @@ import org.apache.druid.segment.generator.DataGenerator;
 import org.apache.druid.segment.generator.GeneratorBasicSchemas;
 import org.apache.druid.segment.generator.GeneratorSchemaInfo;
 import org.apache.druid.segment.incremental.IncrementalIndex;
+import org.apache.druid.segment.incremental.IncrementalIndexCreator;
 import org.apache.druid.segment.incremental.IncrementalIndexSchema;
 import org.apache.druid.segment.serde.ComplexMetrics;
 import org.apache.druid.segment.writeout.OffHeapMemorySegmentWriteOutMediumFactory;
@@ -244,9 +246,9 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
     );
   }
 
-  private static IncrementalIndex makeIncIndex(GeneratorSchemaInfo schemaInfo)
+  private static IncrementalIndex makeIncIndex(GeneratorSchemaInfo schemaInfo) throws JsonProcessingException
   {
-    return new IncrementalIndex.Builder()
+    return IncrementalIndexCreator.parseIndexType("onheap").builder()
         .setIndexSchema(
             new IncrementalIndexSchema.Builder()
                 .withDimensionsSpec(schemaInfo.getDimensionsSpec())
@@ -256,7 +258,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
         )
         .setConcurrentEventAdd(true)
         .setMaxRowCount(ROWS_PER_SEGMENT)
-        .buildOnheap();
+        .build();
   }
 
   @Before
