@@ -31,7 +31,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
-import org.apache.datasketches.memory.Memory;
+import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.collections.Releaser;
@@ -39,7 +39,6 @@ import org.apache.druid.common.guava.SettableSupplier;
 import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
-import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.CloseQuietly;
 import org.apache.druid.java.util.common.guava.Sequence;
@@ -47,7 +46,6 @@ import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.AbstractPrioritizedCallable;
-import org.apache.druid.query.ColumnSelectorPlus;
 import org.apache.druid.query.DictionaryConversion;
 import org.apache.druid.query.DictionaryMergeQuery;
 import org.apache.druid.query.DictionaryMergingQueryRunner;
@@ -58,8 +56,8 @@ import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.ResourceLimitExceededException;
 import org.apache.druid.query.SegmentGroupByQueryProcessor;
-import org.apache.druid.query.aggregation.AggregatorAdapters;
 import org.apache.druid.query.aggregation.AggregatorFactory;
+import org.apache.druid.query.aggregation.MemoryVectorAggregators;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.filter.ValueMatcher;
@@ -68,12 +66,17 @@ import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV3.MergingDictionary;
-import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2.GroupByEngineKeySerde;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
-import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelectorPlus;
-import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelectorStrategy;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.MemoryVectorEntry;
+import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
+import org.apache.druid.query.groupby.epinephelinae.vector.GroupByVectorColumnProcessorFactory;
+import org.apache.druid.query.groupby.epinephelinae.vector.GroupByVectorColumnSelector;
 import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
+import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
+import org.apache.druid.query.groupby.orderby.LimitSpec;
 import org.apache.druid.query.monomorphicprocessing.RuntimeShapeInspector;
+import org.apache.druid.query.ordering.StringComparator;
+import org.apache.druid.query.ordering.StringComparators;
 import org.apache.druid.segment.AbstractDimensionSelector;
 import org.apache.druid.segment.ColumnSelectorFactory;
 import org.apache.druid.segment.ColumnValueSelector;
@@ -85,6 +88,12 @@ import org.apache.druid.segment.column.ColumnCapabilitiesImpl;
 import org.apache.druid.segment.column.ValueType;
 import org.apache.druid.segment.data.IndexedInts;
 import org.apache.druid.segment.data.SingleIndexedInt;
+import org.apache.druid.segment.vector.MultiValueDimensionVectorSelector;
+import org.apache.druid.segment.vector.SingleValueDimensionVectorSelector;
+import org.apache.druid.segment.vector.VectorColumnSelectorFactory;
+import org.apache.druid.segment.vector.VectorObjectSelector;
+import org.apache.druid.segment.vector.VectorSizeInspector;
+import org.apache.druid.segment.vector.VectorValueSelector;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
@@ -300,7 +309,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
               return new CloseableIterator<ResultRow>()
               {
-                final List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators = new List[numHashBuckets];
+                final List<TimestampedIterator<MemoryVectorEntry>>[] partitionedIterators = new List[numHashBuckets];
                 @Nullable CloseableIterator<ResultRow> delegate;
                 @Nullable DateTime currentTime = null;
 
@@ -381,7 +390,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               ProcessingCallableScheduler processingCallableScheduler,
               @Nullable DateTime currentTime,
               Supplier<MergedDictionary[]> mergedDictionariesSupplier,
-              List<TimestampedIterator<Entry<Memory>>>[] partitionedIterators,
+              List<TimestampedIterator<MemoryVectorEntry>>[] partitionedIterators,
               int keySize,
               int[] keyOffsets,
               ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder,
@@ -389,7 +398,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               List<ColumnCapabilities> dimensionCapabilities
           )
           {
-            final GroupByQuery queryWithoutTimestamp = query.withGranularity(Granularities.ALL);
             List<AggregatorFactory> combiningFactories = query
                 .getAggregatorSpecs()
                 .stream()
@@ -400,73 +408,74 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
             final List<ListenableFuture<CloseableIterator<ResultRow>>> futures = new ArrayList<>();
             for (int i = 0; i < numHashBuckets; i++) {
               // TODO: should not do this
-              final byte[] buf = new byte[keySize];
-              final CloseableIterator<Entry<ByteBuffer>> concatIterator = CloseableIterators.concat(
+              final CloseableIterator<MemoryVectorEntry> concatIterator = CloseableIterators.concat(
                   partitionedIterators[i]
               ).map(entry -> {
-                final Memory keyMemory = entry.getKey();
-                final ByteBuffer keyBuffer = ByteBuffer.wrap(buf);
+                final WritableMemory keyMemory = entry.getKeys();
 
                 // Convert dictionary
-                for (int j = 0; j < numDims; j++) {
-                  if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
-                    if (mergedDictionariesSupplier != null) {
-                      final int oldDictId = keyMemory.getInt(keyOffsets[j]);
-                      assert entry.segmentId > -1;
-                      final int newDictId = mergedDictionariesSupplier.get()[j].getNewDictId(
-                          entry.segmentId,
-                          oldDictId
-                      );
-                      keyBuffer.putInt(keyOffsets[j], newDictId);
-                    } else {
-                      throw new UnsupportedOperationException();
+                for (int vectorOffset = 0; vectorOffset < entry.getCurrentVectorSize(); vectorOffset += keySize) {
+                  for (int dimOffset = 0; dimOffset < numDims; dimOffset++) {
+                    if (query.getDimensions().get(dimOffset).getOutputType() == ValueType.STRING) {
+                      if (mergedDictionariesSupplier != null) {
+                        final long memoryOffset = vectorOffset + keyOffsets[dimOffset];
+                        final int oldDictId = keyMemory.getInt(memoryOffset);
+                        assert entry.segmentId > -1;
+                        final int newDictId = mergedDictionariesSupplier.get()[dimOffset].getNewDictId(
+                            entry.segmentId,
+                            oldDictId
+                        );
+                        keyMemory.putInt(memoryOffset, newDictId);
+                      } else {
+                        throw new UnsupportedOperationException();
+                      }
                     }
-                  } else {
-                    final int thisKeyLen = j == numDims - 1 ? (keySize - keyOffsets[j]) : (keyOffsets[j + 1] - keyOffsets[j]);
-                    keyMemory.getByteArray(keyOffsets[j], buf, keyOffsets[j], thisKeyLen);
                   }
                 }
 
-//                System.err.println(Thread.currentThread() + ", dict conversion: " + Groupers.deserializeToRow(entry.segmentId, keyMemory, entry.getValues()) + " -> " + Groupers.deserializeToRow(-1, keyBuffer, entry.getValues()));
+//                System.err.println(Thread.currentThread() + ", dict conversion: " + Groupers.deserializeToRow(entry.segmentId, keyMemory, entry.getValues()) + " -> " + Groupers.deserializeToRow(-1, keyMemory, entry.getValues()));
 
-                return new Entry<>(keyBuffer, entry.getValues());
+                return entry;
               });
 
-              final SettableSupplier<Entry<ByteBuffer>> currentBufferSupplier = new SettableSupplier<>();
-              final ColumnSelectorFactory columnSelectorFactory = new EntryColumnSelectorFactory(
+              final SettableSupplier<MemoryVectorEntry> currentBufferSupplier = new SettableSupplier<>();
+              final VectorColumnSelectorFactory columnSelectorFactory = new MemoryVectorEntryColumnSelectorFactory(
                   query,
                   currentBufferSupplier,
+                  keySize,
                   keyOffsets,
                   mergedDictionariesSupplier,
                   combiningFactories
               );
-              final ColumnSelectorPlus<GroupByColumnSelectorStrategy>[] selectorPlus = DimensionHandlerUtils
-                  .createColumnSelectorPluses(
-                      querySpecificConfig.isEarlyDictMerge()
-                      ? GroupByQueryEngineV2.STRATEGY_FACTORY_ENCODE_STRINGS
-                      : GroupByQueryEngineV2.STRATEGY_FACTORY_NO_ENCODE,
-                      query.getDimensions(),
-                      columnSelectorFactory
-                  );
-              final GroupByColumnSelectorPlus[] dims = GroupByQueryEngineV2.createGroupBySelectorPlus(
-                  selectorPlus,
-                  query.getResultRowDimensionStart()
+              final List<GroupByVectorColumnSelector> dimensions = query.getDimensions().stream().map(
+                  dimensionSpec ->
+                      DimensionHandlerUtils.makeVectorProcessor(
+                          dimensionSpec,
+                          GroupByVectorColumnProcessorFactory.instance(),
+                          columnSelectorFactory,
+                          false
+                      )
+              ).collect(Collectors.toList());
+              final MemoryComparator memoryComparator = GrouperBufferComparatorUtils.memoryComparator(
+                  false,
+                  query.getContextSortByDimsFirst(),
+                  query.getDimensions().size(),
+                  getDimensionComparators(dimensions, query.getLimitSpec())
               );
 
               // TODO: maybe can reuse
-              final Grouper<ByteBuffer> grouper = new BufferHashGrouper<>(
+              final FixedSizeHashVectorGrouper grouper = new FixedSizeHashVectorGrouper(
                   Suppliers.ofInstance(Groupers.getSlice(mergeBufferHolder.get(), sliceSize, i)),
-                  new GroupByEngineKeySerde(dims, queryWithoutTimestamp),
-                  AggregatorAdapters.factorizeBuffered(
+                  1,
+                  keySize,
+                  MemoryVectorAggregators.factorizeVector(
                       columnSelectorFactory,
-                      combiningFactories
+                      query.getAggregatorSpecs()
                   ),
                   querySpecificConfig.getBufferGrouperMaxSize(),
                   querySpecificConfig.getBufferGrouperMaxLoadFactor(),
-                  querySpecificConfig.getBufferGrouperInitialBuckets(),
-                  true
+                  querySpecificConfig.getBufferGrouperInitialBuckets()
               );
-              grouper.init();
               final SettableFuture<CloseableIterator<ResultRow>> resultFuture = SettableFuture.create();
               processingCallableScheduler.schedule(
                   new ProcessingTask<CloseableIterator<ResultRow>>()
@@ -476,15 +485,22 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                     {
                       //noinspection unused
                       try (Releaser releaser = mergeBufferHolder.increment();
-                           CloseableIterator<Entry<ByteBuffer>> iteratorCloser = concatIterator) {
+                           CloseableIterator<MemoryVectorEntry> iteratorCloser = concatIterator) {
                         // TODO: should do something like in groupByQueryEngineV2 when earlyDictMerge = false
+                        boolean initialized = false;
                         while (concatIterator.hasNext()) {
-                          final Entry<ByteBuffer> entry = concatIterator.next();
+                          final MemoryVectorEntry entry = concatIterator.next();
+
+                          if (!initialized) {
+                            grouper.initVectorized(entry.maxVectorSize);
+                            initialized = true;
+                          }
+
                           currentBufferSupplier.set(entry);
-                          grouper.aggregate(entry.getKey());
+                          grouper.aggregateVector(entry.getKeys(), 0, entry.curVectorSize);
                         }
                         return CloseableIterators.wrap(
-                            grouper.iterator(true)
+                            grouper.iterator(memoryComparator)
                                    .map(entry -> {
                                      final PerSegmentEncodedResultRow resultRow = PerSegmentEncodedResultRow.create(
                                          query.getResultRowSizeWithoutPostAggregators()
@@ -494,22 +510,22 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                                        resultRow.set(0, currentTime.getMillis());
                                      }
 
-                                     for (int j = 0; j < dims.length; j++) {
-                                       dims[j].getColumnSelectorStrategy().processValueFromGroupingKey(
-                                           dims[j],
+                                     // Add dimensions.
+                                     int keyOffset = 0;
+                                     for (int i = 0; i < dimensions.size(); i++) {
+                                       final GroupByVectorColumnSelector selector = dimensions.get(i);
+
+                                       selector.writeKeyToResultRow(
                                            entry.getKey(),
+                                           keyOffset,
                                            resultRow,
-                                           dims[j].getKeyBufferPosition(),
-                                           0
+                                           query.getResultRowDimensionStart() + i,
+                                           -1
                                        );
-                                       // Decode dictionaries
-                                       if (query.getDimensions().get(j).getOutputType() == ValueType.STRING) {
-                                         resultRow.set(
-                                             dims[j].getResultRowPosition(),
-                                             mergedDictionariesSupplier.get()[j].lookup(resultRow.getInt(dims[j].getResultRowPosition()))
-                                         );
-                                       }
+
+                                       keyOffset += selector.getGroupingKeySize();
                                      }
+
                                      GroupByQueryEngineV2.convertRowTypesToOutputTypes(
                                          query.getDimensions(),
                                          resultRow,
@@ -522,7 +538,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                                      for (int j = 0; j < entry.getValues().length; j++) {
                                        resultRow.set(
                                            query.getResultRowAggregatorStart() + j,
-                                           0,
+                                           -1,
                                            entry.getValues()[j]
                                        );
                                      }
@@ -585,6 +601,29 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               CloseQuietly.close(iterFromMake);
             }
           }
+
+          private MemoryComparator[] getDimensionComparators(List<GroupByVectorColumnSelector> selectors, LimitSpec limitSpec)
+          {
+            MemoryComparator[] dimComparators = new MemoryComparator[selectors.size()];
+
+            int keyOffset = 0;
+            for (int i = 0; i < selectors.size(); i++) {
+              final String dimName = query.getDimensions().get(i).getOutputName();
+              final StringComparator stringComparator;
+              if (limitSpec instanceof DefaultLimitSpec) {
+                stringComparator = DefaultLimitSpec.getComparatorForDimName(
+                    (DefaultLimitSpec) limitSpec,
+                    dimName
+                );
+              } else {
+                stringComparator = StringComparators.LEXICOGRAPHIC;
+              }
+              dimComparators[i] = selectors.get(i).bufferComparator(keyOffset, stringComparator);
+              keyOffset += selectors.get(i).getGroupingKeySize();
+            }
+
+            return dimComparators;
+          }
         }
     );
   }
@@ -602,6 +641,426 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
         return Integer.BYTES;
       default:
         throw new UnsupportedOperationException(valueType.name());
+    }
+  }
+
+  private static class MemoryVectorEntryColumnSelectorFactory implements VectorColumnSelectorFactory, VectorSizeInspector
+  {
+    private final GroupByQuery query;
+    private final Supplier<MemoryVectorEntry> currentEntrySupplier;
+    private final int keySize;
+    private final int[] keyOffsets;
+    private final Supplier<MergedDictionary[]> mergedDictionariesSupplier;
+    private final List<AggregatorFactory> combiningFactories;
+
+    private MemoryVectorEntryColumnSelectorFactory(
+        GroupByQuery query,
+        Supplier<MemoryVectorEntry> currentVectorSupplier,
+        int keySize,
+        int[] keyOffsets,
+        Supplier<MergedDictionary[]> mergedDictionariesSupplier,
+        List<AggregatorFactory> combiningFactories
+    )
+    {
+      this.query = query;
+      this.currentEntrySupplier = currentVectorSupplier;
+      this.keySize = keySize;
+      this.keyOffsets = keyOffsets;
+      this.mergedDictionariesSupplier = mergedDictionariesSupplier;
+      this.combiningFactories = combiningFactories;
+    }
+
+    @Override
+    public VectorSizeInspector getVectorSizeInspector()
+    {
+      return this;
+    }
+
+    @Override
+    public int getMaxVectorSize()
+    {
+      return currentEntrySupplier.get().maxVectorSize;
+    }
+
+    @Override
+    public int getCurrentVectorSize()
+    {
+      return currentEntrySupplier.get().curVectorSize;
+    }
+
+    @Override
+    public SingleValueDimensionVectorSelector makeSingleValueDimensionSelector(DimensionSpec dimensionSpec)
+    {
+      final int dimIndex = dimIndex(dimensionSpec.getDimension());
+      if (dimIndex < 0) {
+        throw new ISE("Cannot find dimension[%s]", dimensionSpec.getDimension());
+      }
+
+      return new SingleValueDimensionVectorSelector()
+      {
+        int[] rowVector = null;
+
+        @Override
+        public int[] getRowVector()
+        {
+          if (rowVector == null) {
+            rowVector = new int[getMaxVectorSize()];
+          }
+
+          for (int i = 0; i < getCurrentVectorSize(); i++) {
+            rowVector[i] = currentEntrySupplier.get().getKeys().getInt(i * keySize + keyOffsets[dimIndex]);
+          }
+
+          return rowVector;
+        }
+
+        @Override
+        public int getValueCardinality()
+        {
+          return mergedDictionariesSupplier.get()[dimIndex].size();
+        }
+
+        @Nullable
+        @Override
+        public String lookupName(int id)
+        {
+          return mergedDictionariesSupplier.get()[dimIndex].lookup(id);
+        }
+
+        @Override
+        public boolean nameLookupPossibleInAdvance()
+        {
+          return true;
+        }
+
+        @Nullable
+        @Override
+        public IdLookup idLookup()
+        {
+          return null;
+        }
+
+        @Override
+        public int getMaxVectorSize()
+        {
+          return currentEntrySupplier.get().maxVectorSize;
+        }
+
+        @Override
+        public int getCurrentVectorSize()
+        {
+          return currentEntrySupplier.get().curVectorSize;
+        }
+      };
+    }
+
+    @Override
+    public MultiValueDimensionVectorSelector makeMultiValueDimensionSelector(DimensionSpec dimensionSpec)
+    {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public VectorValueSelector makeValueSelector(String column)
+    {
+      final int dimIndex = dimIndex(column);
+      if (dimIndex > -1) {
+        final ValueType valueType = dimType(dimIndex);
+
+        return new VectorValueSelector()
+        {
+          long[] longs = null;
+          float[] floats = null;
+          double[] doubles = null;
+
+          @Override
+          public long[] getLongVector()
+          {
+            if (longs == null) {
+              longs = new long[getMaxVectorSize()];
+            }
+
+            switch (valueType) {
+              case DOUBLE:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  longs[i] = (long) currentEntrySupplier.get().getKeys().getDouble(i * keySize + keyOffsets[dimIndex]);
+                }
+                break;
+              case FLOAT:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  longs[i] = (long) currentEntrySupplier.get().getKeys().getFloat(i * keySize + keyOffsets[dimIndex]);
+                }
+                break;
+              case LONG:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  longs[i] = currentEntrySupplier.get().getKeys().getLong(i * keySize + keyOffsets[dimIndex]);
+                }
+                break;
+              case STRING:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  longs[i] = currentEntrySupplier.get().getKeys().getInt(i * keySize + keyOffsets[dimIndex]);
+                }
+                break;
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+
+            return longs;
+          }
+
+          @Override
+          public float[] getFloatVector()
+          {
+            if (floats == null) {
+              floats = new float[getMaxVectorSize()];
+            }
+
+            switch (valueType) {
+              case DOUBLE:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  floats[i] = (float) currentEntrySupplier.get().getKeys().getDouble(i * keySize + keyOffsets[dimIndex]);
+                }
+                break;
+              case FLOAT:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  floats[i] = currentEntrySupplier.get().getKeys().getFloat(i * keySize + keyOffsets[dimIndex]);
+                }
+                break;
+              case LONG:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  floats[i] = currentEntrySupplier.get().getKeys().getLong(i * keySize + keyOffsets[dimIndex]);
+                }
+                break;
+              case STRING:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  floats[i] = currentEntrySupplier.get().getKeys().getInt(i * keySize + keyOffsets[dimIndex]);
+                }
+                break;
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+
+            return floats;
+          }
+
+          @Override
+          public double[] getDoubleVector()
+          {
+            if (doubles == null) {
+              doubles = new double[getMaxVectorSize()];
+            }
+
+            switch (valueType) {
+              case DOUBLE:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  doubles[i] = currentEntrySupplier.get().getKeys().getDouble(i * keySize + keyOffsets[dimIndex]);
+                }
+                break;
+              case FLOAT:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  doubles[i] = currentEntrySupplier.get().getKeys().getFloat(i * keySize + keyOffsets[dimIndex]);
+                }
+                break;
+              case LONG:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  doubles[i] = currentEntrySupplier.get().getKeys().getLong(i * keySize + keyOffsets[dimIndex]);
+                }
+                break;
+              case STRING:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  doubles[i] = currentEntrySupplier.get().getKeys().getInt(i * keySize + keyOffsets[dimIndex]);
+                }
+                break;
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+
+            return doubles;
+          }
+
+          @Nullable
+          @Override
+          public boolean[] getNullVector()
+          {
+            // TODO
+            return null;
+          }
+
+          @Override
+          public int getMaxVectorSize()
+          {
+            return currentEntrySupplier.get().maxVectorSize;
+          }
+
+          @Override
+          public int getCurrentVectorSize()
+          {
+            return currentEntrySupplier.get().curVectorSize;
+          }
+        };
+      } else {
+        final int aggIndex = aggIndex(column);
+        if (aggIndex < 0) {
+          throw new ISE("Cannot find column[%s]", column);
+        }
+        final ValueType valueType = aggType(aggIndex);
+        return new VectorValueSelector()
+        {
+          long[] longs = null;
+          float[] floats = null;
+          double[] doubles = null;
+
+          @Override
+          public int getMaxVectorSize()
+          {
+            return currentEntrySupplier.get().maxVectorSize;
+          }
+
+          @Override
+          public int getCurrentVectorSize()
+          {
+            return currentEntrySupplier.get().curVectorSize;
+          }
+
+          @Override
+          public long[] getLongVector()
+          {
+            if (longs == null) {
+              longs = new long[getMaxVectorSize()];
+            }
+
+            switch (valueType) {
+              case DOUBLE:
+              case FLOAT:
+              case LONG:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  longs[i] = ((Number) currentEntrySupplier.get().getValues()[i][aggIndex]).longValue();
+                }
+                break;
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+
+            return longs;
+          }
+
+          @Override
+          public float[] getFloatVector()
+          {
+            if (floats == null) {
+              floats = new float[getMaxVectorSize()];
+            }
+
+            switch (valueType) {
+              case DOUBLE:
+              case FLOAT:
+              case LONG:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  floats[i] = ((Number) currentEntrySupplier.get().getValues()[i][aggIndex]).floatValue();
+                }
+                break;
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+
+            return floats;
+          }
+
+          @Override
+          public double[] getDoubleVector()
+          {
+            if (doubles == null) {
+              doubles = new double[getMaxVectorSize()];
+            }
+
+            switch (valueType) {
+              case DOUBLE:
+              case FLOAT:
+              case LONG:
+                for (int i = 0; i < getCurrentVectorSize(); i++) {
+                  doubles[i] = ((Number) currentEntrySupplier.get().getValues()[i][aggIndex]).doubleValue();
+                }
+                break;
+              default:
+                throw new UnsupportedOperationException(valueType.name());
+            }
+
+            return doubles;
+          }
+
+          @Nullable
+          @Override
+          public boolean[] getNullVector()
+          {
+            // TODO
+            return null;
+          }
+        };
+      }
+    }
+
+    @Override
+    public VectorObjectSelector makeObjectSelector(String column)
+    {
+      throw new UnsupportedOperationException();
+    }
+
+    @Nullable
+    @Override
+    public ColumnCapabilities getColumnCapabilities(String column)
+    {
+      final ValueType valueType;
+      int colIndex = dimIndex(column);
+      if (colIndex > -1) {
+        valueType = dimType(colIndex);
+      } else {
+        colIndex = aggIndex(column);
+        if (colIndex < 0) {
+          throw new ISE("Cannot find column[%s]", column);
+        }
+        valueType = aggType(colIndex);
+      }
+      switch (valueType) {
+        case DOUBLE:
+        case FLOAT:
+        case LONG:
+          return ColumnCapabilitiesImpl.createSimpleNumericColumnCapabilities(valueType);
+        case STRING:
+          return ColumnCapabilitiesImpl.createDefault()
+                                       .setType(ValueType.STRING)
+                                       .setDictionaryEncoded(true)
+                                       .setDictionaryValuesSorted(true)
+                                       .setDictionaryValuesUnique(true);
+        default:
+          throw new UnsupportedOperationException(valueType.name());
+      }
+    }
+
+    private int dimIndex(String columnName)
+    {
+      return IntStream.range(0, query.getResultRowAggregatorStart() - query.getResultRowDimensionStart())
+                      .filter(i -> query.getDimensions().get(i).getDimension().equals(columnName))
+                      .findAny()
+                      .orElse(-1);
+    }
+
+    private int aggIndex(String columnName)
+    {
+      return IntStream.range(0, query.getResultRowPostAggregatorStart() - query.getResultRowAggregatorStart())
+                      // TODO: this seems.. wrong
+                      .filter(i -> combiningFactories.get(i).requiredFields().contains(columnName))
+                      .findAny()
+                      .orElse(-1);
+    }
+
+    private ValueType dimType(int dimIndex)
+    {
+      return query.getDimensions().get(dimIndex).getOutputType();
+    }
+
+    private ValueType aggType(int aggIndex)
+    {
+      return combiningFactories.get(aggIndex).getType();
     }
   }
 
@@ -1217,9 +1676,9 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
   public static class TimestampedIterators implements Closeable
   {
-    private final TimestampedIterator<Entry<Memory>>[] iterators;
+    private final TimestampedIterator<MemoryVectorEntry>[] iterators;
 
-    public TimestampedIterators(TimestampedIterator<Entry<Memory>>[] iterators)
+    public TimestampedIterators(TimestampedIterator<MemoryVectorEntry>[] iterators)
     {
       this.iterators = iterators;
     }

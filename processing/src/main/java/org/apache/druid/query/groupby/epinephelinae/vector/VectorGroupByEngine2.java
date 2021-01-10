@@ -39,6 +39,7 @@ import org.apache.druid.query.groupby.epinephelinae.FixedSizeHashVectorGrouper;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.MemoryVectorEntry;
 import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.LimitSpec;
@@ -336,12 +337,12 @@ public class VectorGroupByEngine2
 
       final boolean resultRowHasTimestamp = query.getResultRowHasTimestamp();
 
-      final List<CloseableIterator<Entry<Memory>>> entryIterators = vectorGrouper.iterators(segmentId);
+      final List<CloseableIterator<MemoryVectorEntry>> entryIterators = vectorGrouper.iterators(segmentId);
 //      System.err.println("new entry iterators for timestamp " + timestamp.getMillis() + ", grouper: " + vectorGrouper);
       return new TimestampedIterators(
           entryIterators
               .stream()
-              .map(entryIterator -> new TimestampedIterator<Entry<Memory>>() {
+              .map(entryIterator -> new TimestampedIterator<MemoryVectorEntry>() {
                 @Nullable
                 @Override
                 public DateTime getTimestamp()
@@ -356,7 +357,7 @@ public class VectorGroupByEngine2
                 }
 
                 @Override
-                public Entry<Memory> next()
+                public MemoryVectorEntry next()
                 {
                   if (!hasNext()) {
                     throw new NoSuchElementException();

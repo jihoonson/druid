@@ -22,8 +22,10 @@ package org.apache.druid.query.groupby.epinephelinae;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
+import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.aggregation.AggregatorFactory;
+import org.apache.druid.segment.vector.VectorSizeInspector;
 
 import javax.annotation.Nullable;
 import java.io.Closeable;
@@ -122,6 +124,57 @@ public interface Grouper<KeyType> extends Closeable
    * @return entry iterator
    */
   CloseableIterator<Entry<KeyType>> iterator(boolean sorted);
+
+  class MemoryVectorEntry implements VectorSizeInspector
+  {
+    final WritableMemory keys;
+    final Object[][] values; // TODO: maybe some class instead of array of arrays
+    final int maxVectorSize;
+    final int curVectorSize;
+    final int segmentId;
+
+    public MemoryVectorEntry(
+        WritableMemory keys,
+        Object[][] values,
+        int maxVectorSize,
+        int curVectorSize,
+        int segmentId
+    )
+    {
+      this.keys = keys;
+      this.values = values;
+      this.maxVectorSize = maxVectorSize;
+      this.curVectorSize = curVectorSize;
+      this.segmentId = segmentId;
+    }
+
+    public WritableMemory getKeys()
+    {
+      return keys;
+    }
+
+    public Object[][] getValues()
+    {
+      return values;
+    }
+
+    @Override
+    public int getMaxVectorSize()
+    {
+      return maxVectorSize;
+    }
+
+    @Override
+    public int getCurrentVectorSize()
+    {
+      return curVectorSize;
+    }
+
+    public int getSegmentId()
+    {
+      return segmentId;
+    }
+  }
 
   class Entry<T>
   {

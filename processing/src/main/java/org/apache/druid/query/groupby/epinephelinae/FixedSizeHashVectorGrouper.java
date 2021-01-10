@@ -29,6 +29,7 @@ import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.aggregation.MemoryVectorAggregators;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
+import org.apache.druid.query.groupby.epinephelinae.Grouper.MemoryVectorEntry;
 import org.apache.druid.query.groupby.epinephelinae.collection.HashTableUtils;
 import org.apache.druid.query.groupby.epinephelinae.collection.MemoryOpenHashTable2;
 
@@ -49,6 +50,7 @@ public class FixedSizeHashVectorGrouper implements VectorGrouper
   private static final float DEFAULT_MAX_LOAD_FACTOR = 0.7f;
 
   private boolean initialized = false;
+  private int maxVectorSize;
   private int maxNumBuckets;
 
   private final Supplier<ByteBuffer> bufferSupplier;
@@ -137,6 +139,7 @@ public class FixedSizeHashVectorGrouper implements VectorGrouper
       this.vAggregationPositions = new int[maxVectorSize];
       this.vAggregationRows = new int[maxVectorSize];
       this.vHashedRows = new int[maxVectorSize];
+      this.maxVectorSize = maxVectorSize;
 
       initialized = true;
     }
@@ -293,26 +296,26 @@ public class FixedSizeHashVectorGrouper implements VectorGrouper
     throw new UnsupportedOperationException();
   }
 
-  public List<CloseableIterator<Entry<Memory>>> iterators(int segmentId)
+  public List<CloseableIterator<MemoryVectorEntry>> iterators(int segmentId)
   {
     if (!initialized) {
       // it's possible for iterator() to be called before initialization when
       // a nested groupBy's subquery has an empty result set (see testEmptySubquery() in GroupByQueryRunnerTest)
-      final List<CloseableIterator<Entry<Memory>>> emptyIterators = IntStream
+      return IntStream
           .range(0, numTables)
-          .mapToObj(i -> CloseableIterators.withEmptyBaggage(Collections.<Entry<Memory>>emptyIterator()))
+          .mapToObj(i -> CloseableIterators.withEmptyBaggage(Collections.<MemoryVectorEntry>emptyIterator()))
           .collect(Collectors.toList());
-      return emptyIterators;
     }
 
-    final List<CloseableIterator<Entry<Memory>>> iterators = new ArrayList<>(numTables);
+    final WritableMemory keyVector = WritableMemory.wrap(new byte[keySize * maxVectorSize]);
+    final List<CloseableIterator<MemoryVectorEntry>> iterators = new ArrayList<>(numTables);
     for (int i = 0; i < numTables; i++) {
       final MemoryOpenHashTable2 hashTable = hashTables[i].hashTable;
 //      System.err.println(Thread.currentThread() + ", hash table size: " + hashTables[i].hashTable.size());
       final IntIterator baseIterator = hashTable.bucketIterator();
       iterators.add(
           CloseableIterators.withEmptyBaggage(
-              new Iterator<Entry<Memory>>()
+              new Iterator<MemoryVectorEntry>()
               {
                 @Override
                 public boolean hasNext()
@@ -321,26 +324,32 @@ public class FixedSizeHashVectorGrouper implements VectorGrouper
                 }
 
                 @Override
-                public Entry<Memory> next()
+                public MemoryVectorEntry next()
                 {
-                  final int bucket = baseIterator.nextInt();
-                  final int bucketPosition = hashTable.bucketMemoryPosition(bucket);
+                  // TODO: which is better between making a copy and indirect read?
+                  final Object[][] valuess = new Object[maxVectorSize][];
+                  int curVectorSize = 0;
+                  for (; curVectorSize < maxVectorSize && baseIterator.hasNext(); curVectorSize++) {
+                    final int bucket = baseIterator.nextInt();
+                    final int bucketPosition = hashTable.bucketMemoryPosition(bucket);
 
-                  // TODO: region is expensive
-                  // TODO: we can iterate by blocks, i.e., keyMemory containing a list of buckets
-                  final Memory keyMemory = hashTable.memory().region(
-                      bucketPosition + hashTable.bucketKeyOffset(),
-                      hashTable.keySize()
-                  );
+                    hashTable.memory().copyTo(
+                        bucketPosition + hashTable.bucketKeyOffset(),
+                        keyVector,
+                        curVectorSize * keySize,
+                        keySize
+                    );
 
-                  final Object[] values = new Object[aggregators.size()];
-                  final int aggregatorsOffset = bucketPosition + hashTable.bucketValueOffset();
-                  for (int i = 0; i < aggregators.size(); i++) {
-                    values[i] = aggregators.get(hashTable.memory(), aggregatorsOffset, i);
+                    final Object[] values = new Object[aggregators.size()];
+                    final int aggregatorsOffset = bucketPosition + hashTable.bucketValueOffset();
+                    for (int i = 0; i < aggregators.size(); i++) {
+                      values[i] = aggregators.get(hashTable.memory(), aggregatorsOffset, i);
+                    }
+                    valuess[curVectorSize] = values;
                   }
 
-//                  System.err.println(Thread.currentThread() + ", bucket: " + bucket + ", row: " + Groupers.deserializeToRow(segmentId, keyMemory, values));
-                  return new Grouper.Entry<>(keyMemory, values, segmentId);
+//                  System.err.println(Thread.currentThread() + ", row: " + Groupers.deserializeToRow(segmentId, keyVector, valuess));
+                  return new MemoryVectorEntry(keyVector, valuess, maxVectorSize, curVectorSize, segmentId);
                 }
               }
           )
