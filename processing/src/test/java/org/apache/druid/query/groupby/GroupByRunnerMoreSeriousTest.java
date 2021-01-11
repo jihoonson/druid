@@ -33,6 +33,7 @@ import org.apache.druid.collections.StupidPool;
 import org.apache.druid.data.input.InputRow;
 import org.apache.druid.jackson.DefaultObjectMapper;
 import org.apache.druid.java.util.common.FileUtils;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.Sequence;
@@ -100,7 +101,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
   private static final Map<String, Map<String, GroupByQuery>> SCHEMA_QUERY_MAP = new LinkedHashMap<>();
   private static final ObjectMapper JSON_MAPPER = new DefaultObjectMapper();
   private static final int RNG_SEED = 9999;
-  private static final int ROWS_PER_SEGMENT = 10;
+  private static final int ROWS_PER_SEGMENT = 1100;
   private static final int NUM_SEGMENTS = 2;
   private static final int NUM_PROCESSING_THREADS = 16;
 
@@ -397,7 +398,10 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
     queryResult = theRunner2.run(QueryPlus.wrap(query), ResponseContext.createEmpty());
     List<ResultRow> results = queryResult.toList();
 
-    Assert.assertEquals(expectedResults, results);
+    Assert.assertEquals(expectedResults.size(), results.size());
+    for (int i = 0; i < results.size(); i++) {
+      Assert.assertEquals(StringUtils.format("%sth row", i), expectedResults.get(i), results.get(i));
+    }
   }
 
   @Test

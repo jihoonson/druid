@@ -413,15 +413,21 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               ).map(entry -> {
                 final WritableMemory keyMemory = entry.getKeys();
 
+//                StringBuilder keys = new StringBuilder(Thread.currentThread() + ", dict conversion: ");
+//                for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
+//                  keys.append(keyMemory.getInt(k * keySize)).append(", ");
+//                  keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
+//                }
+
                 // Convert dictionary
-                for (int vectorOffset = 0; vectorOffset < entry.getCurrentVectorSize(); vectorOffset += keySize) {
-                  for (int dimOffset = 0; dimOffset < numDims; dimOffset++) {
-                    if (query.getDimensions().get(dimOffset).getOutputType() == ValueType.STRING) {
+                for (int rowIdx = 0; rowIdx < entry.getCurrentVectorSize(); rowIdx++) {
+                  for (int dimIdx = 0; dimIdx < numDims; dimIdx++) {
+                    if (query.getDimensions().get(dimIdx).getOutputType() == ValueType.STRING) {
                       if (mergedDictionariesSupplier != null) {
-                        final long memoryOffset = vectorOffset + keyOffsets[dimOffset];
+                        final long memoryOffset = rowIdx * keySize + keyOffsets[dimIdx];
                         final int oldDictId = keyMemory.getInt(memoryOffset);
                         assert entry.segmentId > -1;
-                        final int newDictId = mergedDictionariesSupplier.get()[dimOffset].getNewDictId(
+                        final int newDictId = mergedDictionariesSupplier.get()[dimIdx].getNewDictId(
                             entry.segmentId,
                             oldDictId
                         );
@@ -433,7 +439,13 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   }
                 }
 
-//                System.err.println(Thread.currentThread() + ", dict conversion: " + Groupers.deserializeToRow(entry.segmentId, keyMemory, entry.getValues()) + " -> " + Groupers.deserializeToRow(-1, keyMemory, entry.getValues()));
+//                keys.append(" -> ");
+//                for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
+//                  keys.append(keyMemory.getInt(k * keySize)).append(", ");
+//                  keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
+//                }
+//
+//                System.err.println(keys);
 
                 return entry;
               });
@@ -476,6 +488,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   querySpecificConfig.getBufferGrouperMaxLoadFactor(),
                   querySpecificConfig.getBufferGrouperInitialBuckets()
               );
+              grouper.initVectorized(QueryContexts.getVectorSize(query)); // TODO: can i get the max vector size differntly?
               final SettableFuture<CloseableIterator<ResultRow>> resultFuture = SettableFuture.create();
               processingCallableScheduler.schedule(
                   new ProcessingTask<CloseableIterator<ResultRow>>()
@@ -487,15 +500,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                       try (Releaser releaser = mergeBufferHolder.increment();
                            CloseableIterator<MemoryVectorEntry> iteratorCloser = concatIterator) {
                         // TODO: should do something like in groupByQueryEngineV2 when earlyDictMerge = false
-                        boolean initialized = false;
                         while (concatIterator.hasNext()) {
                           final MemoryVectorEntry entry = concatIterator.next();
-
-                          if (!initialized) {
-                            grouper.initVectorized(entry.maxVectorSize);
-                            initialized = true;
-                          }
-
                           currentBufferSupplier.set(entry);
                           grouper.aggregateVector(entry.getKeys(), 0, entry.curVectorSize);
                         }

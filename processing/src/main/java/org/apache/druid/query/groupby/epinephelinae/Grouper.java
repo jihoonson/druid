@@ -128,7 +128,9 @@ public interface Grouper<KeyType> extends Closeable
   class MemoryVectorEntry implements VectorSizeInspector
   {
     final WritableMemory keys;
-    final Object[][] values; // TODO: maybe some class instead of array of arrays
+    // TODO: maybe some class instead of array of arrays
+    // TODO: maybe better to be columnar?
+    final Object[][] values;
     final int maxVectorSize;
     final int curVectorSize;
     final int segmentId;
