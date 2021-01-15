@@ -316,7 +316,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                 @Override
                 public boolean hasNext()
                 {
-                  while ((delegate == null || !delegate.hasNext()) && timeSortedHashedIterators.hasNext()) {
+                  boolean hasNextDelegateIterators = true;
+                  while ((delegate == null || !delegate.hasNext()) && (hasNextDelegateIterators = timeSortedHashedIterators.hasNext())) {
                     if (delegate != null) {
                       try {
                         delegate.close();
@@ -347,6 +348,10 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                         sliceSize,
                         dimensionCapabilities
                     );
+                  }
+                  if (!hasNextDelegateIterators) {
+//                     no more computation
+                    processingCallableScheduler.shutdown();
                   }
                   return delegate != null && delegate.hasNext();
                 }
@@ -407,7 +412,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
             final int numDims = query.getResultRowAggregatorStart() - query.getResultRowDimensionStart();
             final List<ListenableFuture<CloseableIterator<ResultRow>>> futures = new ArrayList<>();
             for (int i = 0; i < numHashBuckets; i++) {
-              // TODO: should not do this
               final CloseableIterator<MemoryVectorEntry> concatIterator = CloseableIterators.concat(
                   partitionedIterators[i]
               ).map(entry -> {
@@ -1568,6 +1572,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     private final List<Future<Void>> callableFutures;
     private final BlockingQueue<ProcessingTask> workQueue;
 
+    private boolean closed;
+
     public ProcessingCallableScheduler(
         ExecutorService exec,
         int priority,
@@ -1595,16 +1601,19 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
     public void shutdown()
     {
-      // TODO: fix how to shut down
-      callables.forEach(c -> {
-        c.taskQueue.offer(ShutdownTask.SHUTDOWN_TASK);
-      });
-      for (Future<Void> future : callableFutures) {
-        try {
-          future.get(); // TODO: handle timeout
-        }
-        catch (InterruptedException | ExecutionException e) {
-          throw new RuntimeException(e); // TODO: handle exceptions
+      if (!closed) {
+        closed = true;
+        // TODO: fix how to shut down
+        callables.forEach(c -> {
+          c.taskQueue.offer(ShutdownTask.SHUTDOWN_TASK);
+        });
+        for (Future<Void> future : callableFutures) {
+          try {
+            future.get(); // TODO: handle timeout
+          }
+          catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e); // TODO: handle exceptions
+          }
         }
       }
     }
