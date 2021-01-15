@@ -482,7 +482,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   keySize,
                   MemoryVectorAggregators.factorizeVector(
                       columnSelectorFactory,
-                      query.getAggregatorSpecs()
+                      combiningFactories
                   ),
                   querySpecificConfig.getBufferGrouperMaxSize(),
                   querySpecificConfig.getBufferGrouperMaxLoadFactor(),

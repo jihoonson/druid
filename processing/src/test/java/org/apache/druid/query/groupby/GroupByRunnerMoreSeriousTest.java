@@ -94,6 +94,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
@@ -101,8 +102,8 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
   private static final Map<String, Map<String, GroupByQuery>> SCHEMA_QUERY_MAP = new LinkedHashMap<>();
   private static final ObjectMapper JSON_MAPPER = new DefaultObjectMapper();
   private static final int RNG_SEED = 9999;
-  private static final int ROWS_PER_SEGMENT = 1100;
-  private static final int NUM_SEGMENTS = 2;
+  private static final int ROWS_PER_SEGMENT = 100000;
+  private static final int NUM_SEGMENTS = 16;
   private static final int NUM_PROCESSING_THREADS = 16;
 
   private static IndexMergerV9 INDEX_MERGER;
@@ -400,7 +401,17 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
 
     Assert.assertEquals(expectedResults.size(), results.size());
     for (int i = 0; i < results.size(); i++) {
-      Assert.assertEquals(StringUtils.format("%sth row", i), expectedResults.get(i), results.get(i));
+      if (!Objects.equals(expectedResults.get(i), results.get(i))) {
+        StringBuilder builder = new StringBuilder();
+        for (int backword = Math.max(0, i - 5); backword < i; backword++) {
+          builder.append("expected: ").append(expectedResults.get(backword)).append(", actual: ").append(results.get(backword)).append("\n");
+        }
+        builder.append(StringUtils.format("%sth row", i)).append(" expected: ").append(expectedResults.get(i)).append(", actual: ").append(results.get(i)).append("\n");
+        for (int forward = 0; forward < 5; forward++) {
+          builder.append("expected: ").append(expectedResults.get(forward + i + 1)).append(", actual: ").append(results.get(forward + i + 1)).append("\n");
+        }
+        Assert.fail(builder.toString());
+      }
     }
   }
 
