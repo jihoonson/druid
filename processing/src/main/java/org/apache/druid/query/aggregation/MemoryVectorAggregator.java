@@ -23,6 +23,13 @@ import org.apache.datasketches.memory.WritableMemory;
 
 import javax.annotation.Nullable;
 
+/**
+ * {@link org.apache.druid.query.groupby.epinephelinae.FixedSizeHashVectorGrouper} splits
+ * a given {@link org.apache.datasketches.memory.Memory} into two arenas, one for used flags
+ * and another for hash table. As a result, to use {@link VectorAggregator} in it, the grouper
+ * needs to compute the proper offset to read valid values from the backed {@link java.nio.ByteBuffer}.
+ * This just makes the implementation complicated, and is why this class is added.
+ */
 public interface MemoryVectorAggregator
 {
   void init(WritableMemory memory, int position);
@@ -33,6 +40,12 @@ public interface MemoryVectorAggregator
 
   @Nullable
   Object get(WritableMemory memory, int position);
+
+  long getLong(WritableMemory memory, int position);
+
+  double getDouble(WritableMemory memory, int position);
+
+  float getFloat(WritableMemory memory, int position);
 
   void close();
 }

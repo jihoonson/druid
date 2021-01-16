@@ -67,7 +67,25 @@ public class DoubleSumMemoryVectorAggregator implements MemoryVectorAggregator
   @Override
   public Object get(WritableMemory memory, int position)
   {
+    return getDouble(memory, position);
+  }
+
+  @Override
+  public long getLong(WritableMemory memory, int position)
+  {
+    return (long) getDouble(memory, position);
+  }
+
+  @Override
+  public double getDouble(WritableMemory memory, int position)
+  {
     return memory.getDouble(position);
+  }
+
+  @Override
+  public float getFloat(WritableMemory memory, int position)
+  {
+    return (float) getDouble(memory, position);
   }
 
   @Override

@@ -129,15 +129,15 @@ public interface Grouper<KeyType> extends Closeable
   {
     final WritableMemory keys;
     // TODO: maybe some class instead of array of arrays
-    // TODO: maybe better to be columnar?
-    final Object[][] values;
+    // Columnar vectors of values; the first array is agg indexed, the second array is row indexed
+    final Object[] values;
     final int maxVectorSize;
     final int curVectorSize;
     final int segmentId;
 
     public MemoryVectorEntry(
         WritableMemory keys,
-        Object[][] values,
+        Object[] values,
         int maxVectorSize,
         int curVectorSize,
         int segmentId
@@ -155,7 +155,7 @@ public interface Grouper<KeyType> extends Closeable
       return keys;
     }
 
-    public Object[][] getValues()
+    public Object[] getValues()
     {
       return values;
     }

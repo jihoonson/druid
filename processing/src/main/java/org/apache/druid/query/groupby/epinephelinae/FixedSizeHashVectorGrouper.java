@@ -476,13 +476,35 @@ public class FixedSizeHashVectorGrouper implements VectorGrouper
                 @Override
                 public MemoryVectorEntry next()
                 {
-                  // TODO: which is better between making a copy and indirect read?
-                  final Object[][] valuess = new Object[maxVectorSize][];
+                  // TODO: hmm... can it be prettier?
+                  final double[][] doubleValues = new double[aggregators.size()][];
+                  final float[][] floatValues = new float[aggregators.size()][];
+                  final long[][] longValues = new long[aggregators.size()][];
+                  final Object[] valuess = new Object[aggregators.size()];
+                  for (int i = 0; i < aggregators.size(); i++) {
+                    switch (aggregators.getType(i)) {
+                      case DOUBLE:
+                        doubleValues[i] = new double[maxVectorSize];
+                        valuess[i] = doubleValues[i];
+                        break;
+                      case FLOAT:
+                        floatValues[i] = new float[maxVectorSize];
+                        valuess[i] = floatValues[i];
+                        break;
+                      case LONG:
+                        longValues[i] = new long[maxVectorSize];
+                        valuess[i] = longValues[i];
+                        break;
+                      default:
+                        throw new UnsupportedOperationException();
+                    }
+                  }
                   int curVectorSize = 0;
                   for (; curVectorSize < maxVectorSize && baseIterator.hasNext(); curVectorSize++) {
                     final int bucket = baseIterator.nextInt();
                     final int bucketPosition = hashTable.bucketMemoryPosition(bucket);
 
+                    // TODO: which is better between making a copy and indirect read?
                     hashTable.memory().copyTo(
                         bucketPosition + hashTable.bucketKeyOffset(),
                         keyVector,
@@ -490,12 +512,22 @@ public class FixedSizeHashVectorGrouper implements VectorGrouper
                         hashTable.keySize()
                     );
 
-                    final Object[] values = new Object[aggregators.size()];
                     final int aggregatorsOffset = bucketPosition + hashTable.bucketValueOffset();
                     for (int i = 0; i < aggregators.size(); i++) {
-                      values[i] = aggregators.get(hashTable.memory(), aggregatorsOffset, i);
+                      switch (aggregators.getType(i)) {
+                        case DOUBLE:
+                          doubleValues[i][curVectorSize] = aggregators.getDouble(hashTable.memory(), aggregatorsOffset, i);
+                          break;
+                        case FLOAT:
+                          floatValues[i][curVectorSize] = aggregators.getFloat(hashTable.memory(), aggregatorsOffset, i);
+                          break;
+                        case LONG:
+                          longValues[i][curVectorSize] = aggregators.getLong(hashTable.memory(), aggregatorsOffset, i);
+                          break;
+                        default:
+                          throw new UnsupportedOperationException();
+                      }
                     }
-                    valuess[curVectorSize] = values;
 //                    System.err.println(Thread.currentThread() + ", row: " + Groupers.deserializeToRow(segmentId, keyMemory, values));
                   }
 

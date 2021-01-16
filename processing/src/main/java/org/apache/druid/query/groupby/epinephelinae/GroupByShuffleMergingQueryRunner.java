@@ -916,10 +916,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
         final ValueType valueType = aggType(aggIndex);
         return new VectorValueSelector()
         {
-          long[] longs = null;
-          float[] floats = null;
-          double[] doubles = null;
-
           @Override
           public int getMaxVectorSize()
           {
@@ -935,67 +931,40 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           @Override
           public long[] getLongVector()
           {
-            if (longs == null) {
-              longs = new long[getMaxVectorSize()];
-            }
-
             switch (valueType) {
               case DOUBLE:
               case FLOAT:
               case LONG:
-                for (int i = 0; i < getCurrentVectorSize(); i++) {
-                  longs[i] = ((Number) currentEntrySupplier.get().getValues()[i][aggIndex]).longValue();
-                }
-                break;
+                return (long[]) currentEntrySupplier.get().getValues()[aggIndex];
               default:
                 throw new UnsupportedOperationException(valueType.name());
             }
-
-            return longs;
           }
 
           @Override
           public float[] getFloatVector()
           {
-            if (floats == null) {
-              floats = new float[getMaxVectorSize()];
-            }
-
             switch (valueType) {
               case DOUBLE:
               case FLOAT:
               case LONG:
-                for (int i = 0; i < getCurrentVectorSize(); i++) {
-                  floats[i] = ((Number) currentEntrySupplier.get().getValues()[i][aggIndex]).floatValue();
-                }
-                break;
+                return (float[]) currentEntrySupplier.get().getValues()[aggIndex];
               default:
                 throw new UnsupportedOperationException(valueType.name());
             }
-
-            return floats;
           }
 
           @Override
           public double[] getDoubleVector()
           {
-            if (doubles == null) {
-              doubles = new double[getMaxVectorSize()];
-            }
-
             switch (valueType) {
               case DOUBLE:
               case FLOAT:
               case LONG:
-                for (int i = 0; i < getCurrentVectorSize(); i++) {
-                  doubles[i] = ((Number) currentEntrySupplier.get().getValues()[i][aggIndex]).doubleValue();
-                }
-                break;
+                return (double[]) currentEntrySupplier.get().getValues()[aggIndex];
               default:
                 throw new UnsupportedOperationException(valueType.name());
             }
-
-            return doubles;
           }
 
           @Nullable

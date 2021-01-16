@@ -23,6 +23,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.java.util.common.logger.Logger;
+import org.apache.druid.segment.column.ValueType;
 import org.apache.druid.segment.vector.VectorColumnSelectorFactory;
 
 import javax.annotation.Nullable;
@@ -126,6 +127,26 @@ public class MemoryVectorAggregators implements Closeable
   public Object get(final WritableMemory buf, final int position, final int aggregatorNumber)
   {
     return aggregators.get(aggregatorNumber).get(buf, position + aggregatorPositions[aggregatorNumber]);
+  }
+
+  public double getDouble(final WritableMemory buf, final int position, final int aggregatorNumber)
+  {
+    return aggregators.get(aggregatorNumber).getDouble(buf, position + aggregatorPositions[aggregatorNumber]);
+  }
+
+  public float getFloat(final WritableMemory buf, final int position, final int aggregatorNumber)
+  {
+    return aggregators.get(aggregatorNumber).getFloat(buf, position + aggregatorPositions[aggregatorNumber]);
+  }
+
+  public long getLong(final WritableMemory buf, final int position, final int aggregatorNumber)
+  {
+    return aggregators.get(aggregatorNumber).getLong(buf, position + aggregatorPositions[aggregatorNumber]);
+  }
+
+  public ValueType getType(int i)
+  {
+    return factories.get(i).getType();
   }
 
   @Override
