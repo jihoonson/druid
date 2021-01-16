@@ -20,7 +20,6 @@
 package org.apache.druid.query.groupby.epinephelinae;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
@@ -60,13 +59,11 @@ import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.MemoryVectorAggregators;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DimensionSpec;
-import org.apache.druid.query.filter.ValueMatcher;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV3.MergingDictionary;
-import org.apache.druid.query.groupby.epinephelinae.Grouper.Entry;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.MemoryVectorEntry;
 import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
 import org.apache.druid.query.groupby.epinephelinae.vector.GroupByVectorColumnProcessorFactory;
@@ -74,20 +71,13 @@ import org.apache.druid.query.groupby.epinephelinae.vector.GroupByVectorColumnSe
 import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2.TimestampedIterator;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.LimitSpec;
-import org.apache.druid.query.monomorphicprocessing.RuntimeShapeInspector;
 import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.query.ordering.StringComparators;
-import org.apache.druid.segment.AbstractDimensionSelector;
-import org.apache.druid.segment.ColumnSelectorFactory;
-import org.apache.druid.segment.ColumnValueSelector;
 import org.apache.druid.segment.DimensionHandlerUtils;
-import org.apache.druid.segment.DimensionSelector;
 import org.apache.druid.segment.IdLookup;
 import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.column.ColumnCapabilitiesImpl;
 import org.apache.druid.segment.column.ValueType;
-import org.apache.druid.segment.data.IndexedInts;
-import org.apache.druid.segment.data.SingleIndexedInt;
 import org.apache.druid.segment.vector.MultiValueDimensionVectorSelector;
 import org.apache.druid.segment.vector.SingleValueDimensionVectorSelector;
 import org.apache.druid.segment.vector.VectorColumnSelectorFactory;
@@ -268,8 +258,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                     timeoutAt - System.currentTimeMillis()
                 ));
               } else {
-                // TODO: make it not nullable
-                mergedDictionariesSupplier = null;
+                throw new UnsupportedOperationException("Cannot support variable-lengh keys. Enable earlyDictMerge.");
               }
 
               List<CloseableIterator<TimestampedIterators>> hashedSequencesList = FluentIterable
@@ -426,6 +415,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                 // Convert dictionary
                 for (int rowIdx = 0; rowIdx < entry.getCurrentVectorSize(); rowIdx++) {
                   for (int dimIdx = 0; dimIdx < numDims; dimIdx++) {
+                    // TODO: maybe GroupByVectorColumnConvertor or something..
                     if (query.getDimensions().get(dimIdx).getOutputType() == ValueType.STRING) {
                       if (querySpecificConfig.isEarlyDictMerge() && mergedDictionariesSupplier != null) {
                         final long memoryOffset = rowIdx * keySize + keyOffsets[dimIdx];
@@ -492,7 +482,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   querySpecificConfig.getBufferGrouperMaxLoadFactor(),
                   querySpecificConfig.getBufferGrouperInitialBuckets()
               );
-              grouper.initVectorized(QueryContexts.getVectorSize(query)); // TODO: can i get the max vector size differntly?
+              grouper.initVectorized(QueryContexts.getVectorSize(query)); // TODO: can i get the max vector size in a different way? this seems no good
               final SettableFuture<CloseableIterator<ResultRow>> resultFuture = SettableFuture.create();
               processingCallableScheduler.schedule(
                   new ProcessingTask<CloseableIterator<ResultRow>>()
@@ -503,7 +493,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                       //noinspection unused
                       try (Releaser releaser = mergeBufferHolder.increment();
                            CloseableIterator<MemoryVectorEntry> iteratorCloser = concatIterator) {
-                        // TODO: should do something like in groupByQueryEngineV2 when earlyDictMerge = false
                         while (concatIterator.hasNext()) {
                           final MemoryVectorEntry entry = concatIterator.next();
                           currentBufferSupplier.set(entry);
@@ -1043,390 +1032,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
   }
 
-  private static class EntryColumnSelectorFactory implements ColumnSelectorFactory
-  {
-    private final GroupByQuery query;
-    private final Supplier<Entry<ByteBuffer>> currentEntrySupplier;
-    private final int[] keyOffsets;
-    private final Supplier<MergedDictionary[]> mergedDictionariesSupplier;
-    private final List<AggregatorFactory> combiningFactories;
-
-    private EntryColumnSelectorFactory(
-        GroupByQuery query,
-        Supplier<Entry<ByteBuffer>> currentEntrySupplier,
-        int[] keyOffsets,
-        Supplier<MergedDictionary[]> mergedDictionariesSupplier,
-        List<AggregatorFactory> combiningFactories
-    )
-    {
-      this.query = query;
-      this.currentEntrySupplier = currentEntrySupplier;
-      this.keyOffsets = keyOffsets;
-      this.mergedDictionariesSupplier = mergedDictionariesSupplier;
-      this.combiningFactories = combiningFactories;
-    }
-
-    @Override
-    public DimensionSelector makeDimensionSelector(DimensionSpec dimensionSpec)
-    {
-      // TODO: should be able to handle non-string types
-      final int dimIndex = dimIndex(dimensionSpec.getDimension());
-      if (dimIndex < 0) {
-        throw new ISE("Cannot find dimension[%s]", dimensionSpec.getDimension());
-      }
-
-      return new AbstractDimensionSelector()
-      {
-        final SingleIndexedInt indexedInts = new SingleIndexedInt();
-
-        private int getCurrentVal()
-        {
-          return currentEntrySupplier.get().getKey().getInt(keyOffsets[dimIndex]);
-        }
-
-        @Override
-        public IndexedInts getRow()
-        {
-          indexedInts.setValue(getCurrentVal());
-          return indexedInts;
-        }
-
-        @Override
-        public ValueMatcher makeValueMatcher(@Nullable String value)
-        {
-          return new ValueMatcher()
-          {
-            @Override
-            public boolean matches()
-            {
-              return Objects.equals(
-                  mergedDictionariesSupplier.get()[dimIndex].lookup(getCurrentVal()),
-                  value
-              );
-            }
-
-            @Override
-            public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-            {
-            }
-          };
-        }
-
-        @Override
-        public ValueMatcher makeValueMatcher(Predicate<String> predicate)
-        {
-          return new ValueMatcher()
-          {
-            @Override
-            public boolean matches()
-            {
-              return predicate.apply(mergedDictionariesSupplier.get()[dimIndex].lookup(getCurrentVal()));
-            }
-
-            @Override
-            public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-            {
-            }
-          };
-        }
-
-        @Override
-        public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-        {
-        }
-
-        @Override
-        public Class<?> classOfObject()
-        {
-          return String.class;
-        }
-
-        @Override
-        public int getValueCardinality()
-        {
-          return mergedDictionariesSupplier.get()[dimIndex].size();
-        }
-
-        @Nullable
-        @Override
-        public String lookupName(int id)
-        {
-          return mergedDictionariesSupplier.get()[dimIndex].lookup(id);
-        }
-
-        @Override
-        public boolean nameLookupPossibleInAdvance()
-        {
-          return true;
-        }
-
-        @Nullable
-        @Override
-        public IdLookup idLookup()
-        {
-          return null;
-        }
-      };
-    }
-
-    private int dimIndex(String columnName)
-    {
-      return IntStream.range(0, query.getResultRowAggregatorStart() - query.getResultRowDimensionStart())
-                      .filter(i -> query.getDimensions().get(i).getDimension().equals(columnName))
-                      .findAny()
-                      .orElse(-1);
-    }
-
-    private int aggIndex(String columnName)
-    {
-      return IntStream.range(0, query.getResultRowPostAggregatorStart() - query.getResultRowAggregatorStart())
-                      // TODO: this seems.. wrong
-                      .filter(i -> combiningFactories.get(i).requiredFields().contains(columnName))
-                      .findAny()
-                      .orElse(-1);
-    }
-
-    private ValueType dimType(int dimIndex)
-    {
-      return query.getDimensions().get(dimIndex).getOutputType();
-    }
-
-    private ValueType aggType(int aggIndex)
-    {
-      return combiningFactories.get(aggIndex).getType();
-    }
-
-    @Override
-    public ColumnValueSelector makeColumnValueSelector(String columnName)
-    {
-      final int dimIndex = dimIndex(columnName);
-      if (dimIndex > -1) {
-        final ValueType valueType = dimType(dimIndex);
-        return new ColumnValueSelector()
-        {
-          @Override
-          public double getDouble()
-          {
-            switch (valueType) {
-              case DOUBLE:
-                return currentEntrySupplier.get().getKey().getDouble(keyOffsets[dimIndex]);
-              case FLOAT:
-                return currentEntrySupplier.get().getKey().getFloat(keyOffsets[dimIndex]);
-              case LONG:
-                return currentEntrySupplier.get().getKey().getLong(keyOffsets[dimIndex]);
-              case STRING:
-                return currentEntrySupplier.get().getKey().getInt(keyOffsets[dimIndex]);
-              default:
-                throw new UnsupportedOperationException(valueType.name());
-            }
-          }
-
-          @Override
-          public float getFloat()
-          {
-            switch (valueType) {
-              case DOUBLE:
-                return (float) currentEntrySupplier.get().getKey().getDouble(keyOffsets[dimIndex]);
-              case FLOAT:
-                return currentEntrySupplier.get().getKey().getFloat(keyOffsets[dimIndex]);
-              case LONG:
-                return currentEntrySupplier.get().getKey().getLong(keyOffsets[dimIndex]);
-              case STRING:
-                return currentEntrySupplier.get().getKey().getInt(keyOffsets[dimIndex]);
-              default:
-                throw new UnsupportedOperationException(valueType.name());
-            }
-          }
-
-          @Override
-          public long getLong()
-          {
-            switch (valueType) {
-              case DOUBLE:
-                return (long) currentEntrySupplier.get().getKey().getDouble(keyOffsets[dimIndex]);
-              case FLOAT:
-                return (long) currentEntrySupplier.get().getKey().getFloat(keyOffsets[dimIndex]);
-              case LONG:
-                return currentEntrySupplier.get().getKey().getLong(keyOffsets[dimIndex]);
-              case STRING:
-                return currentEntrySupplier.get().getKey().getInt(keyOffsets[dimIndex]);
-              default:
-                throw new UnsupportedOperationException(valueType.name());
-            }
-          }
-
-          @Override
-          public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-          {
-          }
-
-          @Override
-          public boolean isNull()
-          {
-            // TODO
-            return false;
-          }
-
-          @Nullable
-          @Override
-          public Object getObject()
-          {
-            switch (valueType) {
-              case DOUBLE:
-                return currentEntrySupplier.get().getKey().getDouble(keyOffsets[dimIndex]);
-              case FLOAT:
-                return currentEntrySupplier.get().getKey().getFloat(keyOffsets[dimIndex]);
-              case LONG:
-                return currentEntrySupplier.get().getKey().getLong(keyOffsets[dimIndex]);
-              case STRING:
-                return currentEntrySupplier.get().getKey().getInt(keyOffsets[dimIndex]);
-              default:
-                throw new UnsupportedOperationException(valueType.name());
-            }
-          }
-
-          @Override
-          public Class classOfObject()
-          {
-            switch (valueType) {
-              case DOUBLE:
-                return Double.class;
-              case FLOAT:
-                return Float.class;
-              case LONG:
-                return Long.class;
-              case STRING:
-                return Integer.class;
-              default:
-                throw new UnsupportedOperationException(valueType.name());
-            }
-          }
-        };
-      } else {
-        final int aggIndex = aggIndex(columnName);
-        if (aggIndex < 0) {
-          throw new ISE("Cannot find column[%s]", columnName);
-        }
-        final ValueType valueType = aggType(aggIndex);
-        return new ColumnValueSelector()
-        {
-          @Override
-          public double getDouble()
-          {
-            switch (valueType) {
-              case DOUBLE:
-              case FLOAT:
-              case LONG:
-                return ((Number) currentEntrySupplier.get().getValues()[aggIndex]).doubleValue();
-              default:
-                throw new UnsupportedOperationException(valueType.name());
-            }
-          }
-
-          @Override
-          public float getFloat()
-          {
-            switch (valueType) {
-              case DOUBLE:
-              case FLOAT:
-              case LONG:
-                return ((Number) currentEntrySupplier.get().getValues()[aggIndex]).floatValue();
-              default:
-                throw new UnsupportedOperationException(valueType.name());
-            }
-          }
-
-          @Override
-          public long getLong()
-          {
-            switch (valueType) {
-              case DOUBLE:
-              case FLOAT:
-              case LONG:
-                return ((Number) currentEntrySupplier.get().getValues()[aggIndex]).longValue();
-              default:
-                throw new UnsupportedOperationException(valueType.name());
-            }
-          }
-
-          @Override
-          public void inspectRuntimeShape(RuntimeShapeInspector inspector)
-          {
-          }
-
-          @Override
-          public boolean isNull()
-          {
-            // TODO
-            return false;
-          }
-
-          @Nullable
-          @Override
-          public Object getObject()
-          {
-            switch (valueType) {
-              case DOUBLE:
-              case FLOAT:
-              case LONG:
-                return currentEntrySupplier.get().getValues()[aggIndex];
-              default:
-                throw new UnsupportedOperationException(valueType.name());
-            }
-          }
-
-          @Override
-          public Class classOfObject()
-          {
-            switch (valueType) {
-              case DOUBLE:
-                return Double.class;
-              case FLOAT:
-                return Float.class;
-              case LONG:
-                return Long.class;
-              case STRING:
-                return Integer.class;
-              default:
-                throw new UnsupportedOperationException(valueType.name());
-            }
-          }
-        };
-      }
-    }
-
-    @Nullable
-    @Override
-    public ColumnCapabilities getColumnCapabilities(String column)
-    {
-      final ValueType valueType;
-      int colIndex = dimIndex(column);
-      if (colIndex > -1) {
-        valueType = dimType(colIndex);
-      } else {
-        colIndex = aggIndex(column);
-        if (colIndex < 0) {
-          throw new ISE("Cannot find column[%s]", column);
-        }
-        valueType = aggType(colIndex);
-      }
-      switch (valueType) {
-        case DOUBLE:
-        case FLOAT:
-        case LONG:
-          return ColumnCapabilitiesImpl.createSimpleNumericColumnCapabilities(valueType);
-        case STRING:
-          return ColumnCapabilitiesImpl.createDefault()
-                                       .setType(ValueType.STRING)
-                                       .setDictionaryEncoded(true)
-                                       .setDictionaryValuesSorted(true)
-                                       .setDictionaryValuesUnique(true);
-        default:
-          throw new UnsupportedOperationException(valueType.name());
-      }
-    }
-  }
-
   private static class TimeSortedIterators implements CloseableIterator<List<TimestampedIterators>>
   {
     private final List<CloseableIterator<TimestampedIterators>> baseIterators;
@@ -1613,6 +1218,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       return null;
     }
 
+    // TODO: this is ugly
     @Override
     public boolean isSentinel()
     {
@@ -1650,13 +1256,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       return null;
     }
   }
-
-//  private interface MemoryColumnFunction
-//  {
-//    int serializedSize();
-//
-//    Comparable[] deserialize(Memory memory);
-//  }
 
   public static class TimestampedIterators implements Closeable
   {
@@ -1759,121 +1358,4 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       throw new RuntimeException(e);
     }
   }
-
-//  private void waitForFutureCompletion(
-//      GroupByQuery query,
-//      List<ListenableFuture<AggregateResult>> futures,
-//      boolean hasTimeout,
-//      long timeout
-//  )
-//  {
-//    ListenableFuture<List<AggregateResult>> future = Futures.allAsList(futures);
-//    try {
-//      if (queryWatcher != null) {
-//        queryWatcher.registerQueryFuture(query, future);
-//      }
-//
-//      if (hasTimeout && timeout <= 0) {
-//        throw new TimeoutException();
-//      }
-//
-//      final List<AggregateResult> results = hasTimeout ? future.get(timeout, TimeUnit.MILLISECONDS) : future.get();
-//
-//      for (AggregateResult result : results) {
-//        if (!result.isOk()) {
-//          GuavaUtils.cancelAll(true, future, futures);
-//          throw new ResourceLimitExceededException(result.getReason());
-//        }
-//      }
-//    }
-//    catch (InterruptedException e) {
-//      log.warn(e, "Query interrupted, cancelling pending results, query id [%s]", query.getId());
-//      GuavaUtils.cancelAll(true, future, futures);
-//      throw new QueryInterruptedException(e);
-//    }
-//    catch (CancellationException e) {
-//      GuavaUtils.cancelAll(true, future, futures);
-//      throw new QueryInterruptedException(e);
-//    }
-//    catch (TimeoutException e) {
-//      log.info("Query timeout, cancelling pending results for query id [%s]", query.getId());
-//      GuavaUtils.cancelAll(true, future, futures);
-//      throw new QueryInterruptedException(e);
-//    }
-//    catch (ExecutionException e) {
-//      GuavaUtils.cancelAll(true, future, futures);
-//      throw new RuntimeException(e);
-//    }
-//  }
-//
-//  private static class MemoryKeySerde implements KeySerde<Memory>
-//  {
-//    private final int keySize;
-//    private final GroupByColumnSelectorPlus[] dims;
-//    private final GroupByQuery query;
-//
-//    public MemoryKeySerde(GroupByColumnSelectorPlus[] dims, GroupByQuery query)
-//    {
-//      this.dims = dims;
-//      int keySize = 0;
-//      for (GroupByColumnSelectorPlus selectorPlus : dims) {
-//        keySize += selectorPlus.getColumnSelectorStrategy().getGroupingKeySize();
-//      }
-//      this.keySize = keySize;
-//
-//      this.query = query;
-//    }
-//
-//    @Override
-//    public int keySize()
-//    {
-//      return keySize;
-//    }
-//
-//    @Override
-//    public Class<Memory> keyClazz()
-//    {
-//      return Memory.class;
-//    }
-//
-//    @Override
-//    public List<String> getDictionary()
-//    {
-//      return ImmutableList.of(); // TODO: this is for spilling dictionary. do i need it? or do we every need it if we use merged dictionary?
-//    }
-//
-//    @Nullable
-//    @Override
-//    public ByteBuffer toByteBuffer(Memory key)
-//    {
-//      return key.getByteBuffer(); // TODO: is this correct?
-//    }
-//
-//    @Override
-//    public Memory fromByteBuffer(ByteBuffer buffer, int position)
-//    {
-//      return null;
-//    }
-//
-//    @Override
-//    public BufferComparator bufferComparator()
-//    {
-//      return null;
-//    }
-//
-//    @Override
-//    public BufferComparator bufferComparatorWithAggregators(
-//        AggregatorFactory[] aggregatorFactories,
-//        int[] aggregatorOffsets
-//    )
-//    {
-//      return null;
-//    }
-//
-//    @Override
-//    public void reset()
-//    {
-//
-//    }
-//  }
 }

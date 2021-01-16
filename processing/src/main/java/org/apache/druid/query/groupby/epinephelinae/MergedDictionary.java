@@ -21,7 +21,6 @@ package org.apache.druid.query.groupby.epinephelinae;
 
 import com.google.common.annotations.VisibleForTesting;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
-import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -32,18 +31,6 @@ public class MergedDictionary
   // segmentId -> original dict id -> new dict id
   private final int[][] dictIdConversion;
   private final String[] dictionary;
-
-  public MergedDictionary(Int2IntMap[] dictIdConversion, Int2ObjectMap<String> dictionary)
-  {
-    this.dictIdConversion = new int[dictIdConversion.length][];
-    for (int i = 0; i < dictIdConversion.length; i++) {
-      this.dictIdConversion[i] = new int[dictIdConversion[i].size()];
-      final int[] localVar = this.dictIdConversion[i];
-      dictIdConversion[i].forEach((k, v) -> localVar[k] = v);
-    }
-    this.dictionary = new String[dictionary.size()];
-    dictionary.forEach((k, v) -> this.dictionary[k] = v);
-  }
 
   public MergedDictionary(Int2IntMap[] dictIdConversion, List<String> dictionary)
   {
