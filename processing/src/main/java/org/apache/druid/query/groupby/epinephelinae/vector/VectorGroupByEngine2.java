@@ -378,28 +378,28 @@ public class VectorGroupByEngine2
       );
     }
 
-    private MemoryComparator[] getDimensionComparators(LimitSpec limitSpec)
-    {
-      MemoryComparator[] dimComparators = new MemoryComparator[selectors.size()];
-
-      int keyOffset = 0;
-      for (int i = 0; i < selectors.size(); i++) {
-        final String dimName = query.getDimensions().get(i).getOutputName();
-        final StringComparator stringComparator;
-        if (limitSpec instanceof DefaultLimitSpec) {
-          stringComparator = DefaultLimitSpec.getComparatorForDimName(
-              (DefaultLimitSpec) limitSpec,
-              dimName
-          );
-        } else {
-          stringComparator = StringComparators.LEXICOGRAPHIC;
-        }
-        dimComparators[i] = selectors.get(i).bufferComparator(keyOffset, stringComparator);
-        keyOffset += selectors.get(i).getGroupingKeySize();
-      }
-
-      return dimComparators;
-    }
+//    private MemoryComparator[] getDimensionComparators(LimitSpec limitSpec)
+//    {
+//      MemoryComparator[] dimComparators = new MemoryComparator[selectors.size()];
+//
+//      int keyOffset = 0;
+//      for (int i = 0; i < selectors.size(); i++) {
+//        final String dimName = query.getDimensions().get(i).getOutputName();
+//        final StringComparator stringComparator;
+//        if (limitSpec instanceof DefaultLimitSpec) {
+//          stringComparator = DefaultLimitSpec.getComparatorForDimName(
+//              (DefaultLimitSpec) limitSpec,
+//              dimName
+//          );
+//        } else {
+//          stringComparator = StringComparators.LEXICOGRAPHIC;
+//        }
+//        dimComparators[i] = selectors.get(i).bufferComparator(keyOffset, stringComparator);
+//        keyOffset += selectors.get(i).getGroupingKeySize();
+//      }
+//
+//      return dimComparators;
+//    }
   }
 
   public interface TimestampedIterator<T> extends CloseableIterator<T>

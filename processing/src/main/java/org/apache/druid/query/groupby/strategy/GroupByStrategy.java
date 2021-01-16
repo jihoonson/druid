@@ -182,13 +182,13 @@ public interface GroupByStrategy
   QueryRunner<ResultRow> mergeRunners(
       ListeningExecutorService exec,
       Iterable<QueryRunner<ResultRow>> queryRunners,
-      DictionaryMergingQueryRunner dictionaryMergingRunner
+      @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner
   );
 
   default QueryRunner<ResultRow> mergeRunners2(
       ListeningExecutorService exec,
       Iterable<SegmentGroupByQueryProcessor<ResultRow>> queryRunners,
-      DictionaryMergingQueryRunner dictionaryMergingRunner
+      @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
     throw new UnsupportedOperationException();

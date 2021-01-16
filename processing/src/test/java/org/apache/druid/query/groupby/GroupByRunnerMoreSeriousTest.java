@@ -102,8 +102,8 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
   private static final Map<String, Map<String, GroupByQuery>> SCHEMA_QUERY_MAP = new LinkedHashMap<>();
   private static final ObjectMapper JSON_MAPPER = new DefaultObjectMapper();
   private static final int RNG_SEED = 9999;
-  private static final int ROWS_PER_SEGMENT = 100000;
-  private static final int NUM_SEGMENTS = 16;
+  private static final int ROWS_PER_SEGMENT = 10;
+  private static final int NUM_SEGMENTS = 4;
   private static final int NUM_PROCESSING_THREADS = 16;
 
   private static IndexMergerV9 INDEX_MERGER;
@@ -116,10 +116,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
 
   private final List<GroupByQuery> testQueries = new ArrayList<>();
 
-
-  private GeneratorSchemaInfo schemaInfo;
   private GroupByQuery query;
-
   private ExecutorService executorService;
 
   @BeforeClass
@@ -131,14 +128,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
                 .addValue(ExprMacroTable.class.getName(), TestExprMacroTable.INSTANCE)
                 .addValue(ObjectMapper.class.getName(), JSON_MAPPER)
         ),
-        new ColumnConfig()
-        {
-          @Override
-          public int columnCacheSizeBytes()
-          {
-            return 0;
-          }
-        }
+        () -> 0
     );
     INDEX_MERGER = new IndexMergerV9(JSON_MAPPER, INDEX_IO, OffHeapMemorySegmentWriteOutMediumFactory.instance());
 
@@ -212,7 +202,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
       @Override
       public int getNumThreads()
       {
-        // Used by "v2" strategy for concurrencyHint
+        // Used by non-v1 strategies
         return NUM_PROCESSING_THREADS;
       }
 
@@ -303,7 +293,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
           .setDimensions(new DefaultDimensionSpec("dimSequential", null), new DefaultDimensionSpec("dimZipf", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(QUERY_GRANULARITY))
-          .setContext(ImmutableMap.of("vectorize", true, "earlyDictMerge", true))
+          .setContext(ImmutableMap.of("vectorize", true, "earlyDictMerge", false))
           .build();
       basicQueries.put("A", queryA);
     }

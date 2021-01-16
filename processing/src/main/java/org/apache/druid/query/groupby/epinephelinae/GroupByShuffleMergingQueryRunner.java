@@ -216,7 +216,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               final int sliceSize = mergeBufferHolder.get().capacity() / numHashBuckets; // TODO: what is mergeBufferSize for?
 
               final Supplier<MergedDictionary[]> mergedDictionariesSupplier;
-              if (config.isEarlyDictMerge() && dictionaryMergingRunner != null) { // TODO: no null check
+              if (querySpecificConfig.isEarlyDictMerge() && dictionaryMergingRunner != null) { // TODO: no null check
                 final List<ListenableFuture<MergingDictionary[]>> dictionaryMergingFutures = new ArrayList<>(query.getDimensions().size());
                 for (int i = 0; i < query.getDimensions().size(); i++) {
                   final List<DimensionSpec> dimension = Collections.singletonList(query.getDimensions().get(i));
@@ -394,7 +394,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           private CloseableIterator<ResultRow> nextDelegate(
               ProcessingCallableScheduler processingCallableScheduler,
               @Nullable DateTime currentTime,
-              Supplier<MergedDictionary[]> mergedDictionariesSupplier,
+              @Nullable Supplier<MergedDictionary[]> mergedDictionariesSupplier,
               List<TimestampedIterator<MemoryVectorEntry>>[] partitionedIterators,
               int keySize,
               int[] keyOffsets,
@@ -427,7 +427,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                 for (int rowIdx = 0; rowIdx < entry.getCurrentVectorSize(); rowIdx++) {
                   for (int dimIdx = 0; dimIdx < numDims; dimIdx++) {
                     if (query.getDimensions().get(dimIdx).getOutputType() == ValueType.STRING) {
-                      if (mergedDictionariesSupplier != null) {
+                      if (querySpecificConfig.isEarlyDictMerge() && mergedDictionariesSupplier != null) {
                         final long memoryOffset = rowIdx * keySize + keyOffsets[dimIdx];
                         final int oldDictId = keyMemory.getInt(memoryOffset);
                         assert entry.segmentId > -1;
@@ -628,7 +628,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               } else {
                 stringComparator = StringComparators.LEXICOGRAPHIC;
               }
-              dimComparators[i] = selectors.get(i).bufferComparator(keyOffset, stringComparator);
+              dimComparators[i] = selectors.get(i).memoryComparator(keyOffset, stringComparator);
               keyOffset += selectors.get(i).getGroupingKeySize();
             }
 

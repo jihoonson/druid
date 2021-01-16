@@ -116,7 +116,7 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
   public QueryRunner<ResultRow> mergeRunners(
       final ExecutorService exec,
       final Iterable<QueryRunner<ResultRow>> queryRunners,
-      final DictionaryMergingQueryRunner dictionaryMergingRunner
+      @Nullable final DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
     // mergeRunners should take ListeningExecutorService at some point

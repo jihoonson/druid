@@ -86,7 +86,7 @@ public class NullableFloatGroupByVectorColumnSelector implements GroupByVectorCo
   }
 
   @Override
-  public MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
+  public MemoryComparator memoryComparator(int keyOffset, @Nullable StringComparator stringComparator)
   {
     throw new UnsupportedOperationException();
   }

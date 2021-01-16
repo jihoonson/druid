@@ -19,10 +19,15 @@
 
 package org.apache.druid.query.groupby.epinephelinae.vector;
 
+import com.google.common.base.Supplier;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
+import org.apache.druid.common.config.NullHandling;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
+import org.apache.druid.query.groupby.epinephelinae.MergedDictionary;
 import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
+import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.epinephelinae.column.StringGroupByColumnSelectorStrategy;
 import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.query.ordering.StringComparators;
@@ -33,9 +38,9 @@ import javax.annotation.Nullable;
 
 public class SingleValueStringGroupByVectorColumnSelector implements GroupByVectorColumnSelector
 {
-  private final SingleValueDimensionVectorSelector selector;
+  private final SingleValueDimensionVectorSelector selector; // TODO: maybe can add isDictionaryEncoded to the selector?
   private final ColumnCapabilities columnCapabilities;
-  private final boolean encodeStrings;
+  private final boolean encodeStrings; // encodeString when deserialize to resultRow
 
   SingleValueStringGroupByVectorColumnSelector(
       final SingleValueDimensionVectorSelector selector,
@@ -75,12 +80,41 @@ public class SingleValueStringGroupByVectorColumnSelector implements GroupByVect
   }
 
   @Override
+  public void convertKeys(
+      final Supplier<MergedDictionary> mergedDictionariesSupplier,
+      final int segmentId,
+      final WritableMemory keySpace,
+      final int keySize,
+      final int keyOffset,
+      final int startRow,
+      final int endRow
+  )
+  {
+    assert encodeStrings;
+    if (encodeStrings && StringGroupByColumnSelectorStrategy.canUseDictionary(columnCapabilities)) {
+      assert segmentId > -1;
+      // convert dictionaries
+      for (int i = startRow, j = keyOffset; i < endRow; i++, j += keySize) {
+        final int oldDictId = keySpace.getInt(j);
+        final int newDictId = mergedDictionariesSupplier.get().getNewDictId(
+            segmentId,
+            oldDictId
+        );
+        keySpace.putInt(j, newDictId);
+      }
+    } else {
+      // do nothing
+    }
+  }
+
+  @Override
   public void writeKeyToResultRow(
       final Memory keyMemory,
       final int keyOffset,
       final PerSegmentEncodedResultRow resultRow,
       final int resultRowPosition,
       final int segmentId
+      // TODO: maybe decodeStrings should be added to here?
   )
   {
     final int id = keyMemory.getInt(keyOffset);
@@ -92,7 +126,7 @@ public class SingleValueStringGroupByVectorColumnSelector implements GroupByVect
   }
 
   @Override
-  public MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
+  public MemoryComparator memoryComparator(int keyOffset, @Nullable StringComparator stringComparator)
   {
     final boolean canCompareInts = StringGroupByColumnSelectorStrategy.canUseDictionary(columnCapabilities);
     final StringComparator comparator = stringComparator == null ? StringComparators.LEXICOGRAPHIC : stringComparator;

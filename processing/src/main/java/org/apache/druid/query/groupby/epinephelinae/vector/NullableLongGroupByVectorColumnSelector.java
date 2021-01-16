@@ -88,7 +88,7 @@ public class NullableLongGroupByVectorColumnSelector implements GroupByVectorCol
   }
 
   @Override
-  public MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator)
+  public MemoryComparator memoryComparator(int keyOffset, @Nullable StringComparator stringComparator)
   {
     throw new UnsupportedOperationException();
   }

@@ -19,9 +19,11 @@
 
 package org.apache.druid.query.groupby.epinephelinae.vector;
 
+import com.google.common.base.Supplier;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
+import org.apache.druid.query.groupby.epinephelinae.MergedDictionary;
 import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
 import org.apache.druid.query.ordering.StringComparator;
 
@@ -53,6 +55,19 @@ public interface GroupByVectorColumnSelector
   @SuppressWarnings("unused")
   void writeKeys(WritableMemory keySpace, int keySize, int keyOffset, int startRow, int endRow);
 
+  default void convertKeys(
+      Supplier<MergedDictionary> mergedDictionariesSupplier,
+      int segmentId,
+      WritableMemory keySpace,
+      int keySize,
+      int keyOffset,
+      int startRow,
+      int endRow
+  )
+  {
+    // do nothing
+  }
+
   /**
    * Write key parts for this column into a particular result row.
    *
@@ -69,5 +84,8 @@ public interface GroupByVectorColumnSelector
       int segmentId
   );
 
-  MemoryComparator bufferComparator(int keyOffset, @Nullable StringComparator stringComparator);
+  // TODO: maybe this method should be somewhere else rather than here.
+  // because this is a selector and a bit strange to create a comparator here.
+  // comparator is more about how to deserialize from memory
+  MemoryComparator memoryComparator(int keyOffset, @Nullable StringComparator stringComparator);
 }
