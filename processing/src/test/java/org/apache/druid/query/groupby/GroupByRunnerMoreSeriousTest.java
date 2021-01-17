@@ -102,7 +102,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
   private static final Map<String, Map<String, GroupByQuery>> SCHEMA_QUERY_MAP = new LinkedHashMap<>();
   private static final ObjectMapper JSON_MAPPER = new DefaultObjectMapper();
   private static final int RNG_SEED = 9999;
-  private static final int ROWS_PER_SEGMENT = 10;
+  private static final int ROWS_PER_SEGMENT = 100000;
   private static final int NUM_SEGMENTS = 4;
   private static final int NUM_PROCESSING_THREADS = 16;
 
@@ -293,7 +293,7 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
           .setDimensions(new DefaultDimensionSpec("dimSequential", null), new DefaultDimensionSpec("dimZipf", null))
           .setAggregatorSpecs(queryAggs)
           .setGranularity(Granularity.fromString(QUERY_GRANULARITY))
-          .setContext(ImmutableMap.of("vectorize", true, "earlyDictMerge", false))
+          .setContext(ImmutableMap.of("vectorize", true, "earlyDictMerge", true, "numHashBuckets", NUM_PROCESSING_THREADS))
           .build();
       basicQueries.put("A", queryA);
     }

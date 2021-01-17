@@ -124,7 +124,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
   private final String processingTmpDir;
   private final int mergeBufferSize;
   private final @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner;
-  private final int numHashBuckets;
 
   public GroupByShuffleMergingQueryRunner(
       GroupByQueryConfig config,
@@ -149,7 +148,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     this.processingTmpDir = processingTmpDir;
     this.mergeBufferSize = mergeBufferSize;
     this.dictionaryMergingRunner = dictionaryMergingRunner;
-    this.numHashBuckets = concurrencyHint;
   }
 
   @Override
@@ -157,6 +155,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
   {
     final GroupByQuery query = (GroupByQuery) queryPlus.getQuery();
     final GroupByQueryConfig querySpecificConfig = config.withOverrides(query);
+    final int numHashBuckets = querySpecificConfig.getNumHashBuckets(concurrencyHint);
 
     final QueryPlus<ResultRow> queryPlusForRunners = queryPlus
         .withQuery(query)

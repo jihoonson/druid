@@ -41,11 +41,6 @@ public class MergedDictionary
       dictIdConversion[i].forEach((k, v) -> localVar[k] = v);
     }
     this.dictionary = dictionary.toArray(new String[0]);
-
-//    for (int[] c : this.dictIdConversion) {
-//      System.err.print(Arrays.toString(c));
-//    }
-//    System.err.println();
   }
 
   public int getNewDictId(int segmentId, int originalDictId)
@@ -56,7 +51,6 @@ public class MergedDictionary
   @Nullable
   public String lookup(int newDictId)
   {
-//    System.err.println("dict len : " + dictionary.length + " new dict id: " + newDictId);
     return newDictId < 0 ? null : dictionary[newDictId];
   }
 
