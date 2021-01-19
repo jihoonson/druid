@@ -48,13 +48,13 @@ import org.apache.druid.query.AbstractPrioritizedCallable;
 import org.apache.druid.query.DictionaryConversion;
 import org.apache.druid.query.DictionaryMergeQuery;
 import org.apache.druid.query.DictionaryMergingQueryRunner;
+import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryInterruptedException;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.ResourceLimitExceededException;
-import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.MemoryVectorAggregators;
 import org.apache.druid.query.context.ResponseContext;
@@ -107,6 +107,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -279,6 +280,19 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   processingCallableScheduler,
                   priority
               );
+
+              timeSortedHashedIterators.initSegmentProcessingTasks();
+              final List<TimestampedIterators> iterators = new ArrayList<>();
+              while (!timeSortedHashedIterators.isAllIteratorsReady()) {
+                if (timeSortedHashedIterators.hasNextIteratorsReady()) {
+                   iterators.addAll(timeSortedHashedIterators.nextIteratorsReady());
+                  // partition bucket iterators
+                  // assign partitions to available callables
+                }
+                // process partitions for a while
+              }
+
+              // do the same as in below closeableIterator
 
               final int numDimensions = query.getResultRowAggregatorStart() - query.getResultRowDimensionStart();
               final int[] keyOffsets = new int[numDimensions];
@@ -1035,10 +1049,11 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
   {
     private final List<CloseableIterator<TimestampedIterators>> baseIterators;
     private final TimestampedIterators[] peeked;
-    private final ListenableFuture<TimestampedIterators>[] futures;
+    private final Future<TimestampedIterators>[] futures; // future for per-segment result
     private final ProcessingCallableScheduler processingCallableScheduler;
     private final int priority;
 
+    // TODO: should be created per timestamp
     private TimeSortedIterators(
         List<CloseableIterator<TimestampedIterators>> baseIterators,
         ProcessingCallableScheduler processingCallableScheduler,
@@ -1047,7 +1062,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     {
       this.baseIterators = baseIterators;
       this.peeked = new TimestampedIterators[baseIterators.size()];
-      this.futures = new ListenableFuture[baseIterators.size()];
+      this.futures = new Future[baseIterators.size()];
       this.processingCallableScheduler = processingCallableScheduler;
       this.priority = priority;
     }
@@ -1056,6 +1071,51 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     public boolean hasNext()
     {
       return Arrays.stream(peeked).anyMatch(Objects::nonNull) || baseIterators.stream().anyMatch(Iterator::hasNext);
+    }
+
+    public void initSegmentProcessingTasks()
+    {
+      for (int i = 0; i < peeked.length; i++) {
+        if (peeked[i] == null && baseIterators.get(i).hasNext()) {
+          final CloseableIterator<TimestampedIterators> baseIterator = baseIterators.get(i);
+          // baseIterator.next() computes hash aggregation on one segment (VectorGroupByEngineIterator.next())
+          futures[i] = processingCallableScheduler.scheduleSegmentProcessingTask(baseIterator::next);
+        }
+      }
+    }
+
+    public boolean hasNextIteratorsReady()
+    {
+      for (int i = 0; i < futures.length; i++) {
+        if (futures[i] != null && futures[i].isDone()) {
+          try {
+            peeked[i] = futures[i].get();
+            futures[i] = null;
+          }
+          catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+          }
+        }
+      }
+
+      return Arrays.stream(peeked).anyMatch(Objects::nonNull);
+    }
+
+    public boolean isAllIteratorsReady()
+    {
+      return Arrays.stream(futures).anyMatch(f -> f == null || f.isDone());
+    }
+
+    public List<TimestampedIterators> nextIteratorsReady()
+    {
+      final List<TimestampedIterators> next = new ArrayList<>();
+      for (int i = 0; i < peeked.length; i++) {
+        if (peeked[i] != null) {
+          next.add(peeked[i]);
+          peeked[i] = null;
+        }
+      }
+      return next;
     }
 
     @Override
@@ -1069,31 +1129,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
         if (peeked[i] == null && baseIterators.get(i).hasNext()) {
           final CloseableIterator<TimestampedIterators> baseIterator = baseIterators.get(i);
           // baseIterator.next() computes hash aggregation on one segment (VectorGroupByEngineIterator.next())
-          final SettableFuture<TimestampedIterators> resultFuture = SettableFuture.create();
-          processingCallableScheduler.schedule(
-              new ProcessingTask<TimestampedIterators>()
-              {
-                @Override
-                public TimestampedIterators run()
-                {
-                  return baseIterator.next();
-                }
-
-                @Override
-                public SettableFuture<TimestampedIterators> getResultFuture()
-                {
-                  return resultFuture;
-                }
-
-                @Override
-                public boolean isSentinel()
-                {
-                  return false;
-                }
-              }
-          );
-
-          futures[i] = resultFuture;
+          futures[i] = processingCallableScheduler.scheduleSegmentProcessingTask(baseIterator::next);
         }
       }
 
@@ -1137,34 +1173,58 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
   }
 
-  public static class ProcessingCallableScheduler
+  private static class ProcessingCallablePool
   {
     private final ExecutorService exec;
-    private final int numCallables;
+    private final int priority;
+    private final int maxNumCallables; // concurrencyHint
     private final List<ProcessingCallable> callables;
     private final List<Future<Void>> callableFutures;
     private final BlockingQueue<ProcessingTask> workQueue;
+    private final AtomicInteger numActiveCallables = new AtomicInteger();
 
     private boolean closed;
 
-    public ProcessingCallableScheduler(
+    public ProcessingCallablePool(
         ExecutorService exec,
         int priority,
-        int concurrencyHint,
-        int numHashBuckets,
-        int numQueryables
+        int concurrencyHint
     )
     {
       this.exec = exec;
-      this.numCallables = Math.min(concurrencyHint, Math.max(numHashBuckets, numQueryables));
-      this.callables = new ArrayList<>(numCallables);
-      this.callableFutures = new ArrayList<>(numCallables);
+      this.priority = priority;
+      this.maxNumCallables = concurrencyHint;
+      this.callables = new ArrayList<>(maxNumCallables);
+      this.callableFutures = new ArrayList<>(maxNumCallables);
       this.workQueue = new LinkedBlockingDeque<>();
-      IntStream.range(0, numCallables).forEach(i -> {
-        final ProcessingCallable callable = new ProcessingCallable(priority, workQueue);
-        callableFutures.add(exec.submit(callable));
-        callables.add(callable);
-      });
+    }
+
+    public void startCallablesToMax()
+    {
+      IntStream.range(callables.size(), maxNumCallables).forEach(i -> startNewCallable());
+    }
+
+    private void startNewCallable()
+    {
+      assert callables.size() < maxNumCallables - 1;
+      final ProcessingCallable callable = new ProcessingCallable(
+          priority,
+          workQueue,
+          numActiveCallables::incrementAndGet,
+          numActiveCallables::decrementAndGet
+      );
+      callableFutures.add(exec.submit(callable));
+      callables.add(callable);
+    }
+
+    private void stopCallable(int i)
+    {
+      assert callables.size() > 0;
+      // TODO: maybe interrupt is better?? or not because we will not want to interrupt things.. maybe?
+      // do you want to interrupt per-segment processing?
+      // do you want to interrupt merge task? no, it is split anyway
+      callableFutures.remove(i);
+      callables.remove(i).taskQueue.offer(ShutdownTask.SHUTDOWN_TASK);
     }
 
     public void schedule(ProcessingTask<?> task)
@@ -1191,6 +1251,139 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       }
     }
   }
+
+  private static class ProcessingCallableScheduler
+  {
+    private final ProcessingCallablePool callablePool;
+    private final AtomicInteger numActiveCallables;
+    private final List<ProcessingTask<?>> mergeTasks;
+
+    public ProcessingCallableScheduler(
+        ExecutorService exec,
+        int priority,
+        int concurrencyHint
+    )
+    {
+      this.callablePool = new ProcessingCallablePool(exec, priority, concurrencyHint);
+      this.numActiveCallables = new AtomicInteger(0);
+      this.mergeTasks = new ArrayList<>(concurrencyHint);
+
+      // start callables aggressively so that the tasks to compute per-segment aggregates can be executed
+      // at the same time as much as possible.
+      callablePool.startCallablesToMax();
+    }
+
+    public Future<TimestampedIterators> scheduleSegmentProcessingTask(Supplier<TimestampedIterators> iteratorsSupplier)
+    {
+      // take one idle callable
+      numActiveCallables.incrementAndGet();
+      callablePool.startCallablesToMax();
+      // run task
+      final SettableFuture<TimestampedIterators> resultFuture = SettableFuture.create();
+      callablePool.schedule(
+          new ProcessingTask<TimestampedIterators>()
+          {
+            @Override
+            public TimestampedIterators run()
+            {
+              return iteratorsSupplier.get();
+            }
+
+            @Override
+            public SettableFuture<TimestampedIterators> getResultFuture()
+            {
+              return resultFuture;
+            }
+
+            @Override
+            public boolean isSentinel()
+            {
+              return false;
+            }
+          }
+      );
+      // return callable
+      return resultFuture;
+    }
+
+    public void scheduleMergeTask(ProcessingTask<?> task)
+    {
+      if (mergeTasks.isEmpty()) {
+        // create one taskExecutor immediately when one is returnted to the pool
+        callablePool.startCallablesToMax();
+        callablePool.schedule(task);
+      } else {
+        // - wait until them to finish
+        for (ProcessingTask<?> eachRunningTask : mergeTasks) {
+          eachRunningTask.getResultFuture().get(); // TODO: timeout
+        }
+        // - check if iterators are ready.
+        // - create taskExecutors based on iterators ready and resources available in the pool
+        // - shutdown callables if they are not in use for a while
+        // - or create new callables up to concurrencyHint
+      }
+    }
+
+    public void shutdown()
+    {
+
+    }
+  }
+
+//  public static class ProcessingCallableScheduler
+//  {
+//    private final ExecutorService exec;
+//    private final int numCallables;
+//    private final List<ProcessingCallable> callables;
+//    private final List<Future<Void>> callableFutures;
+//    private final BlockingQueue<ProcessingTask> workQueue;
+//
+//    private boolean closed;
+//
+//    public ProcessingCallableScheduler(
+//        ExecutorService exec,
+//        int priority,
+//        int concurrencyHint,
+//        int numHashBuckets,
+//        int numQueryables
+//    )
+//    {
+//      this.exec = exec;
+//      this.numCallables = Math.min(concurrencyHint, Math.max(numHashBuckets, numQueryables));
+//      this.callables = new ArrayList<>(numCallables);
+//      this.callableFutures = new ArrayList<>(numCallables);
+//      this.workQueue = new LinkedBlockingDeque<>();
+//      IntStream.range(0, numCallables).forEach(i -> {
+//        final ProcessingCallable callable = new ProcessingCallable(priority, workQueue);
+//        callableFutures.add(exec.submit(callable));
+//        callables.add(callable);
+//      });
+//    }
+//
+//    public void schedule(ProcessingTask<?> task)
+//    {
+//      workQueue.offer(task);
+//    }
+//
+//    public void shutdown()
+//    {
+//      if (!closed) {
+//        closed = true;
+//        // TODO: fix how to shut down
+//        callables.forEach(c -> {
+//          c.taskQueue.offer(ShutdownTask.SHUTDOWN_TASK);
+//        });
+//        for (Future<Void> future : callableFutures) {
+//          try {
+//            future.get(); // TODO: handle timeout
+//          }
+//          catch (InterruptedException | ExecutionException e) {
+//            throw new RuntimeException(e); // TODO: handle exceptions
+//          }
+//        }
+//      }
+//    }
+//  }
 
   public interface ProcessingTask<T>
   {
@@ -1228,16 +1421,26 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
   public static class ProcessingCallable extends AbstractPrioritizedCallable<Void>
   {
     private final BlockingQueue<ProcessingTask> taskQueue;
+    private final Runnable startupHook;
+    private final Runnable shutdownHook;
 
-    public ProcessingCallable(int priority, BlockingQueue<ProcessingTask> taskQueue)
+    public ProcessingCallable(
+        int priority,
+        BlockingQueue<ProcessingTask> taskQueue,
+        Runnable startupHook,
+        Runnable shutdownHook
+    )
     {
       super(priority);
       this.taskQueue = taskQueue;
+      this.startupHook = startupHook;
+      this.shutdownHook = shutdownHook;
     }
 
     @Override
     public Void call() throws Exception
     {
+      startupHook.run();
       while (!Thread.currentThread().isInterrupted()) {
         final ProcessingTask task = taskQueue.take();
         if (task != null) {
@@ -1252,6 +1455,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           }
         }
       }
+      shutdownHook.run();
       return null;
     }
   }

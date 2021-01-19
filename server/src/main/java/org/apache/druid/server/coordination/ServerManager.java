@@ -30,6 +30,7 @@ import org.apache.druid.guice.annotations.Processing;
 import org.apache.druid.guice.annotations.Smile;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.guava.Comparators;
 import org.apache.druid.java.util.common.guava.FunctionalIterable;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
@@ -72,7 +73,9 @@ import org.apache.druid.timeline.partition.PartitionChunk;
 import org.apache.druid.timeline.partition.PartitionHolder;
 import org.joda.time.Interval;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -172,6 +175,9 @@ public class ServerManager implements QuerySegmentWalker
   @Override
   public <T> QueryRunner<T> getQueryRunnerForSegments(Query<T> query, Iterable<SegmentDescriptor> specs)
   {
+    final List<SegmentDescriptor> sortedSpecs = Lists.newArrayList(specs);
+    sortedSpecs.sort((s1, s2) -> Comparators.intervalsByStartThenEnd().compare(s1.getInterval(), s2.getInterval()));
+
     final QueryRunnerFactory<T, Query<T>> factory = conglomerate.findFactory(query);
     if (factory == null) {
       final QueryUnsupportedException e = new QueryUnsupportedException(
@@ -199,7 +205,7 @@ public class ServerManager implements QuerySegmentWalker
     if (maybeTimeline.isPresent()) {
       timeline = maybeTimeline.get();
     } else {
-      return new ReportTimelineMissingSegmentQueryRunner<>(Lists.newArrayList(specs));
+      return new ReportTimelineMissingSegmentQueryRunner<>(sortedSpecs);
     }
 
     // segmentMapFn maps each base Segment into a joined Segment if necessary.
@@ -216,7 +222,7 @@ public class ServerManager implements QuerySegmentWalker
     final SegmentIdMapper segmentIdMapper = new SegmentIdMapper();
     final DictionaryMergingQueryRunnerFactory dictionaryMergingQueryRunnerFactory = new DictionaryMergingQueryRunnerFactory();
     final FunctionalIterable<QueryRunner<List<Iterator<DictionaryConversion>>>> dictionaryScanners = FunctionalIterable
-        .create(specs)
+        .create(sortedSpecs)
         .transformCat(
             descriptor -> Collections.singletonList(
                 buildDictionaryMergingQueryRunnerForSegment(
@@ -235,7 +241,7 @@ public class ServerManager implements QuerySegmentWalker
     );
 
     final FunctionalIterable<QueryRunner<T>> queryRunners = FunctionalIterable
-        .create(specs)
+        .create(sortedSpecs)
         .transformCat(
             descriptor -> Collections.singletonList(
                 buildQueryRunnerForSegment(
