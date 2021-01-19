@@ -49,7 +49,7 @@ import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryRunnerTestHelper;
 import org.apache.druid.query.QueryToolChest;
-import org.apache.druid.query.SegmentGroupByQueryProcessor;
+import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.CountAggregatorFactory;
@@ -68,7 +68,6 @@ import org.apache.druid.segment.IndexMergerV9;
 import org.apache.druid.segment.IndexSpec;
 import org.apache.druid.segment.QueryableIndex;
 import org.apache.druid.segment.QueryableIndexSegment;
-import org.apache.druid.segment.column.ColumnConfig;
 import org.apache.druid.segment.generator.DataGenerator;
 import org.apache.druid.segment.generator.GeneratorBasicSchemas;
 import org.apache.druid.segment.generator.GeneratorSchemaInfo;
@@ -443,12 +442,12 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
     return runners;
   }
 
-  private List<SegmentGroupByQueryProcessor<ResultRow>> makeMultiRunners2(SegmentIdMapper segmentIdMapper)
+  private List<GroupByQuerySegmentProcessor<ResultRow>> makeMultiRunners2(SegmentIdMapper segmentIdMapper)
   {
-    List<SegmentGroupByQueryProcessor<ResultRow>> runners = new ArrayList<>();
+    List<GroupByQuerySegmentProcessor<ResultRow>> runners = new ArrayList<>();
     for (int i = 0; i < NUM_SEGMENTS; i++) {
       String segmentName = "qIndex " + i;
-      SegmentGroupByQueryProcessor<ResultRow> runner = QueryRunnerTestHelper.makeQueryRunner2(
+      GroupByQuerySegmentProcessor<ResultRow> runner = QueryRunnerTestHelper.makeQueryRunner2(
           FACTORY,
           SegmentId.dummy(segmentName),
           new QueryableIndexSegment(QUERYABLE_INDEXES.get(i), SegmentId.dummy(segmentName)),

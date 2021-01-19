@@ -49,7 +49,7 @@ import org.apache.druid.query.QueryDataSource;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryToolChest;
-import org.apache.druid.query.SegmentGroupByQueryProcessor;
+import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.SubqueryQueryRunner;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.MetricManipulationFn;
@@ -498,9 +498,9 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<ResultRow, GroupB
     );
   }
 
-  public SegmentGroupByQueryProcessor<ResultRow> preMergeQueryDecoration(final SegmentGroupByQueryProcessor<ResultRow> runner)
+  public GroupByQuerySegmentProcessor<ResultRow> preMergeQueryDecoration(final GroupByQuerySegmentProcessor<ResultRow> runner)
   {
-    return new SegmentGroupByQueryProcessor<ResultRow>()
+    return new GroupByQuerySegmentProcessor<ResultRow>()
     {
       @Override
       public CloseableIterator<TimestampedIterators> process(

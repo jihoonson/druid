@@ -27,7 +27,7 @@ import org.apache.druid.query.DictionaryMergingQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryRunnerFactory;
-import org.apache.druid.query.SegmentGroupByQueryProcessor;
+import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryQueryToolChest;
@@ -42,7 +42,7 @@ import java.util.Comparator;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BinaryOperator;
 
-public interface GroupByStrategy
+public interface GroupByStrategy<PerSegmentQueryRunner>
 {
   /**
    * Initializes resources required to run {@link GroupByQueryQueryToolChest#mergeResults(QueryRunner)} for a
@@ -181,13 +181,13 @@ public interface GroupByStrategy
    */
   QueryRunner<ResultRow> mergeRunners(
       ListeningExecutorService exec,
-      Iterable<QueryRunner<ResultRow>> queryRunners,
+      Iterable<PerSegmentQueryRunner> queryRunners,
       @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner
   );
 
   default QueryRunner<ResultRow> mergeRunners2(
       ListeningExecutorService exec,
-      Iterable<SegmentGroupByQueryProcessor<ResultRow>> queryRunners,
+      Iterable<GroupByQuerySegmentProcessor<ResultRow>> queryRunners,
       @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {

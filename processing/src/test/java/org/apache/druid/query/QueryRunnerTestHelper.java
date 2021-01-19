@@ -357,7 +357,7 @@ public class QueryRunnerTestHelper
     return !("rtIndex".equals(runnerName) || "noRollupRtIndex".equals(runnerName));
   }
 
-  public static boolean isTestRunnerVectorizable(SegmentGroupByQueryProcessor runner)
+  public static boolean isTestRunnerVectorizable(GroupByQuerySegmentProcessor runner)
   {
     return true;
   }
@@ -387,7 +387,7 @@ public class QueryRunnerTestHelper
     throw new UnsupportedOperationException();
   }
 
-  public static <T, QueryType extends Query<T>> List<Pair<SegmentGroupByQueryProcessor<T>, QueryRunner<List<Iterator<DictionaryConversion>>>>> makeQueryRunnersAndDictScanRunners(
+  public static <T, QueryType extends Query<T>> List<Pair<GroupByQuerySegmentProcessor<T>, QueryRunner<List<Iterator<DictionaryConversion>>>>> makeQueryRunnersAndDictScanRunners(
       QueryRunnerFactory2<T, QueryType> factory
   )
   {
@@ -457,7 +457,7 @@ public class QueryRunnerTestHelper
     throw new UnsupportedOperationException();
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
+  public static <T, QueryType extends Query<T>> GroupByQuerySegmentProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       String resourceFileName,
       final String runnerName
@@ -466,7 +466,7 @@ public class QueryRunnerTestHelper
     return makeQueryRunner2(factory, resourceFileName, runnerName, null);
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
+  public static <T, QueryType extends Query<T>> GroupByQuerySegmentProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       String resourceFileName,
       final String runnerName,
@@ -491,7 +491,7 @@ public class QueryRunnerTestHelper
     throw new UnsupportedOperationException();
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
+  public static <T, QueryType extends Query<T>> GroupByQuerySegmentProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       Segment adapter,
       final String runnerName
@@ -500,7 +500,7 @@ public class QueryRunnerTestHelper
     return makeQueryRunner2(factory, adapter, runnerName, null);
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
+  public static <T, QueryType extends Query<T>> GroupByQuerySegmentProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       Segment adapter,
       final String runnerName,
@@ -557,7 +557,7 @@ public class QueryRunnerTestHelper
     };
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
+  public static <T, QueryType extends Query<T>> GroupByQuerySegmentProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       SegmentId segmentId,
       Segment adapter,
@@ -567,7 +567,7 @@ public class QueryRunnerTestHelper
     return makeQueryRunner2(factory, segmentId, adapter, runnerName, null);
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
+  public static <T, QueryType extends Query<T>> GroupByQuerySegmentProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       SegmentId segmentId,
       Segment adapter,
@@ -575,7 +575,7 @@ public class QueryRunnerTestHelper
       @Nullable SegmentIdMapper segmentIdMapper // TODO: is this nullable? maybe null for topN
   )
   {
-    return new SegmentGroupByQueryProcessor<T>()
+    return new GroupByQuerySegmentProcessor<T>()
     {
       @Override
       public CloseableIterator<TimestampedIterators> process(
@@ -593,14 +593,14 @@ public class QueryRunnerTestHelper
     };
   }
 
-  public static <T, QueryType extends Query<T>> SegmentGroupByQueryProcessor<T> makeQueryRunner2(
+  public static <T, QueryType extends Query<T>> GroupByQuerySegmentProcessor<T> makeQueryRunner2(
       QueryRunnerFactory2<T, QueryType> factory,
       SegmentId segmentId,
       Segment adapter,
       @Nullable SegmentIdMapper segmentIdMapper // TODO: is this nullable? maybe null for topN
   )
   {
-    return new SegmentGroupByQueryProcessor<T>()
+    return new GroupByQuerySegmentProcessor<T>()
     {
       @Override
       public CloseableIterator<TimestampedIterators> process(

@@ -54,7 +54,7 @@ import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.ResourceLimitExceededException;
-import org.apache.druid.query.SegmentGroupByQueryProcessor;
+import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.MemoryVectorAggregators;
 import org.apache.druid.query.context.ResponseContext;
@@ -115,7 +115,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
   private static final Logger log = new Logger(GroupByMergingQueryRunnerV2.class);
 
   private final GroupByQueryConfig config;
-  private final Iterable<SegmentGroupByQueryProcessor<ResultRow>> queryables;
+  private final Iterable<GroupByQuerySegmentProcessor<ResultRow>> queryables;
   private final ListeningExecutorService exec;
   private final QueryWatcher queryWatcher;
   private final int concurrencyHint;
@@ -129,7 +129,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       GroupByQueryConfig config,
       ExecutorService exec,
       QueryWatcher queryWatcher,
-      Iterable<SegmentGroupByQueryProcessor<ResultRow>> queryables,
+      Iterable<GroupByQuerySegmentProcessor<ResultRow>> queryables,
       int concurrencyHint,
       BlockingPool<ByteBuffer> mergeBufferPool,
       int mergeBufferSize,

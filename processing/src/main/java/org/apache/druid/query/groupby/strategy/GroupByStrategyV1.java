@@ -59,7 +59,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 
-public class GroupByStrategyV1 implements GroupByStrategy
+public class GroupByStrategyV1 implements GroupByStrategy<QueryRunner<ResultRow>>
 {
   private final Supplier<GroupByQueryConfig> configSupplier;
   private final GroupByQueryEngine engine;

@@ -23,7 +23,7 @@ import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
 
-public interface SegmentGroupByQueryProcessor<T>
+public interface GroupByQuerySegmentProcessor<T>
 {
   // interval iterator -> iterators per hash partition
   CloseableIterator<TimestampedIterators> process(QueryPlus<T> queryPlus, ResponseContext responseContext);

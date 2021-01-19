@@ -52,7 +52,7 @@ import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.ResourceLimitExceededException;
 import org.apache.druid.query.ResultMergeQueryRunner;
-import org.apache.druid.query.SegmentGroupByQueryProcessor;
+import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.PostAggregator;
 import org.apache.druid.query.context.ResponseContext;
@@ -87,7 +87,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 
-public class GroupByStrategyV2 implements GroupByStrategy
+public class GroupByStrategyV2 implements GroupByStrategy<QueryRunner<ResultRow>>
 {
   public static final String CTX_KEY_FUDGE_TIMESTAMP = "fudgeTimestamp";
   public static final String CTX_KEY_OUTERMOST = "groupByOutermost";
@@ -611,7 +611,7 @@ public class GroupByStrategyV2 implements GroupByStrategy
   @Override
   public QueryRunner<ResultRow> mergeRunners2(
       ListeningExecutorService exec,
-      Iterable<SegmentGroupByQueryProcessor<ResultRow>> queryRunners,
+      Iterable<GroupByQuerySegmentProcessor<ResultRow>> queryRunners,
       @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {

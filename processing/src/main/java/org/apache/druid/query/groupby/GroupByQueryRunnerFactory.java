@@ -33,7 +33,7 @@ import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryRunnerFactory;
 import org.apache.druid.query.QueryRunnerFactory2;
 import org.apache.druid.query.QueryToolChest;
-import org.apache.druid.query.SegmentGroupByQueryProcessor;
+import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
@@ -75,7 +75,7 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
   }
 
   @Override
-  public SegmentGroupByQueryProcessor<ResultRow> createRunner2(SegmentIdMapper segmentIdMapper, Segment segment)
+  public GroupByQuerySegmentProcessor<ResultRow> createRunner2(SegmentIdMapper segmentIdMapper, Segment segment)
   {
     return new GroupByQueryRunner2(segmentIdMapper, segment, strategySelector);
   }
@@ -83,7 +83,7 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
   @Override
   public QueryRunner<ResultRow> mergeRunners2(
       ExecutorService exec,
-      Iterable<SegmentGroupByQueryProcessor<ResultRow>> queryRunners,
+      Iterable<GroupByQuerySegmentProcessor<ResultRow>> queryRunners,
       @Nullable DictionaryMergingQueryRunner dictionaryMergingRunner
   )
   {
@@ -177,7 +177,7 @@ public class GroupByQueryRunnerFactory implements QueryRunnerFactory<ResultRow, 
     return strategySelector;
   }
 
-  private static class GroupByQueryRunner2 implements SegmentGroupByQueryProcessor<ResultRow>
+  private static class GroupByQueryRunner2 implements GroupByQuerySegmentProcessor<ResultRow>
   {
     private final IdentifiableStorageAdapter adapter;
     private final GroupByStrategySelector strategySelector;

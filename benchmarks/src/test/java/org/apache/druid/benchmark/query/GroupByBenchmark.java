@@ -52,7 +52,7 @@ import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryRunnerFactory;
 import org.apache.druid.query.QueryToolChest;
-import org.apache.druid.query.SegmentGroupByQueryProcessor;
+import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.CountAggregatorFactory;
@@ -953,12 +953,12 @@ public class GroupByBenchmark
     return runners;
   }
 
-  private List<SegmentGroupByQueryProcessor<ResultRow>> makeMultiRunners2(QueryableIndexState state, SegmentIdMapper segmentIdMapper)
+  private List<GroupByQuerySegmentProcessor<ResultRow>> makeMultiRunners2(QueryableIndexState state, SegmentIdMapper segmentIdMapper)
   {
-    List<SegmentGroupByQueryProcessor<ResultRow>> runners = new ArrayList<>();
+    List<GroupByQuerySegmentProcessor<ResultRow>> runners = new ArrayList<>();
     for (int i = 0; i < state.numSegments; i++) {
       String segmentName = "qIndex " + i;
-      SegmentGroupByQueryProcessor<ResultRow> runner = QueryBenchmarkUtil.makeQueryRunner2(
+      GroupByQuerySegmentProcessor<ResultRow> runner = QueryBenchmarkUtil.makeQueryRunner2(
           factory,
           SegmentId.dummy(segmentName),
           new QueryableIndexSegment(state.queryableIndexes.get(i), SegmentId.dummy(segmentName)),
