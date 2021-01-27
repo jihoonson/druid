@@ -21,16 +21,15 @@ package org.apache.druid.benchmark.query;
 
 import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.java.util.common.guava.Sequence;
-import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.BySegmentQueryRunner;
 import org.apache.druid.query.DictionaryConversion;
 import org.apache.druid.query.DictionaryMergingQueryRunnerFactory;
 import org.apache.druid.query.FinalizeResultsQueryRunner;
+import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.IdentifiableQueryRunner;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
-import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.QueryRunnerFactory;
 import org.apache.druid.query.QueryRunnerFactory2;
 import org.apache.druid.query.QueryToolChest;
@@ -38,6 +37,7 @@ import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
+import org.apache.druid.query.groupby.epinephelinae.vector.TimeGranulizerIterator;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.timeline.SegmentId;
 
@@ -83,7 +83,7 @@ public class QueryBenchmarkUtil
     return new GroupByQuerySegmentProcessor<T>()
     {
       @Override
-      public CloseableIterator<TimestampedIterators> process(
+      public TimeGranulizerIterator<TimestampedIterators> process(
           QueryPlus<T> queryPlus, ResponseContext responseContext
       )
       {

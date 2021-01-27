@@ -34,7 +34,6 @@ import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.logger.Logger;
-import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.ColumnSelectorPlus;
 import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.QueryContexts;
@@ -56,6 +55,7 @@ import org.apache.druid.query.groupby.epinephelinae.column.GroupByColumnSelector
 import org.apache.druid.query.groupby.epinephelinae.column.LongGroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.epinephelinae.column.NullableNumericGroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.epinephelinae.column.StringGroupByColumnSelectorStrategy;
+import org.apache.druid.query.groupby.epinephelinae.vector.TimeGranulizerIterator;
 import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine;
 import org.apache.druid.query.groupby.epinephelinae.vector.VectorGroupByEngine2;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
@@ -194,7 +194,7 @@ public class GroupByQueryEngineV2
     }
   }
 
-  public static CloseableIterator<TimestampedIterators> process2(
+  public static TimeGranulizerIterator<TimestampedIterators> process2(
       final GroupByQuery query,
       final IdentifiableStorageAdapter storageAdapter,
       final NonBlockingPool<ByteBuffer> intermediateResultsBufferPool,
@@ -237,7 +237,7 @@ public class GroupByQueryEngineV2
       );
 
       if (doVectorize) {
-        final CloseableIterator<TimestampedIterators> delegate = VectorGroupByEngine2.process(
+        final TimeGranulizerIterator<TimestampedIterators> delegate = VectorGroupByEngine2.process(
             query,
             storageAdapter,
             bufferSupplier,
@@ -247,8 +247,15 @@ public class GroupByQueryEngineV2
             querySpecificConfig,
             processingConfig
         );
-        return new CloseableIterator<TimestampedIterators>()
+        return new TimeGranulizerIterator<TimestampedIterators>()
         {
+          @Nullable
+          @Override
+          public DateTime peekTime()
+          {
+            return delegate.peekTime();
+          }
+
           @Override
           public boolean hasNext()
           {

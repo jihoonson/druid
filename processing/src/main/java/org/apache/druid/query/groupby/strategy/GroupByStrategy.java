@@ -22,17 +22,17 @@ package org.apache.druid.query.groupby.strategy;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import org.apache.druid.java.util.common.UOE;
 import org.apache.druid.java.util.common.guava.Sequence;
-import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.DictionaryMergingQueryRunner;
+import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryRunnerFactory;
-import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryQueryToolChest;
 import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
+import org.apache.druid.query.groupby.epinephelinae.vector.TimeGranulizerIterator;
 import org.apache.druid.query.groupby.resource.GroupByQueryResource;
 import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.StorageAdapter;
@@ -208,7 +208,7 @@ public interface GroupByStrategy<PerSegmentQueryRunner>
    */
   Sequence<ResultRow> process(GroupByQuery query, IdentifiableStorageAdapter storageAdapter);
 
-  default CloseableIterator<TimestampedIterators> process2(
+  default TimeGranulizerIterator<TimestampedIterators> process2(
       GroupByQuery query,
       IdentifiableStorageAdapter storageAdapter
   )

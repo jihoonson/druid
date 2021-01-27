@@ -40,16 +40,15 @@ import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.MappedSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
-import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.CacheStrategy;
 import org.apache.druid.query.DataSource;
+import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.QueryDataSource;
 import org.apache.druid.query.QueryPlus;
 import org.apache.druid.query.QueryRunner;
 import org.apache.druid.query.QueryToolChest;
-import org.apache.druid.query.GroupByQuerySegmentProcessor;
 import org.apache.druid.query.SubqueryQueryRunner;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.MetricManipulationFn;
@@ -61,6 +60,7 @@ import org.apache.druid.query.dimension.DefaultDimensionSpec;
 import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.extraction.ExtractionFn;
 import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
+import org.apache.druid.query.groupby.epinephelinae.vector.TimeGranulizerIterator;
 import org.apache.druid.query.groupby.resource.GroupByQueryResource;
 import org.apache.druid.query.groupby.strategy.GroupByStrategy;
 import org.apache.druid.query.groupby.strategy.GroupByStrategySelector;
@@ -503,7 +503,7 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<ResultRow, GroupB
     return new GroupByQuerySegmentProcessor<ResultRow>()
     {
       @Override
-      public CloseableIterator<TimestampedIterators> process(
+      public TimeGranulizerIterator<TimestampedIterators> process(
           QueryPlus<ResultRow> queryPlus,
           ResponseContext responseContext
       )

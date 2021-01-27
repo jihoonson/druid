@@ -33,7 +33,6 @@ import org.apache.druid.java.util.common.granularity.Granularity;
 import org.apache.druid.java.util.common.guava.MergeSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.java.util.common.guava.Sequences;
-import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.js.JavaScriptConfig;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.CountAggregatorFactory;
@@ -56,6 +55,7 @@ import org.apache.druid.query.aggregation.post.FieldAccessPostAggregator;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
 import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
+import org.apache.druid.query.groupby.epinephelinae.vector.TimeGranulizerIterator;
 import org.apache.druid.query.spec.MultipleIntervalSegmentSpec;
 import org.apache.druid.query.spec.QuerySegmentSpec;
 import org.apache.druid.query.spec.SpecificSegmentSpec;
@@ -578,7 +578,7 @@ public class QueryRunnerTestHelper
     return new GroupByQuerySegmentProcessor<T>()
     {
       @Override
-      public CloseableIterator<TimestampedIterators> process(
+      public TimeGranulizerIterator<TimestampedIterators> process(
           QueryPlus<T> queryPlus, ResponseContext responseContext
       )
       {
@@ -603,7 +603,7 @@ public class QueryRunnerTestHelper
     return new GroupByQuerySegmentProcessor<T>()
     {
       @Override
-      public CloseableIterator<TimestampedIterators> process(
+      public TimeGranulizerIterator<TimestampedIterators> process(
           QueryPlus<T> queryPlus, ResponseContext responseContext
       )
       {

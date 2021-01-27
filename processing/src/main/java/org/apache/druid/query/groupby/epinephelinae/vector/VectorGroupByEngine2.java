@@ -22,8 +22,9 @@ package org.apache.druid.query.groupby.epinephelinae.vector;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.PeekingIterator;
 import org.apache.datasketches.memory.WritableMemory;
-import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
@@ -53,14 +54,13 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
 public class VectorGroupByEngine2
 {
-  public static CloseableIterator<TimestampedIterators> process(
+  public static TimeGranulizerIterator<TimestampedIterators> process(
       final GroupByQuery query,
       final IdentifiableStorageAdapter storageAdapter,
       Supplier<ByteBuffer> bufferSupplier,
@@ -79,11 +79,11 @@ public class VectorGroupByEngine2
     final int numHashTables = processingConfig.getNumThreads();
     final ByteBuffer processingBuffer = bufferSupplier.get();
 
-    return new CloseableIterator<TimestampedIterators>()
+    return new TimeGranulizerIterator<TimestampedIterators>()
     {
-      CloseableIterator<TimestampedIterators> delegate;
+      TimeGranulizerIterator<TimestampedIterators> delegate;
 
-      private CloseableIterator<TimestampedIterators> initDelegate()
+      private TimeGranulizerIterator<TimestampedIterators> initDelegate()
       {
         final VectorCursor cursor = storageAdapter.makeVectorCursor(
             Filters.toFilter(query.getDimFilter()),
@@ -96,7 +96,7 @@ public class VectorGroupByEngine2
 
         if (cursor == null) {
           // Return empty iterator.
-          return CloseableIterators.withEmptyBaggage(Collections.emptyIterator());
+          return TimeGranulizerIterator.withEmptyBaggage(Collections.emptyIterator());
         }
 
         try {
@@ -134,6 +134,16 @@ public class VectorGroupByEngine2
         }
       }
 
+      @Nullable
+      @Override
+      public DateTime peekTime()
+      {
+        if (delegate == null) {
+          throw new ISE("WTH");
+        }
+        return delegate.peekTime();
+      }
+
       @Override
       public boolean hasNext()
       {
@@ -162,7 +172,7 @@ public class VectorGroupByEngine2
     };
   }
 
-  static class VectorGroupByEngineIterator implements CloseableIterator<TimestampedIterators>
+  static class VectorGroupByEngineIterator implements TimeGranulizerIterator<TimestampedIterators>
   {
     private final int segmentId;
     private final GroupByQuery query;
@@ -179,7 +189,7 @@ public class VectorGroupByEngine2
     private final VectorCursorGranularizer granulizer;
 
     // Granularity-bucket iterator and current bucket.
-    private final Iterator<Interval> bucketIterator;
+    private final PeekingIterator<Interval> bucketIterator;
 
     private final List<ColumnCapabilities> dimensionCapabilities;
 
@@ -216,9 +226,9 @@ public class VectorGroupByEngine2
       this.granulizer = VectorCursorGranularizer.create(storageAdapter, cursor, query.getGranularity(), queryInterval);
 
       if (granulizer != null) {
-        this.bucketIterator = granulizer.getBucketIterable().iterator();
+        this.bucketIterator = Iterators.peekingIterator(granulizer.getBucketIterable().iterator());
       } else {
-        this.bucketIterator = Collections.emptyIterator();
+        this.bucketIterator = Iterators.peekingIterator(Collections.emptyIterator());
       }
 
       this.bucketInterval = this.bucketIterator.hasNext() ? this.bucketIterator.next() : null;
@@ -369,6 +379,12 @@ public class VectorGroupByEngine2
               })
               .collect(Collectors.toList()).toArray(new TimestampedIterator[0])
       );
+    }
+
+    @Override
+    public DateTime peekTime()
+    {
+      return bucketIterator.peek().getStart(); // start or interval?
     }
 
 //    private MemoryComparator[] getDimensionComparators(LimitSpec limitSpec)
