@@ -27,6 +27,8 @@ import java.util.Iterator;
 
 public interface TimeGranulizerIterator<T> extends CloseableIterator<T>
 {
+  boolean hasNextTime();
+
   @Nullable
   DateTime peekTime();
 
@@ -34,6 +36,18 @@ public interface TimeGranulizerIterator<T> extends CloseableIterator<T>
   {
     return new TimeGranulizerIterator<T>()
     {
+      boolean returnedTime = false;
+
+      @Override
+      public boolean hasNextTime()
+      {
+        if (!returnedTime) {
+          returnedTime = true;
+          return true;
+        }
+        return false;
+      }
+
       @Nullable
       @Override
       public DateTime peekTime()

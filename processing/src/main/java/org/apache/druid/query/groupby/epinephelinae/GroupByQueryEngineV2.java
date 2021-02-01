@@ -20,7 +20,6 @@
 package org.apache.druid.query.groupby.epinephelinae;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -32,7 +31,6 @@ import org.apache.druid.java.util.common.IAE;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.guava.BaseSequence;
 import org.apache.druid.java.util.common.guava.Sequence;
-import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.query.ColumnSelectorPlus;
 import org.apache.druid.query.DruidProcessingConfig;
@@ -213,13 +211,6 @@ public class GroupByQueryEngineV2
       throw new IAE("Should only have one interval, got[%s]", intervals);
     }
 
-    final Closer bufferCloser = Closer.create();
-    final Supplier<ByteBuffer> bufferSupplier = () -> {
-      final ResourceHolder<ByteBuffer> bufferHolder = intermediateResultsBufferPool.take();
-      bufferCloser.register(bufferHolder);
-      return bufferHolder.get();
-    };
-
     try {
       final String fudgeTimestampString = NullHandling.emptyToNullIfNeeded(
           query.getContextValue(GroupByStrategyV2.CTX_KEY_FUDGE_TIMESTAMP, null)
@@ -240,7 +231,7 @@ public class GroupByQueryEngineV2
         final TimeGranulizerIterator<TimestampedIterators> delegate = VectorGroupByEngine2.process(
             query,
             storageAdapter,
-            bufferSupplier,
+            intermediateResultsBufferPool,
             fudgeTimestamp,
             filter,
             interval,
@@ -249,6 +240,12 @@ public class GroupByQueryEngineV2
         );
         return new TimeGranulizerIterator<TimestampedIterators>()
         {
+          @Override
+          public boolean hasNextTime()
+          {
+            return delegate.hasNextTime();
+          }
+
           @Nullable
           @Override
           public DateTime peekTime()
@@ -271,8 +268,7 @@ public class GroupByQueryEngineV2
           @Override
           public void close() throws IOException
           {
-            bufferCloser.register(delegate);
-            bufferCloser.close();
+            delegate.close();
           }
         };
       } else {
@@ -280,12 +276,6 @@ public class GroupByQueryEngineV2
       }
     }
     catch (Throwable e) {
-      try {
-        bufferCloser.close();
-      }
-      catch (IOException ioException) {
-        e.addSuppressed(ioException);
-      }
       throw e;
     }
   }

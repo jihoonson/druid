@@ -20,11 +20,13 @@
 package org.apache.druid.query.groupby.epinephelinae.vector;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 import org.apache.datasketches.memory.WritableMemory;
+import org.apache.druid.collections.NonBlockingPool;
+import org.apache.druid.collections.ReferenceCountingResourceHolder;
+import org.apache.druid.collections.ResourceHolder;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
@@ -63,7 +65,7 @@ public class VectorGroupByEngine2
   public static TimeGranulizerIterator<TimestampedIterators> process(
       final GroupByQuery query,
       final IdentifiableStorageAdapter storageAdapter,
-      Supplier<ByteBuffer> bufferSupplier,
+      NonBlockingPool<ByteBuffer> processingBufferPool,
       @Nullable final DateTime fudgeTimestamp,
       @Nullable final Filter filter,
       final Interval interval,
@@ -77,7 +79,6 @@ public class VectorGroupByEngine2
 
     // processingConfig.numThreads == numHashTables
     final int numHashTables = processingConfig.getNumThreads();
-    final ByteBuffer processingBuffer = bufferSupplier.get();
 
     return new TimeGranulizerIterator<TimestampedIterators>()
     {
@@ -118,7 +119,7 @@ public class VectorGroupByEngine2
               cursor,
               interval,
               dimensions,
-              processingBuffer,
+              processingBufferPool,
               fudgeTimestamp,
               processingConfig.getNumThreads()
           );
@@ -134,12 +135,21 @@ public class VectorGroupByEngine2
         }
       }
 
+      @Override
+      public boolean hasNextTime()
+      {
+        if (delegate == null) {
+          delegate = initDelegate();
+        }
+        return delegate.hasNextTime();
+      }
+
       @Nullable
       @Override
       public DateTime peekTime()
       {
         if (delegate == null) {
-          throw new ISE("WTH");
+          delegate = initDelegate();
         }
         return delegate.peekTime();
       }
@@ -180,7 +190,7 @@ public class VectorGroupByEngine2
     private final StorageAdapter storageAdapter;
     private final VectorCursor cursor;
     private final List<GroupByVectorColumnSelector> selectors;
-    private final ByteBuffer processingBuffer;
+    private final NonBlockingPool<ByteBuffer> processingBufferPool;
     private final DateTime fudgeTimestamp;
     private final int keySize;
     private final WritableMemory keySpace;
@@ -200,6 +210,8 @@ public class VectorGroupByEngine2
 
     private int partiallyAggregatedRows = -1;
 
+    private ReferenceCountingResourceHolder<ByteBuffer> currentBufferHolder;
+
     VectorGroupByEngineIterator(
         final GroupByQuery query,
         final GroupByQueryConfig config,
@@ -207,7 +219,7 @@ public class VectorGroupByEngine2
         final VectorCursor cursor,
         final Interval queryInterval,
         final List<GroupByVectorColumnSelector> selectors,
-        final ByteBuffer processingBuffer,
+        final NonBlockingPool<ByteBuffer> processingBufferPool,
         @Nullable final DateTime fudgeTimestamp,
         final int numHashTables
     )
@@ -218,7 +230,7 @@ public class VectorGroupByEngine2
       this.storageAdapter = storageAdapter;
       this.cursor = cursor;
       this.selectors = selectors;
-      this.processingBuffer = processingBuffer;
+      this.processingBufferPool = processingBufferPool;
       this.fudgeTimestamp = fudgeTimestamp;
       this.keySize = selectors.stream().mapToInt(GroupByVectorColumnSelector::getGroupingKeySize).sum();
       this.keySpace = WritableMemory.allocate(keySize * cursor.getMaxVectorSize());
@@ -262,8 +274,11 @@ public class VectorGroupByEngine2
     @VisibleForTesting
     FixedSizeHashVectorGrouper makeGrouper()
     {
+      // this supplier takes one buffer from the processing buffer pool
+      final ResourceHolder<ByteBuffer> processingBufferHolder = processingBufferPool.take();
+      currentBufferHolder = new ReferenceCountingResourceHolder<>(processingBufferHolder.get(), processingBufferHolder);
       final FixedSizeHashVectorGrouper grouper = new FixedSizeHashVectorGrouper(
-          Suppliers.ofInstance(processingBuffer),
+          Suppliers.ofInstance(processingBufferHolder.get()),
           numHashTables,
           keySize,
           MemoryVectorAggregators.factorizeVector(
@@ -346,6 +361,11 @@ public class VectorGroupByEngine2
           entryIterators
               .stream()
               .map(entryIterator -> new TimestampedIterator<MemoryVectorEntry>() {
+
+                {
+                  currentBufferHolder.increment();
+                }
+
                 @Nullable
                 @Override
                 public DateTime getTimestamp()
@@ -374,11 +394,18 @@ public class VectorGroupByEngine2
                   Closer closer = Closer.create();
                   closer.register(vectorGrouper);
                   closer.register(entryIterator);
+                  closer.register(currentBufferHolder);
                   closer.close();
                 }
               })
               .collect(Collectors.toList()).toArray(new TimestampedIterator[0])
       );
+    }
+
+    @Override
+    public boolean hasNextTime()
+    {
+      return bucketIterator.hasNext();
     }
 
     @Override

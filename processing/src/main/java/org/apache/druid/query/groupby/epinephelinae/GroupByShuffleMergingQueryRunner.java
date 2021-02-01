@@ -25,7 +25,7 @@ import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -34,7 +34,6 @@ import com.google.common.util.concurrent.SettableFuture;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
-import org.apache.druid.collections.Releaser;
 import org.apache.druid.common.guava.SettableSupplier;
 import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.ISE;
@@ -96,17 +95,20 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -263,7 +265,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                 throw new UnsupportedOperationException("Cannot support variable-lengh keys. Enable earlyDictMerge.");
               }
 
-              // initialize some stuffs
+              // prepare some stuffs
               final int numDimensions = query.getResultRowAggregatorStart() - query.getResultRowDimensionStart();
               final int[] keyOffsets = new int[numDimensions];
               int offset = 0;
@@ -284,7 +286,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   .map(AggregatorFactory::getCombiningFactory)
                   .collect(Collectors.toList());
 
-
+              // create iterators that process segments
               List<TimeGranulizerIterator<TimestampedIterators>> hashedSequencesList = FluentIterable
                   .from(queryables)
                   .transform(runner2 -> runner2.process(queryPlusForRunners, responseContext))
@@ -293,119 +295,341 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
               final ProcessingCallableScheduler processingCallableScheduler = new ProcessingCallableScheduler(
                   exec,
                   priority,
+//                  Math.min(concurrencyHint, hashedSequencesList.size()) // TODO: this is right
                   concurrencyHint
               );
 
-              final SegmentProcessingTaskScheduler segmentProcessor = new SegmentProcessingTaskScheduler(
+              final SegmentProcessingTaskScheduler segmentProcessorScheduler = new SegmentProcessingTaskScheduler(
                   hashedSequencesList,
                   processingCallableScheduler,
                   concurrencyHint
               );
-              DateTime prevTime = null;
-              while (!segmentProcessor.isFinished()) {
-                // schedule segment processing tasks up to concurrencyHint
-                final DateTime currentTime = segmentProcessor.scheduleTasks();
-                // wait for at least one task of the min timestamp to finish
-                List<TimestampedIterators> iterators;
-                while ((iterators = segmentProcessor.getReadyIteratorsOfTime(currentTime)).isEmpty()) {
-                  Thread.sleep(100); // TODO: do better
-                }
-
-                // now we have callables available for merge tasks
-                final int numAvailableCallables = iterators.size();
-
-                // run short-period merge tasks so that we can adjust the parallelism of merge dynamically
-
-                // all partitions -> list of iterators of one partition
-                final List<List<TimestampedIterator<MemoryVectorEntry>>> partitionedIterators = IntStream
-                    .range(0, numHashBuckets)
-                    .mapToObj(i -> new ArrayList<TimestampedIterator<MemoryVectorEntry>>())
-                    .collect(Collectors.toList());
-                for (TimestampedIterators eachIterators : iterators) {
-                  for (int i = 0; i < eachIterators.iterators.length; i++) {
-                    partitionedIterators.get(i).add(eachIterators.iterators[i]);
-                  }
-                }
-                // all assignments -> all partitions of one assignment -> list of iterators of one partition
-                final List<List<List<TimestampedIterator<MemoryVectorEntry>>>> assignments = Lists.partition(
-                    partitionedIterators,
-                    numAvailableCallables
+              final BlockingQueue<TimeGranulizerIterator<TimestampedIterators>> baseIterators
+                  = new ArrayBlockingQueue<>(concurrencyHint);
+              final BlockingQueue<BucketProcessor> bucketQueue = new LinkedBlockingQueue<>();
+              final BucketProcessor[] bucketProcessors = new BucketProcessor[numHashBuckets];
+              for (int i = 0; i < numHashBuckets; i++) {
+                bucketProcessors[i] = new BucketProcessor(
+                    i,
+                    querySpecificConfig,
+                    query,
+                    keySize,
+                    keyOffsets,
+                    mergedDictionariesSupplier,
+                    dimensionCapabilities,
+                    combiningFactories,
+                    mergeBufferHolder,
+                    sliceSize
                 );
-
+                bucketQueue.add(bucketProcessors[i]);
               }
-
 
               return new CloseableIterator<ResultRow>()
               {
-                final List<TimestampedIterator<MemoryVectorEntry>>[] partitionedIterators = new List[numHashBuckets];
                 @Nullable CloseableIterator<ResultRow> delegate;
                 @Nullable DateTime currentTime = null;
 
                 @Override
                 public boolean hasNext()
                 {
-                  boolean hasNextDelegateIterators = true;
-                  while ((delegate == null || !delegate.hasNext()) && (hasNextDelegateIterators = timeSortedHashedIterators.hasNext())) {
-                    if (delegate != null) {
-                      try {
-                        delegate.close();
-                      }
-                      catch (IOException e) {
-                        throw new RuntimeException(e);
-                      }
-                    }
-                    for (int i = 0; i < numHashBuckets; i++) {
-                      partitionedIterators[i] = new ArrayList<>();
-                    }
-                    List<TimestampedIterators> iteratorsOfSameTimestamp = timeSortedHashedIterators.next();
-                    currentTime = iteratorsOfSameTimestamp.get(0).getTimestamp();
-                    for (TimestampedIterators eachIterators : iteratorsOfSameTimestamp) {
-                      for (int i = 0; i < eachIterators.iterators.length; i++) {
-                        partitionedIterators[i].add(eachIterators.iterators[i]);
-                      }
-                    }
-
-                    delegate = nextDelegate(
-                        processingCallableScheduler,
-                        currentTime,
-                        mergedDictionariesSupplier,
-                        partitionedIterators,
-                        keySize,
-                        keyOffsets,
-                        mergeBufferHolder,
-                        sliceSize,
-                        dimensionCapabilities
-                    );
-                  }
-                  if (!hasNextDelegateIterators) {
-//                     no more computation
-                    processingCallableScheduler.shutdown();
-                  }
-                  return delegate != null && delegate.hasNext();
+                  return (delegate != null && delegate.hasNext()) || !segmentProcessorScheduler.isFinished();
                 }
 
                 @Override
                 public ResultRow next()
                 {
-                  if (delegate == null || !delegate.hasNext()) {
+                  if (!hasNext()) {
                     throw new NoSuchElementException();
                   }
+                  if (delegate == null || !delegate.hasNext()) {
+                    delegate = nextDelegate();
+                  }
                   return delegate.next();
+                }
+
+                private CloseableIterator<ResultRow> nextDelegate()
+                {
+                  assert baseIterators.isEmpty();
+                  // find the min timestamp and process all of them
+                  List<SettableFuture<Void>> lastMergeFutures = new ArrayList<>(concurrencyHint);
+
+                  currentTime = segmentProcessorScheduler.nextTimestamp();
+                  baseIterators.addAll(segmentProcessorScheduler.findSegmentProcessings(currentTime));
+                  int numRemainingBaseIterators = baseIterators.size();
+
+                  while (numRemainingBaseIterators > 0) {
+                    // schedule segment tasks up to concurrencyHint
+                    final int numTasks = Math.min(numRemainingBaseIterators, concurrencyHint);
+                    numRemainingBaseIterators -= numTasks;
+                    for (int i = 0; i < numTasks; i++) {
+                      final SettableFuture<TimestampedIterators> segmentProcessFuture = SettableFuture.create();
+                      final SettableFuture<Void> mergeFuture = SettableFuture.create();
+
+                      if (lastMergeFutures.isEmpty()) {
+                        processingCallableScheduler.callablePool.schedule(
+                            new SegmentProcessTask(
+                                processingCallableScheduler.callablePool,
+                                baseIterators,
+                                segmentProcessFuture,
+                                concurrencyHint
+                            )
+                        );
+                      } else {
+                        Futures.addCallback( // TODO: a util method
+                            lastMergeFutures.remove(i),
+                            new FutureCallback<Void>()
+                            {
+                              @Override
+                              public void onSuccess(@Nullable Void result)
+                              {
+                                processingCallableScheduler.callablePool.schedule(
+                                    new SegmentProcessTask(
+                                        processingCallableScheduler.callablePool,
+                                        baseIterators,
+                                        segmentProcessFuture,
+                                        concurrencyHint
+                                    )
+                                );
+                              }
+
+                              @Override
+                              public void onFailure(Throwable t)
+                              {
+                              }
+                            }
+                        );
+                      }
+                      lastMergeFutures.add(mergeFuture);
+
+                      // attach merge tasks
+                      Futures.addCallback(
+                          segmentProcessFuture,
+                          new FutureCallback<TimestampedIterators>()
+                          {
+                            @Override
+                            public void onSuccess(@Nullable TimestampedIterators result)
+                            {
+                              if (result == null) {
+                                throw new ISE("WHF?");
+                              }
+                              for (int i = 0; i < result.iterators.length; i++) {
+                                bucketProcessors[i].add(result.iterators[i]);
+                              }
+                              processingCallableScheduler.callablePool.schedule(
+                                  new BucketMergeTask(bucketQueue, mergeFuture)
+                              );
+                            }
+
+                            @Override
+                            public void onFailure(Throwable t)
+                            {
+                              // TODO: do i need to do anything?
+                            }
+                          }
+                      );
+                    }
+                    if (numTasks < concurrencyHint) {
+                      // kill idle callables
+                      IntStream.range(numTasks, concurrencyHint).forEach(
+                          i -> processingCallableScheduler.callablePool.schedule(ShutdownTask.SHUTDOWN_TASK)
+                      );
+                    }
+                  }
+
+                  try {
+                    Futures.allAsList(lastMergeFutures).get(); // TODO: timeout
+                  }
+                  catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException(e); // TODO: exception handling
+                  }
+                  // parallel sort and convert to resultRow
+                  final int numSortTasks = Math.min(concurrencyHint, numHashBuckets);
+                  final List<ListenableFuture<CloseableIterator<ResultRow>>> sortFutures = new ArrayList<>(numSortTasks);
+                  processingCallableScheduler.callablePool.startCallablesUpToMax(numSortTasks);
+                  for (int i = 0; i < numSortTasks; i++) {
+                    final BucketProcessor bucketProcessor = bucketProcessors[i];
+                    final SettableFuture<CloseableIterator<ResultRow>> sortFuture = SettableFuture.create();
+                    sortFutures.add(sortFuture);
+                    processingCallableScheduler.callablePool.schedule(
+                        new ProcessingTask<CloseableIterator<ResultRow>>()
+                        {
+                          @Override
+                          public CloseableIterator<ResultRow> run()
+                          {
+                            return CloseableIterators.wrap(
+                                bucketProcessor.grouper.iterator(bucketProcessor.memoryComparator)
+                                       .map(entry -> {
+                                         final PerSegmentEncodedResultRow resultRow = PerSegmentEncodedResultRow.create(
+                                             query.getResultRowSizeWithoutPostAggregators()
+                                         );
+                                         if (query.getResultRowHasTimestamp()) {
+                                           assert currentTime != null;
+                                           resultRow.set(0, currentTime.getMillis());
+                                         }
+
+                                         // Add dimensions.
+                                         int keyOffset = 0;
+                                         for (int i = 0; i < bucketProcessor.columnSelectors.size(); i++) {
+                                           final GroupByVectorColumnSelector selector = bucketProcessor.columnSelectors.get(i);
+
+                                           selector.writeKeyToResultRow(
+                                               entry.getKey(),
+                                               keyOffset,
+                                               resultRow,
+                                               query.getResultRowDimensionStart() + i,
+                                               -1
+                                           );
+
+                                           keyOffset += selector.getGroupingKeySize();
+                                         }
+
+                                         GroupByQueryEngineV2.convertRowTypesToOutputTypes(
+                                             query.getDimensions(),
+                                             resultRow,
+                                             query.getResultRowDimensionStart(),
+                                             0,
+                                             dimensionCapabilities,
+                                             false
+                                         );
+
+                                         for (int j = 0; j < entry.getValues().length; j++) {
+                                           resultRow.set(
+                                               query.getResultRowAggregatorStart() + j,
+                                               -1,
+                                               entry.getValues()[j]
+                                           );
+                                         }
+//                                     System.err.println(Thread.currentThread() + ", row conversion: " + Groupers.deserializeToRow(-1, entry.getKey(), entry.getValues()) + " -> " + resultRow);
+                                         return resultRow;
+                                       }),
+                                bucketProcessor.grouper
+                            );
+                          }
+
+                          @Override
+                          public SettableFuture<CloseableIterator<ResultRow>> getResultFuture()
+                          {
+                            return sortFuture;
+                          }
+
+                          @Override
+                          public boolean isSentinel()
+                          {
+                            return false;
+                          }
+                        }
+                    );
+                  }
+
+                  // TODO: handle timeout
+                  try {
+                    Futures.allAsList(sortFutures).get();
+                  }
+                  catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException(e); // TODO: exception handling
+                  }
+                  final List<CloseableIterator<ResultRow>> resultIterators = sortFutures.stream().map(f -> {
+                    try {
+                      return f.get();
+                    }
+                    catch (InterruptedException | ExecutionException e) {
+                      throw new RuntimeException(e); // TODO: exception handling
+                    }
+                  }).collect(Collectors.toList());
+
+                  return CloseableIterators.mergeSorted(
+                      resultIterators,
+                      // TODO: i don't have to compare timestamp at all because all rows should have the same timestamp
+                      // in the one delegate iterator. however, this doesn't seem very expensive. so maybe i can fix it later.
+                      query.getRowOrdering(false)
+                  );
                 }
 
                 @Override
                 public void close() throws IOException
                 {
                   Closer closer = Closer.create();
-                  closer.register(() -> processingCallableScheduler.shutdown());
+                  closer.register(processingCallableScheduler::shutdown);
                   if (delegate != null) {
                     closer.register(delegate);
                   }
-                  closer.register(timeSortedHashedIterators);
                   closer.register(resources);
                   closer.close();
                 }
               };
+
+
+//              return new CloseableIterator<ResultRow>()
+//              {
+//                final List<TimestampedIterator<MemoryVectorEntry>>[] partitionedIterators = new List[numHashBuckets];
+//                @Nullable CloseableIterator<ResultRow> delegate;
+//                @Nullable DateTime currentTime = null;
+//
+//                @Override
+//                public boolean hasNext()
+//                {
+//                  boolean hasNextDelegateIterators = true;
+//                  while ((delegate == null || !delegate.hasNext()) && (hasNextDelegateIterators = timeSortedHashedIterators.hasNext())) {
+//                    if (delegate != null) {
+//                      try {
+//                        delegate.close();
+//                      }
+//                      catch (IOException e) {
+//                        throw new RuntimeException(e);
+//                      }
+//                    }
+//                    for (int i = 0; i < numHashBuckets; i++) {
+//                      partitionedIterators[i] = new ArrayList<>();
+//                    }
+//                    List<TimestampedIterators> iteratorsOfSameTimestamp = timeSortedHashedIterators.next();
+//                    currentTime = iteratorsOfSameTimestamp.get(0).getTimestamp();
+//                    for (TimestampedIterators eachIterators : iteratorsOfSameTimestamp) {
+//                      for (int i = 0; i < eachIterators.iterators.length; i++) {
+//                        partitionedIterators[i].add(eachIterators.iterators[i]);
+//                      }
+//                    }
+//
+//                    delegate = nextDelegate(
+//                        processingCallableScheduler,
+//                        currentTime,
+//                        mergedDictionariesSupplier,
+//                        partitionedIterators,
+//                        keySize,
+//                        keyOffsets,
+//                        mergeBufferHolder,
+//                        sliceSize,
+//                        dimensionCapabilities
+//                    );
+//                  }
+//                  if (!hasNextDelegateIterators) {
+////                     no more computation
+//                    processingCallableScheduler.shutdown();
+//                  }
+//                  return delegate != null && delegate.hasNext();
+//                }
+//
+//                @Override
+//                public ResultRow next()
+//                {
+//                  if (delegate == null || !delegate.hasNext()) {
+//                    throw new NoSuchElementException();
+//                  }
+//                  return delegate.next();
+//                }
+//
+//                @Override
+//                public void close() throws IOException
+//                {
+//                  Closer closer = Closer.create();
+//                  closer.register(() -> processingCallableScheduler.shutdown());
+//                  if (delegate != null) {
+//                    closer.register(delegate);
+//                  }
+//                  closer.register(timeSortedHashedIterators);
+//                  closer.register(resources);
+//                  closer.close();
+//                }
+//              };
             }
             catch (Throwable t) {
               // Exception caught while setting up the iterator; release resources.
@@ -419,215 +643,215 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
             }
           }
 
-          private CloseableIterator<ResultRow> nextDelegate(
-              ProcessingCallableScheduler processingCallableScheduler,
-              @Nullable DateTime currentTime,
-              @Nullable Supplier<MergedDictionary[]> mergedDictionariesSupplier,
-              List<TimestampedIterator<MemoryVectorEntry>>[] partitionedIterators,
-              int keySize,
-              int[] keyOffsets,
-              ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder,
-              int sliceSize,
-              List<ColumnCapabilities> dimensionCapabilities
-          )
-          {
-            List<AggregatorFactory> combiningFactories = query
-                .getAggregatorSpecs()
-                .stream()
-                .map(AggregatorFactory::getCombiningFactory)
-                .collect(Collectors.toList());
-
-            final int numDims = query.getResultRowAggregatorStart() - query.getResultRowDimensionStart();
-            final List<ListenableFuture<CloseableIterator<ResultRow>>> futures = new ArrayList<>();
-            for (int i = 0; i < numHashBuckets; i++) {
-              final CloseableIterator<MemoryVectorEntry> concatIterator = CloseableIterators.concat(
-                  partitionedIterators[i]
-              ).map(entry -> {
-                final WritableMemory keyMemory = entry.getKeys();
-
-//                StringBuilder keys = new StringBuilder(Thread.currentThread() + ", dict conversion: ");
-//                for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
-//                  keys.append(keyMemory.getInt(k * keySize)).append(", ");
-//                  keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
-//                }
-
-                // Convert dictionary
-                for (int rowIdx = 0; rowIdx < entry.getCurrentVectorSize(); rowIdx++) {
-                  for (int dimIdx = 0; dimIdx < numDims; dimIdx++) {
-                    // TODO: maybe GroupByVectorColumnConvertor or something..
-                    if (query.getDimensions().get(dimIdx).getOutputType() == ValueType.STRING) {
-                      if (querySpecificConfig.isEarlyDictMerge() && mergedDictionariesSupplier != null) {
-                        final long memoryOffset = rowIdx * keySize + keyOffsets[dimIdx];
-                        final int oldDictId = keyMemory.getInt(memoryOffset);
-                        assert entry.segmentId > -1;
-                        final int newDictId = mergedDictionariesSupplier.get()[dimIdx].getNewDictId(
-                            entry.segmentId,
-                            oldDictId
-                        );
-                        keyMemory.putInt(memoryOffset, newDictId);
-                      } else {
-                        throw new UnsupportedOperationException();
-                      }
-                    }
-                  }
-                }
-
-//                keys.append(" -> ");
-//                for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
-//                  keys.append(keyMemory.getInt(k * keySize)).append(", ");
-//                  keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
+//          private CloseableIterator<ResultRow> nextDelegate(
+//              ProcessingCallableScheduler processingCallableScheduler,
+//              @Nullable DateTime currentTime,
+//              @Nullable Supplier<MergedDictionary[]> mergedDictionariesSupplier,
+//              List<TimestampedIterator<MemoryVectorEntry>>[] partitionedIterators,
+//              int keySize,
+//              int[] keyOffsets,
+//              ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder,
+//              int sliceSize,
+//              List<ColumnCapabilities> dimensionCapabilities
+//          )
+//          {
+//            List<AggregatorFactory> combiningFactories = query
+//                .getAggregatorSpecs()
+//                .stream()
+//                .map(AggregatorFactory::getCombiningFactory)
+//                .collect(Collectors.toList());
+//
+//            final int numDims = query.getResultRowAggregatorStart() - query.getResultRowDimensionStart();
+//            final List<ListenableFuture<CloseableIterator<ResultRow>>> futures = new ArrayList<>();
+//            for (int i = 0; i < numHashBuckets; i++) {
+//              final CloseableIterator<MemoryVectorEntry> concatIterator = CloseableIterators.concat(
+//                  partitionedIterators[i]
+//              ).map(entry -> {
+//                final WritableMemory keyMemory = entry.getKeys();
+//
+////                StringBuilder keys = new StringBuilder(Thread.currentThread() + ", dict conversion: ");
+////                for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
+////                  keys.append(keyMemory.getInt(k * keySize)).append(", ");
+////                  keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
+////                }
+//
+//                // Convert dictionary
+//                for (int rowIdx = 0; rowIdx < entry.getCurrentVectorSize(); rowIdx++) {
+//                  for (int dimIdx = 0; dimIdx < numDims; dimIdx++) {
+//                    // TODO: maybe GroupByVectorColumnConvertor or something..
+//                    if (query.getDimensions().get(dimIdx).getOutputType() == ValueType.STRING) {
+//                      if (querySpecificConfig.isEarlyDictMerge() && mergedDictionariesSupplier != null) {
+//                        final long memoryOffset = rowIdx * keySize + keyOffsets[dimIdx];
+//                        final int oldDictId = keyMemory.getInt(memoryOffset);
+//                        assert entry.segmentId > -1;
+//                        final int newDictId = mergedDictionariesSupplier.get()[dimIdx].getNewDictId(
+//                            entry.segmentId,
+//                            oldDictId
+//                        );
+//                        keyMemory.putInt(memoryOffset, newDictId);
+//                      } else {
+//                        throw new UnsupportedOperationException();
+//                      }
+//                    }
+//                  }
 //                }
 //
-//                System.err.println(keys);
-
-                return entry;
-              });
-
-              final SettableSupplier<MemoryVectorEntry> currentBufferSupplier = new SettableSupplier<>();
-              final VectorColumnSelectorFactory columnSelectorFactory = new MemoryVectorEntryColumnSelectorFactory(
-                  query,
-                  currentBufferSupplier,
-                  keySize,
-                  keyOffsets,
-                  mergedDictionariesSupplier,
-                  combiningFactories
-              );
-              final List<GroupByVectorColumnSelector> dimensions = query.getDimensions().stream().map(
-                  dimensionSpec ->
-                      DimensionHandlerUtils.makeVectorProcessor(
-                          dimensionSpec,
-                          GroupByVectorColumnProcessorFactory.instance(),
-                          columnSelectorFactory,
-                          false
-                      )
-              ).collect(Collectors.toList());
-              final MemoryComparator memoryComparator = GrouperBufferComparatorUtils.memoryComparator(
-                  false,
-                  query.getContextSortByDimsFirst(),
-                  query.getDimensions().size(),
-                  getDimensionComparators(dimensions, query.getLimitSpec())
-              );
-
-              // TODO: maybe can reuse
-              final FixedSizeHashVectorGrouper grouper = new FixedSizeHashVectorGrouper(
-                  Suppliers.ofInstance(Groupers.getSlice(mergeBufferHolder.get(), sliceSize, i)),
-                  1,
-                  keySize,
-                  MemoryVectorAggregators.factorizeVector(
-                      columnSelectorFactory,
-                      combiningFactories
-                  ),
-                  querySpecificConfig.getBufferGrouperMaxSize(),
-                  querySpecificConfig.getBufferGrouperMaxLoadFactor(),
-                  querySpecificConfig.getBufferGrouperInitialBuckets()
-              );
-              grouper.initVectorized(QueryContexts.getVectorSize(query)); // TODO: can i get the max vector size in a different way? this seems no good
-              final SettableFuture<CloseableIterator<ResultRow>> resultFuture = SettableFuture.create();
-              processingCallableScheduler.schedule(
-                  new ProcessingTask<CloseableIterator<ResultRow>>()
-                  {
-                    @Override
-                    public CloseableIterator<ResultRow> run() throws Exception
-                    {
-                      //noinspection unused
-                      try (Releaser releaser = mergeBufferHolder.increment();
-                           CloseableIterator<MemoryVectorEntry> iteratorCloser = concatIterator) {
-                        while (concatIterator.hasNext()) {
-                          final MemoryVectorEntry entry = concatIterator.next();
-                          currentBufferSupplier.set(entry);
-                          grouper.aggregateVector(entry.getKeys(), 0, entry.curVectorSize);
-                        }
-                        return CloseableIterators.wrap(
-                            grouper.iterator(memoryComparator)
-                                   .map(entry -> {
-                                     final PerSegmentEncodedResultRow resultRow = PerSegmentEncodedResultRow.create(
-                                         query.getResultRowSizeWithoutPostAggregators()
-                                     );
-                                     if (query.getResultRowHasTimestamp()) {
-                                       assert currentTime != null;
-                                       resultRow.set(0, currentTime.getMillis());
-                                     }
-
-                                     // Add dimensions.
-                                     int keyOffset = 0;
-                                     for (int i = 0; i < dimensions.size(); i++) {
-                                       final GroupByVectorColumnSelector selector = dimensions.get(i);
-
-                                       selector.writeKeyToResultRow(
-                                           entry.getKey(),
-                                           keyOffset,
-                                           resultRow,
-                                           query.getResultRowDimensionStart() + i,
-                                           -1
-                                       );
-
-                                       keyOffset += selector.getGroupingKeySize();
-                                     }
-
-                                     GroupByQueryEngineV2.convertRowTypesToOutputTypes(
-                                         query.getDimensions(),
-                                         resultRow,
-                                         query.getResultRowDimensionStart(),
-                                         0,
-                                         dimensionCapabilities,
-                                         false
-                                     );
-
-                                     for (int j = 0; j < entry.getValues().length; j++) {
-                                       resultRow.set(
-                                           query.getResultRowAggregatorStart() + j,
-                                           -1,
-                                           entry.getValues()[j]
-                                       );
-                                     }
-//                                     System.err.println(Thread.currentThread() + ", row conversion: " + Groupers.deserializeToRow(-1, entry.getKey(), entry.getValues()) + " -> " + resultRow);
-                                     return resultRow;
-                                   }),
-                            grouper
-                        );
-                      }
-                    }
-
-                    @Override
-                    public SettableFuture<CloseableIterator<ResultRow>> getResultFuture()
-                    {
-                      return resultFuture;
-                    }
-
-                    @Override
-                    public boolean isSentinel()
-                    {
-                      return false;
-                    }
-                  }
-              );
-
-              futures.add(resultFuture);
-            }
-
-            // TODO: handle timeout
-            try {
-              Futures.allAsList(futures).get();
-            }
-            catch (InterruptedException | ExecutionException e) {
-              throw new RuntimeException(e); // TODO: exception handling
-            }
-            final List<CloseableIterator<ResultRow>> resultIterators = futures.stream().map(f -> {
-              try {
-                return f.get();
-              }
-              catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e); // TODO: exception handling
-              }
-            }).collect(Collectors.toList());
-
-            return CloseableIterators.mergeSorted(
-                resultIterators,
-                // TODO: i don't have to compare timestamp at all because all rows should have the same timestamp
-                // in the one delegate iterator. however, this doesn't seem very expensive. so maybe i can fix it later.
-                query.getRowOrdering(false)
-            );
-          }
+////                keys.append(" -> ");
+////                for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
+////                  keys.append(keyMemory.getInt(k * keySize)).append(", ");
+////                  keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
+////                }
+////
+////                System.err.println(keys);
+//
+//                return entry;
+//              });
+//
+//              final SettableSupplier<MemoryVectorEntry> currentBufferSupplier = new SettableSupplier<>();
+//              final VectorColumnSelectorFactory columnSelectorFactory = new MemoryVectorEntryColumnSelectorFactory(
+//                  query,
+//                  currentBufferSupplier,
+//                  keySize,
+//                  keyOffsets,
+//                  mergedDictionariesSupplier,
+//                  combiningFactories
+//              );
+//              final List<GroupByVectorColumnSelector> dimensions = query.getDimensions().stream().map(
+//                  dimensionSpec ->
+//                      DimensionHandlerUtils.makeVectorProcessor(
+//                          dimensionSpec,
+//                          GroupByVectorColumnProcessorFactory.instance(),
+//                          columnSelectorFactory,
+//                          false
+//                      )
+//              ).collect(Collectors.toList());
+//              final MemoryComparator memoryComparator = GrouperBufferComparatorUtils.memoryComparator(
+//                  false,
+//                  query.getContextSortByDimsFirst(),
+//                  query.getDimensions().size(),
+//                  getDimensionComparators(dimensions, query.getLimitSpec())
+//              );
+//
+//              // TODO: maybe can reuse
+//              final FixedSizeHashVectorGrouper grouper = new FixedSizeHashVectorGrouper(
+//                  Suppliers.ofInstance(Groupers.getSlice(mergeBufferHolder.get(), sliceSize, i)),
+//                  1,
+//                  keySize,
+//                  MemoryVectorAggregators.factorizeVector(
+//                      columnSelectorFactory,
+//                      combiningFactories
+//                  ),
+//                  querySpecificConfig.getBufferGrouperMaxSize(),
+//                  querySpecificConfig.getBufferGrouperMaxLoadFactor(),
+//                  querySpecificConfig.getBufferGrouperInitialBuckets()
+//              );
+//              grouper.initVectorized(QueryContexts.getVectorSize(query)); // TODO: can i get the max vector size in a different way? this seems no good
+//              final SettableFuture<CloseableIterator<ResultRow>> resultFuture = SettableFuture.create();
+//              processingCallableScheduler.schedule(
+//                  new ProcessingTask<CloseableIterator<ResultRow>>()
+//                  {
+//                    @Override
+//                    public CloseableIterator<ResultRow> run() throws Exception
+//                    {
+//                      //noinspection unused
+//                      try (Releaser releaser = mergeBufferHolder.increment();
+//                           CloseableIterator<MemoryVectorEntry> iteratorCloser = concatIterator) {
+//                        while (concatIterator.hasNext()) {
+//                          final MemoryVectorEntry entry = concatIterator.next();
+//                          currentBufferSupplier.set(entry);
+//                          grouper.aggregateVector(entry.getKeys(), 0, entry.curVectorSize);
+//                        }
+//                        return CloseableIterators.wrap(
+//                            grouper.iterator(memoryComparator)
+//                                   .map(entry -> {
+//                                     final PerSegmentEncodedResultRow resultRow = PerSegmentEncodedResultRow.create(
+//                                         query.getResultRowSizeWithoutPostAggregators()
+//                                     );
+//                                     if (query.getResultRowHasTimestamp()) {
+//                                       assert currentTime != null;
+//                                       resultRow.set(0, currentTime.getMillis());
+//                                     }
+//
+//                                     // Add dimensions.
+//                                     int keyOffset = 0;
+//                                     for (int i = 0; i < dimensions.size(); i++) {
+//                                       final GroupByVectorColumnSelector selector = dimensions.get(i);
+//
+//                                       selector.writeKeyToResultRow(
+//                                           entry.getKey(),
+//                                           keyOffset,
+//                                           resultRow,
+//                                           query.getResultRowDimensionStart() + i,
+//                                           -1
+//                                       );
+//
+//                                       keyOffset += selector.getGroupingKeySize();
+//                                     }
+//
+//                                     GroupByQueryEngineV2.convertRowTypesToOutputTypes(
+//                                         query.getDimensions(),
+//                                         resultRow,
+//                                         query.getResultRowDimensionStart(),
+//                                         0,
+//                                         dimensionCapabilities,
+//                                         false
+//                                     );
+//
+//                                     for (int j = 0; j < entry.getValues().length; j++) {
+//                                       resultRow.set(
+//                                           query.getResultRowAggregatorStart() + j,
+//                                           -1,
+//                                           entry.getValues()[j]
+//                                       );
+//                                     }
+////                                     System.err.println(Thread.currentThread() + ", row conversion: " + Groupers.deserializeToRow(-1, entry.getKey(), entry.getValues()) + " -> " + resultRow);
+//                                     return resultRow;
+//                                   }),
+//                            grouper
+//                        );
+//                      }
+//                    }
+//
+//                    @Override
+//                    public SettableFuture<CloseableIterator<ResultRow>> getResultFuture()
+//                    {
+//                      return resultFuture;
+//                    }
+//
+//                    @Override
+//                    public boolean isSentinel()
+//                    {
+//                      return false;
+//                    }
+//                  }
+//              );
+//
+//              futures.add(resultFuture);
+//            }
+//
+//            // TODO: handle timeout
+//            try {
+//              Futures.allAsList(futures).get();
+//            }
+//            catch (InterruptedException | ExecutionException e) {
+//              throw new RuntimeException(e); // TODO: exception handling
+//            }
+//            final List<CloseableIterator<ResultRow>> resultIterators = futures.stream().map(f -> {
+//              try {
+//                return f.get();
+//              }
+//              catch (InterruptedException | ExecutionException e) {
+//                throw new RuntimeException(e); // TODO: exception handling
+//              }
+//            }).collect(Collectors.toList());
+//
+//            return CloseableIterators.mergeSorted(
+//                resultIterators,
+//                // TODO: i don't have to compare timestamp at all because all rows should have the same timestamp
+//                // in the one delegate iterator. however, this doesn't seem very expensive. so maybe i can fix it later.
+//                query.getRowOrdering(false)
+//            );
+//          }
 
           @Override
           public void cleanup(CloseableIterator<ResultRow> iterFromMake)
@@ -664,6 +888,59 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           }
         }
     );
+  }
+
+  private CloseableIterator<MemoryVectorEntry> decorateDictConversion(
+      GroupByQuery query,
+      GroupByQueryConfig querySpecificConfig,
+      @Nullable CloseableIterator<MemoryVectorEntry> iterator,
+      int numDims,
+      Supplier<MergedDictionary[]> mergedDictionariesSupplier,
+      int keySize,
+      int[] keyOffsets
+  )
+  {
+    return iterator
+        .map(entry -> {
+          final WritableMemory keyMemory = entry.getKeys();
+
+//                StringBuilder keys = new StringBuilder(Thread.currentThread() + ", dict conversion: ");
+//                for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
+//                  keys.append(keyMemory.getInt(k * keySize)).append(", ");
+//                  keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
+//                }
+
+          // Convert dictionary
+          for (int rowIdx = 0; rowIdx < entry.getCurrentVectorSize(); rowIdx++) {
+            for (int dimIdx = 0; dimIdx < numDims; dimIdx++) {
+              // TODO: maybe GroupByVectorColumnConvertor or something..
+              if (query.getDimensions().get(dimIdx).getOutputType() == ValueType.STRING) {
+                if (querySpecificConfig.isEarlyDictMerge() && mergedDictionariesSupplier != null) {
+                  final long memoryOffset = rowIdx * keySize + keyOffsets[dimIdx];
+                  final int oldDictId = keyMemory.getInt(memoryOffset);
+                  assert entry.segmentId > -1;
+                  final int newDictId = mergedDictionariesSupplier.get()[dimIdx].getNewDictId(
+                      entry.segmentId,
+                      oldDictId
+                  );
+                  keyMemory.putInt(memoryOffset, newDictId);
+                } else {
+                  throw new UnsupportedOperationException();
+                }
+              }
+            }
+          }
+
+//                keys.append(" -> ");
+//                for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
+//                  keys.append(keyMemory.getInt(k * keySize)).append(", ");
+//                  keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
+//                }
+//
+//                System.err.println(keys);
+
+          return entry;
+        });
   }
 
   private int typeSize(ValueType valueType)
@@ -1077,8 +1354,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     private final ProcessingCallableScheduler processingCallableScheduler;
     private final int concurrencyHint;
 
-    private List<SegmentProcessing> activeProcessings;
-
     private SegmentProcessingTaskScheduler(
         List<TimeGranulizerIterator<TimestampedIterators>> baseIterators,
         ProcessingCallableScheduler processingCallableScheduler,
@@ -1091,66 +1366,51 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
 
     @Nullable
-    private DateTime scheduleTasks()
+    private DateTime nextTimestamp()
     {
-      activeProcessings = segmentProcessings
+      return segmentProcessings
           .stream()
-          .filter(processing -> !processing.isDone())
-          .collect(Collectors.toList());
-
-      activeProcessings.sort(
-          (p1, p2) -> {
-            // nulls last
-            if (p1.baseIterator.peekTime() == null) {
-              return -1;
-            } else if (p2.baseIterator.peekTime() == null) {
-              return 1;
-            } else {
-              return p1.baseIterator.peekTime().compareTo(p2.baseIterator.peekTime());
-            }
-          }
-      );
-
-      for (int i = 0; i < Math.min(concurrencyHint, activeProcessings.size()); i++) {
-        if (activeProcessings.get(i).peeked == null && activeProcessings.get(i).baseIterator.hasNext()) {
-          final CloseableIterator<TimestampedIterators> baseIterator = activeProcessings.get(i).baseIterator;
-          // baseIterator.next() computes hash aggregation on one segment (VectorGroupByEngineIterator.next())
-          activeProcessings.get(i).future = processingCallableScheduler.scheduleSegmentProcessingTask(baseIterator::next);
-        }
-      }
-      return activeProcessings.get(0).baseIterator.peekTime();
+          .filter(p -> p.baseIterator.hasNextTime())
+          .map(p -> p.baseIterator.peekTime())
+          .min(Comparator.nullsLast(Comparator.naturalOrder()))
+          .orElse(null);
     }
 
-    public List<TimestampedIterators> getReadyIteratorsOfTime(@Nullable DateTime time)
+    private List<TimeGranulizerIterator<TimestampedIterators>> findSegmentProcessings(@Nullable DateTime currentTime)
     {
-      for (SegmentProcessing processing : activeProcessings) {
-        if (processing.future != null && processing.future.isDone()) {
-          try {
-            processing.peeked = processing.future.get();
-            processing.future = null;
-          }
-          catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e); // TODO: handle properly
-          }
-        }
-      }
-
-      return activeProcessings
+      return segmentProcessings
           .stream()
-          .filter(processing -> Objects.equals(processing.baseIterator.peekTime(), time))
-          .map(processing -> processing.peeked)
-          .filter(Objects::nonNull)
+          .filter(p -> p.baseIterator.hasNextTime())
+          .filter(p -> Objects.equals(p.baseIterator.peekTime(), currentTime))
+          .map(p -> p.baseIterator)
           .collect(Collectors.toList());
     }
+
+//    public List<TimestampedIterators> getReadyIteratorsOfTime(@Nullable DateTime time)
+//    {
+//      for (SegmentProcessing processing : activeProcessings) {
+//        if (processing.future != null && processing.future.isDone()) {
+//          try {
+//            processing.peeked = processing.future.get();
+//            processing.future = null;
+//          }
+//          catch (InterruptedException | ExecutionException e) {
+//            throw new RuntimeException(e); // TODO: handle properly
+//          }
+//        }
+//      }
+//
+//      return activeProcessings
+//          .stream()
+//          .filter(processing -> Objects.equals(processing.baseIterator.peekTime(), time))
+//          .map(processing -> processing.peeked)
+//          .filter(Objects::nonNull)
+//          .collect(Collectors.toList());
+//    }
 
     public boolean isFinished()
     {
       return segmentProcessings.stream().allMatch(SegmentProcessing::isDone);
-    }
-
-    private void waitUntilAtLeastOneTaskOfGivenTimeToFinish(@Nullable DateTime time)
-    {
-
     }
   }
 
@@ -1161,7 +1421,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     @Nullable
     private TimestampedIterators peeked;
     @Nullable
-    private Future<TimestampedIterators> future;
+    private ListenableFuture<TimestampedIterators> future;
 
     private SegmentProcessing(TimeGranulizerIterator<TimestampedIterators> baseIterator)
     {
@@ -1171,6 +1431,112 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     private boolean isDone()
     {
       return !baseIterator.hasNext();
+    }
+  }
+
+  private static class SegmentProcessTask implements ProcessingTask<TimestampedIterators>
+  {
+    private final ProcessingCallablePool pool;
+    private final BlockingQueue<TimeGranulizerIterator<TimestampedIterators>> baseIterators;
+    private final SettableFuture<TimestampedIterators> resultFuture;
+    private final int concurrencyHint;
+
+    private SegmentProcessTask(
+        ProcessingCallablePool pool,
+        BlockingQueue<TimeGranulizerIterator<TimestampedIterators>> baseIterators,
+        SettableFuture<TimestampedIterators> resultFuture,
+        int concurrencyHint
+    )
+    {
+      this.pool = pool;
+      this.baseIterators = baseIterators;
+      this.resultFuture = resultFuture;
+      this.concurrencyHint = concurrencyHint;
+    }
+
+    @Override
+    public TimestampedIterators run() throws Exception
+    {
+      pool.startCallablesUpToMax(Math.min(concurrencyHint, baseIterators.size()));
+      final TimeGranulizerIterator<TimestampedIterators> baseIterator = baseIterators.poll();
+      if (baseIterator == null) {
+        // queue is empty, which means we have no more work
+        // TODO: schedule sentinal task to the callable where it is running this task. or we can schedule it when this returns null
+        // TODO: maybe should not happen
+      } else {
+        assert baseIterator.hasNext();
+        final TimestampedIterators result = baseIterator.next();
+        return result;
+      }
+      throw new ISE("WTH?");
+    }
+
+    @Override
+    public SettableFuture<TimestampedIterators> getResultFuture()
+    {
+      return resultFuture;
+    }
+
+    @Override
+    public boolean isSentinel()
+    {
+      return false;
+    }
+  }
+
+  private static class BucketMergeTask implements ProcessingTask<Void>
+  {
+    private final BlockingQueue<BucketProcessor> bucketQueue;
+    private final SettableFuture<Void> resultFuture;
+
+    private BucketMergeTask(
+        BlockingQueue<BucketProcessor> bucketQueue,
+        SettableFuture<Void> resultFuture
+    )
+    {
+      this.bucketQueue = bucketQueue;
+      this.resultFuture = resultFuture;
+    }
+
+    @Override
+    public Void run() throws Exception
+    {
+      // TODO: proper retry
+      for (int bucketPollTry = 0; bucketPollTry < 10;) {
+        // TODO: proper timeout
+        final BucketProcessor bucketProcessor = bucketQueue.poll(100, TimeUnit.MILLISECONDS);
+        if (bucketProcessor != null) {
+          // TODO: proper retry
+          for (int itPollTry = 0; itPollTry < 10;) {
+            // TODO: simplify this. don't need to poll and process.
+            CloseableIterator<MemoryVectorEntry> iterator = bucketProcessor.poll();
+            if (iterator != null) {
+              bucketProcessor.process(iterator);
+            } else {
+              itPollTry++;
+            }
+          }
+          bucketQueue.add(bucketProcessor);
+        } else {
+          bucketPollTry++;
+        }
+      }
+
+      // TODO: there is no work for you. you can go now.
+
+      return null;
+    }
+
+    @Override
+    public SettableFuture<Void> getResultFuture()
+    {
+      return resultFuture;
+    }
+
+    @Override
+    public boolean isSentinel()
+    {
+      return false;
     }
   }
 
@@ -1302,7 +1668,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
   }
 
-  private static class ProcessingCallablePool
+  public static class ProcessingCallablePool
   {
     private final ExecutorService exec;
     private final int priority;
@@ -1328,14 +1694,17 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       this.workQueue = new LinkedBlockingDeque<>();
     }
 
-    public void startCallablesToMax()
+    public void startCallablesUpToMax(int max)
     {
-      IntStream.range(callables.size(), maxNumCallables).forEach(i -> startNewCallable());
+      // TODO: validate concurrency model
+      synchronized (this) {
+        IntStream.range(callables.size(), max).forEach(i -> startNewCallable());
+      }
     }
 
     private void startNewCallable()
     {
-      assert callables.size() < maxNumCallables - 1;
+      assert callables.size() < maxNumCallables;
       final ProcessingCallable callable = new ProcessingCallable(
           priority,
           workQueue,
@@ -1381,11 +1750,9 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
   }
 
-  private static class ProcessingCallableScheduler
+  public static class ProcessingCallableScheduler
   {
     private final ProcessingCallablePool callablePool;
-    private final AtomicInteger numActiveCallables;
-    private final List<ProcessingTask<?>> mergeTasks;
 
     public ProcessingCallableScheduler(
         ExecutorService exec,
@@ -1394,19 +1761,16 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     )
     {
       this.callablePool = new ProcessingCallablePool(exec, priority, concurrencyHint);
-      this.numActiveCallables = new AtomicInteger(0);
-      this.mergeTasks = new ArrayList<>(concurrencyHint);
 
       // start callables aggressively so that the tasks to compute per-segment aggregates can be executed
       // at the same time as much as possible.
-      callablePool.startCallablesToMax();
+      callablePool.startCallablesUpToMax(concurrencyHint);
     }
 
-    public Future<TimestampedIterators> scheduleSegmentProcessingTask(Supplier<TimestampedIterators> iteratorsSupplier)
+    public ListenableFuture<TimestampedIterators> scheduleSegmentProcessingTask(Supplier<TimestampedIterators> iteratorsSupplier)
     {
       // take one idle callable
-      numActiveCallables.incrementAndGet();
-      callablePool.startCallablesToMax(); // TODO: is this correct?
+//      callablePool.startCallablesUpToMax(); // TODO: is this correct?
       // run task
       final SettableFuture<TimestampedIterators> resultFuture = SettableFuture.create();
       callablePool.schedule(
@@ -1433,108 +1797,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       );
       // return callable
       return resultFuture;
-    }
-
-    public Future<Void> scheduleShortPeriodMergeTask(
-        GroupByQueryConfig querySpecificConfig,
-        GroupByQuery query,
-        @Nullable Supplier<MergedDictionary[]> mergedDictionariesSupplier,
-        List<List<TimestampedIterator<MemoryVectorEntry>>> bucketIterators,
-        int keySize,
-        int[] keyOffsets,
-        int numDims
-    )
-    {
-      final SettableFuture<Void> resultFuture = SettableFuture.create();
-      callablePool.schedule(
-          new ProcessingTask<Void>()
-          {
-            @Override
-            public Void run()
-            {
-              for (List<TimestampedIterator<MemoryVectorEntry>> eachBucketIterator : bucketIterators) {
-                final CloseableIterator<MemoryVectorEntry> concatIterator = CloseableIterators
-                    .concat(eachBucketIterator)
-                    .map(entry -> {
-                      final WritableMemory keyMemory = entry.getKeys();
-
-//                StringBuilder keys = new StringBuilder(Thread.currentThread() + ", dict conversion: ");
-//                for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
-//                  keys.append(keyMemory.getInt(k * keySize)).append(", ");
-//                  keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
-//                }
-
-                      // Convert dictionary
-                      for (int rowIdx = 0; rowIdx < entry.getCurrentVectorSize(); rowIdx++) {
-                        for (int dimIdx = 0; dimIdx < numDims; dimIdx++) {
-                          // TODO: maybe GroupByVectorColumnConvertor or something..
-                          if (query.getDimensions().get(dimIdx).getOutputType() == ValueType.STRING) {
-                            if (querySpecificConfig.isEarlyDictMerge() && mergedDictionariesSupplier != null) {
-                              final long memoryOffset = rowIdx * keySize + keyOffsets[dimIdx];
-                              final int oldDictId = keyMemory.getInt(memoryOffset);
-                              assert entry.segmentId > -1;
-                              final int newDictId = mergedDictionariesSupplier.get()[dimIdx].getNewDictId(
-                                  entry.segmentId,
-                                  oldDictId
-                              );
-                              keyMemory.putInt(memoryOffset, newDictId);
-                            } else {
-                              throw new UnsupportedOperationException();
-                            }
-                          }
-                        }
-                      }
-
-//                keys.append(" -> ");
-//                for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
-//                  keys.append(keyMemory.getInt(k * keySize)).append(", ");
-//                  keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
-//                }
-//
-//                System.err.println(keys);
-
-                      return entry;
-                    });
-
-                for (int i = 0; i < 1000 && concatIterator.hasNext(); i++) {
-
-                }
-              }
-              return null;
-            }
-
-            @Override
-            public SettableFuture<Void> getResultFuture()
-            {
-              return resultFuture;
-            }
-
-            @Override
-            public boolean isSentinel()
-            {
-              return false;
-            }
-          }
-      );
-      return resultFuture;
-    }
-
-    public void scheduleMergeTask(ProcessingTask<?> task)
-    {
-      if (mergeTasks.isEmpty()) {
-        // create one taskExecutor immediately when one is returnted to the pool
-        callablePool.startCallablesToMax();
-        callablePool.schedule(task);
-      } else {
-        // - wait until them to finish
-        for (ProcessingTask<?> eachRunningTask : mergeTasks) {
-          eachRunningTask.getResultFuture().get(); // TODO: timeout
-        }
-        // - check if iterators are ready.
-        // - create taskExecutors based on iterators ready and resources available in the pool
-        // - shutdown callables if they are not in use for a while
-        // - or create new callables up to concurrencyHint
-      }
     }
 
     public void shutdown()
@@ -1673,7 +1935,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
   }
 
-  public static class TimestampedIterators implements Closeable
+  public static class TimestampedIterators
   {
     private final TimestampedIterator<MemoryVectorEntry>[] iterators;
 
@@ -1686,14 +1948,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     DateTime getTimestamp()
     {
       return iterators[0].getTimestamp();
-    }
-
-    @Override
-    public void close() throws IOException
-    {
-      Closer closer = Closer.create();
-      Arrays.stream(iterators).forEach(closer::register);
-      closer.close();
     }
   }
 
@@ -1772,6 +2026,132 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     catch (ExecutionException e) {
       future.cancel(true);
       throw new RuntimeException(e);
+    }
+  }
+
+  private static class BucketProcessor implements Closeable
+  {
+    private final SettableSupplier<MemoryVectorEntry> currentBufferSupplier = new SettableSupplier<>();
+
+    private final GroupByQuery query;
+    private final List<ColumnCapabilities> dimensionCapabilities;
+    private final ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder;
+
+    private final VectorColumnSelectorFactory columnSelectorFactory;
+    private final List<GroupByVectorColumnSelector> columnSelectors;
+    private final MemoryComparator memoryComparator;
+    private final FixedSizeHashVectorGrouper grouper;
+
+    private final BlockingQueue<CloseableIterator<MemoryVectorEntry>> iteratorQueue = new LinkedBlockingQueue<>();
+
+    private void add(CloseableIterator<MemoryVectorEntry> iterator)
+    {
+      iteratorQueue.add(iterator);
+    }
+
+    @Nullable
+    private CloseableIterator<MemoryVectorEntry> poll() throws InterruptedException
+    {
+      // TODO: timeout
+      return iteratorQueue.poll(100, TimeUnit.MILLISECONDS);
+    }
+
+    private BucketProcessor(
+        int hashBucket,
+        GroupByQueryConfig querySpecificConfig,
+        GroupByQuery query,
+        int keySize,
+        int[] keyOffsets,
+        @Nullable Supplier<MergedDictionary[]> mergedDictionariesSupplier,
+        List<ColumnCapabilities> dimensionCapabilities,
+        List<AggregatorFactory> combiningFactories,
+        ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder,
+        int sliceSize
+    )
+    {
+      this.query = query;
+      this.dimensionCapabilities = dimensionCapabilities;
+      this.mergeBufferHolder = mergeBufferHolder;
+
+      this.columnSelectorFactory = new MemoryVectorEntryColumnSelectorFactory(
+          query,
+          currentBufferSupplier,
+          keySize,
+          keyOffsets,
+          mergedDictionariesSupplier,
+          combiningFactories
+      );
+      this.columnSelectors = query
+          .getDimensions()
+          .stream()
+          .map(dimensionSpec -> DimensionHandlerUtils.makeVectorProcessor(
+              dimensionSpec,
+              GroupByVectorColumnProcessorFactory.instance(),
+              columnSelectorFactory,
+              false
+          ))
+          .collect(Collectors.toList());
+      this.memoryComparator = GrouperBufferComparatorUtils.memoryComparator(
+          false,
+          query.getContextSortByDimsFirst(),
+          query.getDimensions().size(),
+          getDimensionComparators(columnSelectors, query.getLimitSpec())
+      );
+      this.grouper = new FixedSizeHashVectorGrouper(
+          Suppliers.ofInstance(Groupers.getSlice(mergeBufferHolder.get(), sliceSize, hashBucket)),
+          1,
+          keySize,
+          MemoryVectorAggregators.factorizeVector(
+              columnSelectorFactory,
+              combiningFactories
+          ),
+          querySpecificConfig.getBufferGrouperMaxSize(),
+          querySpecificConfig.getBufferGrouperMaxLoadFactor(),
+          querySpecificConfig.getBufferGrouperInitialBuckets()
+      );
+      this.mergeBufferHolder.increment();
+    }
+
+    private MemoryComparator[] getDimensionComparators(List<GroupByVectorColumnSelector> selectors, LimitSpec limitSpec)
+    {
+      MemoryComparator[] dimComparators = new MemoryComparator[selectors.size()];
+
+      int keyOffset = 0;
+      for (int i = 0; i < selectors.size(); i++) {
+        final String dimName = query.getDimensions().get(i).getOutputName();
+        final StringComparator stringComparator;
+        if (limitSpec instanceof DefaultLimitSpec) {
+          stringComparator = DefaultLimitSpec.getComparatorForDimName(
+              (DefaultLimitSpec) limitSpec,
+              dimName
+          );
+        } else {
+          stringComparator = StringComparators.LEXICOGRAPHIC;
+        }
+        dimComparators[i] = selectors.get(i).memoryComparator(keyOffset, stringComparator);
+        keyOffset += selectors.get(i).getGroupingKeySize();
+      }
+
+      return dimComparators;
+    }
+
+    private void process(CloseableIterator<MemoryVectorEntry> iterator) throws IOException
+    {
+      grouper.initVectorized(QueryContexts.getVectorSize(query)); // TODO: can i get the max vector size in a different way? this seems no good
+      //noinspection unused
+      try (CloseableIterator<MemoryVectorEntry> iteratorCloser = iterator) {
+        while (iterator.hasNext()) {
+          final MemoryVectorEntry entry = iterator.next();
+          currentBufferSupplier.set(entry);
+          grouper.aggregateVector(entry.getKeys(), 0, entry.curVectorSize);
+        }
+      }
+    }
+
+    @Override
+    public void close() throws IOException
+    {
+      mergeBufferHolder.close();
     }
   }
 }

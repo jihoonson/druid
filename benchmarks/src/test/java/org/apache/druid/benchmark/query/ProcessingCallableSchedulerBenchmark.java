@@ -21,8 +21,7 @@ package org.apache.druid.benchmark.query;
 
 import com.google.common.util.concurrent.SettableFuture;
 import org.apache.druid.java.util.common.concurrent.Execs;
-import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner;
-import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.ProcessingCallableScheduler;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.ProcessingCallablePool;
 import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.ProcessingTask;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -40,7 +39,6 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -64,7 +62,7 @@ public class ProcessingCallableSchedulerBenchmark
   private long taskRunTimeMs;
 
   private ExecutorService exec;
-  private ProcessingCallableScheduler scheduler;
+  private ProcessingCallablePool scheduler;
 
   @Setup(Level.Trial)
   public void setup()
@@ -102,7 +100,7 @@ public class ProcessingCallableSchedulerBenchmark
   public void processingCallableScheduler() throws ExecutionException, InterruptedException
   {
     if (scheduler == null) {
-      scheduler = new ProcessingCallableScheduler(exec, 1, numThreads, numTasks, numTasks);
+      scheduler = new ProcessingCallablePool(exec, 1, numThreads);
     }
     final List<Future> futures = new ArrayList<>();
     for (int i = 0; i < numTasks; i++) {
