@@ -1,0 +1,90 @@
+[
+    {
+        "description": "groupBy",
+        "query": {
+            "queryType": "groupBy",
+            "dataSource": "twitterstream",
+            "intervals": ["2013-01-01T00:00:00.000/2013-01-04T00:00:00.000"],
+            "granularity": "day",
+            "aggregations": [
+                {
+                    "type": "doubleSum",
+                    "name": "num_tweets",
+                    "fieldName": "count"
+                },
+                {
+                    "type": "doubleSum",
+                    "name": "tweet_length",
+                    "fieldName": "tweet_length"
+                }
+            ],
+            "dimensions": [
+                {
+                    "type": "extraction",
+                    "dimension": "user_name",
+                    "outputName": "user_name",
+                    "outputType": "STRING",
+                    "extractionFn": {
+                        "type": "exceptionThrowing"
+                    }
+                }
+            ]
+        },
+        "expectedResults": [
+            {
+                "version": "v1",
+                "timestamp": "2013-01-01T00:00:00.000Z",
+                "event": {
+                    "has_links": "No",
+                    "tweet_length": 2.08803904E8,
+                    "num_tweets": 3377791.0
+                }
+            },
+            {
+                "version": "v1",
+                "timestamp": "2013-01-01T00:00:00.000Z",
+                "event": {
+                    "has_links": "Yes",
+                    "tweet_length": 3.1437419E7,
+                    "num_tweets": 376237.0
+                }
+            },
+            {
+                "version": "v1",
+                "timestamp": "2013-01-02T00:00:00.000Z",
+                "event": {
+                    "has_links": "No",
+                    "tweet_length": 2.10402683E8,
+                    "num_tweets": 3375243.0
+                }
+            },
+            {
+                "version": "v1",
+                "timestamp": "2013-01-02T00:00:00.000Z",
+                "event": {
+                    "has_links": "Yes",
+                    "tweet_length": 3.5995118E7,
+                    "num_tweets": 424223.0
+                }
+            },
+            {
+                "version": "v1",
+                "timestamp": "2013-01-03T00:00:00.000Z",
+                "event": {
+                    "has_links": "No",
+                    "tweet_length": 1.9645145E8,
+                    "num_tweets": 3144985.0
+                }
+            },
+            {
+                "version": "v1",
+                "timestamp": "2013-01-03T00:00:00.000Z",
+                "event": {
+                    "has_links": "Yes",
+                    "tweet_length": 3.4913569E7,
+                    "num_tweets": 407434.0
+                }
+            }
+        ]
+    }
+]

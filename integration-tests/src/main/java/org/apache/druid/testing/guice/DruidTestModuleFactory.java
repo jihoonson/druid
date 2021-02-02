@@ -50,7 +50,8 @@ public class DruidTestModuleFactory implements IModuleFactory
     return ImmutableList.of(
         new DruidTestModule(),
         new IndexingServiceFirehoseModule(),
-        new IndexingServiceInputSourceModule()
+        new IndexingServiceInputSourceModule(),
+        new QueryErrorTestModule()
     );
   }
 
