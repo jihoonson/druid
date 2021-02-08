@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.Injector;
 import com.google.inject.Key;
+import org.apache.druid.guice.DruidSecondaryModule;
 import org.apache.druid.guice.GuiceInjectors;
 import org.apache.druid.guice.annotations.Json;
 import org.apache.druid.java.util.common.StringUtils;
@@ -42,7 +43,8 @@ public class MapLookupExtractionFnSerDeTest
   private static ObjectMapper mapper;
   private static final Map<String, String> RENAMES = ImmutableMap.of(
       "foo", "bar",
-      "bar", "baz"
+      "bar", "baz",
+      "", "yoo hoo"
   );
 
   @BeforeClass
@@ -50,6 +52,7 @@ public class MapLookupExtractionFnSerDeTest
   {
     Injector defaultInjector = GuiceInjectors.makeStartupInjector();
     mapper = defaultInjector.getInstance(Key.get(ObjectMapper.class, Json.class));
+    DruidSecondaryModule.setupJackson(defaultInjector, mapper);
   }
 
   @Test
@@ -78,6 +81,18 @@ public class MapLookupExtractionFnSerDeTest
                 )
             )
             .apply(crazyString)
+    );
+  }
+
+  @Test
+  public void testMapSerdeWithEmptyStringKey() throws IOException
+  {
+    Assert.assertEquals(
+        RENAMES,
+        mapper.readValue(
+            mapper.writeValueAsBytes(RENAMES),
+            Map.class
+        )
     );
   }
 }
