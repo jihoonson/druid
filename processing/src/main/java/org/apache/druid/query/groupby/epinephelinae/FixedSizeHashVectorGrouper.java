@@ -467,6 +467,8 @@ public class FixedSizeHashVectorGrouper implements VectorGrouper
           CloseableIterators.withEmptyBaggage(
               new Iterator<MemoryVectorEntry>()
               {
+                int nextVectorId = 0;
+
                 @Override
                 public boolean hasNext()
                 {
@@ -539,7 +541,7 @@ public class FixedSizeHashVectorGrouper implements VectorGrouper
 //
 //                  System.err.println(keys);
 
-                  return new MemoryVectorEntry(keyVector, valuess, maxVectorSize, curVectorSize, segmentId);
+                  return new MemoryVectorEntry(nextVectorId++, keyVector, valuess, maxVectorSize, curVectorSize, segmentId);
                 }
               }
           )

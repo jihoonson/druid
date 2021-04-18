@@ -127,6 +127,7 @@ public interface Grouper<KeyType> extends Closeable
 
   class MemoryVectorEntry implements VectorSizeInspector
   {
+    final int vectorId;
     final WritableMemory keys;
     // TODO: maybe some class instead of array of arrays
     // Columnar vectors of values; the first array is agg indexed, the second array is row indexed
@@ -136,6 +137,7 @@ public interface Grouper<KeyType> extends Closeable
     final int segmentId;
 
     public MemoryVectorEntry(
+        int vectorId,
         WritableMemory keys,
         Object[] values,
         int maxVectorSize,
@@ -143,11 +145,17 @@ public interface Grouper<KeyType> extends Closeable
         int segmentId
     )
     {
+      this.vectorId = vectorId;
       this.keys = keys;
       this.values = values;
       this.maxVectorSize = maxVectorSize;
       this.curVectorSize = curVectorSize;
       this.segmentId = segmentId;
+    }
+
+    public int getVectorId()
+    {
+      return vectorId;
     }
 
     public WritableMemory getKeys()

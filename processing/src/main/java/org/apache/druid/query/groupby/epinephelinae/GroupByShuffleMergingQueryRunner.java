@@ -74,12 +74,14 @@ import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.LimitSpec;
 import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.query.ordering.StringComparators;
+import org.apache.druid.segment.ColumnProcessors;
 import org.apache.druid.segment.DimensionHandlerUtils;
 import org.apache.druid.segment.IdLookup;
 import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.column.ColumnCapabilitiesImpl;
 import org.apache.druid.segment.column.ValueType;
 import org.apache.druid.segment.vector.MultiValueDimensionVectorSelector;
+import org.apache.druid.segment.vector.ReadableVectorInspector;
 import org.apache.druid.segment.vector.SingleValueDimensionVectorSelector;
 import org.apache.druid.segment.vector.VectorColumnSelectorFactory;
 import org.apache.druid.segment.vector.VectorObjectSelector;
@@ -959,7 +961,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
   }
 
-  private static class MemoryVectorEntryColumnSelectorFactory implements VectorColumnSelectorFactory, VectorSizeInspector
+  private static class MemoryVectorEntryColumnSelectorFactory implements VectorColumnSelectorFactory, ReadableVectorInspector
   {
     private final GroupByQuery query;
     private final Supplier<MemoryVectorEntry> currentEntrySupplier;
@@ -986,7 +988,13 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     }
 
     @Override
-    public VectorSizeInspector getVectorSizeInspector()
+    public int getId()
+    {
+      return currentEntrySupplier.get().getVectorId();
+    }
+
+    @Override
+    public ReadableVectorInspector getReadableVectorInspector()
     {
       return this;
     }
@@ -2084,7 +2092,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       this.columnSelectors = query
           .getDimensions()
           .stream()
-          .map(dimensionSpec -> DimensionHandlerUtils.makeVectorProcessor(
+          .map(dimensionSpec -> ColumnProcessors.makeVectorProcessor(
               dimensionSpec,
               GroupByVectorColumnProcessorFactory.instance(),
               columnSelectorFactory,

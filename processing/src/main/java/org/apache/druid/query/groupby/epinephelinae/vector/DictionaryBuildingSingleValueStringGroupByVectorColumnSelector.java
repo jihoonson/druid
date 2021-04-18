@@ -23,9 +23,12 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.common.config.NullHandling;
-import org.apache.druid.query.groupby.ResultRow;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
+import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
+import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.segment.vector.VectorObjectSelector;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -91,8 +94,9 @@ public class DictionaryBuildingSingleValueStringGroupByVectorColumnSelector impl
   public void writeKeyToResultRow(
       final Memory keyMemory,
       final int keyOffset,
-      final ResultRow resultRow,
-      final int resultRowPosition
+      final PerSegmentEncodedResultRow resultRow,
+      final int resultRowPosition,
+      final int segmentId
   )
   {
     final int id = keyMemory.getInt(keyOffset);
@@ -103,5 +107,11 @@ public class DictionaryBuildingSingleValueStringGroupByVectorColumnSelector impl
     } else {
       resultRow.set(resultRowPosition, NullHandling.defaultStringValue());
     }
+  }
+
+  @Override
+  public MemoryComparator memoryComparator(int keyOffset, @Nullable StringComparator stringComparator)
+  {
+    throw new UnsupportedOperationException();
   }
 }

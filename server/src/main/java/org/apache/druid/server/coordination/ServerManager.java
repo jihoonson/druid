@@ -75,9 +75,7 @@ import org.apache.druid.timeline.VersionedIntervalTimeline;
 import org.apache.druid.timeline.partition.PartitionChunk;
 import org.joda.time.Interval;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -398,16 +396,12 @@ public class ServerManager implements QuerySegmentWalker
       final AtomicLong cpuTimeAccumulator
   )
   {
-    final PartitionHolder<ReferenceCountingSegment> entry = timeline.findEntry(
+    final PartitionChunk<ReferenceCountingSegment> chunk = timeline.findChunk(
         descriptor.getInterval(),
-        descriptor.getVersion()
+        descriptor.getVersion(),
+        descriptor.getPartitionNumber()
     );
 
-    if (entry == null) {
-      return new ReportTimelineMissingSegmentQueryRunner<>(descriptor);
-    }
-
-    final PartitionChunk<ReferenceCountingSegment> chunk = entry.getChunk(descriptor.getPartitionNumber());
     if (chunk == null) {
       return new ReportTimelineMissingSegmentQueryRunner<>(descriptor);
     }

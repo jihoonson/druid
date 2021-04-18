@@ -144,6 +144,15 @@ public class ColumnProcessors
     }
   }
 
+  public static <T> T makeVectorProcessor(
+      final String column,
+      final VectorColumnProcessorFactory<T> processorFactory,
+      final VectorColumnSelectorFactory selectorFactory
+  )
+  {
+    return makeVectorProcessor(column, processorFactory, selectorFactory, false);
+  }
+
   /**
    * Make a processor for a particular named column.
    *
@@ -155,7 +164,8 @@ public class ColumnProcessors
   public static <T> T makeVectorProcessor(
       final String column,
       final VectorColumnProcessorFactory<T> processorFactory,
-      final VectorColumnSelectorFactory selectorFactory
+      final VectorColumnSelectorFactory selectorFactory,
+      final boolean encodeStrings
   )
   {
     return makeVectorProcessorInternal(
@@ -165,8 +175,18 @@ public class ColumnProcessors
         factory -> factory.makeValueSelector(column),
         factory -> factory.makeObjectSelector(column),
         processorFactory,
-        selectorFactory
+        selectorFactory,
+        encodeStrings
     );
+  }
+
+  public static <T> T makeVectorProcessor(
+      final DimensionSpec dimensionSpec,
+      final VectorColumnProcessorFactory<T> processorFactory,
+      final VectorColumnSelectorFactory selectorFactory
+  )
+  {
+    return makeVectorProcessor(dimensionSpec, processorFactory, selectorFactory, false);
   }
 
   /**
@@ -180,7 +200,8 @@ public class ColumnProcessors
   public static <T> T makeVectorProcessor(
       final DimensionSpec dimensionSpec,
       final VectorColumnProcessorFactory<T> processorFactory,
-      final VectorColumnSelectorFactory selectorFactory
+      final VectorColumnSelectorFactory selectorFactory,
+      final boolean encodeStrings
   )
   {
     return makeVectorProcessorInternal(
@@ -193,7 +214,8 @@ public class ColumnProcessors
         factory -> factory.makeValueSelector(dimensionSpec.getDimension()),
         factory -> factory.makeObjectSelector(dimensionSpec.getDimension()),
         processorFactory,
-        selectorFactory
+        selectorFactory,
+        encodeStrings
     );
   }
 
@@ -303,7 +325,8 @@ public class ColumnProcessors
       final Function<VectorColumnSelectorFactory, VectorValueSelector> valueSelectorFn,
       final Function<VectorColumnSelectorFactory, VectorObjectSelector> objectSelectorFn,
       final VectorColumnProcessorFactory<T> processorFactory,
-      final VectorColumnSelectorFactory selectorFactory
+      final VectorColumnSelectorFactory selectorFactory,
+      final boolean encodeStrings
   )
   {
     final ColumnCapabilities capabilities = inputCapabilitiesFn.apply(selectorFactory);
@@ -312,7 +335,8 @@ public class ColumnProcessors
       // Column does not exist.
       return processorFactory.makeSingleValueDimensionProcessor(
           NIL_COLUMN_CAPABILITIES,
-          NilVectorSelector.create(selectorFactory.getReadableVectorInspector())
+          NilVectorSelector.create(selectorFactory.getReadableVectorInspector()),
+          encodeStrings
       );
     }
 
@@ -329,12 +353,14 @@ public class ColumnProcessors
         if (mayBeMultiValue(capabilities)) {
           return processorFactory.makeMultiValueDimensionProcessor(
               capabilities,
-              multiValueDimensionSelectorFn.apply(selectorFactory)
+              multiValueDimensionSelectorFn.apply(selectorFactory),
+              encodeStrings
           );
         } else {
           return processorFactory.makeSingleValueDimensionProcessor(
               capabilities,
-              singleValueDimensionSelectorFn.apply(selectorFactory)
+              singleValueDimensionSelectorFn.apply(selectorFactory),
+              encodeStrings
           );
         }
       case LONG:

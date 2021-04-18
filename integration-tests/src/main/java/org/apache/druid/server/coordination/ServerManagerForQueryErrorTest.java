@@ -44,6 +44,7 @@ import org.apache.druid.query.QueryUnsupportedException;
 import org.apache.druid.query.ReportTimelineMissingSegmentQueryRunner;
 import org.apache.druid.query.ResourceLimitExceededException;
 import org.apache.druid.query.SegmentDescriptor;
+import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.segment.ReferenceCountingSegment;
 import org.apache.druid.segment.SegmentReference;
 import org.apache.druid.segment.join.JoinableFactory;
@@ -117,13 +118,14 @@ public class ServerManagerForQueryErrorTest extends ServerManager
 
   @Override
   <T> QueryRunner<T> buildQueryRunnerForSegment(
-      Query<T> query,
-      SegmentDescriptor descriptor,
-      QueryRunnerFactory<T, Query<T>> factory,
-      QueryToolChest<T, Query<T>> toolChest,
-      VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline,
-      Function<SegmentReference, SegmentReference> segmentMapFn,
-      AtomicLong cpuTimeAccumulator,
+      final Query<T> query,
+      final SegmentDescriptor descriptor,
+      final SegmentIdMapper segmentIdMapper,
+      final QueryRunnerFactory<T, Query<T>> factory,
+      final QueryToolChest<T, Query<T>> toolChest,
+      final VersionedIntervalTimeline<String, ReferenceCountingSegment> timeline,
+      final Function<SegmentReference, SegmentReference> segmentMapFn,
+      final AtomicLong cpuTimeAccumulator,
       Optional<byte[]> cacheKeyPrefix
   )
   {
@@ -227,6 +229,7 @@ public class ServerManagerForQueryErrorTest extends ServerManager
     return super.buildQueryRunnerForSegment(
         query,
         descriptor,
+        segmentIdMapper,
         factory,
         toolChest,
         timeline,

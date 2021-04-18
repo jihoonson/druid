@@ -21,7 +21,11 @@ package org.apache.druid.query.groupby.epinephelinae.vector;
 
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.memory.WritableMemory;
-import org.apache.druid.query.groupby.ResultRow;
+import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
+import org.apache.druid.query.groupby.epinephelinae.VectorGrouper.MemoryComparator;
+import org.apache.druid.query.ordering.StringComparator;
+
+import javax.annotation.Nullable;
 
 /**
  * Treats all rows as null.
@@ -48,8 +52,14 @@ public class NilGroupByVectorColumnSelector implements GroupByVectorColumnSelect
   }
 
   @Override
-  public void writeKeyToResultRow(Memory keyMemory, int keyOffset, ResultRow resultRow, int resultRowPosition)
+  public void writeKeyToResultRow(Memory keyMemory, int keyOffset, PerSegmentEncodedResultRow resultRow, int resultRowPosition, int segmentId)
   {
     resultRow.set(resultRowPosition, null);
+  }
+
+  @Override
+  public MemoryComparator memoryComparator(int keyOffset, @Nullable StringComparator stringComparator)
+  {
+    throw new UnsupportedOperationException();
   }
 }

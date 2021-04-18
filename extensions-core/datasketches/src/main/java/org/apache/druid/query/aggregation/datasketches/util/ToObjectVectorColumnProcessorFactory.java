@@ -47,7 +47,8 @@ public class ToObjectVectorColumnProcessorFactory implements VectorColumnProcess
   @Override
   public Supplier<Object[]> makeSingleValueDimensionProcessor(
       ColumnCapabilities capabilities,
-      SingleValueDimensionVectorSelector selector
+      SingleValueDimensionVectorSelector selector,
+      boolean encodeStrings
   )
   {
     final Object[] retVal = new Object[selector.getMaxVectorSize()];
@@ -66,7 +67,8 @@ public class ToObjectVectorColumnProcessorFactory implements VectorColumnProcess
   @Override
   public Supplier<Object[]> makeMultiValueDimensionProcessor(
       ColumnCapabilities capabilities,
-      MultiValueDimensionVectorSelector selector
+      MultiValueDimensionVectorSelector selector,
+      boolean encodeStrings
   )
   {
     final Object[] retVal = new Object[selector.getMaxVectorSize()];
