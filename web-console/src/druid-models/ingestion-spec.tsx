@@ -486,32 +486,6 @@ export function getIoConfigFormFields(ingestionComboType: IngestionComboType): F
           ),
         },
         {
-          name: 'inputSource.dimensions',
-          label: 'Dimensions',
-          type: 'string-array',
-          placeholder: '(optional)',
-          hideInMore: true,
-          info: (
-            <p>
-              The list of dimensions to select. If left empty, no dimensions are returned. If left
-              null or not defined, all dimensions are returned.
-            </p>
-          ),
-        },
-        {
-          name: 'inputSource.metrics',
-          label: 'Metrics',
-          type: 'string-array',
-          placeholder: '(optional)',
-          hideInMore: true,
-          info: (
-            <p>
-              The list of metrics to select. If left empty, no metrics are returned. If left null or
-              not defined, all metrics are selected.
-            </p>
-          ),
-        },
-        {
           name: 'inputSource.filter',
           label: 'Filter',
           type: 'json',
@@ -1745,7 +1719,8 @@ const TUNING_FORM_FIELDS: Field<IngestionSpec>[] = [
     hideInMore: true,
     info: (
       <>
-        Milliseconds to wait for pushing segments. It must be >= 0, where 0 means to wait forever.
+        Milliseconds to wait for pushing segments. It must be &gt;= 0, where 0 means to wait
+        forever.
       </>
     ),
   },

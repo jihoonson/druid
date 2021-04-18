@@ -24,17 +24,24 @@ import { deepGet, EMPTY_ARRAY, EMPTY_OBJECT } from '../utils';
 import { IngestionSpec } from './ingestion-spec';
 import {
   BASIC_TIME_FORMATS,
-  DATE_ONLY_TIME_FORMATS,
   DATETIME_TIME_FORMATS,
+  DATE_ONLY_TIME_FORMATS,
   OTHER_TIME_FORMATS,
 } from './time';
 import { Transform } from './transform-spec';
 
 const NO_SUCH_COLUMN = '!!!_no_such_column_!!!';
 
+export const TIME_COLUMN = '__time';
+
 export const PLACEHOLDER_TIMESTAMP_SPEC: TimestampSpec = {
   column: NO_SUCH_COLUMN,
   missingValue: '1970-01-01T00:00:00Z',
+};
+
+export const REINDEX_TIMESTAMP_SPEC: TimestampSpec = {
+  column: TIME_COLUMN,
+  format: 'millis',
 };
 
 export const CONSTANT_TIMESTAMP_SPEC: TimestampSpec = {
@@ -48,7 +55,7 @@ export function getTimestampSchema(spec: IngestionSpec): TimestampSchema {
   const transforms: Transform[] =
     deepGet(spec, 'spec.dataSchema.transformSpec.transforms') || EMPTY_ARRAY;
 
-  const timeTransform = transforms.find(transform => transform.name === '__time');
+  const timeTransform = transforms.find(transform => transform.name === TIME_COLUMN);
   if (timeTransform) return 'expression';
 
   const timestampSpec = deepGet(spec, 'spec.dataSchema.timestampSpec') || EMPTY_OBJECT;
@@ -74,7 +81,7 @@ export function getTimestampSpecExpressionFromSpec(spec: IngestionSpec): string 
   const transforms: Transform[] =
     deepGet(spec, 'spec.dataSchema.transformSpec.transforms') || EMPTY_ARRAY;
 
-  const timeTransform = transforms.find(transform => transform.name === '__time');
+  const timeTransform = transforms.find(transform => transform.name === TIME_COLUMN);
   if (!timeTransform) return;
   return timeTransform.expression;
 }

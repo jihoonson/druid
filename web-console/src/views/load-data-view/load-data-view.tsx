@@ -55,14 +55,15 @@ import {
 } from '../../components';
 import { FormGroupWithInfo } from '../../components/form-group-with-info/form-group-with-info';
 import { AsyncActionDialog } from '../../dialogs';
+import { TIME_COLUMN } from '../../druid-models';
 import {
   addTimestampTransform,
   adjustId,
   CONSTANT_TIMESTAMP_SPEC,
   CONSTANT_TIMESTAMP_SPEC_FIELDS,
   DIMENSION_SPEC_FIELDS,
-  FILTER_FIELDS,
   FILTERS_FIELDS,
+  FILTER_FIELDS,
   FLATTEN_FIELD_FIELDS,
   getDimensionSpecName,
   getIssueWithSpec,
@@ -75,8 +76,8 @@ import {
   METRIC_SPEC_FIELDS,
   PRIMARY_PARTITION_RELATED_FORM_FIELDS,
   removeTimestampTransform,
-  TIMESTAMP_SPEC_FIELDS,
   TimestampSpec,
+  TIMESTAMP_SPEC_FIELDS,
   Transform,
   TRANSFORM_FIELDS,
   updateSchemaWithSample,
@@ -1221,8 +1222,8 @@ export class LoadDataView extends React.PureComponent<LoadDataViewProps, LoadDat
 
             if (druidSource) {
               let newSpec = deepSet(spec, 'spec.dataSchema.timestampSpec', {
-                column: '__time',
-                format: 'iso',
+                column: TIME_COLUMN,
+                format: 'millis',
               });
 
               if (typeof inputData.rollup === 'boolean') {
@@ -1247,7 +1248,7 @@ export class LoadDataView extends React.PureComponent<LoadDataViewProps, LoadDat
                   newSpec,
                   'spec.dataSchema.dimensionsSpec.dimensions',
                   Object.keys(inputData.columns)
-                    .filter(k => k !== '__time' && !aggregators[k])
+                    .filter(k => k !== TIME_COLUMN && !aggregators[k])
                     .map(k => ({
                       name: k,
                       type: String(inputData.columns![k].type || 'string').toLowerCase(),
@@ -1444,9 +1445,7 @@ export class LoadDataView extends React.PureComponent<LoadDataViewProps, LoadDat
                 }}
               />
             </FormGroup>
-          ) : (
-            undefined
-          )}
+          ) : undefined}
         </div>
         {this.renderNextBar({
           disabled: !parserQueryState.data,
@@ -1455,7 +1454,7 @@ export class LoadDataView extends React.PureComponent<LoadDataViewProps, LoadDat
             let possibleTimestampSpec: TimestampSpec;
             if (isDruidSource(spec)) {
               possibleTimestampSpec = {
-                column: '__time',
+                column: TIME_COLUMN,
                 format: 'auto',
               };
             } else {
@@ -1608,7 +1607,7 @@ export class LoadDataView extends React.PureComponent<LoadDataViewProps, LoadDat
         data: {
           headerAndRows: headerAndRowsFromSampleResponse({
             sampleResponse,
-            columnOrder: ['__time'].concat(inputFormatColumns),
+            columnOrder: [TIME_COLUMN].concat(inputFormatColumns),
           }),
           spec,
         },
@@ -1802,7 +1801,7 @@ export class LoadDataView extends React.PureComponent<LoadDataViewProps, LoadDat
       transformQueryState: new QueryState({
         data: headerAndRowsFromSampleResponse({
           sampleResponse,
-          columnOrder: ['__time'].concat(inputFormatColumns),
+          columnOrder: [TIME_COLUMN].concat(inputFormatColumns),
         }),
         lastData: transformQueryState.getSomeData(),
       }),
@@ -2020,7 +2019,7 @@ export class LoadDataView extends React.PureComponent<LoadDataViewProps, LoadDat
         filterQueryState: new QueryState({
           data: headerAndRowsFromSampleResponse({
             sampleResponse,
-            columnOrder: ['__time'].concat(inputFormatColumns),
+            columnOrder: [TIME_COLUMN].concat(inputFormatColumns),
             parsedOnly: true,
           }),
           lastData: filterQueryState.getSomeData(),
@@ -2043,7 +2042,7 @@ export class LoadDataView extends React.PureComponent<LoadDataViewProps, LoadDat
 
     const headerAndRowsNoFilter = headerAndRowsFromSampleResponse({
       sampleResponse: sampleResponseNoFilter,
-      columnOrder: ['__time'].concat(inputFormatColumns),
+      columnOrder: [TIME_COLUMN].concat(inputFormatColumns),
       parsedOnly: true,
     });
 
@@ -2232,7 +2231,9 @@ export class LoadDataView extends React.PureComponent<LoadDataViewProps, LoadDat
         data: {
           headerAndRows: headerAndRowsFromSampleResponse({
             sampleResponse,
-            columnOrder: ['__time'].concat(dimensions ? dimensions.map(getDimensionSpecName) : []),
+            columnOrder: [TIME_COLUMN].concat(
+              dimensions ? dimensions.map(getDimensionSpecName) : [],
+            ),
             suffixColumnOrder: metricsSpec ? metricsSpec.map(getMetricSpecName) : undefined,
           }),
           dimensions,

@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.java.util.common.Pair;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.testing.InitializedNullHandlingTest;
 import org.junit.Assert;
 import org.junit.Before;
@@ -408,11 +409,39 @@ public class FunctionTest extends InitializedNullHandlingTest
   }
 
   @Test
+  public void testRoundWithNullValue()
+  {
+    Set<Pair<String, String>> invalidArguments = ImmutableSet.of(
+        Pair.of("null", "STRING"),
+        Pair.of("x", "STRING")
+    );
+    for (Pair<String, String> argAndType : invalidArguments) {
+      if (NullHandling.sqlCompatible()) {
+        assertExpr(StringUtils.format("round(%s)", argAndType.lhs), null);
+      } else {
+        try {
+          assertExpr(StringUtils.format("round(%s)", argAndType.lhs), null);
+          Assert.fail("Did not throw IllegalArgumentException");
+        }
+        catch (IllegalArgumentException e) {
+          Assert.assertEquals(
+              String.format(
+                  Locale.ENGLISH,
+                  "The first argument to the function[round] should be integer or double type but got the type: %s",
+                  argAndType.rhs
+              ),
+              e.getMessage()
+          );
+        }
+      }
+    }
+  }
+
+  @Test
   public void testRoundWithInvalidFirstArgument()
   {
     Set<Pair<String, String>> invalidArguments = ImmutableSet.of(
         Pair.of("b", "LONG_ARRAY"),
-        Pair.of("x", "STRING"),
         Pair.of("c", "DOUBLE_ARRAY"),
         Pair.of("a", "STRING_ARRAY")
 
@@ -517,6 +546,59 @@ public class FunctionTest extends InitializedNullHandlingTest
     assertExpr("least()", null);
     assertExpr("least(null, null)", null);
     assertExpr("least(1, null, 'A')", "1");
+  }
+
+  @Test
+  public void testBitwise()
+  {
+    // happy path maths
+    assertExpr("bitwiseAnd(3, 1)", 1L);
+    assertExpr("bitwiseAnd(2, 1)", 0L);
+    assertExpr("bitwiseOr(3, 1)", 3L);
+    assertExpr("bitwiseOr(2, 1)", 3L);
+    assertExpr("bitwiseXor(3, 1)", 2L);
+    assertExpr("bitwiseXor(2, 1)", 3L);
+    assertExpr("bitwiseShiftLeft(2, 1)", 4L);
+    assertExpr("bitwiseShiftRight(2, 1)", 1L);
+    assertExpr("bitwiseAnd(bitwiseComplement(1), 7)", 6L);
+
+    // funny types
+    // two strings is sad
+    assertExpr("bitwiseAnd('2', '1')", null);
+    // but one is ok, druid forgives you
+    assertExpr("bitwiseAnd(3, '1')", 1L);
+    assertExpr("bitwiseAnd(2, null)", NullHandling.replaceWithDefault() ? 0L : null);
+
+    // unary doesn't accept any slop
+    assertExpr("bitwiseComplement('1')", null);
+    assertExpr("bitwiseComplement(null)", null);
+
+    // doubles are cast
+    assertExpr("bitwiseOr(2.345, 1)", 3L);
+    assertExpr("bitwiseOr(2, 1.3)", 3L);
+    assertExpr("bitwiseAnd(2.345, 2.0)", 2L);
+
+    // but can be converted to be double-like
+    assertExpr(
+        "bitwiseAnd(bitwiseConvertDoubleToLongBits(2.345), bitwiseConvertDoubleToLongBits(2.0))",
+        4611686018427387904L
+    );
+    assertExpr(
+        "bitwiseConvertLongBitsToDouble(bitwiseAnd(bitwiseConvertDoubleToLongBits(2.345), bitwiseConvertDoubleToLongBits(2.0)))",
+        2.0
+    );
+    assertExpr("bitwiseConvertDoubleToLongBits(2.0)", 4611686018427387904L);
+    assertExpr("bitwiseConvertDoubleToLongBits(bitwiseConvertDoubleToLongBits(2.0))", 4886405595696988160L);
+    assertExpr("bitwiseConvertLongBitsToDouble(4611686018427387904)", 2.0);
+    assertExpr("bitwiseConvertLongBitsToDouble(bitwiseConvertLongBitsToDouble(4611686018427387904))", 1.0E-323);
+
+    // conversion returns null if nonsense inputs
+    assertExpr("bitwiseConvertLongBitsToDouble('wat')", null);
+    assertExpr("bitwiseConvertLongBitsToDouble('1')", null);
+    assertExpr("bitwiseConvertLongBitsToDouble(null)", null);
+    assertExpr("bitwiseConvertDoubleToLongBits('wat')", null);
+    assertExpr("bitwiseConvertDoubleToLongBits('1.0')", null);
+    assertExpr("bitwiseConvertDoubleToLongBits(null)", null);
   }
 
   private void assertExpr(final String expression, @Nullable final Object expectedResult)

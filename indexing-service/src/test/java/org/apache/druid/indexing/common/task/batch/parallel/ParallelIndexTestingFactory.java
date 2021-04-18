@@ -53,6 +53,7 @@ import org.joda.time.Interval;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -161,6 +162,7 @@ class ParallelIndexTestingFactory
           null,
           3,
           4L,
+          null,
           5L,
           6,
           null,
@@ -183,6 +185,7 @@ class ParallelIndexTestingFactory
           logParseExceptions,
           maxParseExceptions,
           25,
+          null,
           null
       );
     }
@@ -217,7 +220,7 @@ class ParallelIndexTestingFactory
       DataSchema dataSchema
   )
   {
-    ParallelIndexIOConfig ioConfig = new ParallelIndexIOConfig(null, inputSource, inputFormat, false);
+    ParallelIndexIOConfig ioConfig = new ParallelIndexIOConfig(null, inputSource, inputFormat, false, false);
 
     return new ParallelIndexIngestionSpec(dataSchema, ioConfig, tuningConfig);
   }
@@ -270,6 +273,18 @@ class ParallelIndexTestingFactory
           SCHEMA_TIME, timestamp,
           SCHEMA_DIMENSION, dimensionValue
       ));
+    }
+    catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  static String createRowFromMap(long timestamp, Map<String, Object> fields)
+  {
+    HashMap<String, Object> row = new HashMap<>(fields);
+    row.put(SCHEMA_TIME, timestamp);
+    try {
+      return NESTED_OBJECT_MAPPER.writeValueAsString(row);
     }
     catch (JsonProcessingException e) {
       throw new RuntimeException(e);

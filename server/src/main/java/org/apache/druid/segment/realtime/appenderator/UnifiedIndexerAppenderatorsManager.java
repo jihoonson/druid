@@ -30,6 +30,7 @@ import com.google.inject.Provider;
 import org.apache.druid.client.cache.Cache;
 import org.apache.druid.client.cache.CacheConfig;
 import org.apache.druid.client.cache.CachePopulatorStats;
+import org.apache.druid.data.input.impl.DimensionsSpec;
 import org.apache.druid.guice.annotations.Processing;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexing.worker.config.WorkerConfig;
@@ -413,6 +414,12 @@ public class UnifiedIndexerAppenderatorsManager implements AppenderatorsManager
     }
 
     @Override
+    public boolean isSkipBytesInMemoryOverheadCheck()
+    {
+      return baseConfig.isSkipBytesInMemoryOverheadCheck();
+    }
+
+    @Override
     public int getMaxPendingPersists()
     {
       return baseConfig.getMaxPendingPersists();
@@ -515,6 +522,30 @@ public class UnifiedIndexerAppenderatorsManager implements AppenderatorsManager
         int maxColumnsToMerge
     )
     {
+      return mergeQueryableIndex(
+          indexes,
+          rollup,
+          metricAggs,
+          null,
+          outDir,
+          indexSpec,
+          segmentWriteOutMediumFactory,
+          maxColumnsToMerge
+      );
+    }
+
+    @Override
+    public File mergeQueryableIndex(
+        List<QueryableIndex> indexes,
+        boolean rollup,
+        AggregatorFactory[] metricAggs,
+        @Nullable DimensionsSpec dimensionsSpec,
+        File outDir,
+        IndexSpec indexSpec,
+        @Nullable SegmentWriteOutMediumFactory segmentWriteOutMediumFactory,
+        int maxColumnsToMerge
+    )
+    {
       ListenableFuture<File> mergeFuture = mergeExecutor.submit(
           new Callable<File>()
           {
@@ -526,6 +557,7 @@ public class UnifiedIndexerAppenderatorsManager implements AppenderatorsManager
                     indexes,
                     rollup,
                     metricAggs,
+                    dimensionsSpec,
                     outDir,
                     indexSpec,
                     segmentWriteOutMediumFactory,
@@ -650,6 +682,7 @@ public class UnifiedIndexerAppenderatorsManager implements AppenderatorsManager
         List<QueryableIndex> indexes,
         boolean rollup,
         AggregatorFactory[] metricAggs,
+        @Nullable DimensionsSpec dimensionsSpec,
         File outDir,
         IndexSpec indexSpec,
         ProgressIndicator progress,

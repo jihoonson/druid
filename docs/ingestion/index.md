@@ -196,7 +196,7 @@ that datasource leads to much faster query times. This can often be done with ju
 footprint, since abbreviated datasources tend to be substantially smaller.
 - If you are using a [best-effort rollup](#perfect-rollup-vs-best-effort-rollup) ingestion configuration that does not guarantee perfect
 rollup, you can potentially improve your rollup ratio by switching to a guaranteed perfect rollup option, or by
-[reindexing](data-management.md#compaction-and-reindexing) your data in the background after initial ingestion.
+[reindexing](data-management.md#reingesting-data) or [compacting](compaction.md) your data in the background after initial ingestion.
 
 ### Perfect rollup vs Best-effort rollup
 
@@ -258,7 +258,7 @@ storage size decreases - and it also tends to improve query performance as well.
 
 Not all ingestion methods support an explicit partitioning configuration, and not all have equivalent levels of
 flexibility. As of current Druid versions, If you are doing initial ingestion through a less-flexible method (like
-Kafka) then you can use [reindexing techniques](data-management.md#compaction-and-reindexing) to repartition your data after it
+Kafka) then you can use [reindexing](data-management.md#reingesting-data) or [compaction](compaction.md) to repartition your data after it
 is initially ingested. This is a powerful technique: you can use it to ensure that any data older than a certain
 threshold is optimally partitioned, even as you continuously add new data from a stream.
 
@@ -268,8 +268,8 @@ The following table shows how each ingestion method handles partitioning:
 |------|------------|
 |[Native batch](native-batch.md)|Configured using [`partitionsSpec`](native-batch.md#partitionsspec) inside the `tuningConfig`.|
 |[Hadoop](hadoop.md)|Configured using [`partitionsSpec`](hadoop.md#partitionsspec) inside the `tuningConfig`.|
-|[Kafka indexing service](../development/extensions-core/kafka-ingestion.md)|Partitioning in Druid is guided by how your Kafka topic is partitioned. You can also [reindex](data-management.md#compaction-and-reindexing) to repartition after initial ingestion.|
-|[Kinesis indexing service](../development/extensions-core/kinesis-ingestion.md)|Partitioning in Druid is guided by how your Kinesis stream is sharded. You can also [reindex](data-management.md#compaction-and-reindexing) to repartition after initial ingestion.|
+|[Kafka indexing service](../development/extensions-core/kafka-ingestion.md)|Partitioning in Druid is guided by how your Kafka topic is partitioned. You can also [reindex](data-management.md#reingesting-data) or [compact](compaction.md) to repartition after initial ingestion.|
+|[Kinesis indexing service](../development/extensions-core/kinesis-ingestion.md)|Partitioning in Druid is guided by how your Kinesis stream is sharded. You can also [reindex](data-management.md#reingesting-data) or [compact](compaction.md) to repartition after initial ingestion.|
 
 > Note that, of course, one way to partition data is to load it into separate datasources. This is a perfectly viable
 > approach and works very well when the number of datasources does not lead to excessive per-datasource overheads. If
@@ -720,7 +720,8 @@ is:
 |-----|-----------|-------|
 |type|Each ingestion method has its own tuning type code. You must specify the type code that matches your ingestion method. Common options are `index`, `hadoop`, `kafka`, and `kinesis`.||
 |maxRowsInMemory|The maximum number of records to store in memory before persisting to disk. Note that this is the number of rows post-rollup, and so it may not be equal to the number of input records. Ingested records will be persisted to disk when either `maxRowsInMemory` or `maxBytesInMemory` are reached (whichever happens first).|`1000000`|
-|maxBytesInMemory|The maximum aggregate size of records, in bytes, to store in the JVM heap before persisting. This is based on a rough estimate of memory usage. Ingested records will be persisted to disk when either `maxRowsInMemory` or `maxBytesInMemory` are reached (whichever happens first).<br /><br />Setting maxBytesInMemory to -1 disables this check, meaning Druid will rely entirely on maxRowsInMemory to control memory usage. Setting it to zero means the default value will be used (one-sixth of JVM heap size).<br /><br />Note that the estimate of memory usage is designed to be an overestimate, and can be especially high when using complex ingest-time aggregators, including sketches. If this causes your indexing workloads to persist to disk too often, you can set maxBytesInMemory to -1 and rely on maxRowsInMemory instead.|One-sixth of max JVM heap size|
+|maxBytesInMemory|The maximum aggregate size of records, in bytes, to store in the JVM heap before persisting. This is based on a rough estimate of memory usage. Ingested records will be persisted to disk when either `maxRowsInMemory` or `maxBytesInMemory` are reached (whichever happens first). `maxBytesInMemory` also includes heap usage of artifacts created from intermediary persists. This means that after every persist, the amount of `maxBytesInMemory` until next persist will decreases, and task will fail when the sum of bytes of all intermediary persisted artifacts exceeds `maxBytesInMemory`.<br /><br />Setting maxBytesInMemory to -1 disables this check, meaning Druid will rely entirely on maxRowsInMemory to control memory usage. Setting it to zero means the default value will be used (one-sixth of JVM heap size).<br /><br />Note that the estimate of memory usage is designed to be an overestimate, and can be especially high when using complex ingest-time aggregators, including sketches. If this causes your indexing workloads to persist to disk too often, you can set maxBytesInMemory to -1 and rely on maxRowsInMemory instead.|One-sixth of max JVM heap size|
+|skipBytesInMemoryOverheadCheck|The calculation of maxBytesInMemory takes into account overhead objects created during ingestion and each intermediate persist. Setting this to true can exclude the bytes of these overhead objects from maxBytesInMemory check.|false|
 |indexSpec|Tune how data is indexed. See below for more information.|See table below|
 |Other properties|Each ingestion method has its own list of additional tuning properties. See the documentation for each method for a full list: [Kafka indexing service](../development/extensions-core/kafka-ingestion.md#tuningconfig), [Kinesis indexing service](../development/extensions-core/kinesis-ingestion.md#tuningconfig), [Native batch](native-batch.md#tuningconfig), and [Hadoop-based](hadoop.md#tuningconfig).||
 

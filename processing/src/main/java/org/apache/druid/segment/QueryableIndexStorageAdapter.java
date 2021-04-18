@@ -55,7 +55,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  *
@@ -212,8 +211,7 @@ public class QueryableIndexStorageAdapter implements StorageAdapter
   {
     if (filter != null) {
       final boolean filterCanVectorize =
-          filter.shouldUseBitmapIndex(makeBitmapIndexSelector(virtualColumns))
-          || filter.canVectorizeMatcher();
+          filter.shouldUseBitmapIndex(makeBitmapIndexSelector(virtualColumns)) || filter.canVectorizeMatcher(this);
 
       if (!filterCanVectorize) {
         return false;
@@ -409,13 +407,13 @@ public class QueryableIndexStorageAdapter implements StorageAdapter
      *
      * Any subfilters that cannot be processed entirely with bitmap indexes will be moved to the post-filtering stage.
      */
-    final Set<Filter> preFilters;
+    final List<Filter> preFilters;
     final List<Filter> postFilters = new ArrayList<>();
     int preFilteredRows = totalRows;
     if (filter == null) {
-      preFilters = Collections.emptySet();
+      preFilters = Collections.emptyList();
     } else {
-      preFilters = new HashSet<>();
+      preFilters = new ArrayList<>();
 
       if (filter instanceof AndFilter) {
         // If we get an AndFilter, we can split the subfilters across both filtering stages
@@ -463,7 +461,7 @@ public class QueryableIndexStorageAdapter implements StorageAdapter
       queryMetrics.reportPreFilteredRows(preFilteredRows);
     }
 
-    return new FilterAnalysis(preFilterBitmap, Filters.and(postFilters));
+    return new FilterAnalysis(preFilterBitmap, Filters.maybeAnd(postFilters).orElse(null));
   }
 
   @VisibleForTesting

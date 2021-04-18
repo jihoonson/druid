@@ -36,14 +36,18 @@ import org.apache.datasketches.memory.Memory;
 import org.apache.druid.data.input.FiniteFirehoseFactory;
 import org.apache.druid.data.input.InputFormat;
 import org.apache.druid.data.input.InputSource;
+import org.apache.druid.indexer.IngestionState;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexer.TaskStatus;
 import org.apache.druid.indexer.partitions.HashedPartitionsSpec;
 import org.apache.druid.indexer.partitions.PartitionsSpec;
 import org.apache.druid.indexer.partitions.SingleDimensionPartitionsSpec;
 import org.apache.druid.indexing.common.Counters;
+import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReport;
+import org.apache.druid.indexing.common.IngestionStatsAndErrorsTaskReportData;
 import org.apache.druid.indexing.common.TaskLock;
 import org.apache.druid.indexing.common.TaskLockType;
+import org.apache.druid.indexing.common.TaskReport;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.LockListAction;
 import org.apache.druid.indexing.common.actions.SegmentTransactionalInsertAction;
@@ -109,7 +113,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -141,7 +144,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
    * the segment granularity of existing segments until the task reads all data because we don't know what segments
    * are going to be overwritten. As a result, we assume that segment granularity is going to be changed if intervals
    * are missing and force to use timeChunk lock.
-   *
+   * <p>
    * This variable is initialized in the constructor and used in {@link #run} to log that timeChunk lock was enforced
    * in the task logs.
    */
@@ -166,6 +169,8 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
    */
   @MonotonicNonNull
   private volatile TaskToolbox toolbox;
+
+  private long awaitSegmentAvailabilityTimeoutMillis;
 
   @JsonCreator
   public ParallelIndexSupervisorTask(
@@ -194,13 +199,15 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
         ingestionSchema.getDataSchema().getParser()
     );
     this.missingIntervalsInOverwriteMode = !ingestionSchema.getIOConfig().isAppendToExisting()
-                                           && !ingestionSchema.getDataSchema()
-                                                              .getGranularitySpec()
-                                                              .bucketIntervals()
-                                                              .isPresent();
+                                           && ingestionSchema.getDataSchema()
+                                                             .getGranularitySpec()
+                                                             .inputIntervals()
+                                                             .isEmpty();
     if (missingIntervalsInOverwriteMode) {
       addToContext(Tasks.FORCE_TIME_CHUNK_LOCK_KEY, true);
     }
+
+    awaitSegmentAvailabilityTimeoutMillis = ingestionSchema.getTuningConfig().getAwaitSegmentAvailabilityTimeoutMillis();
   }
 
   private static void checkPartitionsSpecForForceGuaranteedRollup(PartitionsSpec partitionsSpec)
@@ -320,12 +327,12 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   )
   {
     return new PartialRangeSegmentGenerateParallelIndexTaskRunner(
-       toolbox,
-       getId(),
-       getGroupId(),
-       ingestionSchema,
-       getContext(),
-       intervalToPartitions
+        toolbox,
+        getId(),
+        getGroupId(),
+        ingestionSchema,
+        getContext(),
+        intervalToPartitions
     );
   }
 
@@ -350,7 +357,10 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   @Override
   public boolean isReady(TaskActionClient taskActionClient) throws Exception
   {
-    return determineLockGranularityAndTryLock(taskActionClient, ingestionSchema.getDataSchema().getGranularitySpec());
+    return determineLockGranularityAndTryLock(
+        taskActionClient,
+        ingestionSchema.getDataSchema().getGranularitySpec().inputIntervals()
+    );
   }
 
   @Override
@@ -492,6 +502,24 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   }
 
   /**
+   * Attempt to wait for indexed segments to become available on the cluster.
+   * @param reportsMap Map containing information with published segments that we are going to wait for.
+   */
+  private void waitForSegmentAvailability(Map<String, PushedSegmentsReport> reportsMap)
+  {
+    ArrayList<DataSegment> segmentsToWaitFor = new ArrayList<>();
+    reportsMap.values()
+              .forEach(report -> {
+                segmentsToWaitFor.addAll(report.getNewSegments());
+              });
+    segmentAvailabilityConfirmationCompleted = waitForSegmentAvailability(
+        toolbox,
+        segmentsToWaitFor,
+        awaitSegmentAvailabilityTimeoutMillis
+    );
+  }
+
+  /**
    * Run the single phase parallel indexing for best-effort rollup. In this mode, each sub task created by
    * the supervisor task reads data and generates segments individually.
    */
@@ -506,20 +534,28 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     if (state.isSuccess()) {
       //noinspection ConstantConditions
       publishSegments(toolbox, runner.getReports());
+      if (awaitSegmentAvailabilityTimeoutMillis > 0) {
+        waitForSegmentAvailability(runner.getReports());
+      }
     }
-    return TaskStatus.fromCode(getId(), state);
+    TaskStatus taskStatus = TaskStatus.fromCode(getId(), state);
+    toolbox.getTaskReportFileWriter().write(
+        getId(),
+        getTaskCompletionReports(taskStatus, segmentAvailabilityConfirmationCompleted)
+    );
+    return taskStatus;
   }
 
   /**
    * Run the multi phase parallel indexing for perfect rollup. In this mode, the parallel indexing is currently
    * executed in two phases.
-   *
+   * <p>
    * - In the first phase, each task partitions input data and stores those partitions in local storage.
-   *   - The partition is created based on the segment granularity (primary partition key) and the partition dimension
-   *     values in {@link PartitionsSpec} (secondary partition key).
-   *   - Partitioned data is maintained by {@link IntermediaryDataManager}.
+   * - The partition is created based on the segment granularity (primary partition key) and the partition dimension
+   * values in {@link PartitionsSpec} (secondary partition key).
+   * - Partitioned data is maintained by {@link IntermediaryDataManager}.
    * - In the second phase, each task reads partitioned data from the intermediary data server (middleManager
-   *   or indexer) and merges them to create the final segments.
+   * or indexer) and merges them to create the final segments.
    */
   private TaskStatus runMultiPhaseParallel(TaskToolbox toolbox) throws Exception
   {
@@ -644,9 +680,17 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     if (state.isSuccess()) {
       //noinspection ConstantConditions
       publishSegments(toolbox, mergeRunner.getReports());
+      if (awaitSegmentAvailabilityTimeoutMillis > 0) {
+        waitForSegmentAvailability(mergeRunner.getReports());
+      }
     }
 
-    return TaskStatus.fromCode(getId(), state);
+    TaskStatus taskStatus = TaskStatus.fromCode(getId(), state);
+    toolbox.getTaskReportFileWriter().write(
+        getId(),
+        getTaskCompletionReports(taskStatus, segmentAvailabilityConfirmationCompleted)
+    );
+    return taskStatus;
   }
 
   private TaskStatus runRangePartitionMultiPhaseParallel(TaskToolbox toolbox) throws Exception
@@ -706,9 +750,17 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     TaskState mergeState = runNextPhase(mergeRunner);
     if (mergeState.isSuccess()) {
       publishSegments(toolbox, mergeRunner.getReports());
+      if (awaitSegmentAvailabilityTimeoutMillis > 0) {
+        waitForSegmentAvailability(mergeRunner.getReports());
+      }
     }
 
-    return TaskStatus.fromCode(getId(), mergeState);
+    TaskStatus taskStatus = TaskStatus.fromCode(getId(), mergeState);
+    toolbox.getTaskReportFileWriter().write(
+        getId(),
+        getTaskCompletionReports(taskStatus, segmentAvailabilityConfirmationCompleted)
+    );
+    return taskStatus;
   }
 
   private static Map<Interval, Union> mergeCardinalityReports(Collection<DimensionCardinalityReport> reports)
@@ -817,7 +869,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   }
 
   private static <S extends PartitionStat, L extends PartitionLocation>
-        Map<Pair<Interval, Integer>, List<L>> groupPartitionLocationsPerPartition(
+      Map<Pair<Interval, Integer>, List<L>> groupPartitionLocationsPerPartition(
       Map<String, ? extends GeneratedPartitionsReport<S>> subTaskIdToReport,
       BiFunction<String, S, L> createPartitionLocationFunction
   )
@@ -891,7 +943,6 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
    * @param index  index of partition
    * @param total  number of items to partition
    * @param splits number of desired partitions
-   *
    * @return partition range: [lhs, rhs)
    */
   private static Pair<Integer, Integer> getPartitionBoundaries(int index, int total, int splits)
@@ -928,14 +979,21 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     final Function<Set<DataSegment>, Set<DataSegment>> annotateFunction = compactionStateAnnotateFunction(
         storeCompactionState,
         toolbox,
-        ingestionSchema.getTuningConfig()
+        ingestionSchema.getTuningConfig(),
+        ingestionSchema.getDataSchema().getGranularitySpec()
     );
-    final TransactionalSegmentPublisher publisher = (segmentsToBeOverwritten, segmentsToPublish, commitMetadata) ->
+
+    Set<DataSegment> segmentsFoundForDrop = null;
+    if (ingestionSchema.getIOConfig().isDropExisting()) {
+      segmentsFoundForDrop = getUsedSegmentsWithinInterval(toolbox, getDataSource(), ingestionSchema.getDataSchema().getGranularitySpec().inputIntervals());
+    }
+
+    final TransactionalSegmentPublisher publisher = (segmentsToBeOverwritten, segmentsToDrop, segmentsToPublish, commitMetadata) ->
         toolbox.getTaskActionClient().submit(
-            SegmentTransactionalInsertAction.overwriteAction(segmentsToBeOverwritten, segmentsToPublish)
+            SegmentTransactionalInsertAction.overwriteAction(segmentsToBeOverwritten, segmentsToDrop, segmentsToPublish)
         );
     final boolean published = newSegments.isEmpty()
-                              || publisher.publishSegments(oldSegments, newSegments, annotateFunction, null)
+                              || publisher.publishSegments(oldSegments, segmentsFoundForDrop, newSegments, annotateFunction, null)
                                           .isSuccess();
 
     if (published) {
@@ -968,6 +1026,30 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
     }
   }
 
+  /**
+   * Generate an IngestionStatsAndErrorsTaskReport for the task.
+   *
+   * @param taskStatus {@link TaskStatus}
+   * @param segmentAvailabilityConfirmed Whether or not the segments were confirmed to be available for query when
+   *                                     when the task completed.
+   * @return
+   */
+  private Map<String, TaskReport> getTaskCompletionReports(TaskStatus taskStatus, boolean segmentAvailabilityConfirmed)
+  {
+    return TaskReport.buildTaskReports(
+        new IngestionStatsAndErrorsTaskReport(
+            getId(),
+            new IngestionStatsAndErrorsTaskReportData(
+                IngestionState.COMPLETED,
+                new HashMap<>(),
+                new HashMap<>(),
+                taskStatus.getErrorMsg(),
+                segmentAvailabilityConfirmed
+            )
+        )
+    );
+  }
+
   private static IndexTuningConfig convertToIndexTuningConfig(ParallelIndexTuningConfig tuningConfig)
   {
     return new IndexTuningConfig(
@@ -976,6 +1058,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
         tuningConfig.getAppendableIndexSpec(),
         tuningConfig.getMaxRowsInMemory(),
         tuningConfig.getMaxBytesInMemory(),
+        tuningConfig.isSkipBytesInMemoryOverheadCheck(),
         null,
         null,
         null,
@@ -992,7 +1075,8 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
         tuningConfig.isLogParseExceptions(),
         tuningConfig.getMaxParseExceptions(),
         tuningConfig.getMaxSavedParseExceptions(),
-        tuningConfig.getMaxColumnsToMerge()
+        tuningConfig.getMaxColumnsToMerge(),
+        tuningConfig.getAwaitSegmentAvailabilityTimeoutMillis()
     );
   }
 
@@ -1037,7 +1121,10 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
   {
     final String dataSource = getDataSource();
     final GranularitySpec granularitySpec = getIngestionSchema().getDataSchema().getGranularitySpec();
-    final Optional<SortedSet<Interval>> bucketIntervals = granularitySpec.bucketIntervals();
+    // This method is called whenever subtasks need to allocate a new segment via the supervisor task.
+    // As a result, this code is never called in the Overlord. For now using the materialized intervals
+    // here is ok for performance reasons
+    final Set<Interval> materializedBucketIntervals = granularitySpec.materializedBucketIntervals();
 
     // List locks whenever allocating a new segment because locks might be revoked and no longer valid.
     final List<TaskLock> locks = toolbox
@@ -1053,7 +1140,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
     Interval interval;
     String version;
-    if (bucketIntervals.isPresent()) {
+    if (!materializedBucketIntervals.isEmpty()) {
       // If granularity spec has explicit intervals, we just need to find the version associated to the interval.
       // This is because we should have gotten all required locks up front when the task starts up.
       final Optional<Interval> maybeInterval = granularitySpec.bucketInterval(timestamp);
@@ -1062,7 +1149,7 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
       }
 
       interval = maybeInterval.get();
-      if (!bucketIntervals.get().contains(interval)) {
+      if (!materializedBucketIntervals.contains(interval)) {
         throw new ISE("Unspecified interval[%s] in granularitySpec[%s]", interval, granularitySpec);
       }
 

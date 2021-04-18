@@ -30,6 +30,7 @@ import org.apache.druid.math.expr.vector.CastToTypeVectorProcessor;
 import org.apache.druid.math.expr.vector.ExprVectorProcessor;
 import org.apache.druid.math.expr.vector.VectorMathProcessors;
 import org.apache.druid.math.expr.vector.VectorProcessors;
+import org.apache.druid.math.expr.vector.VectorStringProcessors;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -309,6 +310,40 @@ public interface Function
     public ExprType getOutputType(Expr.InputBindingInspector inspector, List<Expr> args)
     {
       return ExprType.DOUBLE;
+    }
+  }
+
+  abstract class BivariateBitwiseMathFunction extends BivariateFunction
+  {
+    @Override
+    protected final ExprEval eval(ExprEval x, ExprEval y)
+    {
+      // this is a copy of the logic of BivariateMathFunction for string handling, which itself is a
+      // remix of BinaryEvalOpExprBase.eval modified so that string inputs are always null outputs
+      if (NullHandling.sqlCompatible() && (x.value() == null || y.value() == null)) {
+        return ExprEval.of(null);
+      }
+
+      ExprType type = ExprTypeConversion.autoDetect(x, y);
+      if (type == ExprType.STRING) {
+        return ExprEval.of(null);
+      }
+      return eval(x.asLong(), y.asLong());
+    }
+
+    protected abstract ExprEval eval(long x, long y);
+
+    @Nullable
+    @Override
+    public ExprType getOutputType(Expr.InputBindingInspector inspector, List<Expr> args)
+    {
+      return ExprType.LONG;
+    }
+
+    @Override
+    public boolean canVectorize(Expr.InputBindingInspector inspector, List<Expr> args)
+    {
+      return inspector.areNumeric(args) && inspector.canVectorize(args);
     }
   }
 
@@ -724,6 +759,203 @@ public interface Function
     }
   }
 
+  class BitwiseComplement extends UnivariateMathFunction
+  {
+    @Override
+    public String name()
+    {
+      return "bitwiseComplement";
+    }
+
+    @Nullable
+    @Override
+    public ExprType getOutputType(Expr.InputBindingInspector inspector, List<Expr> args)
+    {
+      return ExprType.LONG;
+    }
+
+    @Override
+    protected ExprEval eval(long param)
+    {
+      return ExprEval.of(~param);
+    }
+
+    @Override
+    public <T> ExprVectorProcessor<T> asVectorProcessor(Expr.VectorInputBindingInspector inspector, List<Expr> args)
+    {
+      return VectorMathProcessors.bitwiseComplement(inspector, args.get(0));
+    }
+  }
+
+  class BitwiseConvertLongBitsToDouble extends UnivariateMathFunction
+  {
+    @Override
+    public String name()
+    {
+      return "bitwiseConvertLongBitsToDouble";
+    }
+
+    @Nullable
+    @Override
+    public ExprType getOutputType(Expr.InputBindingInspector inspector, List<Expr> args)
+    {
+      ExprType type = args.get(0).getOutputType(inspector);
+      if (type == null) {
+        return null;
+      }
+      return ExprType.DOUBLE;
+    }
+
+    @Override
+    protected ExprEval eval(long param)
+    {
+      return ExprEval.of(Double.longBitsToDouble(param));
+    }
+
+    @Override
+    public <T> ExprVectorProcessor<T> asVectorProcessor(Expr.VectorInputBindingInspector inspector, List<Expr> args)
+    {
+      return VectorMathProcessors.bitwiseConvertLongBitsToDouble(inspector, args.get(0));
+    }
+  }
+
+  class BitwiseConvertDoubleToLongBits extends UnivariateMathFunction
+  {
+    @Override
+    public String name()
+    {
+      return "bitwiseConvertDoubleToLongBits";
+    }
+
+    @Nullable
+    @Override
+    public ExprType getOutputType(Expr.InputBindingInspector inspector, List<Expr> args)
+    {
+      ExprType type = args.get(0).getOutputType(inspector);
+      if (type == null) {
+        return null;
+      }
+      return ExprType.LONG;
+    }
+
+    @Override
+    protected ExprEval eval(double param)
+    {
+      return ExprEval.of(Double.doubleToLongBits(param));
+    }
+
+    @Override
+    public <T> ExprVectorProcessor<T> asVectorProcessor(Expr.VectorInputBindingInspector inspector, List<Expr> args)
+    {
+      return VectorMathProcessors.bitwiseConvertDoubleToLongBits(inspector, args.get(0));
+    }
+  }
+
+  class BitwiseAnd extends BivariateBitwiseMathFunction
+  {
+    @Override
+    public String name()
+    {
+      return "bitwiseAnd";
+    }
+
+    @Override
+    protected ExprEval eval(long x, long y)
+    {
+      return ExprEval.of(x & y);
+    }
+
+    @Override
+    public <T> ExprVectorProcessor<T> asVectorProcessor(Expr.VectorInputBindingInspector inspector, List<Expr> args)
+    {
+      return VectorMathProcessors.bitwiseAnd(inspector, args.get(0), args.get(1));
+    }
+  }
+
+  class BitwiseOr extends BivariateBitwiseMathFunction
+  {
+    @Override
+    public String name()
+    {
+      return "bitwiseOr";
+    }
+
+    @Override
+    protected ExprEval eval(long x, long y)
+    {
+      return ExprEval.of(x | y);
+    }
+
+    @Override
+    public <T> ExprVectorProcessor<T> asVectorProcessor(Expr.VectorInputBindingInspector inspector, List<Expr> args)
+    {
+      return VectorMathProcessors.bitwiseOr(inspector, args.get(0), args.get(1));
+    }
+  }
+
+  class BitwiseShiftLeft extends BivariateBitwiseMathFunction
+  {
+    @Override
+    public String name()
+    {
+      return "bitwiseShiftLeft";
+    }
+
+    @Override
+    protected ExprEval eval(long x, long y)
+    {
+      return ExprEval.of(x << y);
+    }
+
+    @Override
+    public <T> ExprVectorProcessor<T> asVectorProcessor(Expr.VectorInputBindingInspector inspector, List<Expr> args)
+    {
+      return VectorMathProcessors.bitwiseShiftLeft(inspector, args.get(0), args.get(1));
+    }
+  }
+
+  class BitwiseShiftRight extends BivariateBitwiseMathFunction
+  {
+    @Override
+    public String name()
+    {
+      return "bitwiseShiftRight";
+    }
+
+    @Override
+    protected ExprEval eval(long x, long y)
+    {
+      return ExprEval.of(x >> y);
+    }
+
+    @Override
+    public <T> ExprVectorProcessor<T> asVectorProcessor(Expr.VectorInputBindingInspector inspector, List<Expr> args)
+    {
+      return VectorMathProcessors.bitwiseShiftRight(inspector, args.get(0), args.get(1));
+    }
+  }
+
+  class BitwiseXor extends BivariateBitwiseMathFunction
+  {
+    @Override
+    public String name()
+    {
+      return "bitwiseXor";
+    }
+
+    @Override
+    protected ExprEval eval(long x, long y)
+    {
+      return ExprEval.of(x ^ y);
+    }
+
+    @Override
+    public <T> ExprVectorProcessor<T> asVectorProcessor(Expr.VectorInputBindingInspector inspector, List<Expr> args)
+    {
+      return VectorMathProcessors.bitwiseXor(inspector, args.get(0), args.get(1));
+    }
+  }
+
   class Cbrt extends DoubleUnivariateMathFunction
   {
     @Override
@@ -853,8 +1085,10 @@ public interface Function
     @Override
     public ExprType getOutputType(Expr.InputBindingInspector inspector, List<Expr> args)
     {
-      return ExprTypeConversion.integerMathFunction(args.get(0).getOutputType(inspector), args.get(1).getOutputType(
-          inspector));
+      return ExprTypeConversion.integerMathFunction(
+          args.get(0).getOutputType(inspector),
+          args.get(1).getOutputType(inspector)
+      );
     }
 
     @Override
@@ -1077,6 +1311,9 @@ public interface Function
     public ExprEval apply(List<Expr> args, Expr.ObjectBinding bindings)
     {
       ExprEval value1 = args.get(0).eval(bindings);
+      if (NullHandling.sqlCompatible() && value1.isNumericNull()) {
+        return ExprEval.of(null);
+      }
       if (value1.type() != ExprType.LONG && value1.type() != ExprType.DOUBLE) {
         throw new IAE(
             "The first argument to the function[%s] should be integer or double type but got the type: %s",
@@ -1957,6 +2194,21 @@ public interface Function
     public ExprType getOutputType(Expr.InputBindingInspector inspector, List<Expr> args)
     {
       return ExprType.STRING;
+    }
+
+    @Override
+    public boolean canVectorize(Expr.InputBindingInspector inspector, List<Expr> args)
+    {
+      return inspector.areScalar(args) && inspector.canVectorize(args);
+    }
+
+    @Override
+    public <T> ExprVectorProcessor<T> asVectorProcessor(
+        Expr.VectorInputBindingInspector inspector,
+        List<Expr> args
+    )
+    {
+      return VectorStringProcessors.concat(inspector, args);
     }
   }
 

@@ -425,7 +425,7 @@ public class GroupByMergingQueryRunnerV2 implements QueryRunner<ResultRow>
       }
       return mergeBufferHolder;
     }
-    catch (QueryTimeoutException e) {
+    catch (QueryTimeoutException | ResourceLimitExceededException e) {
       throw e;
     }
     catch (Exception e) {
