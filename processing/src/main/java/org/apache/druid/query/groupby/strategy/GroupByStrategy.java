@@ -19,7 +19,9 @@
 
 package org.apache.druid.query.groupby.strategy;
 
+import com.google.common.base.Supplier;
 import com.google.common.util.concurrent.ListeningExecutorService;
+import org.apache.druid.collections.ResourceHolder;
 import org.apache.druid.java.util.common.UOE;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.query.DictionaryMergingQueryRunner;
@@ -31,13 +33,14 @@ import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryQueryToolChest;
 import org.apache.druid.query.groupby.ResultRow;
-import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedBucketedSegmentIterators;
 import org.apache.druid.query.groupby.epinephelinae.vector.TimeGranulizerIterator;
 import org.apache.druid.query.groupby.resource.GroupByQueryResource;
 import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.StorageAdapter;
 
 import javax.annotation.Nullable;
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BinaryOperator;
@@ -208,9 +211,10 @@ public interface GroupByStrategy<PerSegmentQueryRunner>
    */
   Sequence<ResultRow> process(GroupByQuery query, IdentifiableStorageAdapter storageAdapter);
 
-  default TimeGranulizerIterator<TimestampedIterators> process2(
+  default TimeGranulizerIterator<TimestampedBucketedSegmentIterators> process2(
       GroupByQuery query,
-      IdentifiableStorageAdapter storageAdapter
+      IdentifiableStorageAdapter storageAdapter,
+      Supplier<ResourceHolder<ByteBuffer>> bufferSupplier
   )
   {
     throw new UnsupportedOperationException();

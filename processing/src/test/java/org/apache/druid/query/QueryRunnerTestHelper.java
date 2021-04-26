@@ -20,11 +20,14 @@
 package org.apache.druid.query;
 
 import com.google.common.base.Function;
+import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import junitparams.converters.Nullable;
+import org.apache.druid.collections.ReferenceCountingResourceHolder;
+import org.apache.druid.collections.ResourceHolder;
 import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.Pair;
@@ -54,7 +57,7 @@ import org.apache.druid.query.aggregation.post.ConstantPostAggregator;
 import org.apache.druid.query.aggregation.post.FieldAccessPostAggregator;
 import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
-import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedBucketedSegmentIterators;
 import org.apache.druid.query.groupby.epinephelinae.vector.TimeGranulizerIterator;
 import org.apache.druid.query.spec.MultipleIntervalSegmentSpec;
 import org.apache.druid.query.spec.QuerySegmentSpec;
@@ -75,6 +78,7 @@ import org.apache.druid.timeline.VersionedIntervalTimeline;
 import org.joda.time.DateTime;
 import org.joda.time.Interval;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -578,11 +582,13 @@ public class QueryRunnerTestHelper
     return new GroupByQuerySegmentProcessor<T>()
     {
       @Override
-      public TimeGranulizerIterator<TimestampedIterators> process(
-          QueryPlus<T> queryPlus, ResponseContext responseContext
+      public TimeGranulizerIterator<TimestampedBucketedSegmentIterators> process(
+          QueryPlus<T> queryPlus,
+          Supplier<ResourceHolder<ByteBuffer>> bufferSupplier,
+          ResponseContext responseContext
       )
       {
-        return factory.createRunner2(segmentIdMapper, adapter).process(queryPlus, responseContext);
+        return factory.createRunner2(segmentIdMapper, adapter).process(queryPlus, bufferSupplier, responseContext);
       }
 
       @Override
@@ -603,11 +609,13 @@ public class QueryRunnerTestHelper
     return new GroupByQuerySegmentProcessor<T>()
     {
       @Override
-      public TimeGranulizerIterator<TimestampedIterators> process(
-          QueryPlus<T> queryPlus, ResponseContext responseContext
+      public TimeGranulizerIterator<TimestampedBucketedSegmentIterators> process(
+          QueryPlus<T> queryPlus,
+          Supplier<ResourceHolder<ByteBuffer>> bufferSupplier,
+          ResponseContext responseContext
       )
       {
-        return factory.createRunner2(segmentIdMapper, adapter).process(queryPlus, responseContext);
+        return factory.createRunner2(segmentIdMapper, adapter).process(queryPlus, bufferSupplier, responseContext);
       }
     };
   }

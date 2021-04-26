@@ -31,9 +31,12 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
+import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.inject.Inject;
+import org.apache.druid.collections.ReferenceCountingResourceHolder;
+import org.apache.druid.collections.ResourceHolder;
 import org.apache.druid.data.input.Row;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.granularity.Granularity;
@@ -59,7 +62,7 @@ import org.apache.druid.query.context.ResponseContext;
 import org.apache.druid.query.dimension.DefaultDimensionSpec;
 import org.apache.druid.query.dimension.DimensionSpec;
 import org.apache.druid.query.extraction.ExtractionFn;
-import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedBucketedSegmentIterators;
 import org.apache.druid.query.groupby.epinephelinae.vector.TimeGranulizerIterator;
 import org.apache.druid.query.groupby.resource.GroupByQueryResource;
 import org.apache.druid.query.groupby.strategy.GroupByStrategy;
@@ -69,6 +72,7 @@ import org.apache.druid.segment.column.RowSignature;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Comparator;
@@ -503,8 +507,9 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<ResultRow, GroupB
     return new GroupByQuerySegmentProcessor<ResultRow>()
     {
       @Override
-      public TimeGranulizerIterator<TimestampedIterators> process(
+      public TimeGranulizerIterator<TimestampedBucketedSegmentIterators> process(
           QueryPlus<ResultRow> queryPlus,
+          Supplier<ResourceHolder<ByteBuffer>> bufferSupplier,
           ResponseContext responseContext
       )
       {
@@ -525,6 +530,7 @@ public class GroupByQueryQueryToolChest extends QueryToolChest<ResultRow, GroupB
 
         return runner.process(
             queryPlus.withQuery(groupByQuery.withDimensionSpecs(dimensionSpecs)),
+            bufferSupplier,
             responseContext
         );
       }

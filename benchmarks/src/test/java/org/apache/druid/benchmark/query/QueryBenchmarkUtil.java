@@ -19,6 +19,8 @@
 
 package org.apache.druid.benchmark.query;
 
+import com.google.common.base.Supplier;
+import org.apache.druid.collections.ResourceHolder;
 import org.apache.druid.common.config.NullHandling;
 import org.apache.druid.java.util.common.guava.Sequence;
 import org.apache.druid.query.BySegmentQueryRunner;
@@ -36,12 +38,13 @@ import org.apache.druid.query.QueryToolChest;
 import org.apache.druid.query.QueryWatcher;
 import org.apache.druid.query.SegmentIdMapper;
 import org.apache.druid.query.context.ResponseContext;
-import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedBucketedSegmentIterators;
 import org.apache.druid.query.groupby.epinephelinae.vector.TimeGranulizerIterator;
 import org.apache.druid.segment.Segment;
 import org.apache.druid.timeline.SegmentId;
 
 import javax.annotation.Nullable;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 
@@ -83,11 +86,13 @@ public class QueryBenchmarkUtil
     return new GroupByQuerySegmentProcessor<T>()
     {
       @Override
-      public TimeGranulizerIterator<TimestampedIterators> process(
-          QueryPlus<T> queryPlus, ResponseContext responseContext
+      public TimeGranulizerIterator<TimestampedBucketedSegmentIterators> process(
+          QueryPlus<T> queryPlus,
+          Supplier<ResourceHolder<ByteBuffer>> bufferSupplier,
+          ResponseContext responseContext
       )
       {
-        return factory.createRunner2(segmentIdMapper, adapter).process(queryPlus, responseContext);
+        return factory.createRunner2(segmentIdMapper, adapter).process(queryPlus, bufferSupplier, responseContext);
       }
     };
   }

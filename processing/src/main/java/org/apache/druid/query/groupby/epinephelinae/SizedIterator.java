@@ -17,22 +17,36 @@
  * under the License.
  */
 
-package org.apache.druid.query;
+package org.apache.druid.query.groupby.epinephelinae;
 
-import com.google.common.base.Supplier;
-import org.apache.druid.collections.ResourceHolder;
-import org.apache.druid.query.context.ResponseContext;
-import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedBucketedSegmentIterators;
-import org.apache.druid.query.groupby.epinephelinae.vector.TimeGranulizerIterator;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
-import java.nio.ByteBuffer;
-
-public interface GroupByQuerySegmentProcessor<T>
+public interface SizedIterator<T> extends Iterator<T>
 {
-  // interval iterator -> iterators per hash partition
-  TimeGranulizerIterator<TimestampedBucketedSegmentIterators> process(
-      QueryPlus<T> queryPlus,
-      Supplier<ResourceHolder<ByteBuffer>> bufferSupplier,
-      ResponseContext responseContext
-  );
+  int size();
+
+  static <T> SizedIterator<T> empty()
+  {
+    return new SizedIterator<T>()
+    {
+      @Override
+      public int size()
+      {
+        return 0;
+      }
+
+      @Override
+      public boolean hasNext()
+      {
+        return false;
+      }
+
+      @Override
+      public T next()
+      {
+        throw new NoSuchElementException();
+      }
+    };
+  }
 }

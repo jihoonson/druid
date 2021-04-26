@@ -30,6 +30,7 @@ import com.google.inject.Inject;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.NonBlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
+import org.apache.druid.collections.ResourceHolder;
 import org.apache.druid.guice.annotations.Global;
 import org.apache.druid.guice.annotations.Merging;
 import org.apache.druid.guice.annotations.Smile;
@@ -66,7 +67,7 @@ import org.apache.druid.query.groupby.epinephelinae.GroupByMergingQueryRunnerV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2;
 import org.apache.druid.query.groupby.epinephelinae.GroupByRowProcessor;
 import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner;
-import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedBucketedSegmentIterators;
 import org.apache.druid.query.groupby.epinephelinae.vector.TimeGranulizerIterator;
 import org.apache.druid.query.groupby.orderby.DefaultLimitSpec;
 import org.apache.druid.query.groupby.orderby.LimitSpec;
@@ -650,12 +651,16 @@ public class GroupByStrategyV2 implements GroupByStrategy<QueryRunner<ResultRow>
   }
 
   @Override
-  public TimeGranulizerIterator<TimestampedIterators> process2(GroupByQuery query, IdentifiableStorageAdapter storageAdapter)
+  public TimeGranulizerIterator<TimestampedBucketedSegmentIterators> process2(
+      GroupByQuery query,
+      IdentifiableStorageAdapter storageAdapter,
+      Supplier<ResourceHolder<ByteBuffer>> bufferSupplier
+  )
   {
     return GroupByQueryEngineV2.process2(
         query,
         storageAdapter,
-        bufferPool,
+        bufferSupplier,
         configSupplier.get().withOverrides(query),
         processingConfig
     );

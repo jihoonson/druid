@@ -19,20 +19,23 @@
 
 package org.apache.druid.query;
 
-import com.google.common.base.Supplier;
-import org.apache.druid.collections.ResourceHolder;
-import org.apache.druid.query.context.ResponseContext;
-import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedBucketedSegmentIterators;
-import org.apache.druid.query.groupby.epinephelinae.vector.TimeGranulizerIterator;
+import java.util.concurrent.Callable;
 
-import java.nio.ByteBuffer;
-
-public interface GroupByQuerySegmentProcessor<T>
+public final class Callables
 {
-  // interval iterator -> iterators per hash partition
-  TimeGranulizerIterator<TimestampedBucketedSegmentIterators> process(
-      QueryPlus<T> queryPlus,
-      Supplier<ResourceHolder<ByteBuffer>> bufferSupplier,
-      ResponseContext responseContext
-  );
+  public static <T> PrioritizedCallable<T> withPriority(Callable<T> callable, int priority)
+  {
+    return new AbstractPrioritizedCallable<T>(priority)
+    {
+      @Override
+      public T call() throws Exception
+      {
+        return callable.call();
+      }
+    };
+  }
+  
+  private Callables()
+  {
+  }
 }

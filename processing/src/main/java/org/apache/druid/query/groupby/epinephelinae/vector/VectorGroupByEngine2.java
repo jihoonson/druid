@@ -20,16 +20,15 @@
 package org.apache.druid.query.groupby.epinephelinae.vector;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 import org.apache.datasketches.memory.WritableMemory;
-import org.apache.druid.collections.NonBlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.collections.ResourceHolder;
 import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.io.Closer;
-import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.QueryContexts;
 import org.apache.druid.query.aggregation.MemoryVectorAggregators;
@@ -39,11 +38,11 @@ import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.epinephelinae.AggregateResult;
 import org.apache.druid.query.groupby.epinephelinae.FixedSizeHashVectorGrouper;
 import org.apache.druid.query.groupby.epinephelinae.GroupByQueryEngineV2;
-import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedBucketedSegmentIterators;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.MemoryVectorEntry;
+import org.apache.druid.query.groupby.epinephelinae.SizedIterator;
 import org.apache.druid.query.vector.VectorCursorGranularizer;
 import org.apache.druid.segment.ColumnProcessors;
-import org.apache.druid.segment.DimensionHandlerUtils;
 import org.apache.druid.segment.IdentifiableStorageAdapter;
 import org.apache.druid.segment.StorageAdapter;
 import org.apache.druid.segment.column.ColumnCapabilities;
@@ -60,13 +59,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class VectorGroupByEngine2
 {
-  public static TimeGranulizerIterator<TimestampedIterators> process(
+  public static TimeGranulizerIterator<TimestampedBucketedSegmentIterators> process(
       final GroupByQuery query,
       final IdentifiableStorageAdapter storageAdapter,
-      NonBlockingPool<ByteBuffer> processingBufferPool,
+      final Supplier<ResourceHolder<ByteBuffer>> bufferSupplier,
       @Nullable final DateTime fudgeTimestamp,
       @Nullable final Filter filter,
       final Interval interval,
@@ -81,11 +81,11 @@ public class VectorGroupByEngine2
     // processingConfig.numThreads == numHashTables
     final int numHashTables = processingConfig.getNumThreads();
 
-    return new TimeGranulizerIterator<TimestampedIterators>()
+    return new TimeGranulizerIterator<TimestampedBucketedSegmentIterators>()
     {
-      TimeGranulizerIterator<TimestampedIterators> delegate;
+      TimeGranulizerIterator<TimestampedBucketedSegmentIterators> delegate;
 
-      private TimeGranulizerIterator<TimestampedIterators> initDelegate()
+      private TimeGranulizerIterator<TimestampedBucketedSegmentIterators> initDelegate()
       {
         final VectorCursor cursor = storageAdapter.makeVectorCursor(
             Filters.toFilter(query.getDimFilter()),
@@ -120,7 +120,7 @@ public class VectorGroupByEngine2
               cursor,
               interval,
               dimensions,
-              processingBufferPool,
+              bufferSupplier,
               fudgeTimestamp,
               processingConfig.getNumThreads()
           );
@@ -165,7 +165,7 @@ public class VectorGroupByEngine2
       }
 
       @Override
-      public TimestampedIterators next()
+      public TimestampedBucketedSegmentIterators next()
       {
         if (!hasNext()) {
           throw new NoSuchElementException();
@@ -183,7 +183,7 @@ public class VectorGroupByEngine2
     };
   }
 
-  static class VectorGroupByEngineIterator implements TimeGranulizerIterator<TimestampedIterators>
+  static class VectorGroupByEngineIterator implements TimeGranulizerIterator<TimestampedBucketedSegmentIterators>
   {
     private final int segmentId;
     private final GroupByQuery query;
@@ -191,7 +191,7 @@ public class VectorGroupByEngine2
     private final StorageAdapter storageAdapter;
     private final VectorCursor cursor;
     private final List<GroupByVectorColumnSelector> selectors;
-    private final NonBlockingPool<ByteBuffer> processingBufferPool;
+    private final Supplier<ResourceHolder<ByteBuffer>> bufferSupplier;
     private final DateTime fudgeTimestamp;
     private final int keySize;
     private final WritableMemory keySpace;
@@ -205,6 +205,8 @@ public class VectorGroupByEngine2
     private final List<ColumnCapabilities> dimensionCapabilities;
 
     private final int numHashTables;
+
+    private final boolean resultRowHasTimestamp;
 
     @Nullable
     private Interval bucketInterval;
@@ -220,7 +222,7 @@ public class VectorGroupByEngine2
         final VectorCursor cursor,
         final Interval queryInterval,
         final List<GroupByVectorColumnSelector> selectors,
-        final NonBlockingPool<ByteBuffer> processingBufferPool,
+        final Supplier<ResourceHolder<ByteBuffer>> bufferSupplier,
         @Nullable final DateTime fudgeTimestamp,
         final int numHashTables
     )
@@ -231,7 +233,7 @@ public class VectorGroupByEngine2
       this.storageAdapter = storageAdapter;
       this.cursor = cursor;
       this.selectors = selectors;
-      this.processingBufferPool = processingBufferPool;
+      this.bufferSupplier = bufferSupplier;
       this.fudgeTimestamp = fudgeTimestamp;
       this.keySize = selectors.stream().mapToInt(GroupByVectorColumnSelector::getGroupingKeySize).sum();
       this.keySpace = WritableMemory.allocate(keySize * cursor.getMaxVectorSize());
@@ -246,6 +248,7 @@ public class VectorGroupByEngine2
 
       this.bucketInterval = this.bucketIterator.hasNext() ? this.bucketIterator.next() : null;
       this.dimensionCapabilities = GroupByQueryEngineV2.getDimensionCapabilities(query, storageAdapter);
+      this.resultRowHasTimestamp = query.getResultRowHasTimestamp();
     }
 
     @Override
@@ -256,7 +259,7 @@ public class VectorGroupByEngine2
     }
 
     @Override
-    public TimestampedIterators next()
+    public TimestampedBucketedSegmentIterators next()
     {
       if (!hasNext()) {
         throw new NoSuchElementException();
@@ -276,8 +279,9 @@ public class VectorGroupByEngine2
     FixedSizeHashVectorGrouper makeGrouper()
     {
       // this supplier takes one buffer from the processing buffer pool
-      final ResourceHolder<ByteBuffer> processingBufferHolder = processingBufferPool.take();
+      final ResourceHolder<ByteBuffer> processingBufferHolder = bufferSupplier.get();
       currentBufferHolder = new ReferenceCountingResourceHolder<>(processingBufferHolder.get(), processingBufferHolder);
+      // TODO: should close the grouper
       final FixedSizeHashVectorGrouper grouper = new FixedSizeHashVectorGrouper(
           Suppliers.ofInstance(processingBufferHolder.get()),
           numHashTables,
@@ -296,14 +300,26 @@ public class VectorGroupByEngine2
       return grouper;
     }
 
-    private TimestampedIterators makeGrouperIterators()
+    @Nullable
+    private DateTime computeTimestamp()
+    {
+      if (!resultRowHasTimestamp) {
+        return null;
+      }
+      if (bucketInterval == null) {
+        return null;
+      }
+      return fudgeTimestamp != null
+             ? fudgeTimestamp
+             : query.getGranularity().toDateTime(bucketInterval.getStartMillis());
+    }
+
+    private TimestampedBucketedSegmentIterators makeGrouperIterators()
     {
       // Method must not be called unless there's a current bucketInterval.
       assert bucketInterval != null;
 
-      final DateTime timestamp = fudgeTimestamp != null
-                                 ? fudgeTimestamp
-                                 : query.getGranularity().toDateTime(bucketInterval.getStartMillis());
+      final DateTime timestamp = computeTimestamp();
 
       final FixedSizeHashVectorGrouper vectorGrouper = makeGrouper();
 
@@ -354,52 +370,18 @@ public class VectorGroupByEngine2
         }
       }
 
-      final boolean resultRowHasTimestamp = query.getResultRowHasTimestamp();
-
-      final List<CloseableIterator<MemoryVectorEntry>> entryIterators = vectorGrouper.iterators(segmentId);
+      final List<SizedIterator<MemoryVectorEntry>> entryIterators = vectorGrouper.iterators(segmentId);
 //      System.err.println("new entry iterators for timestamp " + timestamp.getMillis() + ", grouper: " + vectorGrouper);
-      return new TimestampedIterators(
-          entryIterators
-              .stream()
-              .map(entryIterator -> new TimestampedIterator<MemoryVectorEntry>() {
-
-                {
-                  currentBufferHolder.increment();
-                }
-
-                @Nullable
-                @Override
-                public DateTime getTimestamp()
-                {
-                  return resultRowHasTimestamp ? timestamp : null;
-                }
-
-                @Override
-                public boolean hasNext()
-                {
-                  return entryIterator.hasNext();
-                }
-
-                @Override
-                public MemoryVectorEntry next()
-                {
-                  if (!hasNext()) {
-                    throw new NoSuchElementException();
-                  }
-                  return entryIterator.next();
-                }
-
-                @Override
-                public void close() throws IOException
-                {
-                  Closer closer = Closer.create();
-                  closer.register(vectorGrouper);
-                  closer.register(entryIterator);
-                  closer.register(currentBufferHolder);
-                  closer.close();
-                }
-              })
-              .collect(Collectors.toList()).toArray(new TimestampedIterator[0])
+      return new TimestampedBucketedSegmentIterators(
+          IntStream.of(0, entryIterators.size())
+                   .mapToObj(i -> new PartitionedHashTableIterator(
+                       i,
+                       currentBufferHolder,
+                       vectorGrouper,
+                       entryIterators.get(i)
+                   ))
+                   .toArray(PartitionedHashTableIterator[]::new),
+          timestamp
       );
     }
 
@@ -409,10 +391,11 @@ public class VectorGroupByEngine2
       return bucketIterator.hasNext();
     }
 
+    @Nullable
     @Override
     public DateTime peekTime()
     {
-      return bucketIterator.peek().getStart(); // start or interval?
+      return computeTimestamp();
     }
 
 //    private MemoryComparator[] getDimensionComparators(LimitSpec limitSpec)
@@ -437,11 +420,5 @@ public class VectorGroupByEngine2
 //
 //      return dimComparators;
 //    }
-  }
-
-  public interface TimestampedIterator<T> extends CloseableIterator<T>
-  {
-    @Nullable
-    DateTime getTimestamp();
   }
 }

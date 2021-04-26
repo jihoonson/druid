@@ -20,6 +20,7 @@
 package org.apache.druid.query.groupby.epinephelinae;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -44,7 +45,7 @@ import org.apache.druid.query.groupby.GroupByQuery;
 import org.apache.druid.query.groupby.GroupByQueryConfig;
 import org.apache.druid.query.groupby.PerSegmentEncodedResultRow;
 import org.apache.druid.query.groupby.ResultRow;
-import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedIterators;
+import org.apache.druid.query.groupby.epinephelinae.GroupByShuffleMergingQueryRunner.TimestampedBucketedSegmentIterators;
 import org.apache.druid.query.groupby.epinephelinae.column.DictionaryBuildingStringGroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.epinephelinae.column.DoubleGroupByColumnSelectorStrategy;
 import org.apache.druid.query.groupby.epinephelinae.column.FloatGroupByColumnSelectorStrategy;
@@ -192,10 +193,10 @@ public class GroupByQueryEngineV2
     }
   }
 
-  public static TimeGranulizerIterator<TimestampedIterators> process2(
+  public static TimeGranulizerIterator<TimestampedBucketedSegmentIterators> process2(
       final GroupByQuery query,
       final IdentifiableStorageAdapter storageAdapter,
-      final NonBlockingPool<ByteBuffer> intermediateResultsBufferPool,
+      final Supplier<ResourceHolder<ByteBuffer>> bufferSupplier,
       final GroupByQueryConfig querySpecificConfig,
       final DruidProcessingConfig processingConfig
   )
@@ -228,17 +229,17 @@ public class GroupByQueryEngineV2
       );
 
       if (doVectorize) {
-        final TimeGranulizerIterator<TimestampedIterators> delegate = VectorGroupByEngine2.process(
+        final TimeGranulizerIterator<TimestampedBucketedSegmentIterators> delegate = VectorGroupByEngine2.process(
             query,
             storageAdapter,
-            intermediateResultsBufferPool,
+            bufferSupplier,
             fudgeTimestamp,
             filter,
             interval,
             querySpecificConfig,
             processingConfig
         );
-        return new TimeGranulizerIterator<TimestampedIterators>()
+        return new TimeGranulizerIterator<TimestampedBucketedSegmentIterators>()
         {
           @Override
           public boolean hasNextTime()
@@ -260,7 +261,7 @@ public class GroupByQueryEngineV2
           }
 
           @Override
-          public TimestampedIterators next()
+          public TimestampedBucketedSegmentIterators next()
           {
             return delegate.next();
           }
