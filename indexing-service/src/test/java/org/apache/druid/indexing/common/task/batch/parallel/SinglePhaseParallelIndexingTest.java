@@ -144,21 +144,26 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
     Assert.assertTrue(task.isReady(actionClient));
     task.setToolbox(toolbox);
 
-    ExecutorService exec = Execs.multiThreaded(16, "test-%d");
+    int numThreads = 16;
+    int numSegments = 1000;
+    ExecutorService exec = Execs.multiThreaded(numThreads, "test-%d");
     CopyOnWriteArrayList<SegmentIdWithShardSpec> segments = new CopyOnWriteArrayList<>();
     List<Future>futures = new ArrayList<>();
     try {
-      futures.add(
-          exec.submit(() -> {
-            for (int i = 0; i < 1000; i++) {
-              segments.add(task.allocateNewSegment(DateTimes.of("2017-12-01")));
-            }
-            return null;
-          })
-      );
+      for (int j = 0; j < numThreads; j++) {
+        futures.add(
+            exec.submit(() -> {
+              for (int i = 0; i < numSegments; i++) {
+                segments.add(task.allocateNewSegment(DateTimes.of("2017-12-01")));
+              }
+              return null;
+            })
+        );
+      }
       for (Future future : futures) {
         future.get();
       }
+      Assert.assertEquals(numSegments * numThreads, segments.size());
 
       segments.sort(Comparator.comparing(segment -> segment.getShardSpec().getPartitionNum()));
       SegmentIdWithShardSpec prev = null;
