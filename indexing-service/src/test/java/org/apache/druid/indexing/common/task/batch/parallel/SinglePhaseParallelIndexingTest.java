@@ -22,23 +22,31 @@ package org.apache.druid.indexing.common.task.batch.parallel;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
+import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.impl.InlineInputSource;
+import org.apache.druid.data.input.impl.JsonInputFormat;
 import org.apache.druid.data.input.impl.LocalInputSource;
 import org.apache.druid.data.input.impl.StringInputRowParser;
+import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.indexer.TaskState;
 import org.apache.druid.indexing.common.LockGranularity;
 import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.actions.TaskActionClient;
 import org.apache.druid.indexing.common.task.Tasks;
 import org.apache.druid.indexing.overlord.Segments;
+import org.apache.druid.java.util.common.DateTimes;
 import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
+import org.apache.druid.java.util.common.concurrent.Execs;
 import org.apache.druid.java.util.common.granularity.Granularities;
 import org.apache.druid.java.util.common.granularity.Granularity;
+import org.apache.druid.metadata.EntryExistsException;
 import org.apache.druid.query.aggregation.AggregatorFactory;
 import org.apache.druid.query.aggregation.LongSumAggregatorFactory;
 import org.apache.druid.segment.SegmentUtils;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
+import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
 import org.apache.druid.segment.realtime.firehose.LocalFirehoseFactory;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.Partitions;
@@ -61,11 +69,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
 
 @RunWith(Parameterized.class)
 public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSupervisorTaskTest
@@ -119,6 +130,40 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
   public void teardown()
   {
     temporaryFolder.delete();
+  }
+
+  @Test
+  public void testTest() throws Exception
+  {
+    final ParallelIndexSupervisorTask task = newTask(INTERVAL_TO_INDEX, false, true);
+    final TaskActionClient actionClient = createActionClient(task);
+    final TaskToolbox toolbox = createTaskToolbox(task, actionClient);
+    prepareTaskForLocking(task);
+    Assert.assertTrue(task.isReady(actionClient));
+    task.setToolbox(toolbox);
+
+    ExecutorService exec = Execs.multiThreaded(16, "test-%d");
+    CopyOnWriteArrayList<SegmentIdWithShardSpec> segments = new CopyOnWriteArrayList<>();
+    try {
+      exec.submit(() -> {
+        for (int i = 0; i < 1000; i++) {
+          segments.add(task.allocateNewSegment(DateTimes.of("2017-12-01")));
+        }
+        return null;
+      });
+
+      segments.sort(Comparator.comparing(segment -> segment.getShardSpec().getPartitionNum()));
+      SegmentIdWithShardSpec prev = null;
+      for (SegmentIdWithShardSpec segment : segments) {
+        if (prev != null) {
+          Assert.assertEquals(prev.getShardSpec().getPartitionNum() + 1, segment.getShardSpec().getPartitionNum());
+        }
+        prev = segment;
+      }
+    }
+    finally {
+      exec.shutdownNow();
+    }
   }
 
   @Test

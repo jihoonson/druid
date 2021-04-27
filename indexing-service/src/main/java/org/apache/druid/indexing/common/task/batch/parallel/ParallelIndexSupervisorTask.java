@@ -172,6 +172,11 @@ public class ParallelIndexSupervisorTask extends AbstractBatchIndexTask implemen
 
   private long awaitSegmentAvailabilityTimeoutMillis;
 
+  public void setToolbox(TaskToolbox toolbox)
+  {
+    this.toolbox = toolbox;
+  }
+
   @JsonCreator
   public ParallelIndexSupervisorTask(
       @JsonProperty("id") String id,
