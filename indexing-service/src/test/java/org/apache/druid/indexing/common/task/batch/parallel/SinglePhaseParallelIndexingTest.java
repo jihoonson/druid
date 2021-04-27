@@ -67,6 +67,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -77,6 +78,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 @RunWith(Parameterized.class)
 public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSupervisorTaskTest
@@ -144,13 +146,19 @@ public class SinglePhaseParallelIndexingTest extends AbstractParallelIndexSuperv
 
     ExecutorService exec = Execs.multiThreaded(16, "test-%d");
     CopyOnWriteArrayList<SegmentIdWithShardSpec> segments = new CopyOnWriteArrayList<>();
+    List<Future>futures = new ArrayList<>();
     try {
-      exec.submit(() -> {
-        for (int i = 0; i < 1000; i++) {
-          segments.add(task.allocateNewSegment(DateTimes.of("2017-12-01")));
-        }
-        return null;
-      });
+      futures.add(
+          exec.submit(() -> {
+            for (int i = 0; i < 1000; i++) {
+              segments.add(task.allocateNewSegment(DateTimes.of("2017-12-01")));
+            }
+            return null;
+          })
+      );
+      for (Future future : futures) {
+        future.get();
+      }
 
       segments.sort(Comparator.comparing(segment -> segment.getShardSpec().getPartitionNum()));
       SegmentIdWithShardSpec prev = null;
