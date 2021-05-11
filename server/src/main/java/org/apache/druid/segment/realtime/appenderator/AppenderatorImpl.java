@@ -323,7 +323,7 @@ public class AppenderatorImpl implements Appenderator
     if (bytesCurrentlyInMemory.get() >= maxBytesTuningConfig) {
       persist = true;
       persistReasons.add(StringUtils.format(
-          "bytesCurrentlyInMemory[%d] is greater than maxBytesInMemory[%d]",
+          "(estimated) bytesCurrentlyInMemory[%d] is greater than maxBytesInMemory[%d]",
           bytesCurrentlyInMemory.get(),
           maxBytesTuningConfig
       ));
@@ -669,7 +669,7 @@ public class AppenderatorImpl implements Appenderator
     rowsCurrentlyInMemory.addAndGet(-numPersistedRows);
     bytesCurrentlyInMemory.addAndGet(-bytesPersisted);
 
-    log.info("Persisted rows[%,d] and bytes[%,d]", numPersistedRows, bytesPersisted);
+    log.info("Persisted rows[%,d] and (estimated) bytes[%,d]", numPersistedRows, bytesPersisted);
 
     return future;
   }
@@ -842,6 +842,10 @@ public class AppenderatorImpl implements Appenderator
         closer.close();
       }
 
+      final DataSegment segmentToPush = sink.getSegment().withDimensions(
+          IndexMerger.getMergedDimensionsFromQueryableIndexes(indexes, schema.getDimensionsSpec())
+      );
+
       // Retry pushing segments because uploading to deep storage might fail especially for cloud storage types
       final DataSegment segment = RetryUtils.retry(
           // The appenderator is currently being used for the local indexing task and the Kafka indexing task. For the
@@ -849,7 +853,7 @@ public class AppenderatorImpl implements Appenderator
           // semantics.
           () -> dataSegmentPusher.push(
               mergedFile,
-              sink.getSegment().withDimensions(IndexMerger.getMergedDimensionsFromQueryableIndexes(indexes, schema.getDimensionsSpec())),
+              segmentToPush,
               useUniquePath
           ),
           exception -> exception instanceof Exception,

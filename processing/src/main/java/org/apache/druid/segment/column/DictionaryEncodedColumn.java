@@ -32,6 +32,7 @@ import org.apache.druid.segment.vector.SingleValueDimensionVectorSelector;
 import javax.annotation.Nullable;
 
 /**
+ *
  */
 public interface DictionaryEncodedColumn<ActualType extends Comparable<? super ActualType>> extends BaseColumn
 {
@@ -45,6 +46,7 @@ public interface DictionaryEncodedColumn<ActualType extends Comparable<? super A
 
   IndexedInts getMultiValueRow(int rowNum);
 
+  @Nullable
   ActualType lookupName(int id);
 
   int lookupId(ActualType name);
