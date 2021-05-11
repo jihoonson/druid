@@ -21,11 +21,12 @@ package org.apache.druid.query.groupby.epinephelinae.vector;
 
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
 import org.apache.druid.java.util.common.io.Closer;
+import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.groupby.epinephelinae.FixedSizeHashVectorGrouper;
 import org.apache.druid.query.groupby.epinephelinae.Grouper.MemoryVectorEntry;
+import org.apache.druid.query.groupby.epinephelinae.Sized;
 import org.apache.druid.query.groupby.epinephelinae.SizedIterator;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
@@ -36,7 +37,7 @@ import java.util.NoSuchElementException;
  * Iterates one bucketed hash table.
  * Maybe i don't need this. or maybe need to clean up resources
  */
-public class PartitionedHashTableIterator implements SizedIterator<MemoryVectorEntry>, Closeable
+public class PartitionedHashTableIterator implements CloseableIterator<MemoryVectorEntry>, Sized
 {
   private final int bucket;
   private final ReferenceCountingResourceHolder<ByteBuffer> currentBufferHolder;

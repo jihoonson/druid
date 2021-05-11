@@ -41,7 +41,7 @@ public class GroupByMergeBufferHolder implements Closeable
   }
 
   @Nullable
-  public ReferenceCountingResourceHolder<ByteBuffer> getBuffer() throws InterruptedException
+  public ReferenceCountingResourceHolder<ByteBuffer> getBuffer()
   {
     final ReferenceCountingResourceHolder<ByteBuffer> bufferHolder = waitQueue.poll();
     if (bufferHolder == null) {
@@ -54,6 +54,7 @@ public class GroupByMergeBufferHolder implements Closeable
     }
   }
 
+  // TODO: timeout
   public ReferenceCountingResourceHolder<ByteBuffer> waitBuffer() throws InterruptedException
   {
     final ReferenceCountingResourceHolder<ByteBuffer> bufferHolder = waitQueue.take();
