@@ -141,7 +141,8 @@ public class DoublesSketchAggregatorFactory extends AggregatorFactory
           @Override
           public VectorAggregator makeSingleValueDimensionProcessor(
               ColumnCapabilities capabilities,
-              SingleValueDimensionVectorSelector selector
+              SingleValueDimensionVectorSelector selector,
+              boolean encodeStrings
           )
           {
             return new NoopDoublesSketchBufferAggregator();
@@ -150,7 +151,8 @@ public class DoublesSketchAggregatorFactory extends AggregatorFactory
           @Override
           public VectorAggregator makeMultiValueDimensionProcessor(
               ColumnCapabilities capabilities,
-              MultiValueDimensionVectorSelector selector
+              MultiValueDimensionVectorSelector selector,
+              boolean encodeStrings
           )
           {
             return new NoopDoublesSketchBufferAggregator();

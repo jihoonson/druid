@@ -360,6 +360,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                       = timeOrderedIterators.next();
                   @Nullable DateTime currentTime = iteratorsOfSameTimestamp.get(0).peekTime();
 
+                  // TODO: sync list
                   List<ListenableFuture<TimestampedBucketedSegmentIterators>> shuffleFutures = new ArrayList<>();
                   List<SettableFuture<Void>> mergeFutures = new ArrayList<>();
                   while (!iteratorsOfSameTimestamp.isEmpty()) {
@@ -375,21 +376,22 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                                 TimestampedBucketedSegmentIterators iterators = granulizerIterator.next();
                                 bucketedIterators.add(iterators);
 
-                                // schedule a merge task if there is a merge buffer available
-                                SettableFuture<Void> mergeFuture = SettableFuture.create();
-                                exec.submit(
-                                    Callables.withPriority(
-                                        new MergeCallable(
-                                            exec,
-                                            shuffleFutures,
-                                            bucketedIterators,
-                                            targetNumRowsToMergePerTask,
-                                            mergeFuture
-                                        ),
-                                        priority
-                                    )
-                                );
-                                mergeFutures.add(mergeFuture);
+                                if (mergeFutures.size() < numHashBuckets) {
+                                  SettableFuture<Void> mergeFuture = SettableFuture.create();
+                                  exec.submit(
+                                      Callables.withPriority(
+                                          new MergeCallable(
+                                              exec,
+                                              shuffleFutures,
+                                              bucketedIterators,
+                                              targetNumRowsToMergePerTask,
+                                              mergeFuture
+                                          ),
+                                          priority
+                                      )
+                                  );
+                                  mergeFutures.add(mergeFuture);
+                                }
                                 return iterators;
                               }
                             },
@@ -403,7 +405,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   // while shuffleFutures are running
                   // wait for shuffleFutures to add iterators
                   // merge iterators
-                  for (int i = 0; i < numHashBuckets && !bucketedIterators.isEmpty(); i++) {
+                  for (int i = mergeFutures.size(); i < numHashBuckets && !bucketedIterators.isEmpty(); i++) {
                     SettableFuture<Void> mergeFuture = SettableFuture.create();
                     exec.submit(
                         Callables.withPriority(

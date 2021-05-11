@@ -89,7 +89,7 @@ public class StringDictionaryEncodedColumn implements DictionaryEncodedColumn<St
   @Override
   public Indexed<String> getDictionary()
   {
-    return cachedLookups;
+    return cachedDictionary;
   }
 
   @Override

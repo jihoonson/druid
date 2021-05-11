@@ -33,7 +33,8 @@ public class CardinalityVectorProcessorFactory implements VectorColumnProcessorF
   @Override
   public CardinalityVectorProcessor makeSingleValueDimensionProcessor(
       ColumnCapabilities capabilities,
-      SingleValueDimensionVectorSelector selector
+      SingleValueDimensionVectorSelector selector,
+      boolean encodeStrings
   )
   {
     return new SingleValueStringCardinalityVectorProcessor(selector);
@@ -42,7 +43,8 @@ public class CardinalityVectorProcessorFactory implements VectorColumnProcessorF
   @Override
   public CardinalityVectorProcessor makeMultiValueDimensionProcessor(
       ColumnCapabilities capabilities,
-      MultiValueDimensionVectorSelector selector
+      MultiValueDimensionVectorSelector selector,
+      boolean encodeStrings
   )
   {
     return new MultiValueStringCardinalityVectorProcessor(selector);
