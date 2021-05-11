@@ -176,7 +176,8 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
     // limit of 2 is required since we simulate both historical merge and broker merge in the same process
     BlockingPool<ByteBuffer> mergePool = new DefaultBlockingPool<>(
         new OffheapBufferGenerator("merge", 250_000_000),
-        2
+//        2
+        8
     );
     final GroupByQueryConfig config = new GroupByQueryConfig()
     {

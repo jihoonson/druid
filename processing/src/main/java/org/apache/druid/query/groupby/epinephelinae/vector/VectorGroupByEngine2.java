@@ -373,7 +373,7 @@ public class VectorGroupByEngine2
       final List<SizedIterator<MemoryVectorEntry>> entryIterators = vectorGrouper.iterators(segmentId);
 //      System.err.println("new entry iterators for timestamp " + timestamp.getMillis() + ", grouper: " + vectorGrouper);
       return new TimestampedBucketedSegmentIterators(
-          IntStream.of(0, entryIterators.size())
+          IntStream.range(0, entryIterators.size())
                    .mapToObj(i -> new PartitionedHashTableIterator(
                        i,
                        currentBufferHolder,

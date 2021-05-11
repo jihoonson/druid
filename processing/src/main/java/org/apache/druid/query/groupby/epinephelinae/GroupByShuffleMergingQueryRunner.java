@@ -108,10 +108,12 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.Phaser;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -307,6 +309,10 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   .toList();
 
               final TimeOrderedIterators timeOrderedIterators = new TimeOrderedIterators(hashedSequencesList);
+              final ByteBuffer[] slices = new ByteBuffer[numHashBuckets];
+              for (int i = 0; i < slices.length; i++) {
+                slices[i] = Groupers.getSlice(mergeBufferHolder.get(), sliceSize, i);
+              }
               final BucketProcessor[] bucketProcessors = new BucketProcessor[numHashBuckets];
               for (int i = 0; i < numHashBuckets; i++) {
                 bucketProcessors[i] = new BucketProcessor(
@@ -316,19 +322,21 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                     keyOffsets,
                     mergedDictionariesSupplier,
                     dimensionCapabilities,
-                    combiningFactories
+                    combiningFactories,
+                    slices[i]
                 );
+                bucketProcessors[i].grouper.initVectorized(QueryContexts.getVectorSize(query)); // TODO: can i get the max vector size in a different way? this seems no good
               }
               // intermediate result iterators
               final BucketedIterators bucketedIterators = new BucketedIterators(
                   mergeBufferHolder,
-                  sliceSize,
+                  slices,
                   numHashBuckets,
                   bucketProcessors
               );
               final int targetNumRowsToMergePerTask = query.getContextValue(
                   "targetNumRowsToMergePerTask",
-                  10000
+                  5_000_000
               );
 
               return new CloseableIterator<ResultRow>()
@@ -360,45 +368,66 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                       = timeOrderedIterators.next();
                   @Nullable DateTime currentTime = iteratorsOfSameTimestamp.get(0).peekTime();
 
-                  // TODO: sync list
-                  List<ListenableFuture<TimestampedBucketedSegmentIterators>> shuffleFutures = new ArrayList<>();
-                  List<SettableFuture<Void>> mergeFutures = new ArrayList<>();
+                  for (BucketProcessor processor : bucketProcessors) {
+                    processor.grouper.reset();
+                  }
+
+                  // TODO: probably atomicLong is fine
+                  Phaser shuffleNotifier = new Phaser(iteratorsOfSameTimestamp.size());
+                  List<ListenableFuture<Void>> shuffleFutures = new ArrayList<>(iteratorsOfSameTimestamp.size());
+                  ConcurrentHashMap<SettableFuture<Void>, Boolean> mergeFutures = new ConcurrentHashMap<>();
                   while (!iteratorsOfSameTimestamp.isEmpty()) {
                     ReferenceCountingResourceHolder<ByteBuffer> bufferHolder = memoryPool.take(); // TODO: timeout
                     TimeGranulizerIteratorAndBufferSupplier granulizerIterator
                         = iteratorsOfSameTimestamp.remove(0);
                     granulizerIterator.setBuffer(bufferHolder);
-                    ListenableFuture<TimestampedBucketedSegmentIterators> future = exec.submit(
-                        Callables.withPriority(
-                            () -> {
-                              //noinspection unused
-                              try (Releaser releaser = bufferHolder.increment()) {
-                                TimestampedBucketedSegmentIterators iterators = granulizerIterator.next();
-                                bucketedIterators.add(iterators);
+                    // TODO: handle errors in future
+                    shuffleFutures.add(
+                        exec.submit(
+                            Callables.withPriority(
+                                () -> {
+                                  //noinspection unused
+                                  try (Releaser releaser = bufferHolder.increment()) {
+                                    if (granulizerIterator.hasNext()) {
+                                      TimestampedBucketedSegmentIterators iterators = granulizerIterator.next();
+                                      assert Objects.equals(iterators.timestamp, currentTime);
+                                      bucketedIterators.add(iterators);
+                                    } else {
+                                      throw new ISE("WTH?? why is this iterator empty?");
+                                    }
+                                    shuffleNotifier.arriveAndDeregister();
 
-                                if (mergeFutures.size() < numHashBuckets) {
-                                  SettableFuture<Void> mergeFuture = SettableFuture.create();
-                                  exec.submit(
-                                      Callables.withPriority(
-                                          new MergeCallable(
-                                              exec,
-                                              shuffleFutures,
-                                              bucketedIterators,
-                                              targetNumRowsToMergePerTask,
-                                              mergeFuture
-                                          ),
-                                          priority
-                                      )
-                                  );
-                                  mergeFutures.add(mergeFuture);
-                                }
-                                return iterators;
-                              }
-                            },
-                            priority
+                                    mergeFutures.compute(
+                                        SettableFuture.create(),
+                                        (k, v) -> {
+                                          if (mergeFutures.size() < numHashBuckets) {
+                                            // TODO: stack overflow. callback?
+                                            exec.submit(
+                                                Callables.withPriority(
+                                                    new MergeCallable(
+                                                        exec,
+                                                        shuffleNotifier,
+                                                        bucketedIterators,
+                                                        targetNumRowsToMergePerTask,
+                                                        k
+                                                    ),
+                                                    priority
+                                                )
+                                            );
+                                            log.info("schedule %d merges", mergeFutures.size());
+                                            return true;
+                                          } else {
+                                            return null;
+                                          }
+                                        }
+                                    );
+                                    return null;
+                                  }
+                                },
+                                priority
+                            )
                         )
                     );
-                    shuffleFutures.add(future);
                   }
 
                   // merge remaining
@@ -406,31 +435,66 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   // wait for shuffleFutures to add iterators
                   // merge iterators
                   for (int i = mergeFutures.size(); i < numHashBuckets && !bucketedIterators.isEmpty(); i++) {
-                    SettableFuture<Void> mergeFuture = SettableFuture.create();
-                    exec.submit(
-                        Callables.withPriority(
-                            new MergeCallable(
-                                exec,
-                                shuffleFutures,
-                                bucketedIterators,
-                                targetNumRowsToMergePerTask,
-                                mergeFuture
-                            ),
-                            priority
-                        )
+                    mergeFutures.compute(
+                        SettableFuture.create(),
+                        (k, v) -> {
+                          if (mergeFutures.size() < numHashBuckets) {
+                            exec.submit(
+                                Callables.withPriority(
+                                    new MergeCallable(
+                                        exec,
+                                        shuffleNotifier,
+                                        bucketedIterators,
+                                        targetNumRowsToMergePerTask,
+                                        k
+                                    ),
+                                    priority
+                                )
+                            );
+                            return true;
+                          } else {
+                            return null;
+                          }
+                        }
                     );
                   }
 
+                  // check errors in shuffle future
+                  for (ListenableFuture<Void> future : shuffleFutures) {
+                    if (future.isDone()) {
+                      try {
+                        future.get();
+                      }
+                      catch (InterruptedException | ExecutionException e) {
+                        throw new RuntimeException(e);
+                      }
+                    }
+                  }
+
+                  // TODO: no sleep!!
+                  // then how to know whether mergeFutures are legitimately empty?
+                  while (mergeFutures.size() == 0) {
+                    try {
+                      Thread.sleep(100);
+                    }
+                    catch (InterruptedException e) {
+                      throw new RuntimeException(e);
+                    }
+                  }
                   // todo: sort and merge can be done in parallel as long as they process different buckets
                   try {
-                    Futures.allAsList(mergeFutures).get();
+                    Futures.allAsList(mergeFutures.keySet()).get();
+                    // check errors in shuffle future
+                    for (ListenableFuture<Void> future : shuffleFutures) {
+                      future.get();
+                    }
                   }
                   catch (InterruptedException | ExecutionException e) {
                     throw new RuntimeException(e);
                   }
 
                   // sort
-
+                  // TODO: attach this to merge future as a CALLBACK
                   List<ListenableFuture<CloseableIterator<ResultRow>>> sortFutures = new ArrayList<>();
                   for (int i = 0; i < numHashBuckets; i++) {
                     BucketProcessor bucketProcessor = bucketProcessors[i];
@@ -1970,7 +2034,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
     private BucketedIterators(
         ReferenceCountingResourceHolder<ByteBuffer> mergeBufferHolder,
-        int sliceSize,
+        ByteBuffer[] slices,
         int numBuckets,
         BucketProcessor[] bucketProcessors
     )
@@ -1980,14 +2044,12 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
         this.iteratorLists[i] = new ArrayList<>();
       }
       this.bucketProcessors = bucketProcessors;
+      this.slices = slices;
 
       mergeBufferHolder.increment(); // TODO: release
-      slices = new ByteBuffer[iteratorLists.length];
-      sliceLocks = new AtomicBoolean[iteratorLists.length];
+      sliceLocks = new AtomicBoolean[slices.length];
       for (int i = 0; i < slices.length; i++) {
-        slices[i] = Groupers.getSlice(mergeBufferHolder.get(), sliceSize, i);
         sliceLocks[i] = new AtomicBoolean(true);
-        bucketProcessors[i].setMergeBuffer(slices[i]);
       }
     }
 
@@ -2059,6 +2121,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
             // or is this better because threads can intervene?
             // or should one merge task process one bucket only?
             bucketProcessors[i].process(CloseableIterators.wrap(concated, closer));
+          } else {
+            lock.get().close();
           }
         }
       }
@@ -2069,20 +2133,20 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
   {
     private final BucketedIterators bucketedIterators;
     private final int targetNumRowsToMergePerTask;
-    private final List<ListenableFuture<TimestampedBucketedSegmentIterators>> shuffleFutures;
+    private final Phaser shuffleNotifier;
     private final ListeningExecutorService exec;
     private final SettableFuture<Void> resultFuture;
 
     private MergeCallable(
         ListeningExecutorService exec,
-        List<ListenableFuture<TimestampedBucketedSegmentIterators>> shuffleFutures,
+        Phaser shuffleNotifier,
         BucketedIterators bucketedIterators,
         int targetNumRowsToMergePerTask,
         SettableFuture<Void> resultFuture
     )
     {
       this.exec = exec;
-      this.shuffleFutures = shuffleFutures;
+      this.shuffleNotifier = shuffleNotifier;
       this.bucketedIterators = bucketedIterators;
       this.targetNumRowsToMergePerTask = targetNumRowsToMergePerTask;
       this.resultFuture = resultFuture;
@@ -2091,16 +2155,23 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     @Override
     public Void call() throws Exception
     {
-      if (!bucketedIterators.isEmpty()) {
-        bucketedIterators.doMerge(targetNumRowsToMergePerTask);
+      try {
+        if (!bucketedIterators.isEmpty()) {
+          bucketedIterators.doMerge(targetNumRowsToMergePerTask);
+        }
+        if (!bucketedIterators.isEmpty()
+            || shuffleNotifier.getUnarrivedParties() > 0) {
+          exec.submit(
+              new MergeCallable(exec, shuffleNotifier, bucketedIterators, targetNumRowsToMergePerTask, resultFuture)
+          );
+        } else {
+          log.info("done merging");
+          resultFuture.set(null);
+        }
       }
-      if (!bucketedIterators.isEmpty()
-          || !shuffleFutures.stream().allMatch(Future::isDone)) {
-        exec.submit(
-            new MergeCallable(exec, shuffleFutures, bucketedIterators, targetNumRowsToMergePerTask, resultFuture)
-        );
-      } else {
-        resultFuture.set(null);
+      catch (Throwable t) {
+        log.info("fail merging");
+        resultFuture.setException(t);
       }
       return null;
     }
@@ -2109,7 +2180,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
   private static class BucketProcessor implements Closeable
   {
     private final SettableSupplier<MemoryVectorEntry> currentRowSupplier = new SettableSupplier<>();
-    private final SettableSupplier<ByteBuffer> mergeBufferSupplier = new SettableSupplier<>();
 
     private final GroupByQuery query;
     private final List<ColumnCapabilities> dimensionCapabilities;
@@ -2126,7 +2196,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
         int[] keyOffsets,
         @Nullable Supplier<MergedDictionary[]> mergedDictionariesSupplier,
         List<ColumnCapabilities> dimensionCapabilities,
-        List<AggregatorFactory> combiningFactories
+        List<AggregatorFactory> combiningFactories,
+        ByteBuffer mergeBufferSlice
     )
     {
       this.query = query;
@@ -2157,7 +2228,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           getDimensionComparators(columnSelectors, query.getLimitSpec())
       );
       this.grouper = new FixedSizeHashVectorGrouper(
-          mergeBufferSupplier,
+          Suppliers.ofInstance(mergeBufferSlice),
           1,
           keySize,
           MemoryVectorAggregators.factorizeVector(
@@ -2193,14 +2264,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
       return dimComparators;
     }
 
-    private void setMergeBuffer(ByteBuffer bufferSlice)
-    {
-      mergeBufferSupplier.set(bufferSlice);
-    }
-
     private void process(CloseableIterator<MemoryVectorEntry> iterator) throws IOException
     {
-      grouper.initVectorized(QueryContexts.getVectorSize(query)); // TODO: can i get the max vector size in a different way? this seems no good
       //noinspection unused
       try (CloseableIterator<MemoryVectorEntry> iteratorCloser = iterator) {
         while (iterator.hasNext()) {
