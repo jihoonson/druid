@@ -81,6 +81,15 @@ public class FloatSumAggregatorFactory extends SimpleFloatAggregatorFactory
   }
 
   @Override
+  protected MemoryVectorAggregator factorizeMemoryVector(
+      VectorColumnSelectorFactory columnSelectorFactory,
+      VectorValueSelector selector
+  )
+  {
+    return new FloatSumMemoryVectorAggregator(selector);
+  }
+
+  @Override
   @Nullable
   public Object combine(@Nullable Object lhs, @Nullable Object rhs)
   {

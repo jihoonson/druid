@@ -339,7 +339,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                 @Override
                 public boolean hasNext()
                 {
-                  return (delegate != null && delegate.hasNext()) || !timeOrderedIterators.hasNext();
+                  return (delegate != null && delegate.hasNext()) || timeOrderedIterators.hasNext();
                 }
 
                 @Override
