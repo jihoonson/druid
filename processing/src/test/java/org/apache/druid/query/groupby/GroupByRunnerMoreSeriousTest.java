@@ -101,8 +101,8 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
   private static final Map<String, Map<String, GroupByQuery>> SCHEMA_QUERY_MAP = new LinkedHashMap<>();
   private static final ObjectMapper JSON_MAPPER = new DefaultObjectMapper();
   private static final int RNG_SEED = 9999;
-  private static final int ROWS_PER_SEGMENT = 10;
-  private static final int NUM_SEGMENTS = 4;
+  private static final int ROWS_PER_SEGMENT = 100000;
+  private static final int NUM_SEGMENTS = 16;
   private static final int NUM_PROCESSING_THREADS = 16;
 
   private static IndexMergerV9 INDEX_MERGER;
@@ -175,9 +175,9 @@ public class GroupByRunnerMoreSeriousTest extends InitializedNullHandlingTest
 
     // limit of 2 is required since we simulate both historical merge and broker merge in the same process
     BlockingPool<ByteBuffer> mergePool = new DefaultBlockingPool<>(
-        new OffheapBufferGenerator("merge", 250_000_000),
+        new OffheapBufferGenerator("merge", 150_000_000),
 //        2
-        8
+        17
     );
     final GroupByQueryConfig config = new GroupByQueryConfig()
     {

@@ -108,7 +108,6 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -321,7 +320,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                     keySize,
                     keyOffsets,
                     mergedDictionariesSupplier,
-                    dimensionCapabilities,
                     combiningFactories,
                     slices[i]
                 );
@@ -334,9 +332,10 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   numHashBuckets,
                   bucketProcessors
               );
+              final int defaultTargetNumRowsToMergePerTask = 5_000_000;
               final int targetNumRowsToMergePerTask = query.getContextValue(
                   "targetNumRowsToMergePerTask",
-                  5_000_000
+                  defaultTargetNumRowsToMergePerTask
               );
 
               return new CloseableIterator<ResultRow>()
@@ -375,7 +374,8 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   // TODO: probably atomicLong is fine
                   Phaser shuffleNotifier = new Phaser(iteratorsOfSameTimestamp.size());
                   List<ListenableFuture<Void>> shuffleFutures = new ArrayList<>(iteratorsOfSameTimestamp.size());
-                  ConcurrentHashMap<SettableFuture<Void>, Boolean> mergeFutures = new ConcurrentHashMap<>();
+                  // TODO: not enough. need to lock when getting size
+                  List<ListenableFuture<Void>> mergeFutures = new ArrayList<>();
                   while (!iteratorsOfSameTimestamp.isEmpty()) {
                     ReferenceCountingResourceHolder<ByteBuffer> bufferHolder = memoryPool.take(); // TODO: timeout
                     TimeGranulizerIteratorAndBufferSupplier granulizerIterator
@@ -397,30 +397,29 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                                     }
                                     shuffleNotifier.arriveAndDeregister();
 
-                                    mergeFutures.compute(
-                                        SettableFuture.create(),
-                                        (k, v) -> {
-                                          if (mergeFutures.size() < numHashBuckets) {
-                                            // TODO: stack overflow. callback?
-                                            exec.submit(
-                                                Callables.withPriority(
-                                                    new MergeCallable(
-                                                        exec,
-                                                        shuffleNotifier,
-                                                        bucketedIterators,
-                                                        targetNumRowsToMergePerTask,
-                                                        k
-                                                    ),
-                                                    priority
-                                                )
-                                            );
-                                            log.info("schedule %d merges", mergeFutures.size());
-                                            return true;
-                                          } else {
-                                            return null;
-                                          }
+                                    if (mergeFutures.size() < numHashBuckets) {
+                                      SettableFuture<Void> mergeFuture = null;
+                                      synchronized (mergeFutures) {
+                                        if (mergeFutures.size() < numHashBuckets) {
+                                          mergeFuture = SettableFuture.create();
+                                          mergeFutures.add(mergeFuture);
                                         }
-                                    );
+                                      }
+                                      if (mergeFuture != null) {
+                                        exec.submit(
+                                            Callables.withPriority(
+                                                new MergeCallable(
+                                                    exec,
+                                                    shuffleNotifier,
+                                                    bucketedIterators,
+                                                    targetNumRowsToMergePerTask,
+                                                    mergeFuture
+                                                ),
+                                                priority
+                                            )
+                                        );
+                                      }
+                                    }
                                     return null;
                                   }
                                 },
@@ -434,29 +433,28 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   // while shuffleFutures are running
                   // wait for shuffleFutures to add iterators
                   // merge iterators
-                  for (int i = mergeFutures.size(); i < numHashBuckets && !bucketedIterators.isEmpty(); i++) {
-                    mergeFutures.compute(
-                        SettableFuture.create(),
-                        (k, v) -> {
-                          if (mergeFutures.size() < numHashBuckets) {
-                            exec.submit(
-                                Callables.withPriority(
-                                    new MergeCallable(
-                                        exec,
-                                        shuffleNotifier,
-                                        bucketedIterators,
-                                        targetNumRowsToMergePerTask,
-                                        k
-                                    ),
-                                    priority
-                                )
-                            );
-                            return true;
-                          } else {
-                            return null;
-                          }
-                        }
-                    );
+                  while (mergeFutures.size() < numHashBuckets && !bucketedIterators.isEmpty()) {
+                    SettableFuture<Void> mergeFuture = null;
+                    synchronized (mergeFutures) {
+                      if (mergeFutures.size() < numHashBuckets) {
+                        mergeFuture = SettableFuture.create();
+                        mergeFutures.add(mergeFuture);
+                      }
+                    }
+                    if (mergeFuture != null) {
+                      exec.submit(
+                          Callables.withPriority(
+                              new MergeCallable(
+                                  exec,
+                                  shuffleNotifier,
+                                  bucketedIterators,
+                                  targetNumRowsToMergePerTask,
+                                  mergeFuture
+                              ),
+                              priority
+                          )
+                      );
+                    }
                   }
 
                   // check errors in shuffle future
@@ -483,7 +481,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                   }
                   // todo: sort and merge can be done in parallel as long as they process different buckets
                   try {
-                    Futures.allAsList(mergeFutures.keySet()).get();
+                    Futures.allAsList(mergeFutures).get();
                     // check errors in shuffle future
                     for (ListenableFuture<Void> future : shuffleFutures) {
                       future.get();
@@ -545,7 +543,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
                                                 entry.getValues()[j]
                                             );
                                           }
-//                                     System.err.println(Thread.currentThread() + ", row conversion: " + Groupers.deserializeToRow(-1, entry.getKey(), entry.getValues()) + " -> " + resultRow);
+//                                          System.err.println(Thread.currentThread() + ", row conversion: " + Groupers.deserializeToRow(-1, entry.getKey(), entry.getValues()) + " -> " + resultRow);
                                           return resultRow;
                                         }),
                                     bucketProcessor.grouper
@@ -915,59 +913,6 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
           }
         }
     );
-  }
-
-  private CloseableIterator<MemoryVectorEntry> decorateDictConversion(
-      GroupByQuery query,
-      GroupByQueryConfig querySpecificConfig,
-      @Nullable CloseableIterator<MemoryVectorEntry> iterator,
-      int numDims,
-      Supplier<MergedDictionary[]> mergedDictionariesSupplier,
-      int keySize,
-      int[] keyOffsets
-  )
-  {
-    return iterator
-        .map(entry -> {
-          final WritableMemory keyMemory = entry.getKeys();
-
-//                StringBuilder keys = new StringBuilder(Thread.currentThread() + ", dict conversion: ");
-//                for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
-//                  keys.append(keyMemory.getInt(k * keySize)).append(", ");
-//                  keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
-//                }
-
-          // Convert dictionary
-          for (int rowIdx = 0; rowIdx < entry.getCurrentVectorSize(); rowIdx++) {
-            for (int dimIdx = 0; dimIdx < numDims; dimIdx++) {
-              // TODO: maybe GroupByVectorColumnConvertor or something..
-              if (query.getDimensions().get(dimIdx).getOutputType() == ValueType.STRING) {
-                if (querySpecificConfig.isEarlyDictMerge() && mergedDictionariesSupplier != null) {
-                  final long memoryOffset = rowIdx * keySize + keyOffsets[dimIdx];
-                  final int oldDictId = keyMemory.getInt(memoryOffset);
-                  assert entry.segmentId > -1;
-                  final int newDictId = mergedDictionariesSupplier.get()[dimIdx].getNewDictId(
-                      entry.segmentId,
-                      oldDictId
-                  );
-                  keyMemory.putInt(memoryOffset, newDictId);
-                } else {
-                  throw new UnsupportedOperationException();
-                }
-              }
-            }
-          }
-
-//                keys.append(" -> ");
-//                for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
-//                  keys.append(keyMemory.getInt(k * keySize)).append(", ");
-//                  keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
-//                }
-//
-//                System.err.println(keys);
-
-          return entry;
-        });
   }
 
   private int typeSize(ValueType valueType)
@@ -2182,7 +2127,11 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     private final SettableSupplier<MemoryVectorEntry> currentRowSupplier = new SettableSupplier<>();
 
     private final GroupByQuery query;
-    private final List<ColumnCapabilities> dimensionCapabilities;
+    private final GroupByQueryConfig querySpecificConfig;
+    private final int keySize;
+    private final int[] keyOffsets;
+    private final @Nullable Supplier<MergedDictionary[]> mergedDictionariesSupplier;
+    private final int numDims;
 
     private final VectorColumnSelectorFactory columnSelectorFactory;
     private final List<GroupByVectorColumnSelector> columnSelectors;
@@ -2195,13 +2144,16 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
         int keySize,
         int[] keyOffsets,
         @Nullable Supplier<MergedDictionary[]> mergedDictionariesSupplier,
-        List<ColumnCapabilities> dimensionCapabilities,
         List<AggregatorFactory> combiningFactories,
         ByteBuffer mergeBufferSlice
     )
     {
       this.query = query;
-      this.dimensionCapabilities = dimensionCapabilities;
+      this.querySpecificConfig = querySpecificConfig;
+      this.keySize = keySize;
+      this.keyOffsets = keyOffsets;
+      this.mergedDictionariesSupplier = mergedDictionariesSupplier;
+      this.numDims = query.getResultRowAggregatorStart() - query.getResultRowDimensionStart();
 
       this.columnSelectorFactory = new MemoryVectorEntryColumnSelectorFactory(
           query,
@@ -2266,14 +2218,60 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
 
     private void process(CloseableIterator<MemoryVectorEntry> iterator) throws IOException
     {
-      //noinspection unused
-      try (CloseableIterator<MemoryVectorEntry> iteratorCloser = iterator) {
-        while (iterator.hasNext()) {
-          final MemoryVectorEntry entry = iterator.next();
+      try (CloseableIterator<MemoryVectorEntry> decoratedIterator = decorateDictConversion(iterator)) {
+        while (decoratedIterator.hasNext()) {
+          final MemoryVectorEntry entry = decoratedIterator.next();
           currentRowSupplier.set(entry);
           grouper.aggregateVector(entry.getKeys(), 0, entry.curVectorSize);
         }
       }
+    }
+
+    private CloseableIterator<MemoryVectorEntry> decorateDictConversion(
+        CloseableIterator<MemoryVectorEntry> iterator
+    )
+    {
+      return iterator
+          .map(entry -> {
+            final WritableMemory keyMemory = entry.getKeys();
+
+//            StringBuilder keys = new StringBuilder(Thread.currentThread() + ", dict conversion: ");
+//            for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
+//              keys.append(keyMemory.getInt(k * keySize)).append(", ");
+//              keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
+//            }
+
+            // Convert dictionary
+            for (int rowIdx = 0; rowIdx < entry.getCurrentVectorSize(); rowIdx++) {
+              for (int dimIdx = 0; dimIdx < numDims; dimIdx++) {
+                // TODO: maybe GroupByVectorColumnConvertor or something..
+                if (query.getDimensions().get(dimIdx).getOutputType() == ValueType.STRING) {
+                  if (querySpecificConfig.isEarlyDictMerge() && mergedDictionariesSupplier != null) {
+                    final long memoryOffset = rowIdx * keySize + keyOffsets[dimIdx];
+                    final int oldDictId = keyMemory.getInt(memoryOffset);
+                    assert entry.segmentId > -1;
+                    final int newDictId = mergedDictionariesSupplier.get()[dimIdx].getNewDictId(
+                        entry.segmentId,
+                        oldDictId
+                    );
+                    keyMemory.putInt(memoryOffset, newDictId);
+                  } else {
+                    throw new UnsupportedOperationException();
+                  }
+                }
+              }
+            }
+
+//            keys.append(" -> ");
+//            for (int k = 0; k < entry.getCurrentVectorSize(); k++) {
+//              keys.append(keyMemory.getInt(k * keySize)).append(", ");
+//              keys.append(keyMemory.getInt(k * keySize + 4)).append(", ");
+//            }
+//
+//            System.err.println(keys);
+
+            return entry;
+          });
     }
 
     @Override

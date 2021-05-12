@@ -377,7 +377,6 @@ public class VectorGroupByEngine2
                    .mapToObj(i -> new PartitionedHashTableIterator(
                        i,
                        currentBufferHolder,
-                       vectorGrouper,
                        entryIterators.get(i)
                    ))
                    .toArray(PartitionedHashTableIterator[]::new),

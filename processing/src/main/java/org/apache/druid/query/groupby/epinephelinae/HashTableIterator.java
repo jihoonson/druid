@@ -114,16 +114,16 @@ public class HashTableIterator implements SizedIterator<MemoryVectorEntry>
             throw new UnsupportedOperationException();
         }
       }
-//                    System.err.println(Thread.currentThread() + ", row: " + Groupers.deserializeToRow(segmentId, keyMemory, values));
+//      System.err.println(Thread.currentThread() + ", row: " + Groupers.deserializeToRow(segmentId, keyVector, values));
     }
 
-//                  StringBuilder keys = new StringBuilder(Thread.currentThread() + ", keys: ");
-//                  for (int i = 0; i < curVectorSize; i++) {
-//                    keys.append(keyVector.getInt(i * keySize)).append(", ");
-//                    keys.append(keyVector.getInt(i * keySize + 4)).append(", ");
-//                  }
+//    StringBuilder keys = new StringBuilder(Thread.currentThread() + ", keys: ");
+//    for (int i = 0; i < curVectorSize; i++) {
+//      keys.append("[").append(keyVector.getInt(i * hashTable.keySize())).append(", ");
+//      keys.append(keyVector.getInt(i * hashTable.keySize() + 4)).append("], ");
+//    }
 //
-//                  System.err.println(keys);
+//    System.err.println(keys);
 
     return new MemoryVectorEntry(nextVectorId++, keyVector, valuess, maxVectorSize, curVectorSize, segmentId);
   }

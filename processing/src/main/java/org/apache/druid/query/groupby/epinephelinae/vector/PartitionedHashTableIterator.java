@@ -20,6 +20,7 @@
 package org.apache.druid.query.groupby.epinephelinae.vector;
 
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
+import org.apache.druid.collections.Releaser;
 import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.parsers.CloseableIterator;
 import org.apache.druid.query.groupby.epinephelinae.FixedSizeHashVectorGrouper;
@@ -40,23 +41,18 @@ import java.util.NoSuchElementException;
 public class PartitionedHashTableIterator implements CloseableIterator<MemoryVectorEntry>, Sized
 {
   private final int bucket;
-  private final ReferenceCountingResourceHolder<ByteBuffer> currentBufferHolder;
-  private final FixedSizeHashVectorGrouper vectorGrouper;
   private final SizedIterator<MemoryVectorEntry> entryIterator;
+  private final Releaser bufferReleaser;
 
   public PartitionedHashTableIterator(
       int bucket,
       ReferenceCountingResourceHolder<ByteBuffer> currentBufferHolder,
-      FixedSizeHashVectorGrouper vectorGrouper,
       SizedIterator<MemoryVectorEntry> entryIterator
   )
   {
     this.bucket = bucket;
-    this.currentBufferHolder = currentBufferHolder;
-    this.vectorGrouper = vectorGrouper;
     this.entryIterator = entryIterator;
-
-    currentBufferHolder.increment();
+    this.bufferReleaser = currentBufferHolder.increment();
   }
 
   public int getBucket()
@@ -90,7 +86,7 @@ public class PartitionedHashTableIterator implements CloseableIterator<MemoryVec
   {
     Closer closer = Closer.create();
 //    closer.register(vectorGrouper); // TODO: should not close grouper here. should be closed when timestampdIterators is closed
-    closer.register(currentBufferHolder);
+    closer.register(bufferReleaser);
     closer.close();
   }
 }
