@@ -23,8 +23,13 @@ import com.google.common.base.Preconditions;
 import it.unimi.dsi.fastutil.ints.AbstractIntList;
 import it.unimi.dsi.fastutil.ints.IntList;
 
+import java.util.Random;
+import java.util.RandomAccess;
+
 public class IntListUtils
 {
+  private static final int SHUFFLE_THRESHOLD = 5;
+
   private IntListUtils()
   {
   }
@@ -57,6 +62,34 @@ public class IntListUtils
     public int size()
     {
       return size;
+    }
+  }
+
+  public static void shuffle(IntList list, Random rnd)
+  {
+    int size = list.size();
+    if (size < SHUFFLE_THRESHOLD || list instanceof RandomAccess) {
+      for (int i = size; i > 1; i--) {
+        list.set(i - 1, list.set(rnd.nextInt(i), list.getInt(i - 1)));
+      }
+    } else {
+      int[] arr = list.toIntArray();
+
+      // Shuffle array
+      for (int i = size; i > 1; i--) {
+        int j = rnd.nextInt(i);
+        int tmp = arr[i - 1];
+        arr[i - 1] = arr[j];
+        arr[j] = tmp;
+      }
+
+      // Dump array back into list
+      // instead of using a raw type here, it's possible to capture
+      // the wildcard but it will require a call to a supplementary
+      // private method
+      for (int i = 0; i < arr.length; i++) {
+        list.set(i, arr[i]);
+      }
     }
   }
 }

@@ -31,6 +31,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
 import org.apache.datasketches.memory.WritableMemory;
 import org.apache.druid.collections.BlockingPool;
 import org.apache.druid.collections.ReferenceCountingResourceHolder;
@@ -80,6 +82,7 @@ import org.apache.druid.query.ordering.StringComparator;
 import org.apache.druid.query.ordering.StringComparators;
 import org.apache.druid.segment.ColumnProcessors;
 import org.apache.druid.segment.IdLookup;
+import org.apache.druid.segment.IntListUtils;
 import org.apache.druid.segment.column.ColumnCapabilities;
 import org.apache.druid.segment.column.ColumnCapabilitiesImpl;
 import org.apache.druid.segment.column.ValueType;
@@ -114,6 +117,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -2041,10 +2045,17 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
     private void doMerge(int targetSize) throws IOException
     {
       int remaining = targetSize;
-      for (int i = 0; i < sliceLocks.length && remaining > 0; i++) {
-        Optional<Closeable> lock = tryLock(i);
+      IntList indices = IntStream.range(0, sliceLocks.length).collect(
+          IntArrayList::new,
+          IntArrayList::add,
+          IntArrayList::addAll
+      );
+      IntListUtils.shuffle(indices, ThreadLocalRandom.current());
+      for (int i = 0; i < indices.size() && remaining > 0; i++) {
+        int bucketIndex = indices.getInt(i);
+        Optional<Closeable> lock = tryLock(bucketIndex);
         if (lock.isPresent()) {
-          List<PartitionedHashTableIterator> iteratorList = iteratorLists[i];
+          List<PartitionedHashTableIterator> iteratorList = iteratorLists[bucketIndex];
           List<PartitionedHashTableIterator> drained = new ArrayList<>();
           synchronized (iteratorList) {
             // TODO: is sort cool? benchmark?
@@ -2065,7 +2076,7 @@ public class GroupByShuffleMergingQueryRunner implements QueryRunner<ResultRow>
             // TODO: should i drain all first?
             // or is this better because threads can intervene?
             // or should one merge task process one bucket only?
-            bucketProcessors[i].process(CloseableIterators.wrap(concated, closer));
+            bucketProcessors[bucketIndex].process(CloseableIterators.wrap(concated, closer));
           } else {
             lock.get().close();
           }
