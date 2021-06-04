@@ -36,6 +36,11 @@ import org.apache.druid.client.cache.CacheConfig;
 import org.apache.druid.client.cache.CachePopulatorStats;
 import org.apache.druid.client.cache.MapCache;
 import org.apache.druid.client.indexing.NoopIndexingServiceClient;
+import org.apache.druid.data.input.MapBasedInputRow;
+import org.apache.druid.data.input.impl.DimensionsSpec;
+import org.apache.druid.data.input.impl.JsonInputFormat;
+import org.apache.druid.data.input.impl.StringDimensionSchema;
+import org.apache.druid.data.input.impl.TimestampSpec;
 import org.apache.druid.discovery.DataNodeService;
 import org.apache.druid.discovery.DruidNodeAnnouncer;
 import org.apache.druid.discovery.LookupNodeService;
@@ -72,8 +77,11 @@ import org.apache.druid.indexing.seekablestream.supervisor.SeekableStreamSupervi
 import org.apache.druid.indexing.test.TestDataSegmentAnnouncer;
 import org.apache.druid.indexing.test.TestDataSegmentKiller;
 import org.apache.druid.java.util.common.DateTimes;
+import org.apache.druid.java.util.common.Intervals;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.concurrent.Execs;
+import org.apache.druid.java.util.common.granularity.Granularities;
+import org.apache.druid.java.util.common.io.Closer;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.java.util.emitter.core.NoopEmitter;
@@ -83,30 +91,28 @@ import org.apache.druid.math.expr.ExprMacroTable;
 import org.apache.druid.metadata.DerbyMetadataStorageActionHandlerFactory;
 import org.apache.druid.metadata.IndexerSQLMetadataStorageCoordinator;
 import org.apache.druid.metadata.TestDerbyConnector;
-import org.apache.druid.query.DefaultGenericQueryMetricsFactory;
-import org.apache.druid.query.DefaultQueryRunnerFactoryConglomerate;
+import org.apache.druid.query.DruidProcessingConfig;
 import org.apache.druid.query.Druids;
-import org.apache.druid.query.Query;
 import org.apache.druid.query.QueryPlus;
-import org.apache.druid.query.QueryRunnerFactory;
 import org.apache.druid.query.QueryRunnerFactoryConglomerate;
 import org.apache.druid.query.SegmentDescriptor;
+import org.apache.druid.query.dimension.DefaultDimensionSpec;
+import org.apache.druid.query.dimension.ListFilteredDimensionSpec;
 import org.apache.druid.query.filter.SelectorDimFilter;
+import org.apache.druid.query.groupby.GroupByQuery;
+import org.apache.druid.query.groupby.ResultRow;
 import org.apache.druid.query.scan.ScanQuery;
-import org.apache.druid.query.scan.ScanQueryConfig;
-import org.apache.druid.query.scan.ScanQueryEngine;
-import org.apache.druid.query.scan.ScanQueryQueryToolChest;
-import org.apache.druid.query.scan.ScanQueryRunnerFactory;
 import org.apache.druid.query.scan.ScanResultValue;
+import org.apache.druid.query.spec.MultipleIntervalSegmentSpec;
 import org.apache.druid.query.spec.QuerySegmentSpec;
-import org.apache.druid.query.timeseries.TimeseriesQuery;
-import org.apache.druid.query.timeseries.TimeseriesQueryEngine;
-import org.apache.druid.query.timeseries.TimeseriesQueryQueryToolChest;
-import org.apache.druid.query.timeseries.TimeseriesQueryRunnerFactory;
+import org.apache.druid.segment.column.ValueType;
+import org.apache.druid.segment.generator.DataGenerator;
+import org.apache.druid.segment.generator.GeneratorColumnSchema;
 import org.apache.druid.segment.incremental.RowIngestionMeters;
 import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.incremental.RowIngestionMetersTotals;
 import org.apache.druid.segment.indexing.DataSchema;
+import org.apache.druid.segment.indexing.granularity.UniformGranularitySpec;
 import org.apache.druid.segment.join.NoopJoinableFactory;
 import org.apache.druid.segment.loading.DataSegmentPusher;
 import org.apache.druid.segment.loading.LocalDataSegmentPusher;
@@ -118,6 +124,7 @@ import org.apache.druid.segment.realtime.plumber.SegmentHandoffNotifierFactory;
 import org.apache.druid.segment.transform.ExpressionTransform;
 import org.apache.druid.segment.transform.TransformSpec;
 import org.apache.druid.server.DruidNode;
+import org.apache.druid.server.QueryStackTests;
 import org.apache.druid.server.coordination.DataSegmentServerAnnouncer;
 import org.apache.druid.server.coordination.ServerType;
 import org.apache.druid.server.security.AuthTestUtils;
@@ -139,6 +146,7 @@ import org.junit.runners.Parameterized;
 import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -151,6 +159,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -2413,6 +2422,82 @@ public class KafkaIndexTaskTest extends SeekableStreamIndexTaskTestBase
   }
 
   @Test
+  public void testTest() throws InterruptedException, ExecutionException, JsonProcessingException
+  {
+    generateData();
+    maxRowsPerSegment = Integer.MAX_VALUE;
+    maxTotalRows = Long.MAX_VALUE;
+    KafkaIndexTask task = createTask(
+        "task",
+        new DataSchema(
+            "test_ds",
+            new TimestampSpec("ts", null, null),
+            new DimensionsSpec(
+                ImmutableList.of(
+                    new StringDimensionSchema("mvc1"),
+                    new StringDimensionSchema("mvc2")
+                )
+            ),
+            null,
+            new UniformGranularitySpec(Granularities.DAY, Granularities.NONE, true, null),
+            null
+        ),
+        new KafkaIndexTaskIOConfig(
+            0,
+            "sequence0",
+            new SeekableStreamStartSequenceNumbers<>("topic", ImmutableMap.of(0, 0L), ImmutableSet.of()),
+            new SeekableStreamEndSequenceNumbers<>("topic", ImmutableMap.of(0, Long.MAX_VALUE)),
+            kafkaServer.consumerProperties(),
+            KafkaSupervisorIOConfig.DEFAULT_POLL_TIMEOUT_MILLIS,
+            true,
+            null,
+            null,
+            new JsonInputFormat(
+                null,
+                null,
+                null
+            )
+        )
+    );
+    ListenableFuture<TaskStatus> future = runTask(task);
+    Thread.sleep(300L);
+
+    GroupByQuery query = GroupByQuery
+        .builder()
+        .setDataSource("test_ds")
+        .setQuerySegmentSpec(new MultipleIntervalSegmentSpec(ImmutableList.of(Intervals.of("2020/P1D"))))
+        .setDimensions(
+            ImmutableList.of(
+                new ListFilteredDimensionSpec(
+                    new DefaultDimensionSpec("mvc1", "mvc1"),
+                    ImmutableSet.of("mv1_0", "mv1_10", "mv1_20", "mv1_30", "mv1_40"),
+                    null
+                ),
+                new ListFilteredDimensionSpec(
+                    new DefaultDimensionSpec("mvc2", "mvc2"),
+                    ImmutableSet.of("mv2_4", "mv2_50", "mv2_60"),
+                    null
+                )
+            )
+        )
+        .setGranularity(Granularities.ALL)
+        .build();
+
+    int prevSize = -1;
+    for (int i = 0; i < 100; i++) {
+      Thread.sleep(10);
+      List<ResultRow> result = task.getQueryRunner(query).run(QueryPlus.wrap(query)).toList();
+      System.err.println("query result: " + result.size());
+      if (prevSize > result.size()) {
+        Assert.fail(StringUtils.format("wtf prev: %d now: %d", prevSize, result.size()));
+      }
+      prevSize = result.size();
+    }
+
+
+  }
+
+  @Test
   public void testSerde() throws Exception
   {
     // This is both a serde test and a regression test for https://github.com/apache/druid/issues/7724.
@@ -2462,6 +2547,57 @@ public class KafkaIndexTaskTest extends SeekableStreamIndexTaskTestBase
     }
   }
 
+  private void generateData() throws ExecutionException, InterruptedException, JsonProcessingException
+  {
+    List<Object> mvs1 = new ArrayList<>();
+    List<Object> mvs2 = new ArrayList<>();
+    List<Double> probs = new ArrayList<>();
+    for (int i = 0; i < 100; i++) {
+      mvs1.add("mv1_" + i);
+      mvs2.add("mv2_" + i);
+      probs.add(0.01);
+    }
+
+    List<GeneratorColumnSchema> columnSchemas = new ArrayList<>();
+    columnSchemas.add(
+        GeneratorColumnSchema.makeEnumerated(
+            "mvc1",
+            ValueType.STRING,
+            false,
+            7,
+            null,
+            mvs1,
+            probs
+        )
+    );
+    columnSchemas.add(
+        GeneratorColumnSchema.makeEnumerated(
+            "mvc2",
+            ValueType.STRING,
+            false,
+            3,
+            null,
+            mvs2,
+            probs
+        )
+    );
+    int numRows = 500000;
+    DataGenerator generator = new DataGenerator(columnSchemas, ThreadLocalRandom.current().nextInt(), Intervals.of("2020/P1D"), numRows);
+
+    try (final KafkaProducer<byte[], byte[]> kafkaProducer = kafkaServer.newProducer()) {
+      kafkaProducer.initTransactions();
+      kafkaProducer.beginTransaction();
+      for (int i = 0; i < numRows; i++) {
+        MapBasedInputRow row = (MapBasedInputRow) generator.nextRow();
+        Map<String, Object> data = new HashMap<>(row.getEvent());
+        data.put("ts", row.getTimestampFromEpoch());
+        byte[] value = new ObjectMapper().writeValueAsBytes(data);
+        kafkaProducer.send(new ProducerRecord<>("topic", 0, null, value)).get();
+      }
+      kafkaProducer.commitTransaction();
+    }
+  }
+
   private KafkaIndexTask createTask(
       final String taskId,
       final KafkaIndexTaskIOConfig ioConfig
@@ -2497,7 +2633,7 @@ public class KafkaIndexTaskTest extends SeekableStreamIndexTaskTestBase
   ) throws JsonProcessingException
   {
     final KafkaIndexTaskTuningConfig tuningConfig = new KafkaIndexTaskTuningConfig(
-        1000,
+        5000,
         null,
         maxRowsPerSegment,
         maxTotalRows,
@@ -2552,33 +2688,43 @@ public class KafkaIndexTaskTest extends SeekableStreamIndexTaskTestBase
     );
   }
 
+  private Closer closer = Closer.create();
+
   private QueryRunnerFactoryConglomerate makeTimeseriesAndScanConglomerate()
   {
-    return new DefaultQueryRunnerFactoryConglomerate(
-        ImmutableMap.<Class<? extends Query>, QueryRunnerFactory>builder()
-            .put(
-                TimeseriesQuery.class,
-                new TimeseriesQueryRunnerFactory(
-                    new TimeseriesQueryQueryToolChest(),
-                    new TimeseriesQueryEngine(),
-                    (query, future) -> {
-                      // do nothing
-                    }
-                )
-            )
-            .put(
-                ScanQuery.class,
-                new ScanQueryRunnerFactory(
-                    new ScanQueryQueryToolChest(
-                        new ScanQueryConfig(),
-                        new DefaultGenericQueryMetricsFactory()
-                    ),
-                    new ScanQueryEngine(),
-                    new ScanQueryConfig()
-                )
-            )
-            .build()
-    );
+//    return new DefaultQueryRunnerFactoryConglomerate(
+//        ImmutableMap.<Class<? extends Query>, QueryRunnerFactory>builder()
+//            .put(
+//                TimeseriesQuery.class,
+//                new TimeseriesQueryRunnerFactory(
+//                    new TimeseriesQueryQueryToolChest(),
+//                    new TimeseriesQueryEngine(),
+//                    (query, future) -> {
+//                      // do nothing
+//                    }
+//                )
+//            )
+//            .put(
+//                ScanQuery.class,
+//                new ScanQueryRunnerFactory(
+//                    new ScanQueryQueryToolChest(
+//                        new ScanQueryConfig(),
+//                        new DefaultGenericQueryMetricsFactory()
+//                    ),
+//                    new ScanQueryEngine(),
+//                    new ScanQueryConfig()
+//                )
+//            )
+//            .build()
+//    );
+    return QueryStackTests.createQueryRunnerFactoryConglomerate(closer, new DruidProcessingConfig()
+    {
+      @Override
+      public String getFormatString()
+      {
+        return null;
+      }
+    });
   }
 
   private void makeToolboxFactory() throws IOException

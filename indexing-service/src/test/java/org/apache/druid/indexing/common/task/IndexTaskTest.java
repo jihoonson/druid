@@ -953,6 +953,51 @@ public class IndexTaskTest extends IngestionTestBase
     }
   }
 
+  @Test
+  public void testTest() throws Exception
+  {
+    File tmpDir = temporaryFolder.newFolder();
+    File tmpFile = File.createTempFile("druid", "index", tmpDir);
+
+    try (BufferedWriter writer = Files.newWriter(tmpFile, StandardCharsets.UTF_8)) {
+      writer.write("2014-01-01T00:00:10Z,,\n");
+    }
+
+    IndexTask indexTask = new IndexTask(
+        null,
+        null,
+        createDefaultIngestionSpec(
+            jsonMapper,
+            tmpDir,
+            new UniformGranularitySpec(
+                Granularities.DAY,
+                Granularities.DAY,
+                true,
+                null
+            ),
+            new TransformSpec(
+                null,
+                ImmutableList.of(
+                    new ExpressionTransform(
+                        "dim",
+                        "nvl(dim, 'wat')",
+                        ExprMacroTable.nil()
+                    )
+                )
+            ),
+            createTuningConfig(3, 2, null, 2L, null, false, true),
+            false
+        ),
+        null
+    );
+
+    final List<DataSegment> segments = runTask(indexTask).rhs;
+
+    Assert.assertEquals(1, segments.size());
+
+    System.err.println(segments);
+  }
+
   private static void populateRollupTestData(File tmpFile) throws IOException
   {
     try (BufferedWriter writer = Files.newWriter(tmpFile, StandardCharsets.UTF_8)) {
