@@ -117,6 +117,7 @@ public class DruidSchemaTest extends CalciteTestBase
   private List<ImmutableDruidServer> druidServers;
   private CountDownLatch getDatasourcesLatch = new CountDownLatch(1);
   private CountDownLatch buildTableLatch = new CountDownLatch(1);
+  private CountDownLatch markDataSourceLatch = new CountDownLatch(1);
 
   @BeforeClass
   public static void setUpClass()
@@ -266,15 +267,22 @@ public class DruidSchemaTest extends CalciteTestBase
         buildTableLatch.countDown();
         return table;
       }
+
+      @Override
+      void markDataSourceAsNeedRebuild(String datasource)
+      {
+        super.markDataSourceAsNeedRebuild(datasource);
+        markDataSourceLatch.countDown();
+      }
     };
 
     schema2 = new DruidSchema(
-            CalciteTests.createMockQueryLifecycleFactory(walker, conglomerate),
-            serverView,
-            segmentManager,
-            new MapJoinableFactory(ImmutableSet.of(globalTableJoinable), ImmutableMap.of(globalTableJoinable.getClass(), GlobalTableDataSource.class)),
-            PLANNER_CONFIG_DEFAULT,
-            new NoopEscalator()
+        CalciteTests.createMockQueryLifecycleFactory(walker, conglomerate),
+        serverView,
+        segmentManager,
+        new MapJoinableFactory(ImmutableSet.of(globalTableJoinable), ImmutableMap.of(globalTableJoinable.getClass(), GlobalTableDataSource.class)),
+        PLANNER_CONFIG_DEFAULT,
+        new NoopEscalator()
     )
     {
 
@@ -296,6 +304,13 @@ public class DruidSchemaTest extends CalciteTestBase
         } else {
           return super.refreshSegments(segments);
         }
+      }
+
+      @Override
+      void markDataSourceAsNeedRebuild(String datasource)
+      {
+        super.markDataSourceAsNeedRebuild(datasource);
+        markDataSourceLatch.countDown();
       }
     };
 
@@ -542,8 +557,9 @@ public class DruidSchemaTest extends CalciteTestBase
     Assert.assertFalse(fooTable.isJoinable());
     Assert.assertFalse(fooTable.isBroadcast());
 
-    buildTableLatch.await(1, TimeUnit.SECONDS);
+    Assert.assertTrue(buildTableLatch.await(1, TimeUnit.SECONDS));
 
+    buildTableLatch = new CountDownLatch(1);
     final DataSegment someNewBrokerSegment = new DataSegment(
         "foo",
         Intervals.of("2012/2013"),
@@ -560,14 +576,11 @@ public class DruidSchemaTest extends CalciteTestBase
     segmentDataSourceNames.add("foo");
     joinableDataSourceNames.add("foo");
     serverView.addSegment(someNewBrokerSegment, ServerType.BROKER);
-
+    Assert.assertTrue(markDataSourceLatch.await(2, TimeUnit.SECONDS));
     // wait for build twice
-    buildTableLatch = new CountDownLatch(2);
-    buildTableLatch.await(1, TimeUnit.SECONDS);
-
+    Assert.assertTrue(buildTableLatch.await(2, TimeUnit.SECONDS));
     // wait for get again, just to make sure table has been updated (latch counts down just before tables are updated)
-    getDatasourcesLatch = new CountDownLatch(1);
-    getDatasourcesLatch.await(1, TimeUnit.SECONDS);
+    Assert.assertTrue(getDatasourcesLatch.await(2, TimeUnit.SECONDS));
 
     fooTable = (DruidTable) schema.getTableMap().get("foo");
     Assert.assertNotNull(fooTable);
@@ -577,18 +590,18 @@ public class DruidSchemaTest extends CalciteTestBase
     Assert.assertTrue(fooTable.isBroadcast());
 
     // now remove it
+    markDataSourceLatch = new CountDownLatch(1);
+    buildTableLatch = new CountDownLatch(1);
+    getDatasourcesLatch = new CountDownLatch(1);
     joinableDataSourceNames.remove("foo");
     segmentDataSourceNames.remove("foo");
     serverView.removeSegment(someNewBrokerSegment, ServerType.BROKER);
 
+    Assert.assertTrue(markDataSourceLatch.await(2, TimeUnit.SECONDS));
     // wait for build
-    buildTableLatch.await(1, TimeUnit.SECONDS);
-    buildTableLatch = new CountDownLatch(1);
-    buildTableLatch.await(1, TimeUnit.SECONDS);
-
+    Assert.assertTrue(buildTableLatch.await(2, TimeUnit.SECONDS));
     // wait for get again, just to make sure table has been updated (latch counts down just before tables are updated)
-    getDatasourcesLatch = new CountDownLatch(1);
-    getDatasourcesLatch.await(1, TimeUnit.SECONDS);
+    Assert.assertTrue(getDatasourcesLatch.await(2, TimeUnit.SECONDS));
 
     fooTable = (DruidTable) schema.getTableMap().get("foo");
     Assert.assertNotNull(fooTable);
@@ -609,8 +622,9 @@ public class DruidSchemaTest extends CalciteTestBase
     Assert.assertFalse(fooTable.isBroadcast());
 
     // wait for build twice
-    buildTableLatch.await(1, TimeUnit.SECONDS);
+    Assert.assertTrue(buildTableLatch.await(1, TimeUnit.SECONDS));
 
+    buildTableLatch = new CountDownLatch(1);
     final DataSegment someNewBrokerSegment = new DataSegment(
         "foo",
         Intervals.of("2012/2013"),
@@ -627,12 +641,10 @@ public class DruidSchemaTest extends CalciteTestBase
     segmentDataSourceNames.add("foo");
     serverView.addSegment(someNewBrokerSegment, ServerType.BROKER);
 
-    buildTableLatch = new CountDownLatch(2);
-    buildTableLatch.await(1, TimeUnit.SECONDS);
-
+    Assert.assertTrue(markDataSourceLatch.await(2, TimeUnit.SECONDS));
+    Assert.assertTrue(buildTableLatch.await(2, TimeUnit.SECONDS));
     // wait for get again, just to make sure table has been updated (latch counts down just before tables are updated)
-    getDatasourcesLatch = new CountDownLatch(1);
-    getDatasourcesLatch.await(1, TimeUnit.SECONDS);
+    Assert.assertTrue(getDatasourcesLatch.await(2, TimeUnit.SECONDS));
 
     fooTable = (DruidTable) schema.getTableMap().get("foo");
     Assert.assertNotNull(fooTable);
@@ -643,19 +655,18 @@ public class DruidSchemaTest extends CalciteTestBase
     Assert.assertTrue(fooTable.isBroadcast());
     Assert.assertFalse(fooTable.isJoinable());
 
-
     // now remove it
+    markDataSourceLatch = new CountDownLatch(1);
+    buildTableLatch = new CountDownLatch(1);
+    getDatasourcesLatch = new CountDownLatch(1);
     segmentDataSourceNames.remove("foo");
     serverView.removeSegment(someNewBrokerSegment, ServerType.BROKER);
 
+    Assert.assertTrue(markDataSourceLatch.await(2, TimeUnit.SECONDS));
     // wait for build
-    buildTableLatch.await(1, TimeUnit.SECONDS);
-    buildTableLatch = new CountDownLatch(1);
-    buildTableLatch.await(1, TimeUnit.SECONDS);
-
+    Assert.assertTrue(buildTableLatch.await(2, TimeUnit.SECONDS));
     // wait for get again, just to make sure table has been updated (latch counts down just before tables are updated)
-    getDatasourcesLatch = new CountDownLatch(1);
-    getDatasourcesLatch.await(1, TimeUnit.SECONDS);
+    Assert.assertTrue(getDatasourcesLatch.await(2, TimeUnit.SECONDS));
 
     fooTable = (DruidTable) schema.getTableMap().get("foo");
     Assert.assertNotNull(fooTable);

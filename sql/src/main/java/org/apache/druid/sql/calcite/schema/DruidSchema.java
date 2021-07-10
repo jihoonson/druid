@@ -71,9 +71,7 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -106,6 +104,11 @@ public class DruidSchema extends AbstractSchema
   private final JoinableFactory joinableFactory;
   private final ExecutorService cacheExec;
   private final ExecutorService callbackExec;
+
+  /**
+   * Map of DataSource -> DruidTable.
+   * This map can be accessed by {@link #cacheExec} and {@link #callbackExec} threads.
+   */
   private final ConcurrentMap<String, DruidTable> tables = new ConcurrentHashMap<>();
 
   /**
@@ -121,7 +124,7 @@ public class DruidSchema extends AbstractSchema
   private final CountDownLatch initialized = new CountDownLatch(1);
 
   // This lock coordinates the access from multiple threads to those variables guarded by this lock.
-  // Currently, there are 3 threads that can access these variables.
+  // Currently, there are 2 threads that can access these variables.
   // - callbackExec executes the timeline callbacks whenever BrokerServerView changes.
   // - cacheExec periodically refreshes segment metadata and DruidTable if necessary based on the information
   //   collected via timeline callbacks
@@ -240,6 +243,15 @@ public class DruidSchema extends AbstractSchema
                                                               .plus(config.getMetadataRefreshPeriod())
                                                               .isAfterNow();
 
+                    log.info(
+                        "isServerViewInitialized: %s, segmentsNeedingRefresh:%s, dataSourcesNeedingRebuild: %s, refreshImmediately:%s, nextRefresh: %s",
+                        isServerViewInitialized,
+                        segmentsNeedingRefresh,
+                        dataSourcesNeedingRebuild,
+                        refreshImmediately,
+                        nextRefresh
+                    );
+
                     if (isServerViewInitialized &&
                         !wasRecentFailure &&
                         (!segmentsNeedingRefresh.isEmpty() || !dataSourcesNeedingRebuild.isEmpty()) &&
@@ -289,10 +301,7 @@ public class DruidSchema extends AbstractSchema
                 // Rebuild the dataSources.
                 for (String dataSource : dataSourcesToRebuild) {
                   final DruidTable druidTable = buildDruidTable(dataSource);
-                  final DruidTable oldTable;
-                  synchronized (lock) {
-                    oldTable = tables.put(dataSource, druidTable);
-                  }
+                  final DruidTable oldTable = tables.put(dataSource, druidTable);
                   final String description = druidTable.getDataSource().isGlobal() ? "global dataSource" : "dataSource";
                   if (oldTable == null || !oldTable.getRowSignature().equals(druidTable.getRowSignature())) {
                     log.info("%s [%s] has new signature: %s.", description, dataSource, druidTable.getRowSignature());
@@ -370,7 +379,7 @@ public class DruidSchema extends AbstractSchema
       if (server.getType().equals(ServerType.BROKER)) {
         // a segment on a broker means a broadcast datasource, skip metadata because we'll also see this segment on the
         // historical, however mark the datasource for refresh because it needs to be globalized
-        dataSourcesNeedingRebuild.add(segment.getDataSource());
+        markDataSourceAsNeedRebuild(segment.getDataSource());
       } else {
         final ConcurrentSkipListMap<SegmentId, AvailableSegmentMetadata> knownSegments = segmentMetadataInfo
             .computeIfAbsent(segment.getDataSource(), k -> new ConcurrentSkipListMap<>(SEGMENT_ORDER));
@@ -450,7 +459,7 @@ public class DruidSchema extends AbstractSchema
           tables.remove(segment.getDataSource());
           log.info("dataSource[%s] no longer exists, all metadata removed.", segment.getDataSource());
         } else {
-          dataSourcesNeedingRebuild.add(segment.getDataSource());
+          markDataSourceAsNeedRebuild(segment.getDataSource());
         }
       }
 
@@ -473,7 +482,7 @@ public class DruidSchema extends AbstractSchema
         if (knownSegments != null && !knownSegments.isEmpty()) {
           // a segment on a broker means a broadcast datasource, skip metadata because we'll also see this segment on the
           // historical, however mark the datasource for refresh because it might no longer be broadcast or something
-          dataSourcesNeedingRebuild.add(segment.getDataSource());
+          markDataSourceAsNeedRebuild(segment.getDataSource());
         }
       } else {
         final AvailableSegmentMetadata segmentMetadata = knownSegments.get(segment.getId());
@@ -499,6 +508,14 @@ public class DruidSchema extends AbstractSchema
         }
       }
       lock.notifyAll();
+    }
+  }
+
+  @VisibleForTesting
+  void markDataSourceAsNeedRebuild(String datasource)
+  {
+    synchronized (lock) {
+      dataSourcesNeedingRebuild.add(datasource);
     }
   }
 
