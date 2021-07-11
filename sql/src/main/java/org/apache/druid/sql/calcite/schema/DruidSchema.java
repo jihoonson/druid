@@ -372,6 +372,7 @@ public class DruidSchema extends AbstractSchema
         // historical, however mark the datasource for refresh because it needs to be globalized
         markDataSourceAsNeedRebuild(segment.getDataSource());
       } else {
+        // TODO: should compute on segmentMetadataInfo?
         final ConcurrentSkipListMap<SegmentId, AvailableSegmentMetadata> knownSegments = segmentMetadataInfo
             .computeIfAbsent(segment.getDataSource(), k -> new ConcurrentSkipListMap<>(SEGMENT_ORDER));
 
@@ -434,22 +435,27 @@ public class DruidSchema extends AbstractSchema
       segmentsNeedingRefresh.remove(segment.getId());
       mutableSegments.remove(segment.getId());
 
-      final ConcurrentSkipListMap<SegmentId, AvailableSegmentMetadata> dataSourceSegments =
-          segmentMetadataInfo.get(segment.getDataSource());
-      // TODO: compute() instead of remove() and do something
-      if (dataSourceSegments == null || dataSourceSegments.remove(segment.getId()) == null) {
-        log.warn("Unknown segment[%s] was removed from the cluster. Ignoring this event.", segment.getId());
-      } else {
-        totalSegments--;
-
-        if (dataSourceSegments.isEmpty()) {
-          segmentMetadataInfo.remove(segment.getDataSource());
-          tables.remove(segment.getDataSource());
-          log.info("dataSource[%s] no longer exists, all metadata removed.", segment.getDataSource());
-        } else {
-          markDataSourceAsNeedRebuild(segment.getDataSource());
-        }
-      }
+      segmentMetadataInfo.compute(
+          segment.getDataSource(),
+          (dataSource, segmentsMap) -> {
+            if (segmentsMap == null) {
+              log.warn("Unknown segment[%s] was removed from the cluster. Ignoring this event.", segment.getId());
+              return null;
+            } else {
+              if (segmentsMap.remove(segment.getId()) == null) {
+                log.warn("Unknown segment[%s] was removed from the cluster. Ignoring this event.", segment.getId());
+              }
+              if (segmentsMap.isEmpty()) {
+                tables.remove(segment.getDataSource());
+                log.info("dataSource[%s] no longer exists, all metadata removed.", segment.getDataSource());
+                return null;
+              } else {
+                markDataSourceAsNeedRebuild(segment.getDataSource());
+                return segmentsMap;
+              }
+            }
+          }
+      );
 
       lock.notifyAll();
     }
