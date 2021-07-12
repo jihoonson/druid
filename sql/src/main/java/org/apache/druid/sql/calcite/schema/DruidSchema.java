@@ -114,8 +114,13 @@ public class DruidSchema extends AbstractSchema
   /**
    * DataSource -> Segment -> AvailableSegmentMetadata(contains RowSignature) for that segment.
    * Use SortedMap for segments so they are merged in deterministic order, from older to newer.
-   * This map is updated by the {@link #callbackExec} thread and read by query threads
-   * when the query reads the segment table in the system schema.
+   *
+   * This map is updated by these two threads.
+   * - {@link #callbackExec} can update it in {@link #addSegment}, {@link #removeServerSegment}, and {@link #removeSegment}.
+   * - {@link #cacheExec} can update it in {@link #refreshSegmentsForDataSource}.
+   *
+   * While this map is being updated, query threads can read this map if the query reads the segment table
+   * in the system schema.
    */
   private final ConcurrentHashMap<String, ConcurrentSkipListMap<SegmentId, AvailableSegmentMetadata>> segmentMetadataInfo
       = new ConcurrentHashMap<>();
